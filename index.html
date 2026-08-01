@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Game App</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════════════════
+       SCREEN: MENU
+  ══════════════════════════════════════════════════════ -->
+  <div id="screen-menu" class="screen active">
+    <div class="menu-container">
+      <div class="app-logo">🎮</div>
+      <h1 class="app-title" data-i18n="appTitle">Game App</h1>
+
+      <!-- Play / Study mode toggle -->
+      <div class="mode-toggle" id="mode-toggle" role="tablist">
+        <button class="mode-toggle-btn active" data-mode="play"  data-i18n="modePlay">Spelen</button>
+        <button class="mode-toggle-btn"        data-mode="study" data-i18n="modeStudy">Leren</button>
+      </div>
+
+      <div class="game-grid">
+
+        <button class="game-card" id="btn-flags" data-study>
+          <span class="game-icon">🏳️</span>
+          <span class="game-name" data-i18n="flagGame">Vlaggen Quiz</span>
+        </button>
+
+        <button class="game-card" id="btn-logos">
+          <span class="game-icon">🏢</span>
+          <span class="game-name" data-i18n="logoGame">Logo Quiz</span>
+        </button>
+
+        <button class="game-card" id="btn-real-or-fake">
+          <span class="game-icon">🤖</span>
+          <span class="game-name" data-i18n="realOrFakeGame">Echt of Nep?</span>
+        </button>
+
+        <button class="game-card" id="btn-capitals" data-study>
+          <span class="game-icon">🏛️</span>
+          <span class="game-name" data-i18n="capitalsGame">Hoofdsteden Quiz</span>
+        </button>
+
+        <button class="game-card" id="btn-football" data-study>
+          <span class="game-icon">⚽</span>
+          <span class="game-name" data-i18n="footballGame">Voetballogo's</span>
+        </button>
+
+        <button class="game-card" id="btn-logo-real-or-fake">
+          <span class="game-icon">🎭</span>
+          <span class="game-name" data-i18n="logoRealOrFakeGame">Logo: Echt of Nep?</span>
+        </button>
+
+        <button class="game-card" id="btn-higher-lower">
+          <span class="game-icon">⚖️</span>
+          <span class="game-name" data-i18n="higherLowerGame">Hoger of Lager</span>
+        </button>
+
+        <button class="game-card" id="btn-odd-one-out">
+          <span class="game-icon">🧩</span>
+          <span class="game-name" data-i18n="oddOneOutGame">Buitenbeentje</span>
+        </button>
+
+        <button class="game-card" id="btn-geo-records">
+          <span class="game-icon">🏔️</span>
+          <span class="game-name" data-i18n="geoRecordsGame">Records</span>
+        </button>
+
+        <button class="game-card" id="btn-geo">
+          <span class="game-icon">🗺️</span>
+          <span class="game-name" data-i18n="geoGame">Geo Quiz</span>
+        </button>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       SCREEN: SETTINGS
+  ══════════════════════════════════════════════════════ -->
+  <div id="screen-settings" class="screen">
+    <div class="settings-scroll">
+      <div class="settings-container">
+
+        <div class="settings-header">
+          <button class="btn-icon" id="btn-back-menu" aria-label="←">←</button>
+          <h2 class="screen-title" id="settings-title" data-i18n="flagGame">Vlaggen Quiz</h2>
+        </div>
+
+        <!-- Language -->
+        <div class="card setting-group">
+          <span class="setting-label" data-i18n="settingLanguage">Taal</span>
+          <div class="btn-group" id="lang-selector">
+            <button class="btn-opt active" data-value="nl"><img src="flags/nl.png" class="lang-flag" alt=""> NL</button>
+            <button class="btn-opt" data-value="en"><img src="flags/gb.png" class="lang-flag" alt=""> EN</button>
+            <button class="btn-opt" data-value="es"><img src="flags/es.png" class="lang-flag" alt=""> ES</button>
+          </div>
+        </div>
+
+        <!-- Difficulty -->
+        <div class="card setting-group" id="difficulty-group">
+          <span class="setting-label" data-i18n="settingDifficulty">Moeilijkheidsgraad</span>
+          <div class="btn-group difficulty-grid" id="difficulty-selector">
+            <button class="btn-opt active" data-value="easy"    data-i18n="easy">Gemakkelijk</button>
+            <button class="btn-opt"        data-value="medium"  data-i18n="medium">Normaal</button>
+            <button class="btn-opt"        data-value="hard"    data-i18n="hard">Moeilijk</button>
+            <button class="btn-opt btn-extreme" data-value="extreme" data-i18n="extreme">Extreem</button>
+          </div>
+        </div>
+
+        <!-- Mode -->
+        <div class="card setting-group">
+          <span class="setting-label" data-i18n="settingMode">Modus</span>
+          <div class="btn-group" id="mode-selector">
+            <button class="btn-opt active" data-value="solo" data-i18n="solo">1 Speler</button>
+            <button class="btn-opt"        data-value="team" data-i18n="team">Team vs Team</button>
+          </div>
+        </div>
+
+        <!-- Input mode (hidden for real-or-fake) -->
+        <div class="card setting-group" id="input-mode-group">
+          <span class="setting-label" data-i18n="settingInputMode">Invoermethode</span>
+          <div class="btn-group" id="input-mode-selector">
+            <button class="btn-opt active" data-value="type"      data-i18n="inputModeType">Typen</button>
+            <button class="btn-opt"        data-value="choice"    data-i18n="inputModeChoice">Meerkeuze</button>
+            <button class="btn-opt"        data-value="flashcard" data-i18n="inputModeFlashcard">Typloos</button>
+          </div>
+        </div>
+
+        <!-- Choice count (only in choice mode) -->
+        <div class="card setting-group" id="choice-count-group" style="display:none">
+          <span class="setting-label" data-i18n="settingChoices">Aantal keuzes</span>
+          <div class="btn-group" id="choice-count-selector">
+            <button class="btn-opt"        data-value="2">2</button>
+            <button class="btn-opt"        data-value="3">3</button>
+            <button class="btn-opt active" data-value="4">4</button>
+          </div>
+        </div>
+
+        <!-- Metric (only for higher-lower) -->
+        <div class="card setting-group" id="metric-group" style="display:none">
+          <span class="setting-label" data-i18n="settingMetric">Vergelijk op</span>
+          <div class="btn-group" id="metric-selector">
+            <button class="btn-opt active" data-value="population" data-i18n="metricPopulation">Inwoners</button>
+            <button class="btn-opt"        data-value="area"       data-i18n="metricArea">Oppervlak</button>
+            <button class="btn-opt"        data-value="gdp"        data-i18n="metricGdp">BBP</button>
+          </div>
+        </div>
+
+        <!-- Category (only for geo-records) -->
+        <div class="card setting-group" id="category-group" style="display:none">
+          <span class="setting-label" data-i18n="settingCategory">Categorie</span>
+          <div class="btn-group wrap-grid" id="category-selector"></div>
+        </div>
+
+        <!-- Visual style (only for odd-one-out) -->
+        <div class="card setting-group" id="odd-visual-group" style="display:none">
+          <span class="setting-label" data-i18n="settingVisual">Weergave</span>
+          <div class="btn-group" id="odd-visual-selector">
+            <button class="btn-opt active" data-value="flags" data-i18n="visualFlags">Vlaggen</button>
+            <button class="btn-opt"        data-value="geo"   data-i18n="visualGeo">Silhouetten</button>
+          </div>
+        </div>
+
+        <!-- Themes (only for logos, multi-select) -->
+        <div class="card setting-group" id="theme-group" style="display:none">
+          <span class="setting-label" data-i18n="settingTheme">Thema's</span>
+          <div class="btn-group wrap-grid" id="theme-selector"></div>
+        </div>
+
+        <!-- Team names (shown in team mode) -->
+        <div class="card setting-group" id="team-names-group" style="display:none">
+          <span class="setting-label" data-i18n="settingTeams">Teamnamen</span>
+          <div class="team-inputs">
+            <div class="team-input-wrap">
+              <label data-i18n="teamALabel">Team A</label>
+              <input type="text" id="team-a-input" placeholder="Team A" maxlength="20" autocomplete="off">
+            </div>
+            <div class="team-input-wrap">
+              <label data-i18n="teamBLabel">Team B</label>
+              <input type="text" id="team-b-input" placeholder="Team B" maxlength="20" autocomplete="off">
+            </div>
+          </div>
+        </div>
+
+        <!-- Speed: combined toggles -->
+        <div class="card setting-group">
+          <span class="setting-label" data-i18n="settingSpeed">Snelheid</span>
+          <div class="toggle-row" id="reveal-row">
+            <span class="toggle-row-label" data-i18n="settingReveal">Naam tonen</span>
+            <label class="ios-toggle">
+              <input type="checkbox" id="reveal-toggle" checked>
+              <span class="ios-track"></span>
+            </label>
+            <span class="toggle-state" id="reveal-state">Auto</span>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-row-label" id="setting-next-label" data-i18n="settingNext">Volgende vlag</span>
+            <label class="ios-toggle">
+              <input type="checkbox" id="next-toggle" checked>
+              <span class="ios-track"></span>
+            </label>
+            <span class="toggle-state" id="next-state">Auto</span>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-row-label" data-i18n="settingComments">Opmerkingen</span>
+            <label class="ios-toggle">
+              <input type="checkbox" id="comments-toggle">
+              <span class="ios-track"></span>
+            </label>
+            <span class="toggle-state" id="comments-state">Uit</span>
+          </div>
+        </div>
+
+        <!-- Flag count slider -->
+        <div class="card setting-group">
+          <span class="setting-label">
+            <span id="setting-count-label" data-i18n="settingCount">Aantal vlaggen</span>:
+            <span class="count-badge" id="count-display">10</span>
+          </span>
+          <div class="slider-row">
+            <span class="slider-min">5</span>
+            <input type="range" id="count-slider" min="5" max="25" value="10" step="1">
+            <span class="slider-max">25</span>
+          </div>
+        </div>
+
+        <!-- Max rotation (GEO only) -->
+        <div class="card setting-group" id="rotation-group" style="display:none">
+          <span class="setting-label">
+            <span data-i18n="settingRotation">Max. rotatie</span>:
+            <span class="count-badge" id="rotation-display">0°</span>
+          </span>
+          <div class="slider-row">
+            <span class="slider-min">0°</span>
+            <input type="range" id="rotation-slider" min="0" max="180" value="0" step="10">
+            <span class="slider-max">180°</span>
+          </div>
+        </div>
+
+        <button class="btn-start" id="btn-start" data-i18n="start">Starten</button>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       SCREEN: GAME
+  ══════════════════════════════════════════════════════ -->
+  <div id="screen-game" class="screen">
+    <div class="game-container">
+
+      <!-- Header row -->
+      <div class="game-header">
+        <button class="btn-game-icon" id="btn-exit-game" aria-label="Sluiten" title="Sluiten">✕</button>
+        <div class="progress-text">
+          <span id="round-current">1</span>/<span id="round-total">10</span>
+        </div>
+        <div id="score-chips" class="score-chips"></div>
+        <button class="btn-game-icon" id="btn-hamburger" aria-label="Menu" title="Menu">☰</button>
+
+        <!-- Quick settings dropdown -->
+        <div class="quick-menu" id="quick-menu" hidden>
+          <div class="quick-menu-head" data-i18n="quickSettings">Snel instellen</div>
+
+          <div class="quick-menu-section">
+            <span class="quick-menu-label" data-i18n="settingLanguage">Taal</span>
+            <div class="btn-group" id="qm-lang-selector">
+              <button class="btn-opt" data-value="nl"><img src="flags/nl.png" class="lang-flag" alt=""> NL</button>
+              <button class="btn-opt" data-value="en"><img src="flags/gb.png" class="lang-flag" alt=""> EN</button>
+              <button class="btn-opt" data-value="es"><img src="flags/es.png" class="lang-flag" alt=""> ES</button>
+            </div>
+          </div>
+
+          <div class="quick-menu-section" id="qm-reveal-section">
+            <div class="toggle-row">
+              <span class="toggle-row-label" data-i18n="settingReveal">Naam tonen</span>
+              <label class="ios-toggle">
+                <input type="checkbox" id="qm-reveal-toggle">
+                <span class="ios-track"></span>
+              </label>
+              <span class="toggle-state" id="qm-reveal-state">Hand</span>
+            </div>
+          </div>
+
+          <div class="quick-menu-section">
+            <div class="toggle-row">
+              <span class="toggle-row-label" id="qm-next-label" data-i18n="settingNext">Volgende vlag</span>
+              <label class="ios-toggle">
+                <input type="checkbox" id="qm-next-toggle">
+                <span class="ios-track"></span>
+              </label>
+              <span class="toggle-state" id="qm-next-state">Hand</span>
+            </div>
+          </div>
+
+          <div class="quick-menu-actions">
+            <button class="btn-quick" id="btn-qm-restart">🔄 <span data-i18n="restart">Opnieuw</span></button>
+            <button class="btn-quick" id="btn-qm-settings">⚙️ <span data-i18n="toSettings">Instellingen</span></button>
+            <button class="btn-quick btn-quick-danger" id="btn-qm-quit">🚪 <span data-i18n="quitToMenu">Hoofdmenu</span></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Backdrop for quick menu -->
+      <div class="quick-menu-backdrop" id="quick-menu-backdrop" hidden></div>
+
+      <!-- Team turn banner -->
+      <div class="team-banner" id="team-banner" style="display:none">
+        <span id="team-banner-name"></span>
+        <span data-i18n="turnIs"> is aan de beurt</span>
+      </div>
+
+      <!-- Timer bar -->
+      <div class="timer-track">
+        <div class="timer-fill" id="timer-fill"></div>
+      </div>
+
+      <!-- Flag (quiz / flashcard / real-or-fake modes) -->
+      <div class="flag-wrap" id="flag-wrap">
+        <img id="flag-img" src="" alt="vlag" class="flag-img">
+        <canvas id="fake-flag-canvas" class="flag-img" style="display:none"></canvas>
+      </div>
+
+      <!-- Contour hint (flags only, when a silhouette is available) -->
+      <div class="hint-box" id="hint-box" style="display:none">
+        <svg id="hint-svg" viewBox="0 0 100 100" class="hint-svg" role="img" aria-label="Contour"></svg>
+      </div>
+
+      <!-- GEO quiz: country silhouette -->
+      <div id="geo-area" class="geo-area" style="display:none">
+        <svg id="geo-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" class="geo-svg"></svg>
+      </div>
+
+      <!-- Choice mode: show name → pick correct flag/logo -->
+      <div id="choice-area" style="display:none">
+        <div class="choice-name" id="choice-name"></div>
+        <div class="choice-grid" id="choice-grid"></div>
+      </div>
+
+      <!-- Higher / Lower: which country has more? -->
+      <div id="hl-area" style="display:none">
+        <div class="hl-question" id="hl-question"></div>
+        <div class="hl-cards">
+          <button class="hl-card" id="hl-card-0" data-hl-side="0">
+            <img class="hl-flag" id="hl-flag-0" src="" alt="">
+            <span class="hl-emoji" id="hl-emoji-0" style="display:none"></span>
+            <span class="hl-name" id="hl-name-0"></span>
+            <span class="hl-value" id="hl-value-0"></span>
+          </button>
+          <div class="hl-vs">VS</div>
+          <button class="hl-card" id="hl-card-1" data-hl-side="1">
+            <img class="hl-flag" id="hl-flag-1" src="" alt="">
+            <span class="hl-emoji" id="hl-emoji-1" style="display:none"></span>
+            <span class="hl-name" id="hl-name-1"></span>
+            <span class="hl-value" id="hl-value-1"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Odd one out: tap the flag that doesn't belong -->
+      <div id="oo-area" style="display:none">
+        <div class="choice-name" id="oo-question"></div>
+        <div class="choice-grid cols-4" id="oo-grid"></div>
+      </div>
+
+      <!-- Answer area -->
+      <div class="answer-area">
+
+        <!-- Real-or-fake choice buttons (hidden in quiz mode) -->
+        <div class="real-or-fake-area" id="real-or-fake-area" style="display:none">
+          <button class="btn-choice btn-choice-real" id="btn-real">
+            <span class="choice-icon">🌍</span>
+            <span class="choice-label" data-i18n="btnReal">Echte vlag</span>
+          </button>
+          <button class="btn-choice btn-choice-fake" id="btn-fake">
+            <span class="choice-icon">🤖</span>
+            <span class="choice-label" data-i18n="btnFake">AI vlag</span>
+          </button>
+        </div>
+
+        <div class="input-row" id="input-row">
+          <input
+            type="text"
+            id="guess-input"
+            data-i18n-placeholder="guessPlaceholder"
+            placeholder="Wat is dit land?"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+          >
+          <button class="btn-submit" id="btn-submit" aria-label="Bevestig">↵</button>
+        </div>
+
+        <!-- Contour hint button (flags only) -->
+        <button class="btn-action btn-hint" id="btn-hint" style="display:none">💡 <span data-i18n="showHint">Toon contour</span></button>
+
+        <!-- Round comment (enthusiastic reaction, hidden by default) -->
+        <div class="round-comment" id="round-comment" style="display:none"></div>
+
+        <!-- Reveal box (hidden until answer shown) -->
+        <div class="reveal-box" id="reveal-box" style="display:none">
+          <span class="reveal-icon" id="reveal-icon"></span>
+          <span class="reveal-name" id="reveal-name"></span>
+        </div>
+
+        <!-- Manual buttons -->
+        <button class="btn-action" id="btn-show-name" style="display:none" data-i18n="showName">Toon naam</button>
+        <button class="btn-action btn-right" id="btn-right" style="display:none" data-i18n="btnRight">✅ Goed!</button>
+        <button class="btn-action btn-wrong" id="btn-wrong" style="display:none" data-i18n="btnWrong">❌ Fout!</button>
+        <button class="btn-action btn-next-flag" id="btn-next" style="display:none" data-i18n="nextFlag2">Volgende →</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       SCREEN: RESULTS
+  ══════════════════════════════════════════════════════ -->
+  <div id="screen-results" class="screen">
+    <div class="results-container">
+      <div class="results-trophy" id="results-trophy">🏆</div>
+      <h2 class="results-title" data-i18n="resultsTitle">Resultaten</h2>
+      <div id="results-rows" class="results-rows"></div>
+      <div id="results-winner-text" class="results-winner"></div>
+      <div id="results-best" class="results-best" style="display:none"></div>
+      <div class="results-actions">
+        <button class="btn-secondary" id="btn-play-again" data-i18n="playAgain">Opnieuw spelen</button>
+        <button class="btn-primary"   id="btn-to-menu"    data-i18n="toMenu">Terug naar menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       SCREEN: STUDY (browse a topic)
+  ══════════════════════════════════════════════════════ -->
+  <div id="screen-study" class="screen">
+    <div class="study-scroll">
+      <div class="study-container">
+
+        <div class="settings-header">
+          <button class="btn-icon" id="btn-study-back" aria-label="←">←</button>
+          <h2 class="screen-title" id="study-title" data-i18n="flagGame">Leren</h2>
+        </div>
+
+        <div class="card setting-group study-filters">
+          <div class="btn-group difficulty-grid" id="study-diff-selector">
+            <button class="btn-opt active"     data-value="all"     data-i18n="studyAll">Alle</button>
+            <button class="btn-opt"            data-value="easy"    data-i18n="easy">Gemakkelijk</button>
+            <button class="btn-opt"            data-value="medium"  data-i18n="medium">Normaal</button>
+            <button class="btn-opt"            data-value="hard"    data-i18n="hard">Moeilijk</button>
+            <button class="btn-opt btn-extreme" data-value="extreme" data-i18n="extreme">Extreem</button>
+          </div>
+          <div class="btn-group study-continents" id="study-continent-selector"></div>
+          <input type="search" id="study-search" class="study-search"
+                 data-i18n-placeholder="studySearch" placeholder="Zoeken…"
+                 autocomplete="off" autocorrect="off" spellcheck="false">
+        </div>
+
+        <button class="btn-start" id="btn-study-flashcards">🎴 <span data-i18n="studyFlashcards">Flashcards starten</span></button>
+        <div class="study-count" id="study-count"></div>
+        <div class="study-grid" id="study-grid"></div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       SCREEN: STUDY CARD (detail + flashcard viewer)
+  ══════════════════════════════════════════════════════ -->
+  <div id="screen-study-card" class="screen">
+    <div class="studycard-shell">
+
+      <div class="studycard-topbar">
+        <button class="btn-game-icon" id="btn-studycard-close" aria-label="Sluiten" title="Sluiten">✕</button>
+        <div class="studycard-progress" id="studycard-progress"></div>
+        <span class="studycard-mode" id="studycard-mode"></span>
+      </div>
+
+      <div class="studycard-body" id="studycard-body">
+        <div class="studycard-media">
+          <img id="studycard-img" class="studycard-img" src="" alt="">
+        </div>
+        <div class="studycard-hidden" id="studycard-hidden" data-i18n="studyTapReveal">Tik om te tonen</div>
+        <div class="studycard-info" id="studycard-info"></div>
+      </div>
+
+      <div class="studycard-nav">
+        <button class="btn-action" id="btn-studycard-prev">← <span data-i18n="studyPrev">Vorige</span></button>
+        <button class="btn-action" id="btn-studycard-next"><span data-i18n="studyNext">Volgende</span> →</button>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="data/countries.js"></script>
+  <script src="data/geo-countries.js"></script>
+  <script src="data/country-facts.js"></script>
+  <script src="data/flag-info.js"></script>
+  <script src="data/logos.js"></script>
+  <script src="data/logo-themes.js"></script>
+  <script src="data/football.js"></script>
+  <script src="data/geo-records.js"></script>
+  <script src="data/shapes.js"></script>
+  <script src="app.js"></script>
+  <script src="hint.js"></script>
+</body>
+</html>

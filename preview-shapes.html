@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landcontouren — preview</title>
+<style>
+  body { background:#0d0d1a; color:#f1f5f9; font-family:system-ui,'Segoe UI',sans-serif; margin:0; padding:16px; }
+  h1 { font-size:1.1rem; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:10px; margin-top:12px; }
+  .cell { background:#16162a; border:1px solid #2a2a4a; border-radius:10px; padding:8px; text-align:center; }
+  svg { width:88px; height:88px; }
+  svg path { fill:#a855f7; fill-opacity:.9; stroke:#fff; stroke-width:.8; stroke-linejoin:round; paint-order:stroke; }
+  .name { font-size:.72rem; margin-top:4px; color:#cbd5e1; }
+  .miss { margin-top:20px; font-size:.8rem; color:#8b92b0; line-height:1.5; }
+</style>
+</head>
+<body>
+  <h1>Landcontouren — <span id="count"></span></h1>
+  <div class="grid" id="grid"></div>
+  <div class="miss" id="miss"></div>
+
+  <script src="data/countries.js"></script>
+  <script src="data/shapes.js"></script>
+  <script>
+    const grid = document.getElementById('grid');
+    const have = COUNTRIES.filter(c => COUNTRY_SHAPES[c.iso2]);
+    document.getElementById('count').textContent = have.length + ' / ' + COUNTRIES.length + ' landen';
+    have.sort((a, b) => a.name_nl.localeCompare(b.name_nl));
+    for (const c of have) {
+      const d = document.createElement('div');
+      d.className = 'cell';
+      d.innerHTML = '<svg viewBox="0 0 100 100">' + COUNTRY_SHAPES[c.iso2] + '</svg><div class="name">' + c.name_nl + '</div>';
+      grid.appendChild(d);
+    }
+    const miss = COUNTRIES.filter(c => !COUNTRY_SHAPES[c.iso2]).map(c => c.name_nl).sort();
+    document.getElementById('miss').textContent = 'Geen contour (' + miss.length + '): ' + miss.join(', ');
+  </script>
+</body>
+</html>

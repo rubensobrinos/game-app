@@ -1,0 +1,27 @@
+# BEGIN DEVKIT MANAGED
+# Voeg lokale wijzigingen BUITEN deze markers toe — devkit update overschrijft alleen dit blok.
+# Node
+node_modules/
+.npm/
+
+# Build output
+dist/
+build/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+
+# Local
+.env
+*.local
+*.bak
+
+# Testing
+coverage/
+# END DEVKIT MANAGED
+
+# Keep README files even in ignored directories
+!build/README.md

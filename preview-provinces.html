@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="nl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Provincie-kaart preview</title>
+<style>
+  body{background:#0d0d1a;color:#f1f5f9;font-family:system-ui,'Segoe UI',sans-serif;margin:0;padding:16px}
+  h1{font-size:1.1rem}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-top:12px}
+  .cell{background:#16162a;border:1px solid #2a2a4a;border-radius:12px;padding:10px;text-align:center}
+  svg{width:100%;height:170px}
+  .prov-base{fill:#3a3d5c;stroke:#565a80;stroke-width:.4}
+  .prov-hi{fill:#a855f7;fill-opacity:.97;stroke:#fff;stroke-width:.7;stroke-linejoin:round;paint-order:stroke}
+  .cn{font-size:.72rem;color:#8b92b0;margin-top:6px;text-transform:uppercase;letter-spacing:.05em}
+  .nm{font-size:.95rem;font-weight:800;color:#a855f7}
+  button{margin-top:8px;background:#1e1e38;border:1px solid #2a2a4a;color:#cbd5e1;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:.75rem}
+</style></head><body>
+<h1>Provincie-kaart — voorbeeld (kaart + 1 opgelicht)</h1>
+<div class="grid" id="grid"></div>
+<script src="data/provinces.js"></script>
+<script>
+  var show = ['us','ca','br','mx','de','fr','es','gb','it','ar','co','nl'];
+  var grid = document.getElementById('grid');
+  function cellFor(iso){
+    var c = PROVINCES[iso]; if(!c) return null;
+    var ui = Math.floor(Math.random()*c.units.length);
+    var base='',hi='';
+    c.units.forEach(function(u,i){ var p='<path d="'+u.d+'" class="'+(i===ui?'prov-hi':'prov-base')+'"/>'; if(i===ui) hi=p; else base+=p; });
+    var d=document.createElement('div'); d.className='cell';
+    d.innerHTML='<svg viewBox="0 0 100 100">'+base+hi+'</svg><div class="nm">'+c.units[ui].n+'</div><div class="cn">'+c.name+'</div>';
+    var b=document.createElement('button'); b.textContent='↻ ander gebied';
+    b.onclick=function(){ var n=cellFor(iso); d.replaceWith(n); };
+    d.appendChild(b);
+    return d;
+  }
+  show.forEach(function(iso){ var c=cellFor(iso); if(c) grid.appendChild(c); });
+</script>
+</body></html>

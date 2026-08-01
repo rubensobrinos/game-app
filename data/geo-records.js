@@ -1,0 +1,205 @@
+// Geografische superlatieven voor een 'hoger of lager'-spel.
+// Browser-global (geen import/export). Items per categorie zijn gesorteerd van
+// groot naar klein zodat de onderlinge volgorde altijd klopt.
+const GEO_RECORDS = {
+  // ══════════════════════════════════════════════════════════
+  // BERGEN — hoogte in meters boven zeeniveau
+  // ══════════════════════════════════════════════════════════
+  mountains: {
+    emoji: '⛰️',
+    unit: 'm',
+    label_nl: 'Bergen', label_en: 'Mountains', label_es: 'Montañas',
+    q_nl: 'Welke berg is hoger?',
+    q_en: 'Which mountain is higher?',
+    q_es: '¿Qué montaña es más alta?',
+    items: [
+      { name_nl: 'Mount Everest', name_en: 'Mount Everest', name_es: 'Monte Everest', value: 8849 },
+      { name_nl: 'K2', name_en: 'K2', name_es: 'K2', value: 8611 },
+      { name_nl: 'Kangchenjunga', name_en: 'Kangchenjunga', name_es: 'Kangchenjunga', value: 8586 },
+      { name_nl: 'Lhotse', name_en: 'Lhotse', name_es: 'Lhotse', value: 8516 },
+      { name_nl: 'Makalu', name_en: 'Makalu', name_es: 'Makalu', value: 8485 },
+      { name_nl: 'Nanga Parbat', name_en: 'Nanga Parbat', name_es: 'Nanga Parbat', value: 8126 },
+      { name_nl: 'Annapurna', name_en: 'Annapurna', name_es: 'Annapurna', value: 8091 },
+      { name_nl: 'Aconcagua', name_en: 'Aconcagua', name_es: 'Aconcagua', value: 6961 },
+      { name_nl: 'Denali', name_en: 'Denali', name_es: 'Denali', value: 6190 },
+      { name_nl: 'Kilimanjaro', name_en: 'Kilimanjaro', name_es: 'Kilimanjaro', value: 5895 },
+      { name_nl: 'Elbroes', name_en: 'Mount Elbrus', name_es: 'Elbrús', value: 5642 },
+      { name_nl: 'Mont Blanc', name_en: 'Mont Blanc', name_es: 'Mont Blanc', value: 4809 },
+      { name_nl: 'Matterhorn', name_en: 'Matterhorn', name_es: 'Cervino', value: 4478 },
+      { name_nl: 'Mount Whitney', name_en: 'Mount Whitney', name_es: 'Monte Whitney', value: 4421 },
+      { name_nl: 'Fuji', name_en: 'Mount Fuji', name_es: 'Monte Fuji', value: 3776 },
+      { name_nl: 'Mulhacén', name_en: 'Mulhacén', name_es: 'Mulhacén', value: 3479 },
+      { name_nl: 'Etna', name_en: 'Mount Etna', name_es: 'Etna', value: 3357 },
+      { name_nl: 'Olympus', name_en: 'Mount Olympus', name_es: 'Monte Olimpo', value: 2917 },
+      { name_nl: 'Ben Nevis', name_en: 'Ben Nevis', name_es: 'Ben Nevis', value: 1345 },
+      { name_nl: 'Vesuvius', name_en: 'Mount Vesuvius', name_es: 'Vesubio', value: 1281 },
+      { name_nl: 'Snowdon', name_en: 'Snowdon', name_es: 'Snowdon', value: 1085 },
+    ],
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // MEREN — oppervlak in km²
+  // ══════════════════════════════════════════════════════════
+  lakes: {
+    emoji: '🏞️',
+    unit: 'km²',
+    label_nl: 'Meren', label_en: 'Lakes', label_es: 'Lagos',
+    q_nl: 'Welk meer is groter?',
+    q_en: 'Which lake is larger?',
+    q_es: '¿Qué lago es más grande?',
+    items: [
+      { name_nl: 'Kaspische Zee', name_en: 'Caspian Sea', name_es: 'Mar Caspio', value: 371000 },
+      { name_nl: 'Bovenmeer', name_en: 'Lake Superior', name_es: 'Lago Superior', value: 82100 },
+      { name_nl: 'Victoriameer', name_en: 'Lake Victoria', name_es: 'Lago Victoria', value: 68870 },
+      { name_nl: 'Huronmeer', name_en: 'Lake Huron', name_es: 'Lago Hurón', value: 59600 },
+      { name_nl: 'Michiganmeer', name_en: 'Lake Michigan', name_es: 'Lago Míchigan', value: 58000 },
+      { name_nl: 'Tanganyikameer', name_en: 'Lake Tanganyika', name_es: 'Lago Tanganica', value: 32900 },
+      { name_nl: 'Baikalmeer', name_en: 'Lake Baikal', name_es: 'Lago Baikal', value: 31500 },
+      { name_nl: 'Grote Berenmeer', name_en: 'Great Bear Lake', name_es: 'Gran Lago del Oso', value: 31000 },
+      { name_nl: 'Malawimeer', name_en: 'Lake Malawi', name_es: 'Lago Malaui', value: 29500 },
+      { name_nl: 'Grote Slavenmeer', name_en: 'Great Slave Lake', name_es: 'Gran Lago del Esclavo', value: 27200 },
+      { name_nl: 'Eriemeer', name_en: 'Lake Erie', name_es: 'Lago Erie', value: 25700 },
+      { name_nl: 'Winnipegmeer', name_en: 'Lake Winnipeg', name_es: 'Lago Winnipeg', value: 24500 },
+      { name_nl: 'Ontariomeer', name_en: 'Lake Ontario', name_es: 'Lago Ontario', value: 18960 },
+      { name_nl: 'Ladogameer', name_en: 'Lake Ladoga', name_es: 'Lago Ládoga', value: 17700 },
+      { name_nl: 'Titicacameer', name_en: 'Lake Titicaca', name_es: 'Lago Titicaca', value: 8372 },
+      { name_nl: 'Vänern', name_en: 'Lake Vänern', name_es: 'Lago Vänern', value: 5650 },
+      { name_nl: 'Genèvemeer', name_en: 'Lake Geneva', name_es: 'Lago de Ginebra', value: 580 },
+      { name_nl: 'Bodenmeer', name_en: 'Lake Constance', name_es: 'Lago de Constanza', value: 536 },
+      { name_nl: 'Gardameer', name_en: 'Lake Garda', name_es: 'Lago de Garda', value: 370 },
+      { name_nl: 'Loch Ness', name_en: 'Loch Ness', name_es: 'Lago Ness', value: 56 },
+    ],
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // EILANDEN — oppervlak in km² (geen continenten)
+  // ══════════════════════════════════════════════════════════
+  islands: {
+    emoji: '🏝️',
+    unit: 'km²',
+    label_nl: 'Eilanden', label_en: 'Islands', label_es: 'Islas',
+    q_nl: 'Welk eiland is groter?',
+    q_en: 'Which island is larger?',
+    q_es: '¿Qué isla es más grande?',
+    items: [
+      { name_nl: 'Groenland', name_en: 'Greenland', name_es: 'Groenlandia', value: 2166000 },
+      { name_nl: 'Nieuw-Guinea', name_en: 'New Guinea', name_es: 'Nueva Guinea', value: 785753 },
+      { name_nl: 'Borneo', name_en: 'Borneo', name_es: 'Borneo', value: 748168 },
+      { name_nl: 'Madagaskar', name_en: 'Madagascar', name_es: 'Madagascar', value: 587041 },
+      { name_nl: 'Baffineiland', name_en: 'Baffin Island', name_es: 'Isla de Baffin', value: 507451 },
+      { name_nl: 'Sumatra', name_en: 'Sumatra', name_es: 'Sumatra', value: 473481 },
+      { name_nl: 'Honshu', name_en: 'Honshu', name_es: 'Honshu', value: 225800 },
+      { name_nl: 'Victoria-eiland', name_en: 'Victoria Island', name_es: 'Isla Victoria', value: 217291 },
+      { name_nl: 'Groot-Brittannië', name_en: 'Great Britain', name_es: 'Gran Bretaña', value: 209331 },
+      { name_nl: 'Ellesmere-eiland', name_en: 'Ellesmere Island', name_es: 'Isla de Ellesmere', value: 196236 },
+      { name_nl: 'Sulawesi', name_en: 'Sulawesi', name_es: 'Célebes', value: 180681 },
+      { name_nl: 'Zuidereiland', name_en: 'South Island', name_es: 'Isla Sur', value: 150437 },
+      { name_nl: 'Java', name_en: 'Java', name_es: 'Java', value: 138794 },
+      { name_nl: 'Noordereiland', name_en: 'North Island', name_es: 'Isla Norte', value: 111583 },
+      { name_nl: 'Cuba', name_en: 'Cuba', name_es: 'Cuba', value: 105806 },
+      { name_nl: 'IJsland', name_en: 'Iceland', name_es: 'Islandia', value: 103000 },
+      { name_nl: 'Ierland', name_en: 'Ireland', name_es: 'Irlanda', value: 84421 },
+      { name_nl: 'Sicilië', name_en: 'Sicily', name_es: 'Sicilia', value: 25711 },
+      { name_nl: 'Sardinië', name_en: 'Sardinia', name_es: 'Cerdeña', value: 24090 },
+      { name_nl: 'Kreta', name_en: 'Crete', name_es: 'Creta', value: 8336 },
+    ],
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // ZEEËN — oppervlak in km² (echte zeeën, geen oceanen)
+  // ══════════════════════════════════════════════════════════
+  seas: {
+    emoji: '🌊',
+    unit: 'km²',
+    label_nl: 'Zeeën', label_en: 'Seas', label_es: 'Mares',
+    q_nl: 'Welke zee is groter?',
+    q_en: 'Which sea is larger?',
+    q_es: '¿Qué mar es más grande?',
+    items: [
+      { name_nl: 'Filipijnenzee', name_en: 'Philippine Sea', name_es: 'Mar de Filipinas', value: 5695000 },
+      { name_nl: 'Koraalzee', name_en: 'Coral Sea', name_es: 'Mar del Coral', value: 4791000 },
+      { name_nl: 'Arabische Zee', name_en: 'Arabian Sea', name_es: 'Mar Arábigo', value: 3862000 },
+      { name_nl: 'Zuid-Chinese Zee', name_en: 'South China Sea', name_es: 'Mar de China Meridional', value: 3500000 },
+      { name_nl: 'Caribische Zee', name_en: 'Caribbean Sea', name_es: 'Mar Caribe', value: 2754000 },
+      { name_nl: 'Middellandse Zee', name_en: 'Mediterranean Sea', name_es: 'Mar Mediterráneo', value: 2500000 },
+      { name_nl: 'Beringzee', name_en: 'Bering Sea', name_es: 'Mar de Bering', value: 2000000 },
+      { name_nl: 'Zee van Ochotsk', name_en: 'Sea of Okhotsk', name_es: 'Mar de Ojotsk', value: 1583000 },
+      { name_nl: 'Golf van Mexico', name_en: 'Gulf of Mexico', name_es: 'Golfo de México', value: 1550000 },
+      { name_nl: 'Oost-Chinese Zee', name_en: 'East China Sea', name_es: 'Mar de China Oriental', value: 1249000 },
+      { name_nl: 'Hudsonbaai', name_en: 'Hudson Bay', name_es: 'Bahía de Hudson', value: 1230000 },
+      { name_nl: 'Japanse Zee', name_en: 'Sea of Japan', name_es: 'Mar del Japón', value: 978000 },
+      { name_nl: 'Andamanse Zee', name_en: 'Andaman Sea', name_es: 'Mar de Andamán', value: 797700 },
+      { name_nl: 'Noordzee', name_en: 'North Sea', name_es: 'Mar del Norte', value: 575000 },
+      { name_nl: 'Rode Zee', name_en: 'Red Sea', name_es: 'Mar Rojo', value: 438000 },
+      { name_nl: 'Zwarte Zee', name_en: 'Black Sea', name_es: 'Mar Negro', value: 436000 },
+      { name_nl: 'Gele Zee', name_en: 'Yellow Sea', name_es: 'Mar Amarillo', value: 380000 },
+      { name_nl: 'Baltische Zee', name_en: 'Baltic Sea', name_es: 'Mar Báltico', value: 377000 },
+      { name_nl: 'Egeïsche Zee', name_en: 'Aegean Sea', name_es: 'Mar Egeo', value: 214000 },
+      { name_nl: 'Adriatische Zee', name_en: 'Adriatic Sea', name_es: 'Mar Adriático', value: 138000 },
+    ],
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // RIVIEREN — lengte in km
+  // ══════════════════════════════════════════════════════════
+  rivers: {
+    emoji: '🏞️',
+    unit: 'km',
+    label_nl: 'Rivieren', label_en: 'Rivers', label_es: 'Ríos',
+    q_nl: 'Welke rivier is langer?',
+    q_en: 'Which river is longer?',
+    q_es: '¿Qué río es más largo?',
+    items: [
+      { name_nl: 'Nijl', name_en: 'Nile', name_es: 'Nilo', value: 6650 },
+      { name_nl: 'Amazone', name_en: 'Amazon', name_es: 'Amazonas', value: 6400 },
+      { name_nl: 'Jangtsekiang', name_en: 'Yangtze', name_es: 'Yangtsé', value: 6300 },
+      { name_nl: 'Mississippi', name_en: 'Mississippi', name_es: 'Misisipi', value: 6275 },
+      { name_nl: 'Jenisej', name_en: 'Yenisei', name_es: 'Yeniséi', value: 5539 },
+      { name_nl: 'Gele Rivier', name_en: 'Yellow River', name_es: 'Río Amarillo', value: 5464 },
+      { name_nl: 'Ob', name_en: 'Ob', name_es: 'Obi', value: 5410 },
+      { name_nl: 'Río de la Plata–Paraná', name_en: 'Paraná', name_es: 'Paraná', value: 4880 },
+      { name_nl: 'Congo', name_en: 'Congo', name_es: 'Congo', value: 4700 },
+      { name_nl: 'Amoer', name_en: 'Amur', name_es: 'Amur', value: 4444 },
+      { name_nl: 'Lena', name_en: 'Lena', name_es: 'Lena', value: 4400 },
+      { name_nl: 'Mekong', name_en: 'Mekong', name_es: 'Mekong', value: 4350 },
+      { name_nl: 'Mackenzie', name_en: 'Mackenzie', name_es: 'Mackenzie', value: 4241 },
+      { name_nl: 'Niger', name_en: 'Niger', name_es: 'Níger', value: 4200 },
+      { name_nl: 'Missouri', name_en: 'Missouri', name_es: 'Misuri', value: 4090 },
+      { name_nl: 'Wolga', name_en: 'Volga', name_es: 'Volga', value: 3530 },
+      { name_nl: 'Indus', name_en: 'Indus', name_es: 'Indo', value: 3180 },
+      { name_nl: 'Donau', name_en: 'Danube', name_es: 'Danubio', value: 2850 },
+      { name_nl: 'Ganges', name_en: 'Ganges', name_es: 'Ganges', value: 2525 },
+      { name_nl: 'Rijn', name_en: 'Rhine', name_es: 'Rin', value: 1233 },
+    ],
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // BONUS: WATERVALLEN — hoogte in meters (totale val)
+  // ══════════════════════════════════════════════════════════
+  waterfalls: {
+    emoji: '💦',
+    unit: 'm',
+    label_nl: 'Watervallen', label_en: 'Waterfalls', label_es: 'Cascadas',
+    q_nl: 'Welke waterval is hoger?',
+    q_en: 'Which waterfall is higher?',
+    q_es: '¿Qué cascada es más alta?',
+    items: [
+      { name_nl: 'Angel', name_en: 'Angel Falls', name_es: 'Salto Ángel', value: 979 },
+      { name_nl: 'Tugela', name_en: 'Tugela Falls', name_es: 'Cataratas Tugela', value: 948 },
+      { name_nl: 'Oloʻupena', name_en: 'Oloʻupena Falls', name_es: 'Cataratas Oloʻupena', value: 900 },
+      { name_nl: 'Umbilla', name_en: 'Umbilla Falls', name_es: 'Cataratas Umbilla', value: 895 },
+      { name_nl: 'Vinnufossen', name_en: 'Vinnufossen', name_es: 'Vinnufossen', value: 860 },
+      { name_nl: 'Balåifossen', name_en: 'Balåifossen', name_es: 'Balåifossen', value: 850 },
+      { name_nl: 'Ramnefjellsfossen', name_en: 'Ramnefjellsfossen', name_es: 'Ramnefjellsfossen', value: 818 },
+      { name_nl: 'Yosemite', name_en: 'Yosemite Falls', name_es: 'Cataratas de Yosemite', value: 739 },
+      { name_nl: 'Sutherland', name_en: 'Sutherland Falls', name_es: 'Cataratas Sutherland', value: 580 },
+      { name_nl: 'Wallaman', name_en: 'Wallaman Falls', name_es: 'Cataratas Wallaman', value: 268 },
+      { name_nl: 'Kaieteur', name_en: 'Kaieteur Falls', name_es: 'Cataratas Kaieteur', value: 226 },
+      { name_nl: 'Victoria', name_en: 'Victoria Falls', name_es: 'Cataratas Victoria', value: 108 },
+      { name_nl: 'Iguazú', name_en: 'Iguazu Falls', name_es: 'Cataratas del Iguazú', value: 82 },
+      { name_nl: 'Niagara', name_en: 'Niagara Falls', name_es: 'Cataratas del Niágara', value: 51 },
+      { name_nl: 'Gullfoss', name_en: 'Gullfoss', name_es: 'Gullfoss', value: 32 },
+      { name_nl: 'Rijnwaterval', name_en: 'Rhine Falls', name_es: 'Cataratas del Rin', value: 23 },
+    ],
+  },
+};
