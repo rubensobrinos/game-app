@@ -29,6 +29,9 @@
 //     acties, faseovergangen). Alleen `shared/content` en `shared/product`
 //     worden hergebruikt, zoals het voorbeeld in de opdracht ook aangeeft.
 
+// Relatief vanaf `/js/transport-mock.mjs` komt dit bij de door INT-A
+// vastgelegde `/shared/*`-mapping uit. Een relatief modulespecifier blijft
+// bovendien rechtstreeks onder `node:test` bruikbaar.
 import { CONTENT_VERSION, getCountryPool } from '../../shared/content/index.mjs';
 
 const RENDERER_VERSION = 'flag-renderer-1'; // zelfde placeholder-waarde als PROTOCOL.md's voorbeelden.

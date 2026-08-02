@@ -4,20 +4,19 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Vlaggenquiz</title>
-    <!-- Bewust GEEN <base href="/"> toegevoegd na verder onderzoek n.a.v. de
-         review: dat lost het deep-link-probleem (index.html geserveerd op
-         /j/{inviteId} enz.) alleen op als frontend/ zelf de geserveerde root
-         is -- en dan kunnen de `../../client/flow/`- en `../../shared/`-imports
-         hieronder nooit werken (die gaan boven een frontend/-root uit, wat
-         elke serieuze statische server blokkeert). Welke van de twee waar
-         wordt: dat is nog niet vastgelegd. Zie HANDOFF-UI.md, UI-3. -->
-    <link rel="stylesheet" href="css/base.css" />
+    <!-- UI-3 beantwoord (docs/integration-plan/transport-contract-response.md):
+         INT-A serveert frontend/ als eigen root en voegt twee statische
+         mappings toe (/client/* -> client/, /shared/* -> shared/). Met
+         <base href="/"> lossen absolute paden hieronder correct op vanaf elke
+         deep link (/j/{inviteId}, /game/{code}, /host/{code}), niet alleen /. -->
+    <base href="/" />
+    <link rel="stylesheet" href="/css/base.css" />
   </head>
   <body>
     <!-- Lege root-container: UI1-UI5 monteren hier hun schermen. UI0 vult
          dit alleen tijdelijk via js/app.mjs om te bewijzen dat de
          module-graf laadt. -->
     <div id="app-root"></div>
-    <script type="module" src="js/app.mjs"></script>
+    <script type="module" src="/js/app.mjs"></script>
   </body>
 </html>
