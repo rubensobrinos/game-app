@@ -295,9 +295,14 @@ DM2a (GameConfiguration, Session)
   adapter-/uitvoeringslaag raken, niet de types/domeinlogica die hierboven
   gepland staan, dus dat stopt de reeks niet;
 - als tijdens het bouwen een écht nieuwe open vraag opduikt (zoals bij DM2/DM3
-  al gebeurde) — dan wordt dat een `HANDOFF.md`-toevoeging, geen redenom de hele
-  reden om de hele reeks te pauzeren, tenzij het de fase die dan loopt zelf
-  onmogelijk maakt.
+  al gebeurde) — dan wordt dat een `HANDOFF.md`-toevoeging, geen reden om de
+  hele reeks te pauzeren, tenzij het de fase die dan loopt zelf onmogelijk
+  maakt.
 
-Dit is het plan; ik voer het pas uit na akkoord op deze sectie, niet stilzwijgend
-vanaf hier.
+**Uitgevoerd zoals gepland, met één aanpassing.** De reeks liep door van DM2a
+t/m DM9 zonder tussentijdse stops. De "twee `Room`-velden achter checkpoint 4"
+werden inderdaad niet gebouwd in DM2b/DM3 — maar halverwege DM6 kwam
+`DECISIONS.md` binnen en loste checkpoint 4 op vóór commit, dus die twee velden
+zijn alsnog toegevoegd (aan `Match`, niet Room) in dezelfde reeks, in plaats
+van als losse latere fase. Zie `DM-PROGRESS.md` voor het resultaat: 456/456
+tests groen.
