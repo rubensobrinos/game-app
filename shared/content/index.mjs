@@ -13,6 +13,13 @@
 
 import { COUNTRY_ENTRIES } from './countries.data.mjs';
 
+export {
+  generateFlagSpec,
+  FLAG_RENDERER_VERSION,
+  FLAG_PATTERNS,
+  FLAG_PALETTES,
+} from './flag-spec.mjs';
+
 /**
  * Gepind per match (DECISIONS.md #21). Verhoog bij ELKE inhoudelijke wijziging
  * van de gegenereerde data, zodat een deploy nooit stilzwijgend andere vragen
