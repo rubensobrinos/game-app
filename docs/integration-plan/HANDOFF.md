@@ -10,6 +10,114 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | --- | --- | --- | --- |
 | INT-1 | DM + AR | 🔵 open | Repository-poort mist een atomaire claim voor de join-code |
 | INT-2 | PR | 🔵 open | `Match.sequence` ontbreekt in het snapshot-`room`-object |
+| INT-3 | DM | 🔵 open | **Poort mist een token→sessie-lookup — blokkeert stap 2** |
+| INT-4 | CT + DM | 🔵 open | Contentcontract mist `validOptionIds` / `resultDetails` |
+| INT-5 | GR + PR | 🔵 open | `correctAnswer` is afleidbaar uit de publieke payload van `flags_mc` |
+| INT-6 | DM | 🔵 open | `loadRoomByInviteId` krijgt de rauwe `inviteId` in plaats van de hash |
+| INT-7 | DM | 🔵 open | Poort heeft geen conditionele/partiële write; heel-document-writes kunnen `Room.phase` overschrijven |
+| INT-8 | PR | 🔵 open | PR10-previewendpoint wijkt af van de gebouwde `previewInvite` |
+| INT-9 | DM | 🔵 open | `deadlineGraceMs`: `DATA-MODEL.md` zegt 150, besluit 13 zegt 250 |
+
+---
+
+## INT-3 — de poort kan een bearer token niet naar een sessie herleiden
+
+**Voor:** DM. **Blokkeert:** INT-A stap 2 (echt transport). Stap 1 kan door.
+
+`PROTOCOL.md` stuurt uitsluitend `Authorization: Bearer <sessionToken>`, en
+`client/flow/session-store.mjs` bewaart lokaal alleen
+`{ sessionToken, roomCode, playerId }` — geen `sessionId`. De poort biedt alleen
+`loadSession(roomId, sessionId)`.
+
+Zodra er echt transport is, komt er dus een request binnen met alleen een token,
+en is er geen ondersteunde weg om daar een sessie bij te vinden.
+
+Er is bewust **geen schaduwindex** gebouwd om dit te omzeilen. `resolveSession`
+in de compositie vereist nu `roomId` én `sessionId`, en de aanroeper krijgt beide
+uit `createRoom`/`joinRoom` — bruikbaar binnen stap 1, niet daarbuiten.
+
+**Voorstel:** `loadSessionByTokenHash(tokenHash)` in de poort, met in Redis een
+index op de hash (nooit op het token zelf, conform besluit 26).
+
+---
+
+## INT-4 — het contentcontract mist twee velden die `assertRoundShape` vereist
+
+**Voor:** CT, cc DM. **Blokkeert niet:** de stub vult ze additief aan.
+
+`content-interface-request.md` specificeert `buildQuestion → { questionKey,
+publicQuestionPayload, correctAnswer }`, maar `assertRoundShape()` in
+`server/data/types/round.js` **vereist** daarnaast `validOptionIds` voor
+`flags_mc` en `capitals_mc`, en `resultDetails` voor `higher_lower` en
+`odd_one_out`. Zonder die velden is geen geldig `Round`-document te bouwen.
+
+Mijn eigen verzoekdocument is hier dus incompleet. Het moet worden aangevuld
+vóór CT zijn interface vastlegt, anders bouwt CT naar een contract dat DM's
+validatie niet haalt.
+
+---
+
+## INT-5 — `correctAnswer` is afleidbaar uit de publieke payload van `flags_mc`
+
+**Voor:** GR (vraagvorm), cc PR (besluit 20).
+
+Besluit 20 en `PROTOCOL.md` eisen dat het juiste antwoord niet afleidbaar is uit
+ID, volgorde, URL, seed of metadata. Structureel klopt het: `correctAnswer` staat
+gescheiden en komt nooit in `round:started`. Maar de vorm van GR4 is
+`{ targetIso2, optionIso2s }` met `correctAnswer = { optionId: targetIso2 }` —
+en `targetIso2` staat in de publieke payload. Voor deze spelvorm is
+"niet-afleidbaar" met de huidige vorm dus niet haalbaar.
+
+Niet zelf herontworpen: de vraagvorm is van GR.
+
+---
+
+## INT-6 — `loadRoomByInviteId` krijgt de capability in plaats van de hash
+
+**Voor:** DM.
+
+INT-1 §6 en `DATA-MODEL.md` (`room:invite:{inviteHash}`) zeggen dat de poort de
+hash krijgt en nooit de invite zelf, zodat Redis-keynamen de capability niet
+tonen. De fake indexeert echter op `room.inviteId`, en het `Room`-document heeft
+geen `inviteHash`-veld — de hash die de compositie berekent heeft dus geen plek
+om te landen. Hij wordt wel berekend, zodat de atomaire claim uit INT-1 straks
+meteen het juiste argument krijgt.
+
+---
+
+## INT-7 — geen conditionele of partiële write op de poort
+
+**Voor:** DM.
+
+`saveRoom(room)` is een heel-document read-modify-write. Tegen een echte store
+kan `setRoomLocked` of een TTL-refresh daarmee een gelijktijdige
+`Room.phase`-projectie overschrijven — precies het niet-atomaire dual-write-pad
+dat besluit 30 verbiedt. Binnen één proces met de fake is er geen venster.
+
+Geïsoleerd in `touchRoom()` en `setRoomLocked()` met een comment, zodat de
+wijziging één plek raakt.
+
+---
+
+## INT-8 — PR10 wijkt af van de gebouwde `previewInvite`
+
+**Voor:** PR.
+
+`docs/protocol-plan/prompts/PR10-preview-endpoint.md` verscheen tijdens de bouw
+en stelt een endpoint voor met *beide* locators en een respons `{ valid,
+suggestedName }`. De gebouwde `previewInvite` neemt alleen `inviteId` en geeft een
+rijker object terug. Bewust niet achter het bewegende document aangelopen; dit
+moet vóór stap 2 worden verzoend.
+
+---
+
+## INT-9 — tegenstrijdige `deadlineGraceMs`
+
+**Voor:** DM.
+
+`DATA-MODEL.md`'s `GameConfiguration`-voorbeeld zegt `150`; `DECISIONS.md`
+besluit 13 zegt 250 ms. `QUICK_START_CONFIG` gebruikt 250, want `DECISIONS.md`
+wint. Het voorbeeld in `DATA-MODEL.md` hoort gecorrigeerd te worden.
 
 ---
 
