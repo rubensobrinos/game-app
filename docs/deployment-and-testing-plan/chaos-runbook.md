@@ -110,6 +110,29 @@ corrigeren, dus hier apart benoemd in plaats van genegeerd):
   is een bestaande aantekening in het bestand dat dit runbook nu als bron
   gebruikt, dus hier niet genegeerd.
 
+## Status (2026-08-02): stap 1 uitgevoerd, geautoriseerd
+
+De `aseso-game-chaos`-stack is opgestart en gezond
+(`docker compose -p aseso-game-chaos -f docker-compose.yml -f
+compose.chaos.override.yml up -d`), met expliciet akkoord vooraf. Nieuw
+bestand [`compose.chaos.override.yml`](../../compose.chaos.override.yml)
+reset `reverse-proxy`'s ports naar `127.0.0.1:8080`/`127.0.0.1:8443` (via
+`!override`, niet `!reset` — zie dat bestand voor waarom), omdat poort
+80/443 al bezet zijn door de echte, draaiende `aseso-game`-stack. Beide
+stacks draaien nu tegelijk, volledig geïsoleerd (aparte projectnaam →
+aparte volumes/netwerken, aparte hostpoorten).
+
+**Live preflight tegen de daadwerkelijk draaiende containers** (niet alleen
+de statische configvergelijking van DT-R2 hierboven): alle vijf services
+`healthy` (`docker compose -p aseso-game-chaos ps`); Redis draait
+daadwerkelijk met `appendonly yes` / `appendfsync everysec`
+(`redis-cli config get`, niet alleen het compose-bestand gelezen);
+`frontend` antwoordt `200` op `http://127.0.0.1:8080/`.
+
+**Nog niet gedaan, blijft apart geautoriseerd:** resetten naar een schone
+teststand (stap 2) en het eerste destructieve scenario (stap 3) — zie
+hieronder.
+
 ## Volgorde die voor élk scenario geldt
 
 Per [`README.md`](README.md) §DT6 en §Checkpoints geldt voor ieder scenario

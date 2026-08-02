@@ -1,0 +1,29 @@
+# Override voor DT6 (chaos-/restarttests, docs/deployment-and-testing-plan/chaos-runbook.md).
+#
+# De referentie-Compose mapt reverse-proxy op 0.0.0.0:80/443. Die poorten zijn
+# op deze machine al bezet door de draaiende `aseso-game`-stack (echte lokale
+# pilot-/devdeployment). Zonder deze override zou `docker compose -p
+# aseso-game-chaos up` daarom falen op de portmapping, of erger, per ongeluk
+# de publieke poorten claimen als de echte stack net herstart. Deze override
+# vervangt reverse-proxy's ports door uitsluitend loopback-alternatieven.
+#
+# Let op: `!override` is hier bewust gebruikt, niet `!reset` (het patroon van
+# compose.tunnel.override.yml). Empirisch geverifieerd op Docker Compose
+# v5.1.2: `ports: !reset [<niet-lege lijst>]` levert een lege ports-lijst op
+# (werkt alleen voor "reset naar niets", zoals de tunnel-override met `[]`
+# doet) — `!override` met dezelfde lijst geeft wél de verwachte, vervangen
+# portmapping. Geverifieerd met `docker compose ... config --format json`
+# vóór gebruik, niet aangenomen.
+#
+# Projectnaam (`-p aseso-game-chaos`) isoleert volumes/netwerken al van de
+# echte `aseso-game`-stack; deze override isoleert daarnaast de hostpoorten.
+#
+# Gebruik:
+#   docker compose -p aseso-game-chaos -f docker-compose.yml \
+#     -f compose.chaos.override.yml up -d
+
+services:
+  reverse-proxy:
+    ports: !override
+      - "127.0.0.1:8080:80"
+      - "127.0.0.1:8443:443"
