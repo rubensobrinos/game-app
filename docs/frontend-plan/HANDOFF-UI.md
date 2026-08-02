@@ -234,3 +234,40 @@ Actie UI: leer `route-resolver`/`view-switcher` de route `/samen` → view
 neem `/samen` op in de deep-link-fallback van de statische serving (zelfde
 behandeling als `/j/*`/`/game/*`). Caddy routeert `/samen` al naar de
 game-server.
+
+---
+
+## UI-7 — eigenaarsgrens rond `session-shell.mjs` (2 aug 2026)
+
+**Voor:** de twee UI-bouwers onderling. **Aanleiding:** de producteigenaar
+vroeg expliciet om dit af te stemmen vóór er een tweede bouwer op hetzelfde
+scherm begint — de fout waarmee deze dag begon.
+
+**Bevinding, uit de code en niet uit overleg:** `frontend/js/session-shell.mjs`
+is geen lobby-module. Het is de eigenaar van élke lopende sessie
+(`/host/{code}`, `/game/{code}`): het houdt de socketverbinding vast, voert
+`match-phase-state`/`reconnect-state`/`round-model`, en mount én unmount
+zelf `lobby`/`gameplay`/`scoreboard`/`podium` via `view-switcher.viewFor()`.
+Het importeert `createGameplayView`, `createScoreboardView` en
+`createPodiumView` al, drijft de rondetimer en bedraadt `sendAnswer` en
+`scoreboard:updated`.
+
+**Gevolg:** de "UI3/UI4 DOM-montage" die in `UI-PROGRESS.md` nog als 🟡 staat
+(view-modellen klaar, scherm niet) is daarmee feitelijk gebouwd — door de
+session-shell-bouwer, niet als los UI3/UI4-werk. Wie op dat punt alsnog een
+eigen montage begint, bouwt een tweede mechanisme naast dat van een eigenaar
+(AGENTS.md).
+
+**Grens die hieruit volgt, tot iemand hem expliciet verlegt:**
+
+- **session-shell-bouwer:** verbinding, fase-/reconnect-/pauzelogica, mounten
+  en verversen van alle faseschermen, en de overlays zonder eigen route
+  (statusbalk, pauze-overlay).
+- **De ander:** de faseschermen zelf als pure view-modules
+  (`views/*.mjs` — DOM erin, callbacks eruit, geen transport), de gedeelde
+  CSS-lagen (`base.css`/`components.css`), i18n-sleutels in alle drie de
+  locales tegelijk, en toegankelijkheid.
+
+Vragen die deze grens níét beslecht (voor wie het eerst raakt, als los item
+hier melden): wie de pauze-overlay stylet zodra ze inhoudelijk af is, en of
+`round-model` op termijn naar `client/flow/` verhuist — nu bewust lokaal.
