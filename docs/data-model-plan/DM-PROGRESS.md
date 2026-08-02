@@ -135,6 +135,16 @@ exact dat teken als scheidingsteken. Voorstel (nog niet gebouwd, wacht op AR +
 INT-B): key-builders worden twee segmenten (`roomInviteLookupKey(version,
 hash)`), poortmethoden blijven ongewijzigd. Zie `HANDOFF.md` §15.
 
+**INT-16 (crash-atomaire fasewissel) — akkoord gegeven, nog niet gebouwd.**
+`setRoomAndMatchPhaseAtomically` krijgt `expectedPhase` (compare-and-set) en
+`pausedState` in dezelfde operatie — dicht een niet-atomair dual-write-pad
+(besluit 30, uitgebreid naar `pausedState`) en een race tussen twee
+gelijktijdige fasewissels (dezelfde klasse als INT-7). Eén eigen
+verduidelijking toegevoegd: beide richtingen van de `pausedState`/`PAUSED`-
+invariant afdwingen met een throw, niet stil corrigeren. Blast radius: 3
+tests (#13-15). Zie `HANDOFF.md` §16 voor het volledige antwoord, inclusief
+de drie besluit-#37-toetsvragen.
+
 ## Cijfers
 
 - **DM0–DM18: alle negentien fases uitgevoerd.** `node --test

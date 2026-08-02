@@ -778,3 +778,46 @@ last van `assertSegment`.
 
 Nog niets van dit voorstel geïmplementeerd — wacht op bevestiging dat de
 tweesegment-aanpak de juiste is, dan bouw ik de key-builder-wijziging.
+
+## 16. INT-16 — akkoord, met één verduidelijking. Nog niet gebouwd.
+
+**Akkoord op de kern: `expectedPhase` (compare-and-set) + `pausedState` in
+dezelfde operatie.** Beide gaten zijn reëel. Gat 1 is besluit 30's principe,
+correct doorgetrokken naar een veld dat het besluit niet met naam noemde maar
+in de geest evident meeneemt. Gat 2 is dezelfde klasse als INT-7 en de
+locatorclaim — een conflict is een normale uitkomst, geen exception, precies
+het patroon dat hier al overal staat.
+
+**Eén verduidelijking, geen bezwaar:** INT-16 noemt alleen één richting van de
+invariant ("`pausedState` is `null` bij elke niet-`PAUSED`-fase"). Ik stel
+voor **beide richtingen af te dwingen, met een throw, niet een stille
+correctie**: `newPhase === 'PAUSED'` vereist `pausedState !== null` én
+omgekeerd. Een `PAUSED`-fase zonder `pausedState` is even inconsistent als een
+niet-`PAUSED`-fase mét — en een throw op een schending is de lijn die deze
+sessie steeds is aangehouden (DM13's `ALREADY_ANSWERED`, DM17's
+eigendomscontroles): een contractschending zichtbaar laten falen, niet stil
+corrigeren.
+
+**Besluit #37-toets, drie punten:**
+1. **Redis-sleutel — al beantwoord door het bestaande model.** `Match.pausedState`
+   staat al in het Match-document (`types/match.js`, DM3), geen aparte
+   sleutel. Het Lua-script leest/muteert/schrijft dus het hele
+   Match-document plus de `Room.phase`-projectie in een tweede sleutel — precies
+   de eerste optie die INT-16 al noemde, nu bevestigd, geen open vraag meer.
+2. **TTL** — conceptueel akkoord dat een fasewissel activiteit is en dus
+   verlenging rechtvaardigt (`DATA-MODEL.md` §TTL's eigen principe). Het
+   daadwerkelijke mechanisme blijft net als bij `refreshRoomLocators`
+   contract-only, geen nieuwe scope hier — dat wacht op de bredere,
+   al-uitgestelde refreshmatrix (`ttl.js`, `REVIEW.md` bevinding 3).
+3. **Lua** — akkoord, compare-and-set moet in hetzelfde script als de write,
+   zelfde les als INT-1.
+
+**HOST_RESUME/RECOVERY_RESUME-splitsing:** geen bezwaar — raakt
+`state-machine.js`, niet de poort.
+
+**Blast radius bij mij, alvast in kaart:** 3 aanroepen in
+`repository.test.js` (#13-15) op de huidige `(roomId, matchId, newPhase)`-
+signatuur, worden herschreven naar de object-vorm zodra dit gebouwd wordt.
+
+**Nog niet gebouwd — akkoord vandaag, bouw in een volgende ronde**, zoals
+gevraagd.
