@@ -262,6 +262,15 @@ De gebruiker heeft de blockers in PD2/PD3 beantwoord (zie
   eigenaren van `DATA-MODEL.md`, `PROTOCOL.md` en `GAME-RULES.md`. Ook de
   gereduceerde beleidsmatrix-versie wordt niet gebouwd.
 
+**Update na de besluitronde (`docs/multiplayer/DECISIONS.md`, 2 aug 2026):** dit
+"wachten" is inmiddels een **bevestigd, blijvend scopebesluit**, geen open vraag
+meer. DECISIONS.md #34: "Voor Golf 2 is geen nieuw besluit genomen. Canonieke IDs
+en feature-gates blijven uitgesteld." DECISIONS.md #31: Groepsbattle wordt nu niet
+verder gebouwd — PD2's artefact blijft staan maar wordt niet verder geïntegreerd.
+Uitgevoerd volgens
+[`prompts/PD-RESUME-AFTER-DECISIONS.md`](prompts/PD-RESUME-AFTER-DECISIONS.md);
+volledige status in [`PD-PROGRESS.md`](PD-PROGRESS.md).
+
 Het ontgrendelde deel van **PD2 is afgerond**:
 [`shared/product/quick-start-preset.mjs`](../../shared/product/quick-start-preset.mjs) +
 [`.test.mjs`](../../shared/product/quick-start-preset.test.mjs) (3/3 tests groen) leveren
