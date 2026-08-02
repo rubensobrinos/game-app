@@ -110,7 +110,7 @@ corrigeren, dus hier apart benoemd in plaats van genegeerd):
   is een bestaande aantekening in het bestand dat dit runbook nu als bron
   gebruikt, dus hier niet genegeerd.
 
-## Status (2026-08-02): stap 1 uitgevoerd, geautoriseerd
+## Status (2026-08-02, bijgewerkt): stap 1 én scenario 1 uitgevoerd, geautoriseerd
 
 De `aseso-game-chaos`-stack is opgestart en gezond
 (`docker compose -p aseso-game-chaos -f docker-compose.yml -f
@@ -129,9 +129,18 @@ daadwerkelijk met `appendonly yes` / `appendfsync everysec`
 (`redis-cli config get`, niet alleen het compose-bestand gelezen);
 `frontend` antwoordt `200` op `http://127.0.0.1:8080/`.
 
+**Sindsdien ook uitgevoerd (expliciet akkoord van de producteigenaar,
+2026-08-02):** `server/Dockerfile` bleek stale (bouwde zonder dependencies,
+zonder `shared/`/`frontend/`) en is gefixt vóór de rebuild — zonder die fix
+kon scenario 1 niet eens starten. Scenario 1 (game-server restart) is
+uitgevoerd voor het REST-realiseerbare deel; zie "Uitkomst" onder scenario 1
+hieronder voor de volledige tabel, inclusief een onverwachte, reproduceerbare
+`500 INTERNAL_ERROR`-bevinding op `GET /api/v1/games/{code}/state` die los
+staat van chaos/restart.
+
 **Nog niet gedaan, blijft apart geautoriseerd:** resetten naar een schone
-teststand (stap 2) en het eerste destructieve scenario (stap 3) — zie
-hieronder.
+teststand, en elk vólgend destructief scenario (2 t/m 6) — elk vereist een
+nieuwe, aparte autorisatie.
 
 ## Volgorde die voor élk scenario geldt
 
@@ -214,6 +223,33 @@ Gedeelde randvoorwaarden voor alle zes scenario's:
 - na afloop van een testsessie: `docker compose -p aseso-game-chaos down -v` om
   geen chaos-testdata te laten rondslingeren.
 
+**Omgevingschecklist (2026-08-02, bijgewerkt nu `server/index.mjs` de échte
+server is — niet meer de placeholder):**
+
+- `readConfigFromEnvironment()` (`server/index.mjs`) eist in productie
+  (`NODE_ENV=production`, wat `docker-compose.yml` zet) hard: `TOKEN_PEPPER` óf
+  `TOKEN_PEPPERS`, en `PUBLIC_APP_URL`. Ontbreken ze, dan start de server
+  helemaal niet (`throw`), niet met een stille fallback — bevestig dit vooraf in
+  de `.env` van de chaos-stack, niet pas bij een falende opstart ontdekken.
+- `TOKEN_PEPPER_VERSION` is optioneel (default `v1`); `TOKEN_PEPPERS` (JSON
+  `{"v1": "...", ...}`) heeft voorrang boven het enkelvoudige `TOKEN_PEPPER` als
+  beide gezet zijn.
+- `/readyz` heeft nu échte semantiek, geen placeholder-503 meer: hij blijft
+  bewust `503` totdat er een Redis-verbinding onder hangt ("stap 3", nog niet
+  gebouwd) — een preflight die `/readyz` als groen verwacht, redeneert dus
+  achter de feiten aan. Gebruik `/healthz` (altijd `200` zolang het proces
+  leeft) voor de gewone opstart-/hersteltoets, niet `/readyz`.
+- `/healthz`/`/readyz` zijn **niet** bereikbaar via de publieke Caddy-route
+  (alleen `/api/*`, `/socket.io/*` en statische paden worden gerouteerd) —
+  test ze rechtstreeks tegen de container (`docker compose exec game-server
+  node -e "fetch('http://localhost:3000/healthz')..."`, exact wat de
+  Compose-healthcheck zelf ook doet), niet via `127.0.0.1:8080`.
+- `server/Dockerfile` kopieert sinds vandaag ook `client/`, `shared/` en
+  `frontend/`, en draait `npm ci --omit=dev` — een chaos-stack die vóór deze
+  wijziging is gebouwd, draait nog de kapotte, dependency-loze placeholder-
+  image. Draai bij twijfel altijd met `--build`, niet aannemen dat een
+  bestaand image nog actueel is.
+
 Elke sectie hieronder documenteert alleen stap 3 (het scenario zelf); stappen 1 en
 2 zijn hierboven al generiek beschreven en gelden ongewijzigd per scenario.
 
@@ -256,6 +292,39 @@ met een nieuwe korte countdown.
 - het reeds vóór de restart geaccepteerde antwoord telt niet dubbel na de
   snapshot-rehydratie — "snapshot herstelt zonder dubbele punten"
   (`DEPLOYMENT-AND-TESTING.md` §5, laatste bullet, regel 329).
+
+### Uitkomst (2026-08-02, geautoriseerd door de producteigenaar)
+
+**Uitgevoerd tegen `aseso-game-chaos`** met de échte server-image
+(`server/index.mjs`, na een Dockerfile-fix — zie hieronder). De volledige
+"midden in een ronde"-voorwaarde is **niet realiseerbaar**: er bestaat geen
+`server/transport/socket.mjs`, en `game:start`/`round:answer` zijn uitsluitend
+socket-events (`PROTOCOL.md`), niet via REST bereikbaar. Uitgevoerd deel: LOBBY-
+state via de échte REST-laag.
+
+| Verwachting | Uitkomst | Verklaring |
+| --- | --- | --- |
+| Container herstart binnen `restart: unless-stopped` | ✅ | `docker compose restart game-server` herstartte zonder handmatig ingrijpen |
+| Healthcheck weer `healthy` binnen ~75 s | ✅, sneller | ~50 s (`interval: 15s`, `retries: 5`, in de praktijk 5 pogingen × ~5–7 s) |
+| `/api/v1/time` werkt na herstel | ✅ | `200 {"serverTime": ...}` vóór én ná herstart |
+| Roomstate overleeft de restart | ❌, **verwacht** | Room + sessietoken zijn na herstart onbereikbaar (`401 TOKEN_INVALID`) — de server gebruikt nu nog `createInMemoryStore()` als standaard, geen Redis-koppeling. Dit is géén regressie van dit scenario maar het gedocumenteerde ontbreken van "stap 3" (`INT-PROGRESS.md`); `ARCHITECTURE.md`'s garantie ("Redis is de bron voor actieve state... niet standaard alle rooms verwijdert") geldt dus nog niet. |
+| `game:paused`/`game:resumed`, socket-reconnect, "geen dubbele punten" | niet getest | vereist de socketlaag (INT-3-geblokkeerd) |
+
+**Onverwachte, reproduceerbare bevinding (los van chaos, ook vóór de restart al
+aanwezig):** `GET /api/v1/games/{code}/state` met een geldig, zojuist ontvangen
+`sessionToken` geeft **`500 INTERNAL_ERROR`**, zowel bij een net aangemaakte room
+(`hostParticipates:true`) als na een `join`. Reproductie: `POST /api/v1/games` →
+`POST /api/v1/games/join` of direct → `GET /api/v1/games/{code}/state` met de
+teruggegeven token. Kon niet verder gediagnosticeerd worden: `buildServer()`
+draait via `start()` met `logger: false` (geen Fastify-requestlog), dus geen
+stacktrace beschikbaar. Niet zelf gefixt — `server/transport/rest.mjs` is niet
+mijn module. Gemeld als bevinding, geen aanname over de oorzaak.
+
+**Bijvangst:** `server/Dockerfile` bouwde tot dusver zonder `npm ci` en zonder
+`shared/`/`frontend/` te kopiëren (stale sinds de placeholder-fase — het
+containerimage kon dus nooit de échte server draaien). Bijgewerkt: `npm ci
+--omit=dev` + `COPY client/ shared/ frontend/`. Zonder die fix faalt dit
+scenario al bij het opstarten, niet pas bij de restart.
 
 ---
 

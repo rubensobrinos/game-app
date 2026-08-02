@@ -1,17 +1,24 @@
-# server/Dockerfile — fase 1. Build-context is de REPO-ROOT (zie compose:
-# build.context: .), zodat package.json en straks shared/ meekomen.
-# De placeholder heeft geen dependencies, dus geen npm install; zodra AR5/AR6
-# echte deps introduceert (Fastify, Socket.IO, redis) komen hier een
-# package-lock.json en `npm ci --omit=dev` bij.
+# server/Dockerfile — bijgewerkt voor de échte server (server/index.mjs, AR5/AR6).
+# Build-context is de REPO-ROOT (zie compose: build.context: .).
+#
+# Bijgewerkt (2026-08-02, DT6): de placeholder had geen dependencies en geen
+# shared/frontend-imports. server/index.mjs importeert nu Fastify (via
+# package.json/package-lock.json → npm ci) en ../shared/content/index.mjs,
+# en serveert client/, shared/ en frontend/ statisch (zie
+# registerStaticRoutes) — alle drie moeten dus in het image staan.
 
 FROM node:22-alpine
 
 ENV NODE_ENV=production
 WORKDIR /app
 
-COPY package.json ./
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
 COPY server/ ./server/
-# Toekomst (AR5+): COPY shared/ ./shared/  — gedeelde contentmodule
+COPY client/ ./client/
+COPY shared/ ./shared/
+COPY frontend/ ./frontend/
 
 EXPOSE 3000
 USER node
