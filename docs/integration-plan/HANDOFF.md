@@ -17,7 +17,8 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INT-7 | DM | 🔵 open | Poort heeft geen conditionele/partiële write; heel-document-writes kunnen `Room.phase` overschrijven |
 | INT-8 | PR | 🔵 open | PR10-previewendpoint wijkt af van de gebouwde `previewInvite` |
 | INT-9 | DM | 🔵 open | `deadlineGraceMs`: `DATA-MODEL.md` zegt 150, besluit 13 zegt 250 |
-| INT-10 | GR + GF + AR | 🔴 **hoog** | **Deadlock bij host-tempo met tussenstand uit — de match hangt** |
+| INT-10 | GR + GF + AR | ✅ **opgelost** | Deadlock weg; `HOST_NEXT` vanuit `ROUND_RESULT` verwijderd, regressietest geplaatst |
+| INT-13 | DM + AR | 🔵 open | `inviteHash` mist een versieprefix, anders dan sessietokens |
 | INT-11 | PR | 🔵 open | `preset`-waarde loopt drie kanten op; het is een wire-veld |
 | INT-12 | PD | 🔵 open | `shared/product/quick-start-preset.mjs` is stale naast een nieuwere variant |
 
@@ -328,3 +329,42 @@ CommonJS-modules die de compositie nodig heeft met **named imports** gebruiken
 herkent het `module.exports = { … }`-patroon dat deze modules consequent
 gebruiken. Er is dus geen interop-shim nodig, en besluit 28 (`.mjs` voor nieuwe
 modules) kan zonder omweg worden gevolgd.
+
+---
+
+## INT-13 — `inviteHash` mist een versieprefix, anders dan sessietokens
+
+**Voor:** DM (eigenaar van de invite-index), met AR (eigenaar `room-codes.js`).
+**Blokkeert niet:** er ligt een werkende tussenoplossing. Dit gaat om de
+structurele lijn.
+
+Besluit 26 vraagt om **versieerbare** HMAC-hashing met pepper. Voor sessietokens
+is dat netjes geïmplementeerd: `auth-session.mjs` slaat op als
+`${versie}${scheidingsteken}${hex}`, en `verifyToken` leest de versie uit de hash
+om de juiste pepper op te zoeken. Daardoor kan een pepper roteren zonder dat
+bestaande sessies ongeldig worden.
+
+`hashInviteId` uit `room-codes.js` doet dat niet: die levert kale hex. Sinds DM10
+draait de invite-index (`room:invite:{inviteHash}`) daar wél op. Gevolg: een
+pepperrotatie verandert de hash van elke bestaande `inviteId`, waardoor alle
+lopende invites in één klap onvindbaar worden. Met een room-TTL van vier uur is
+dat een reëel venster, geen theoretisch.
+
+**Wat de compositie nu doet** (`room-lifecycle.mjs`, gedocumenteerd in de code):
+bij een lookup wordt de binnenkomende `inviteId` eerst met de actieve pepper
+gehasht en bij geen treffer met de overige peppers uit
+`config.tokenPeppers.peppers`. Dat is bewust hetzelfde patroon als `verifyToken`
+en het werkt — maar het kost tot N lookups per join en het dwingt oude peppers in
+de configuratie te blijven staan zolang er invites leven.
+
+**Voorstel:** geef `inviteHash` dezelfde vorm als de tokenhash,
+`${versie}${scheidingsteken}${hex}`. Dan:
+
+- is één lookup genoeg, want de versie staat in de sleutel die de client meebrengt;
+- volgt de invite-index dezelfde versioneringslijn als tokens, in plaats van een
+  losse conventie te worden;
+- kan de compositie de meerdere-peppers-fallback laten vallen.
+
+Dit raakt `room-codes.js` (de hashvorm), de indexsleutel in `redis-keys.js`, en
+de opgeslagen `inviteHash` op het Room-document. Daarom bij DM en AR samen, niet
+bij één van beide.
