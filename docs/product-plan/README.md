@@ -182,6 +182,13 @@ regel niet de andere raakt.
   kunnen overnemen. Zelfde patroon als GR7 in `game-rules-plan`, AR5 in
   `architecture-plan` en GF8 in `game-flow-plan`.
 
+### PD7 — `FLAGS_MC_QUICK_START_DEFAULT`
+- Na de besluitronde: `DECISIONS.md` #35 introduceert een nieuw, van Groepsbattle
+  losstaand quick-start-default (`flags_mc`, 10 rondes, individueel, auto-tempo).
+  Zelfde patroon als PD2: alleen de canonieke waarden in `shared/product/`,
+  gemeld via [`HANDOFF.md`](HANDOFF.md) aan `game-flow-plan` en `integration-plan`
+  in plaats van zelf hun bestanden te wijzigen.
+
 ## Testplan
 
 Dit dekt indirect de "Contracttests"-laag uit
@@ -231,13 +238,17 @@ Na de productbesluiten van 2 augustus 2026 gebruikt de uitvoerder eerst
 Uitvoerbare, zelfstandige taakbeschrijvingen per fase staan in
 [`prompts/`](prompts/), zodat ze los te reviewen en los te starten zijn:
 
-- [`prompts/PD0-scope-check.md`](prompts/PD0-scope-check.md)
-- [`prompts/PD1-hard-rules-and-scope-guard.md`](prompts/PD1-hard-rules-and-scope-guard.md)
-- [`prompts/PD2-quick-start-preset.md`](prompts/PD2-quick-start-preset.md) — bevat een
-  blokkerende open vraag (PRODUCT.md vs. DATA-MODEL.md over het aantal spelvormen in
-  de default-preset), nog niet uitgevoerd, ter review.
-- [`prompts/PD3-feature-gate.md`](prompts/PD3-feature-gate.md) — nog niet uitgevoerd,
-  ter review.
+- [`prompts/PD0-scope-check.md`](prompts/PD0-scope-check.md) — ✅ afgerond.
+- [`prompts/PD1-hard-rules-and-scope-guard.md`](prompts/PD1-hard-rules-and-scope-guard.md) — ✅ afgerond.
+- [`prompts/PD2-quick-start-preset.md`](prompts/PD2-quick-start-preset.md) — ✅
+  versmald afgerond (`GROUP_BATTLE_DEFAULT_GAME_TYPES`); Groepsbattle zelf is
+  sindsdien 🔒 bevestigd uitgesteld (DECISIONS.md #31), niet langer een open vraag.
+- [`prompts/PD3-feature-gate.md`](prompts/PD3-feature-gate.md) — 🔒 bevestigd
+  uitgesteld (DECISIONS.md #34: geen nieuw Golf-2-besluit); niet uitvoeren.
+- [`prompts/PD4-later-extensions-registry.md`](prompts/PD4-later-extensions-registry.md) — ✅ afgerond.
+- [`prompts/PD5-acceptance-criteria.md`](prompts/PD5-acceptance-criteria.md) — ✅ afgerond.
+- [`prompts/PD6-interface-proposal.md`](prompts/PD6-interface-proposal.md) — ✅ afgerond.
+- [`prompts/PD7-flags-mc-quick-start-default.md`](prompts/PD7-flags-mc-quick-start-default.md) — ✅ afgerond.
 
 PD0 en PD1 zijn afgerond: `shared/product/` bestaat (`.mjs`-modules, locatie en
 moduleformaat bevestigd zoals hierboven), met
@@ -293,9 +304,6 @@ slagen samen: `node --test shared/product/hard-rules.test.mjs
 shared/product/mvp-scope-guard.test.mjs shared/product/quick-start-preset.test.mjs
 shared/product/later-extensions-registry.test.mjs`.
 
-Overige fases (PD5–PD6) krijgen hun prompt vlak voordat ze starten, niet vooraf in bulk —
-zo blijft elke prompt actueel ten opzichte van wat de vorige fase echt opleverde.
-
 **PD5 is afgerond**:
 [`shared/product/acceptance-criteria.mjs`](../../shared/product/acceptance-criteria.mjs) +
 [`.test.mjs`](../../shared/product/acceptance-criteria.test.mjs) (8/8 tests groen) leveren
@@ -315,5 +323,17 @@ corrigeren naar de vier bevestigde `GROUP_BATTLE_DEFAULT_GAME_TYPES`, en oppert
 (als suggestie, geen eis) twee contract-/consistentietesten met `hard-rules.mjs`
 en `mvp-scope-guard.mjs` voor de `PROTOCOL.md`- en `DATA-MODEL.md`-eigenaren. Het
 feature-gate-deel (PD3) staat expliciet nog open tot Golf-2-ID's en
-`golf2Enabled`-semantiek cross-agent zijn afgestemd. Hiermee is dit plan (PD0–PD6)
-volledig doorlopen.
+`golf2Enabled`-semantiek cross-agent zijn afgestemd. Hiermee was dit plan
+(PD0–PD6) volledig doorlopen voor zover mogelijk vóór de besluitronde.
+
+**PD7 is afgerond**:
+[`shared/product/flags-mc-quick-start-default.mjs`](../../shared/product/flags-mc-quick-start-default.mjs)
++ [`.test.mjs`](../../shared/product/flags-mc-quick-start-default.test.mjs) (9/9
+tests groen) leveren `FLAGS_MC_QUICK_START_DEFAULT`, vastgepind tegen
+`DECISIONS.md` #35. Gemeld via [`HANDOFF.md`](HANDOFF.md) aan `game-flow-plan`
+(`host-setup-state.mjs` gebruikt nog het oude Groepsbattle-default) en
+`integration-plan` (leest #35 nu al rechtstreeks uit `DECISIONS.md`, geen
+blokkade, alleen een aanbod). Alle 44 tests
+(`hard-rules` + `mvp-scope-guard` + `quick-start-preset` +
+`later-extensions-registry` + `acceptance-criteria` +
+`flags-mc-quick-start-default`) slagen samen.

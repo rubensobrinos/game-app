@@ -31,9 +31,10 @@ beeld na de besluitronde.
 | Juridische productgrens voor logo's | PD3 | 🔒 Bevestigd uitgesteld | Zelfde besluit; de brede beleidslezing (3 spelvormen onder de flag, niet 1) staat inhoudelijk vast maar wordt niet gecodeerd zolang PD3 niet gebouwd wordt |
 | Nadrukkelijk niet in de MVP | PD1 | ✅ Klaar | `mvp-scope-guard.mjs`, 13/13 tests, 12 items met volledige brontekst + `isExplicitlyExcluded()` |
 | Latere uitbreidingen — niet launch-blocking | PD4 | ✅ Klaar | `later-extensions-registry.mjs`, 8/8 tests, 8 items met volledige brontekst + `qualifies`-links naar `spectator_screen_required` en `payments_or_premium` |
-| Standaard quick-start preset | PD2 | 🔒 Bevestigd uitgesteld | DECISIONS.md #31: Groepsbattle wordt nu niet verder gebouwd — `GROUP_BATTLE_DEFAULT_GAME_TYPES` blijft staan als onschadelijk artefact (PD-RESUME, opdracht 3: niet verder integreren, niet zonder aparte opdracht verwijderen), maar is geen actieve implementatieopdracht meer. DECISIONS.md #35 bevestigt wél een nieuw, ander quick-start-default (`flags_mc`-only) — dat is aan wie de daadwerkelijke quick-start-flow bouwt (game-flow-plan), niet aan PD |
+| Standaard quick-start preset (Groepsbattle) | PD2 | 🔒 Bevestigd uitgesteld | DECISIONS.md #31: Groepsbattle wordt nu niet verder gebouwd — `GROUP_BATTLE_DEFAULT_GAME_TYPES` blijft staan als onschadelijk artefact (PD-RESUME, opdracht 3: niet verder integreren, niet zonder aparte opdracht verwijderen), maar is geen actieve implementatieopdracht meer |
 | Succescriteria MVP | PD5 | ✅ Klaar | `acceptance-criteria.mjs`, 8/8 tests, 9 items met volledige brontekst + statussnapshot (1× `built`, 2× `not_started`, 6× `partial`) |
 | Interfacevoorstel naar DATA-MODEL.md / PROTOCOL.md | PD6 | ✅ Klaar | [`data-model-and-protocol-interface-proposal.md`](data-model-and-protocol-interface-proposal.md); feature-gate-deel expliciet nog open (⏸️, wacht op PD3) |
+| Standaard quick-start preset — nieuw #35-default | PD7 | ✅ Klaar | `flags-mc-quick-start-default.mjs`, 9/9 tests, `FLAGS_MC_QUICK_START_DEFAULT` vastgepind tegen DECISIONS.md #35; aangemeld bij GF/INT-A via `HANDOFF.md` |
 
 ## Openstaande actiepunten
 
@@ -64,6 +65,10 @@ inconsistenties).
       niet-bindend; het feature-gate-deel blijft net als PD3 zelf bevestigd
       uitgesteld, geen openstaande vraag.
 - [x] `PD-RESUME-AFTER-DECISIONS.md` uitgevoerd (deze bijwerking).
+- [x] PD7 (`flags-mc-quick-start-default`) schrijven en uitvoeren — 9/9 tests
+      groen, `FLAGS_MC_QUICK_START_DEFAULT` vastgepind tegen DECISIONS.md #35.
+      Aangemeld bij GF (`host-setup-state.mjs`) en INT-A (walking skeleton) via
+      [`HANDOFF.md`](HANDOFF.md), zodat beiden importeren i.p.v. overtypen.
 - [ ] Geen verdere PD-code gepland zolang DECISIONS.md #31/#34 gelden. Dit plan
       heropent pas bij een nieuw, expliciet productbesluit over Golf 2 of
       Groepsbattle — niet uit eigen beweging.
@@ -80,8 +85,10 @@ inconsistenties).
 - **PD5:** gebouwd en geverifieerd, 8/8 tests groen (`acceptance-criteria.test.mjs`).
 - **PD6:** afgerond — geen code, één niet-bindend voorstelsdocument
   (`data-model-and-protocol-interface-proposal.md`); geen `shared/product/`-bestand
-  gewijzigd of toegevoegd, dus de testtelling hieronder blijft ongewijzigd.
-- **`shared/product/` totaal:** 35/35 tests groen (27 bestaand + 8 nieuw uit PD5, niet 36 —
-  9 criteria maar 8 testgevallen, zelf nageteld via de testrunner-output, niet blind
-  overgenomen)
-  (`node --test shared/product/hard-rules.test.mjs shared/product/mvp-scope-guard.test.mjs shared/product/quick-start-preset.test.mjs shared/product/later-extensions-registry.test.mjs shared/product/acceptance-criteria.test.mjs`).
+  gewijzigd of toegevoegd op dat moment.
+- **PD7:** gebouwd en geverifieerd, 9/9 tests groen
+  (`flags-mc-quick-start-default.test.mjs`) — nieuwe module, geen wijziging aan
+  bestaande PD1–PD5-bestanden.
+- **`shared/product/` totaal:** 44/44 tests groen (35 bestaand + 9 nieuw uit PD7,
+  zelf nageteld via de testrunner-output)
+  (`node --test shared/product/hard-rules.test.mjs shared/product/mvp-scope-guard.test.mjs shared/product/quick-start-preset.test.mjs shared/product/later-extensions-registry.test.mjs shared/product/acceptance-criteria.test.mjs shared/product/flags-mc-quick-start-default.test.mjs`).
