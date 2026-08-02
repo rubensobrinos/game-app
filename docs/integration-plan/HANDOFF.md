@@ -25,6 +25,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INT-16 | DM + **INT-B** | 🟠 ter akkoord | Crash-atomaire fasewissel: fase + projectie + `pausedState` in één operatie, met verwachte oude fase |
 | INT-17 | PR | 🔴 **hoog** | `GET /games/{code}/state` geeft 500 in de lobby — elke reconnect loopt hierdoor |
 | INT-12 | PD | 🔵 open | `shared/product/quick-start-preset.mjs` is stale naast een nieuwere variant |
+| INT-18 | **INT-B** + PR | 🔴 **hoog, blokkeert de Redis-store volledig** | `createRoom` gooit altijd: de versioned tokenhash (`v1:<hex>`) bevat `:`, wat `redis-keys.js`'s eigen segmentvalidator verbiedt |
 
 ---
 
@@ -639,3 +640,108 @@ De keten-test over echt verkeer pint dit gedrag **expliciet vast** met een test 
 de 500 vastlegt en een verwijzing naar dit item, inclusief de opdracht de assertie
 naar 200 om te draaien zodra de shape-fix landt. Er komt geen omweg in de
 compositie of de transportlaag, en stap 2 wordt niet groen gemeld op dit endpoint.
+
+---
+
+## INT-18 — `createRoom` faalt altijd tegen de Redis-store: tokenhash bevat `:`, `redis-keys.js` verbiedt `:`
+
+**Voor:** INT-B (eigenaar `server/data/redis-keys.js` en
+`server/data/adapters/redis/data-store.mjs`), met PR (eigenaar de hashvorm in
+`server/protocol/auth-session.mjs`). **Ernst:** kritiek — dit is geen
+edge case, dit is de eerste schrijfactie van elke room-aanmaak. Zolang dit
+staat is de Redis-store 100% non-functioneel voor elk echt gebruik, niet
+alleen voor een specifiek scenario.
+
+**Gevonden door:** DT, tijdens de herhaling van chaos-scenario 1 nadat de
+store-bedrading (`REDIS_URL` → `createRedisDataStore`) landde. Eerste poging
+tot `POST /api/v1/games` tegen een verse `aseso-game-chaos`-rebuild (met
+Redis, `/readyz` bevestigde `{"ok":true,"store":"redis"}`) gaf al `500
+INTERNAL_ERROR`, vóór er ook maar íets met chaos/restart gebeurd was.
+
+### Reproductie
+
+Rechtstreeks tegen de gebouwde containerimage, `createRoom` zonder de
+HTTP-laag ertussen (die de fout anders in een kale 500 verpakt):
+
+```js
+import { readConfigFromEnvironment, buildServer } from './server/index.mjs';
+import { createRoom } from './server/composition/room-lifecycle.mjs';
+
+const config = readConfigFromEnvironment(process.env, () => {});
+const fastify = await buildServer({ config, attachSockets: false });
+await createRoom(fastify.appContext, {
+  config: { preset: 'quick_start', language: 'nl' },
+  hostParticipates: true,
+  displayName: 'Debug',
+});
+```
+
+```
+TypeError: tokenHash must not contain ':' or glob characters ('*', '?', '[', ']'),
+got: "v1:1ac6194212ce094e754f5686f75d114cf7016b6957d8335e708b4e160582ddf0"
+    at assertSegment (/app/server/data/redis-keys.js:29:11)
+    at sessionTokenLookupKey (/app/server/data/redis-keys.js:61:27)
+    at Object.saveSession (file:///app/server/data/adapters/redis/data-store.mjs:709:22)
+    at createRoom (file:///app/server/composition/room-lifecycle.mjs:445:25)
+```
+
+Elke `POST /api/v1/games` roept `createRoom` → `store.saveSession` aan, dus
+dit reproduceert 100% van de tijd, niet incidenteel.
+
+### Oorzaak
+
+Twee module-lokaal correcte beslissingen die nooit tegen elkaar zijn
+afgezet:
+
+- `server/protocol/auth-session.mjs` (PR, besluit 26/PR12): slaat een
+  sessietoken-hash versioned op als `${version}:${hex-hash}` — de eigen
+  motivatie in de code luidt letterlijk *"`:` als scheidingsteken, omdat dat
+  teken nooit in een hex-digest of in een pepperversie-naam (`v1`, `v2`, …)
+  voorkomt"*. Klopt, binnen die twee losse velden.
+- `server/data/redis-keys.js` (INT-B): `assertSegment` verbiedt `:` (en
+  glob-tekens) in **elk** segment dat een Redis-sleutel opbouwt, omdat `:`
+  daar juist het eigen sleutel-scheidingsteken is (`session:token:{tokenHash}`).
+  Ook op zichzelf een redelijke, defensieve validatie.
+
+Het gat: `sessionTokenLookupKey` gebruikt de **volledige, versioned**
+`tokenHash` — inclusief het `v1:`-prefix dat PR er juist bewust aan gaf — als
+één segment. PR's aanname ("`:` komt nooit voor in een hex-digest of
+pepperversie") is dus lokaal waar maar wordt hier geschonden door de eigen
+`${version}:${hex}`-samenstelling zelf, niet door de losse delen.
+
+Ter vergelijking, dit is de spiegeling van **INT-13** (hierboven): daar mist
+`inviteHash` juist het versieprefix dat sessietokens wél hebben, met
+pepperrotatie als gevolg. Hier heeft de sessietoken-hash het prefix wél
+(zoals INT-13 als het navolgenswaardige patroon aanhaalt) — en juist dát
+prefix breekt de Redis-sleutelbouwer. Beide items horen bij dezelfde
+onderliggende vraag (hoe versioned hashes en Redis-sleutels samengaan) en
+verdienen één gezamenlijk antwoord, niet twee losse patches.
+
+### Voorstel
+
+Niet zelf gekozen — twee voor de hand liggende richtingen, ontwerpkeuze voor
+INT-B + PR samen (raakt beide modules):
+
+1. `sessionTokenLookupKey` (en elke andere plek die een versioned hash als
+   Redis-segment gebruikt) vervangt `:` door een ander scheidingsteken vóór
+   het de sleutel in gaat, bijv. `tokenHash.replace(':', '_')` — omkeerbaar
+   zolang het hex-deel zelf nooit `_` bevat (net zo min als `:`).
+2. `assertSegment` staat `:` toe specifiek voor segmenten die zelf al een
+   gestructureerde, versioned vorm zijn (`${version}:${hex}`), met een eigen
+   sub-validator die het `version:hex`-patroon controleert in plaats van kale
+   afwezigheid van `:` te eisen — dan blijft de bescherming tegen willekeurige
+   input intact, maar niet tegen een bekend, veilig patroon.
+
+Optie 1 is kleiner en raakt alleen de aanroepplek(ken) in `data-store.mjs`;
+optie 2 is principiëler maar raakt de gedeelde validator die door meerdere
+sleutelbouwers wordt gebruikt. Ik kies geen van beide — dit raakt zowel de
+hashvorm (PR) als de sleutelbouwer (INT-B).
+
+### Wat ik niet heb gedaan
+
+Niet gefixt — `redis-keys.js`, `data-store.mjs` en `auth-session.mjs` zijn
+geen van alle mijn module. Chaos-scenario 1's herhaling (het eigenlijke doel
+van vandaag: bewijzen dat roomstate een restart overleeft mét de nieuwe
+Redis-koppeling) kon hierdoor niet verder dan roomaanmaak — zie de
+DT6-rapportage in `docs/deployment-and-testing-plan/chaos-runbook.md` voor de
+volledige uitkomst.
