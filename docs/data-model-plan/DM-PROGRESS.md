@@ -120,14 +120,25 @@ die een ingetrokken capability nog vindt is een bug. Zie `HANDOFF.md` §14
 voor de volledige toets-tabel.
 
 INTB-8 ligt al bij de DT-agent, geen actie hier. INTB-6 (tiebreak) blijft
-terecht open, wacht op GR. Verwacht nog een klein, regulier HANDOFF-item van
-INT-A (versieprefix op `inviteHash`, volgt de tokens-versioneringslijn uit
-besluit 26) — geen speciale voorrang zodra het binnenkomt.
+terecht open, wacht op GR.
+
+- [x] `DM18` (`HANDOFF.md` §7) — `sessionsByKey`/`playersByKey` → geneste
+  Maps, `playerIdsByRoom` vervallen. Geen poortsignatuur-wijziging, dus
+  buiten de bevriezing — gebouwd zonder voorstelronde.
+
+**INT-13 (versieprefix op `inviteHash`) en INT-15 (zelfde vraag voor
+`tokenHash`, plus bevestiging van de `loadSessionByTokenHash`-signatuur) zijn
+binnengekomen.** Signatuur bevestigd (al zo gebouwd). Versieprefix: **akkoord
+met het principe, een eigen concreet probleem gevonden** — `redis-keys.js`'s
+`assertSegment` weigert een `:` in een segment, en `auth-session.mjs` gebruikt
+exact dat teken als scheidingsteken. Voorstel (nog niet gebouwd, wacht op AR +
+INT-B): key-builders worden twee segmenten (`roomInviteLookupKey(version,
+hash)`), poortmethoden blijven ongewijzigd. Zie `HANDOFF.md` §15.
 
 ## Cijfers
 
-- **DM0–DM17: alle achttien fases uitgevoerd.** `node --test
-  'server/data/**/*.test.js'` → **499/499 tests groen** (95 suites).
+- **DM0–DM18: alle negentien fases uitgevoerd.** `node --test
+  'server/data/**/*.test.js'` → **501/501 tests groen** (96 suites).
 - Twee reviewrondes volledig verwerkt: [`REVIEW.md`](REVIEW.md) (2 blockers, 10
   hoge bevindingen, vóór DM0/DM1) en
   [`prompts/REVIEW-DM2-DM9.md`](prompts/REVIEW-DM2-DM9.md) (3 blockers, 8 hoge,

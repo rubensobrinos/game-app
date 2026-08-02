@@ -525,6 +525,33 @@ describe('saveRound/loadAnswer/loadActionCacheEntry — room-scoping (DM11) #34-
   });
 });
 
+describe('sessionsByKey/playersByKey — geneste Maps in plaats van samengestelde string-sleutels (DM18, §7-opvolging) #64-65', () => {
+  test('#64 sessie-identifiers met een spatie erin botsen niet', async () => {
+    const store = createInMemoryStore();
+    await store.saveSession(makeSession({ id: '1 sess', roomId: 'room 1', tokenHash: 'hash_a' }));
+    await store.saveSession(makeSession({ id: '1 1 sess', roomId: 'room', tokenHash: 'hash_b' }));
+
+    assert.strictEqual((await store.loadSession('room 1', '1 sess')).roomId, 'room 1');
+    assert.strictEqual((await store.loadSession('room', '1 1 sess')).roomId, 'room');
+    assert.strictEqual(await store.loadSession('room 1', '1 1 sess'), null);
+    assert.strictEqual(await store.loadSession('room', '1 sess'), null);
+  });
+
+  test('#65 speler-identifiers met een spatie erin botsen niet, ook niet via listPlayers', async () => {
+    const store = createInMemoryStore();
+    await store.savePlayer(makePlayer({ id: '1 p', roomId: 'room 1' }));
+    await store.savePlayer(makePlayer({ id: '1 1 p', roomId: 'room' }));
+
+    assert.strictEqual((await store.loadPlayer('room 1', '1 p')).roomId, 'room 1');
+    assert.strictEqual(await store.loadPlayer('room 1', '1 1 p'), null);
+    assert.strictEqual(await store.loadPlayer('room', '1 p'), null);
+
+    const inRoom1 = await store.listPlayers('room 1');
+    assert.strictEqual(inRoom1.length, 1);
+    assert.strictEqual(inRoom1[0].id, '1 p');
+  });
+});
+
 describe('saveAcceptedAnswerAtomically — idempotentie en "één antwoord per ronde" ÍN de atomaire operatie (DM13, reactie op INTB-4) #39-43', () => {
   test('#39 dezelfde actionId een tweede keer resolvet zonder te muteren, ook met een hogere score in de herhaling', async () => {
     const store = createInMemoryStore();

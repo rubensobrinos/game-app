@@ -60,12 +60,12 @@ Legenda: ✅ gebouwd en getest.
 | `types/room-presentation.js` | DM3 | ✅ | 9 |
 | `name-processing.js` | DM4 | ✅ | 34 |
 | `privacy-guard.js` | DM5 | ✅ | 109 |
-| `repository.js` + `in-memory-store.js` | DM6, uitgebreid door DM10–DM17 | ✅ | 64 |
+| `repository.js` + `in-memory-store.js` | DM6, uitgebreid door DM10–DM18 | ✅ | 66 |
 | `answer-flow.js` | DM7, becommentarieerd door DM13/DM15 | ✅ | zie `docs/data-model-plan/DM-PROGRESS.md` |
 | `types/player.js`'s `toStandingPlayerView()` | DM9 | ✅ | zie `docs/data-model-plan/DM-PROGRESS.md` |
 
-**Totaal: 499 tests groen** (`node --test 'server/data/**/*.test.js'`) na
-DM0–DM17. Analytics (DM8) levert bewust geen `server/`-code — dat blijft een
+**Totaal: 501 tests groen** (`node --test 'server/data/**/*.test.js'`) na
+DM0–DM18. Analytics (DM8) levert bewust geen `server/`-code — dat blijft een
 voorstel onder `docs/data-model-plan/proposals/`, niet als runtimecode
 (`REVIEW-DM2-DM9.md` bevinding 11).
 
@@ -87,7 +87,13 @@ join-code van de eigenaar "stelen"), en `saveSession` geeft sinds DM17 de
 vorige `tokenHash`-index-entry vrij bij een wijziging (reactie op
 INTB-10-rotatie — dezelfde klasse fout als INTB-5, nu voor sessies). De
 in-memory fake gebruikt sindsdien geneste Maps in plaats van met een spatie
-samengestelde string-sleutels voor zijn interne, samengestelde identifiers.
+samengestelde string-sleutels voor zijn interne, samengestelde identifiers —
+sinds DM18 ook voor `sessionsByKey`/`playersByKey` (`playerIdsByRoom` is
+daarmee komen te vervallen).
+
+**Voorstel klaar, nog niet gebouwd:** `HANDOFF.md` §15 — een versieprefix op
+`inviteHash`/`tokenHash` (INT-13/INT-15) botst met `redis-keys.js`'s
+`assertSegment`, die een `:` in elk segment weigert. Wacht op AR + INT-B.
 
 **De poort is sinds DM13 bevroren, met een gevolgd voorstel-proces**
 (`docs/data-model-plan/HANDOFF.md` §7b): elke wijziging aan het

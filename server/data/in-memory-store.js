@@ -24,9 +24,10 @@
 // teken samengevoegde strings — `assertNonEmptyString` sluit spaties niet
 // uit, dus een `` `${a} ${b}` ``-string kan in theorie botsen tussen twee
 // verschillende paren (zelfde reden als `redis-keys.js`'s `assertSegment`
-// voor echte Redis-sleutels). `sessionsByKey`/`playersByKey` zijn hier bewust
-// NIET meegenomen — buiten de scope van DM10/11/12, zie `HANDOFF.md` voor die
-// openstaande, kleinere opvolgnotitie.
+// voor echte Redis-sleutels). `sessionsByKey`/`playersByKey` volgden dit
+// patroon aanvankelijk niet (§7-opvolgnotitie in `HANDOFF.md`) — DM18 heeft
+// ze alsnog omgezet; `playerIdsByRoom` is daarmee komen te vervallen, want
+// `playersByKey.get(roomId)`'s sleutels zíjn nu de spelers-ids van die room.
 
 /**
  * @param {object} value
@@ -58,10 +59,9 @@ function createInMemoryStore() {
   const roomsById = new Map();
   const roomIdByCode = new Map();
   const roomIdByInviteHash = new Map(); // gevuld door claimRoomLocatorsAtomically, NIET door saveRoom (Room draagt geen inviteHash — zie DM10)
-  const sessionsByKey = new Map(); // `${roomId} ${sessionId}` -> Session
+  const sessionsByKey = new Map(); // roomId -> Map<sessionId, Session> (DM18: was `${roomId} ${sessionId}`, zie §7)
   const roomAndSessionByTokenHash = new Map(); // tokenHash -> { roomId, sessionId } (DM14/§10)
-  const playersByKey = new Map(); // `${roomId} ${playerId}` -> Player
-  const playerIdsByRoom = new Map(); // roomId -> Set<playerId>
+  const playersByKey = new Map(); // roomId -> Map<playerId, Player> (DM18: was `${roomId} ${playerId}`, zie §7)
   const matchesByKey = new Map(); // roomId -> Map<matchId, Match>
   const roundsByKey = new Map(); // roomId -> Map<matchId, Map<roundId, Round>>
   const answersByKey = new Map(); // roomId -> Map<matchId, Map<roundId, Map<playerId, Answer>>>
@@ -193,7 +193,7 @@ function createInMemoryStore() {
   }
 
   async function loadSession(roomId, sessionId) {
-    const session = sessionsByKey.get(`${roomId} ${sessionId}`);
+    const session = sessionsByKey.get(roomId)?.get(sessionId);
     return session === undefined ? null : deepCopy(session);
   }
 
@@ -204,13 +204,13 @@ function createInMemoryStore() {
     // oude tokenHash een tweede geldige capability naast de nieuwe, letterlijk
     // INTB-5 nog een keer. Geen nieuwe reverse index nodig: sessionsByKey
     // draagt de vorige sessie al op dezelfde sleutel.
-    const key = `${session.roomId} ${session.id}`;
-    const existing = sessionsByKey.get(key);
+    const sessionsInRoom = getOrCreateNestedMap(sessionsByKey, session.roomId);
+    const existing = sessionsInRoom.get(session.id);
     if (existing !== undefined && existing.tokenHash !== session.tokenHash) {
       roomAndSessionByTokenHash.delete(existing.tokenHash);
     }
 
-    sessionsByKey.set(key, deepCopy(session));
+    sessionsInRoom.set(session.id, deepCopy(session));
     // DM14 (§10, reactie op INT-3): tokenHash staat al op Session (DM2a) —
     // geen chicken-and-egg zoals bij inviteHash, dus deze index kan
     // rechtstreeks door saveSession gevuld worden. Niet leeggemaakt bij
@@ -228,27 +228,21 @@ function createInMemoryStore() {
   }
 
   async function loadPlayer(roomId, playerId) {
-    const player = playersByKey.get(`${roomId} ${playerId}`);
+    const player = playersByKey.get(roomId)?.get(playerId);
     return player === undefined ? null : deepCopy(player);
   }
 
   async function savePlayer(player) {
-    playersByKey.set(`${player.roomId} ${player.id}`, deepCopy(player));
-    if (!playerIdsByRoom.has(player.roomId)) {
-      playerIdsByRoom.set(player.roomId, new Set());
-    }
-    playerIdsByRoom.get(player.roomId).add(player.id);
+    const playersInRoom = getOrCreateNestedMap(playersByKey, player.roomId);
+    playersInRoom.set(player.id, deepCopy(player));
   }
 
   async function listPlayers(roomId) {
-    const ids = playerIdsByRoom.get(roomId);
-    if (ids === undefined) {
+    const playersInRoom = playersByKey.get(roomId);
+    if (playersInRoom === undefined) {
       return [];
     }
-    return Array.from(ids)
-      .map((playerId) => playersByKey.get(`${roomId} ${playerId}`))
-      .filter((player) => player !== undefined)
-      .map(deepCopy);
+    return Array.from(playersInRoom.values()).map(deepCopy);
   }
 
   async function loadMatch(roomId, matchId) {
@@ -331,8 +325,8 @@ function createInMemoryStore() {
       return { replay: true }; // resolve zonder te muteren
     }
 
-    const playerKey = `${roomId} ${write.updatedPlayer.id}`;
-    const existingPlayer = playersByKey.get(playerKey);
+    const playersInRoom = getOrCreateNestedMap(playersByKey, roomId);
+    const existingPlayer = playersInRoom.get(write.updatedPlayer.id);
     if (existingPlayer === undefined) {
       throw new RangeError(`saveAcceptedAnswerAtomically: unknown playerId ${JSON.stringify(write.updatedPlayer.id)} for roomId ${JSON.stringify(roomId)}`);
     }
@@ -367,7 +361,7 @@ function createInMemoryStore() {
     const answersInRound = getOrCreateNestedMap(answersInMatch, write.answer.roundId);
     answersInRound.set(write.answer.playerId, deepCopy(write.answer));
 
-    playersByKey.set(playerKey, deepCopy(updatedPlayer));
+    playersInRoom.set(write.updatedPlayer.id, deepCopy(updatedPlayer));
 
     const scoreboardInRoom = getOrCreateNestedMap(scoreboardByRoom, roomId);
     const scoreboardInMatch = getOrCreateNestedMap(scoreboardInRoom, matchId);

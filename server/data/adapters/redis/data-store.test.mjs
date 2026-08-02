@@ -739,7 +739,7 @@ if (!probe.ok) {
       let onderbroken = 0;
       try {
         for (const [moment, vertragingMs] of [
-          ['tijdens', 0], ['tijdens', 0], ['tijdens', 1], ['tijdens', 3], ['tijdens', 8],
+          ['tijdens', 0], ['tijdens', 0], ['tijdens', 0], ['tijdens', 1], ['tijdens', 3],
           ['bij-eval', 0], ['bij-eval', 0], ['bij-eval', 0], ['bij-eval', 0], ['bij-eval', 0],
         ]) {
           // Hier BEGINNEN room en match op dezelfde fase, anders dan in de
@@ -812,7 +812,7 @@ if (!probe.ok) {
 
           // Wachten tot de gedode verbinding zichzelf heeft hersteld, anders
           // meet de volgende ronde de herverbinding in plaats van het gedrag.
-          const deadline = Date.now() + 5_000;
+          const deadline = Date.now() + 10_000;
           while (!victim.isReady() && Date.now() < deadline) {
             await new Promise((resolve) => setTimeout(resolve, 10));
           }

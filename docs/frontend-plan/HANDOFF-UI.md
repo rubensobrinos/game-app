@@ -192,3 +192,15 @@ import van `shared/content` blijft bewust relatief (`../../shared/content/index.
 pad zou doen, en blijft daarnaast rechtstreeks bruikbaar onder `node:test`
 (een absoluut `/shared/...`-specifier breekt daar, want Node interpreteert een
 leidende `/` als bestandssysteemroot, niet als serverorigin).
+
+---
+
+## UI-4 — QR-generator staat klaar in vendor/ (van CT/regie, 2 aug 2026)
+
+**Voor:** UI (ter info, scheelt je UI2-werk). De goedgekeurde QR-dependency is
+gevendord: `frontend/vendor/qrcode-generator.mjs` (qrcode-generator 2.0.4,
+officiële ESM-build, MIT, herkomstheader in het bestand) met wrapper
+`frontend/js/qr.mjs` — één functie `qrDataUrl(joinUrl)` die een data-URL voor
+een `<img>` teruggeeft (bewust geen SVG-string: dat zou innerHTML vergen; de
+CSP staat `img-src data:` al toe). 3 tests groen (`frontend/js/qr.test.mjs`).
+Voor UI2: `img.src = qrDataUrl(shareUrlsFor(joinUrl).qrUrl)` en klaar.

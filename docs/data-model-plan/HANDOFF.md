@@ -527,14 +527,17 @@ niet weerspiegelt.
 bindende maximum is (besluit 13) en dat elke waarde eronder een geldige
 configuratiekeuze is — niet dat 150 zelf de norm is.
 
-## 7. Klein, buiten scope van DM10/11/12 — genoteerd, niet opgepakt
+## 7. Klein, buiten scope van DM10/11/12 — OPGELOST in DM18
 
-`sessionsByKey`/`playersByKey` in `in-memory-store.js` gebruiken nog steeds
+`sessionsByKey`/`playersByKey` in `in-memory-store.js` gebruikten nog steeds
 `` `${roomId} ${playerId}` ``-samengestelde string-sleutels, dezelfde klasse
 kwetsbaarheid (in theorie, geen praktijkincident) die DM11/DM12 net voor
-`matches`/`rounds`/`answers`/`actionCache`/`scoreboard` hebben opgelost.
-Bewust niet meegenomen om de scope van deze ronde niet verder op te rekken —
-kleine, geïsoleerde opvolging als iemand er nog eens langs gaat.
+`matches`/`rounds`/`answers`/`actionCache`/`scoreboard` hadden opgelost.
+**Alsnog meegenomen (DM18)** — geen poortsignatuur-wijziging, dus buiten de
+bevriezing van §7b: beide zijn nu geneste Maps, met een collision-bewijstest
+per entiteit (`repository.test.js` #64-65). `playerIdsByRoom` is daarmee
+komen te vervallen — `playersByKey.get(roomId)`'s sleutels zíjn nu de
+spelers-ids, dus die aparte Set was overbodig geworden.
 
 ## 13. FORMEEL VOORSTEL — wacht op akkoord INT-A + INT-B (poort-bevroren, §7b) — INTB-9, INTB-5 (heropend), INTB-10
 
@@ -720,3 +723,58 @@ juiste antwoord, geen gat.
 **Toegepast op elke volgende poortwijziging vanaf nu**, zoals gevraagd — dit
 wordt de standaardvraag bij een nieuwe capability, niet iets wat achteraf
 wordt gecontroleerd.
+
+## 15. Reactie op INT-15 en INT-13 — signatuur bevestigd, versieprefix roept een nieuw, concreet probleem op
+
+**INT-15 (aan DM + INT-B): `loadSessionByTokenHash`-signatuur.** Bevestigd
+en al zo gebouwd — `(tokenHash)`, geen `roomId`. DM17/Deel B koos dit al
+vóórdat INT-15 hier was, om precies INT-A's reden (de lookup ís hoe de server
+de room leert kennen; een `roomId`-parameter zou circulair zijn). Geen
+wijziging nodig.
+
+**INT-13 (aan DM + AR) en INT-15's tweede punt (versieprefix op
+`inviteHash`/`tokenHash`, analoog aan de tokenhash-opslag in
+`auth-session.mjs`): akkoord met het principe, maar niet zomaar te bouwen —
+ik heb een concreet, niet eerder genoemd probleem gevonden.**
+
+`redis-keys.js`'s `assertSegment` weigert een `:` in elk segment
+(`INVALID_SEGMENT_CHARS = /[:*?[\]]/`) — bewust, om Redis-key-injectie via een
+segment te voorkomen. `auth-session.mjs`'s eigen opslagvorm
+(`STORED_HASH_SEPARATOR = ':'`, zelf nagelezen) gebruikt exact dat teken:
+`${version}:${hex}`. Geef zo'n waarde ongewijzigd door aan
+`roomInviteLookupKey(inviteHash)` of `sessionTokenLookupKey(tokenHash)`, dan
+werpt `assertSegment` een `TypeError` — de versieprefix die INT-13/INT-15
+willen, breekt letterlijk op mijn eigen injectiebescherming zodra iemand het
+naïef implementeert.
+
+**Voorstel, nog niet gebouwd:** de key-builders worden twee segmenten in
+plaats van één, zelfde patroon als `matchKey(roomId, matchId)`:
+
+```js
+roomInviteLookupKey(version, hash)   // -> 'room:invite:{version}:{hash}'
+sessionTokenLookupKey(version, hash) // -> 'session:token:{version}:{hash}'
+```
+
+Elk segment wordt apart met `assertSegment` gevalideerd (geen `:` binnen een
+segment, wel als structureel scheidingsteken ertussen — precies zoals nu al
+bij elke multi-segment builder). **De poortmethoden zelf
+(`loadRoomByInviteHash`, `loadSessionByTokenHash`,
+`claimRoomLocatorsAtomically`, `rotateRoomLocators`) blijven ongewijzigd** —
+die blijven één opaque, al-versioned string aannemen (`inviteHash`/
+`tokenHash`), precies zoals `Session.tokenHash`/de compositie die vandaag al
+aanlevert. Het splitsen in `{version, hash}` gebeurt pas in de
+adapter/key-builder-laag, niet in de poort of de fake — de fake blijft de
+volledige string als ondoorzichtige Map-sleutel gebruiken, dat heeft geen
+last van `assertSegment`.
+
+**Wie dit raakt, dus wie akkoord moet geven vóór ik dit bouw:**
+- **AR** (`room-codes.js`'s `hashInviteId`) — moet daadwerkelijk
+  `${version}:${hex}` gaan opleveren, zoals INT-13 voorstelt;
+- **INT-B** — de adapter splitst de binnenkomende versioned string vóór hij
+  de key-builder aanroept; dit raakt hun Lua-/lookup-pad voor zowel
+  `INTB-2`/`INTB-9` als het nog te bouwen `INTB-10`;
+- **INT-A** — geen impact verwacht (de poortsignaturen veranderen niet), maar
+  ter kennisgeving omdat `loadSessionByTokenHash` al live is in de socketlaag.
+
+Nog niets van dit voorstel geïmplementeerd — wacht op bevestiging dat de
+tweesegment-aanpak de juiste is, dan bouw ik de key-builder-wijziging.

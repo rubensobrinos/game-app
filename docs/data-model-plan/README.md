@@ -22,12 +22,13 @@ transcriptie (+ voorstel voor een neutrale module in `HANDOFF.md` §5), en `Roun
 uitgebreid na reconciliatie met de inmiddels herziene `GR4-question-selection.md`.
 Zie [`DM-PROGRESS.md`](DM-PROGRESS.md) §Cijfers voor de volledige lijst.
 
-**Uitgevoerd. Alle achttien fases (DM2–DM17) staan in `server/data/`, 499/499
-tests groen** (`node --test 'server/data/**/*.test.js'`). DM10–DM17
+**Uitgevoerd. Alle negentien fases (DM2–DM18) staan in `server/data/`, 501/501
+tests groen** (`node --test 'server/data/**/*.test.js'`). DM10–DM18
 (§3 hieronder) zijn een latere ronde, gebouwd als reactie op
 `docs/integration-plan/`'s HANDOFF-bevindingen. **De poort is sinds DM13
-bevroren, met een gevolgd voorstel-proces voor DM14–DM17** — zie `HANDOFF.md`
-§7b/§14. Tijdens de uitvoering van
+bevroren, met een gevolgd voorstel-proces voor DM14–DM17** (DM18 is een
+interne, niet-poort-signatuur-wijzigende opruiming en viel dus buiten die
+bevriezing) — zie `HANDOFF.md` §7b/§14/§15. Tijdens de uitvoering van
 DM2–DM9 kwam
 [`docs/multiplayer/DECISIONS.md`](../multiplayer/DECISIONS.md) binnen (2 augustus
 2026, bevestigd door de producteigenaar) en loste daarmee checkpoint 4 op:
@@ -136,6 +137,16 @@ gevolgen daarvan.
 | DM15 | `saveAcceptedAnswerAtomically` geeft `{ replay: boolean }` terug | **Uitgevoerd** — reactie op INT-14 (`HANDOFF.md` §12); contract voor INT-B's Lua-script, geen ack in de replay-tak |
 | DM16 | `rotateRoomLocators` | **Uitgevoerd** — reactie op INTB-5 🔴 (`HANDOFF.md` §9, formeel voorstel + product-akkoord + gebouwd); atomaire wissel, faalt veilig (oude locators blijven geldig bij conflict) |
 | DM17 | `saveRoom` raakt lookup-indexen niet meer aan + sessietoken-rotatie | **Uitgevoerd** — reactie op INT-B's `BESLUIT-INTB-locators-en-sessieindex.md` (`HANDOFF.md` §14), Deel A (INTB-9) + Deel B (INTB-10-rotatie); capability-principe (besluit #37) toegepast en geaudit over alle drie de capabilities |
+| DM18 | `sessionsByKey`/`playersByKey` → geneste Maps | **Uitgevoerd** — §7-opvolging, geen poortsignatuur-wijziging dus buiten de bevriezing; `playerIdsByRoom` kwam te vervallen |
+
+**Ook een voorstel geschreven, nog niet gebouwd:** `HANDOFF.md` §15 —
+versieprefix op `inviteHash`/`tokenHash` (INT-13 + INT-15) raakt
+`redis-keys.js`'s `assertSegment`, die een `:` in elk segment weigert.
+Concreet gevonden probleem: de voorgestelde `${version}:${hash}`-vorm zou op
+die eigen injectiebescherming stuklopen als hij ongewijzigd wordt
+doorgegeven. Voorstel: key-builders worden twee segmenten
+(`roomInviteLookupKey(version, hash)`), poortmethoden blijven ongewijzigd.
+Wacht op AR + INT-B.
 
 **Poort bevroren sinds DM13, met een expliciet, gevolgd uitzonderingsproces
 (`HANDOFF.md` §7b).** DM14–DM17 zijn precies via dat proces gegaan: voorstel
@@ -145,7 +156,7 @@ stappen, nu ook expliciet getoetst aan het capability-principe (besluit #37,
 `HANDOFF.md` §14): elke capability heeft één atomair schrijfpad en één
 atomair intrekpad.
 
-**DM0–DM17 zijn allemaal uitgevoerd — 499/499 tests groen**
+**DM0–DM18 zijn allemaal uitgevoerd — 501/501 tests groen**
 (`node --test 'server/data/**/*.test.js'`). Checkpoint 4 is tijdens de
 uitvoering opgelost door `docs/multiplayer/DECISIONS.md` #21. DM10–DM12 zijn
 gebouwd na een eigen reviewronde die vóór uitvoering drie fundamentele
@@ -155,11 +166,14 @@ kwam via `docs/integration-plan/`'s conformance-suite INTB-4 aan het licht
 (idempotentie in `saveAcceptedAnswerAtomically`) — als eigen fase DM13
 gebouwd, gevalideerd tegen INT-B's eigen (bewust rode) tests, die nu groen
 staan. Daarna DM14–DM16 (`loadSessionByTokenHash` voor INT-3,
-`{ replay: boolean }` voor INT-14, `rotateRoomLocators` voor INTB-5 🔴), en
-DM17 (`saveRoom` raakt de lookup-indexen niet meer aan + sessietoken-rotatie
-— reactie op INT-B's `BESLUIT-INTB-locators-en-sessieindex.md`, `HANDOFF.md`
-§14), elk via het voorstel-proces uit §7b: voorstel, akkoord, dan bouwen.
-**De poort blijft bevroren voor eenzijdige wijzigingen**, nu expliciet
+`{ replay: boolean }` voor INT-14, `rotateRoomLocators` voor INTB-5 🔴), DM17
+(`saveRoom` raakt de lookup-indexen niet meer aan + sessietoken-rotatie —
+reactie op INT-B's `BESLUIT-INTB-locators-en-sessieindex.md`, `HANDOFF.md`
+§14) en DM18 (`sessionsByKey`/`playersByKey` → geneste Maps, §7-opvolging,
+geen poortwijziging). DM14–DM17 gingen via het voorstel-proces uit §7b:
+voorstel, akkoord, dan bouwen; DM18 raakte geen poortsignatuur en viel dus
+buiten de bevriezing. **De poort blijft bevroren voor eenzijdige
+wijzigingen**, nu expliciet
 getoetst aan het capability-principe (besluit #37) —
 zie `HANDOFF.md` §7b/§8/§14 voor het volledige, actuele overzicht van wat er nog
 aan DM gericht staat maar bewust niet gebouwd is. Resterende
