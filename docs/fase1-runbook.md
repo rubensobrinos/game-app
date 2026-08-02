@@ -49,6 +49,19 @@ Stoppen: `docker compose down` (volumes blijven staan).
 5. `.env` vullen: `POSTGRES_PASSWORD`, `TOKEN_PEPPER`
    (`openssl rand -base64 48`), evt. `CLOUDFLARE_TUNNEL_TOKEN`.
 
+## Operationele lessen
+
+- **Bind-mounts op losse bestanden raken stale na bewerkingen.** Editors en
+  git schrijven bestanden atomisch (nieuw bestand + rename), waardoor de mount
+  in de frontend-container naar een verdwenen inode wijst → nginx geeft dan
+  403 op `/`. Na élke wijziging aan de losse rootbestanden (index.html,
+  app.js, style.css, hint.js, public-mode.js):
+  `docker compose -f docker-compose.yml -f compose.tunnel.override.yml --profile tunnel up -d --force-recreate frontend`.
+  Dit ongemak vervalt zodra de routering naar de nieuwe game-server (die zelf
+  bestanden serveert) definitief is.
+- Config-mount gewijzigd (nginx/Caddy): idem — restart/force-recreate, een
+  kale `up -d` ziet "geen wijziging".
+
 ## Openstaande punten (bewust, met reden)
 
 1. **Juridisch — logo's en voetbal:** `logos/` en `football/` worden gemount

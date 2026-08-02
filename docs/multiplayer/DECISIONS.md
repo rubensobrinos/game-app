@@ -118,6 +118,15 @@ document totdat de betreffende fundamentele specificatie is bijgewerkt.
     poortmethode betekent bovendien: implementeerbaar in Redis, inclusief
     benoemde sleutel én een uitspraak over TTL.
 
+38. **INT-5 (afleidbaar antwoord bij `flags_mc`) is een geaccepteerd risico voor
+    de pilotfase** (bevestigd 2 aug 2026, regie-sessie): een speler die zijn
+    browser-devtools inspecteert kan bij Vlaggen-meerkeuze het juiste antwoord
+    afleiden (`targetIso2` = `correctAnswer.optionId`). Voor Pilot A/B met
+    bekenden is dit aanvaardbaar; **vóór route B (onderwijs) of serieuze
+    publieke inzet wordt de vraagvorm herontworpen** (eigenaar: GR + PR,
+    eenmalige klus; de keten-test pint het lek exact vast en gaat rood zodra
+    er méér lekt dan dit ene bekende pad).
+
 ## Uitvoeringsakkoord test- en deploymentwerk
 
 De producteigenaar heeft akkoord gegeven om de eerder geparkeerde test- en
