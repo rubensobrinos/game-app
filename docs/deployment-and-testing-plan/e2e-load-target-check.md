@@ -51,6 +51,191 @@ target dat nog niet af is.
 
 ---
 
+# Controle 2 augustus 2026 (nacht, tweede ronde) — k6-target compleet, Playwright nog niet
+
+**Aanleiding:** herverificatie van de twee open blokkades uit de vorige controle
+(hieronder), specifiek omdat de vorige controle zelf al voorspelde dat de
+`startMatch`-regressie er "gezien de snelheid van deze repo mogelijk al bij de
+volgende controle achterhaald is". Geen nieuwe DT-R4-agent, gewoon dezelfde twee
+commando's opnieuw, zelf uitgevoerd.
+
+## Verdict k6: target bestaat nu — beide vinkjes waar
+
+- [x] **Punt 1 (attach)** — ongewijzigd waar, zie vorige controle.
+- [x] **Punt 2 (keten-test over echt verkeer draait groen) — NU WAAR.**
+      `node --test tests/integration/full-match-transport.test.mjs`:
+      **6 pass / 0 fail** (was 2 pass / 4 fail). De `startMatch`-regressie in
+      `server/composition/match-lifecycle.mjs`/`server/data/in-memory-store.js`
+      die de vorige controle blokkeerde, is inmiddels door een andere,
+      gelijktijdige sessie opgelost — dezelfde regressie die DT-R1's derde
+      heraudit ook trof en die bij herverificatie daar ook al bleek opgelost
+      (zie `integration-matrix.md`). Volledige testnamen die nu slagen: de
+      hoofdketen (room → preview → twee joins → drie sockets → start → twee
+      rondes → eindstand → rematch → nog een ronde), matrixrijen 11 en 13 over
+      de wire, authenticatie over de wire, en de lekdetector op een uitgelokte
+      `INVALID_PAUSE_STATE`.
+
+**Conclusie:** het k6-target zoals de checklist het definieert **bestaat nu
+volledig**. DT5 §Deel 2 (scripts schrijven in `tests/load/`) kan starten — het
+generieke `deps`-akkoord staat al in `DECISIONS.md`; het **uitvoeren** van
+loadtests (Deel 3) blijft `prod` en vereist een eigen, apart akkoord.
+
+## Verdict Playwright: ongewijzigd — nog steeds 2 van 3
+
+- [ ] **Punt 3 (joinflow tegen een draaiende server) — nog steeds NIET waar.**
+      `frontend/js/app.mjs` regel 25 importeert nog steeds
+      `createMockTransport` uit `./transport-mock.mjs`; geen enkele view
+      importeert `./transport.mjs`. Ongewijzigd t.o.v. de vorige controle,
+      opnieuw met een verse `grep` bevestigd.
+
+**Conclusie:** Playwright-target bestaat nog niet; enige resterende blokkade is
+de eenregelige import-swap in `app.mjs`, niet mijn module om te fixen.
+
+## Harde grenzen gerespecteerd in deze controle
+
+- Geen `npm install` uitgevoerd, geen wijziging aan `package.json`.
+- Geen nieuw bestand onder `tests/e2e/` of `tests/load/`.
+- Precies één bestand gewijzigd: dit bestand.
+- De testsuite is uitsluitend uitgevoerd om de pass/fail-status vast te leggen,
+  niet gewijzigd.
+
+---
+
+# Controle 2 augustus 2026 (nacht) — DT-R4-herhaling, eerste keer echte beweging
+
+**Aanleiding:** [`prompts/DT-R4-playwright-k6-target-check.md`](prompts/DT-R4-playwright-k6-target-check.md)
+opnieuw gedraaid. Sinds de avondcontrole hieronder is `frontend/` gevuld met een
+substantiële UI (`index.html`, `css/base.css`, `js/app.mjs`, `js/transport.mjs`,
+`js/transport-mock.mjs`, `js/views/{home,join,gameplay,scoreboard,podium}.mjs`,
+e.a.) en bestaat `server/transport/socket.mjs`. Deze controle toetst dat concreet
+tegen de Triggercondities-checklist hierboven, met levende code — niet op
+bestandsnamen alleen. De repo bewoog letterlijk tijdens dit onderzoek: bij de
+eerste `Read` van `frontend/js/transport.mjs` was dat bestand nog 62 regels en
+een placeholder die synchroon gooide; enkele minuten later, nog steeds binnen
+deze controle, was het 1019 regels en een volledige implementatie. `git status`
+op het moment van schrijven toont `frontend/js/transport.mjs`,
+`frontend/js/views/{home,join}.mjs`, `server/data/in-memory-store.js` en meer als
+**ongecommitte wijzigingen van een andere, gelijktijdige sessie**. Onderstaande
+bevindingen zijn een bestandsniveau-momentopname op dat tijdstip, met de exacte
+bewijzen erbij; een volgende ronde kan zijn afgeschoven.
+
+## Verdict Playwright: target bestaat nog niet — 2 van 3 vinkjes nu waar (nieuw)
+
+Getoetst tegen de drie checklistpunten hierboven:
+
+- [x] **Punt 1 (gerenderde UI, geen scaffold).** `frontend/index.html` bevat
+      `<script type="module" src="/js/app.mjs">`. `frontend/js/app.mjs` importeert
+      `../../client/flow/route-resolver.mjs` en
+      `../../client/flow/share-actions.mjs`; `frontend/js/views/join.mjs`
+      importeert `../../../client/flow/join-state.mjs`,
+      `.../session-store.mjs` en `.../edge-case-messaging.mjs`. Dit zijn
+      werkende Home- en Join-schermen (DOM-opbouw, formuliervalidatie via
+      `join-state.mjs`'s reducer), geen scaffold-placeholder meer — dit vinkje
+      is voor het eerst waar.
+- [x] **Punt 2 (server serveert `frontend/`).** `server/index.mjs` bevat
+      `registerStaticRoutes(fastify)` (regel 236-276) die `FRONTEND_ROOT =
+      path.join(REPO_ROOT, 'frontend')` als root serveert, met een SPA-fallback
+      naar `frontend/index.html` voor extensieloze paden (deep links als
+      `/j/{inviteId}`). Wordt aangeroepen in `buildServer()` (regel 365). Volgt
+      automatisch uit punt 1, zoals de checklist voorspelde — bevestigd.
+- [ ] **Punt 3 (joinflow tegen een draaiende server) — NIET waar.**
+      `frontend/js/app.mjs` regel 17 en 22:
+      `import { createMockTransport } from './transport-mock.mjs';` /
+      `const transport = createMockTransport();`. Geen enkele view importeert
+      `./transport.mjs`; een repo-brede zoekactie naar consumenten van
+      `createTransport` buiten `transport.mjs` zelf levert niets op. Dat is
+      opmerkelijk, want `frontend/js/transport.mjs` bevat op dit moment (zie
+      hierboven, nog ongecommitteerd) wél een volledige, echte implementatie
+      (`createTransport({ baseUrl })`: REST via `fetch` tegen
+      `/api/v1/games/*`, plus een eigen Engine.IO-/Socket.IO-v4-wireclient over
+      de kale `WebSocket`, met reconnect-backoff en de
+      snapshot-precedentiepoort). Die module bestaat dus, maar is **niet
+      bedraad** in de gerenderde app: een Playwright-test die vandaag de
+      join-flow door de UI heen aanstuurt, raakt uitsluitend de in-memory mock
+      en spreekt de draaiende Fastify-server nooit aan.
+
+**Conclusie:** vooruitgang t.o.v. de vorige twee controles (punt 1 en 2 zijn
+voor het eerst waar), maar het target bestaat nog niet: punt 3 blokkeert, en de
+blokkade is nu specifiek "de echte transportlaag is geschreven maar nog niet
+aan `app.mjs` gekoppeld" — geen `deps`-vraag, gewoon een resterende
+bedradingsstap die (gezien de snelheid van deze repo) mogelijk al bij de
+volgende controle achterhaald is.
+
+## Verdict k6: target bestaat nog niet — attach-vinkje nu waar, keten-test rood
+
+Getoetst tegen de twee checklistpunten hierboven:
+
+- [x] **Punt 1 (socket.mjs bestaat én wordt echt aangehaakt) — WAAR.**
+      `server/transport/socket.mjs` bestaat (44.951 bytes) en exporteert
+      `attachSocketServer(httpServer, { context, config })` (regel 223).
+      `server/index.mjs`'s `attachSocketsIfAvailable()` (regel 297-311)
+      importeert dat bestand dynamisch en geeft alleen bij een letterlijk
+      ontbrekend bestand (`ERR_MODULE_NOT_FOUND`) `null` terug; elke andere
+      fout wordt doorgegooid, en bij succes wordt `module.attachSocketServer(...)`
+      echt aangeroepen. Operationeel bevestigd:
+      `tests/integration/support/transport-harness.mjs` bouwt de server exact
+      zoals `start()` in `server/index.mjs` (`readConfigFromEnvironment` →
+      `buildServer` → `listen` → `attachSocketsIfAvailable`) en doet
+      `assert.notEqual(attached, null, ...)`. Bij het uitvoeren van de
+      bijbehorende testsuite slaagt de subtest "Authenticatie over de wire"
+      (zie hieronder) — dat bewijst dat de socketlaag daadwerkelijk luistert en
+      handshakes afhandelt, geen stille no-op.
+- [ ] **Punt 2 (keten-test over echt verkeer draait groen) — NIET waar.**
+      `tests/integration/full-match-transport.test.mjs` bestaat exact zoals de
+      checklist vereist: echte HTTP (`fetch`) tegen een server gestart met
+      `fastify.listen({ port: 0, ... })` (niet `inject()`) plus drie echte
+      WebSocket-verbindingen met de Engine.IO/Socket.IO-handshake
+      (`tests/integration/support/socket-io-test-client.mjs`). Uitgevoerd op
+      het moment van deze controle (`node --test
+      tests/integration/full-match-transport.test.mjs`):
+      **2 pass / 4 fail** van de 6 tests. De falende asserties zijn geen
+      auth-/attach-fouten (die subtest slaagt) maar `INVALID_PHASE`-acks en een
+      timeout op het `game:started`-event zodra de test een match probeert te
+      starten. Dezelfde onderliggende fout is reproduceerbaar in-process, dus
+      losstaand van de socketlaag: `tests/integration/full-match.test.mjs`
+      (de niet-transport-keten-test, "definition of done van stap 1") draait op
+      hetzelfde moment **1 pass / 2 fail**, met
+      `RangeError: setRoomAndMatchPhaseAtomically: pausedState moet null zijn
+      buiten de fase "PAUSED" (newPhase was undefined)` vanuit
+      `server/composition/match-lifecycle.mjs` → `startMatch` →
+      `server/data/in-memory-store.js`. `git status` bevestigt dat
+      `server/data/in-memory-store.js` op dit moment ongecommitte, actief
+      gewijzigde code van een andere sessie bevat — dit lijkt een lopende
+      regressie in de matchstart-/faseovergangslaag, niet een ontbrekende
+      socketkoppeling.
+
+**Conclusie:** ook hier voor het eerst echte structurele vooruitgang (punt 1,
+het aanhaakpunt zelf, staat er en werkt aantoonbaar), maar het target bestaat
+nog niet: de keten-test die punt 2 letterlijk vereist ("draait groen") is
+vandaag rood, met een concrete, geïsoleerde oorzaak (een fasetransitie-bug in
+`startMatch`/`in-memory-store.js`) die niets met k6 zelf te maken heeft maar wel
+de checklist-eis blokkeert.
+
+## Wat als de targets alsnog voor de volgende ronde beide waar worden
+
+Ongewijzigd t.o.v. de secties hieronder — zodra `app.mjs` `createTransport()`
+i.p.v. `createMockTransport()` gebruikt (Playwright punt 3) resp. de
+`startMatch`-regressie is opgelost zodat `full-match-transport.test.mjs` volledig
+groen draait (k6 punt 2), zijn beide targets compleet. Zie DT4a §Deel 2
+(Playwright toevoegen aan `package.json`, dat is de eerste
+frontend-testdependency van deze repo) en DT5 §Deel 2 (k6-scripts per rij in
+`load-evidence-matrix.md`) voor de uitvoerbare vervolgstappen; het generieke
+`deps`-akkoord staat al in `docs/multiplayer/DECISIONS.md` §Uitvoeringsakkoord,
+er is geen nieuwe mensgoedkeuring nodig om die stap te starten — wél blijft de
+daadwerkelijke `npm install` een eigen, aparte actie.
+
+## Harde grenzen gerespecteerd in deze controle
+
+- Geen `npm install` uitgevoerd, geen wijziging aan `package.json`.
+- Geen nieuw bestand onder `tests/e2e/` of `tests/load/`.
+- Precies één bestand gewijzigd: dit bestand (uitbreiding, geschiedenis van de
+  eerdere controles behouden).
+- De twee testsuites (`full-match-transport.test.mjs`, `full-match.test.mjs`)
+  zijn uitsluitend uitgevoerd om hun huidige pass/fail-status als bewijs vast te
+  leggen, niet gewijzigd.
+
+---
+
 # Controle 2 augustus 2026 (avond) — herbevestiging
 
 **Aanleiding voor deze herhaalde run:** sinds de ochtendcontrole hieronder is commit

@@ -1,8 +1,29 @@
 # Testmatrix — integratielaag (DT3a)
 
-**Status (2026-08-02, derde heraudit): 6/14 rijen geactiveerd** — rijen 1, 2,
-3, 5, 8, 10 (`tests/integration/matrix-row-{01,02,03,05,08,10}-*.test.mjs`,
-direct actief, geen `test.skip`, zelf gedraaid: 6/6 groen). Dit is een DALING
+**Status (2026-08-02, na de regressie hersteld): 12/14 rijen geactiveerd** —
+alle rijen behalve 4 en 6 (rate limiting resp. `share:opened`-persistentie
+ontbreken nog, zie hun rijen hieronder). De derde heraudit (hieronder, ná
+deze update) trof een echte, op commitniveau geciteerde regressie in
+`setRoomAndMatchPhaseAtomically`'s signatuur die rijen 7, 9, 12, 14
+tijdelijk deed regresseren en rijen 11/13 blokkeerde, ondanks een complete
+socketlaag. Bij eigen herverificatie kort daarna (dezelfde dag, deze repo
+beweegt in minuten) bleek die regressie al elders opgelost: alle 12 tests
+(`matrix-row-{01,02,03,05,07,08,09,10,11,12,13,14}-*.test.mjs`) draaien nu
+zelf gedraaid groen, individueel én binnen de volledige `npm test`-run
+(2421 tests, 2415 pass — de resterende 6 fails zitten allemaal in een
+ongerelateerde `DataStore-conformance`-suite over `Room.phase`/`Match.phase`,
+niet in een van de matrixrij-tests). Rijen 4 en 6 blijven ongewijzigd
+geblokkeerd — zie hun audit-regels. De onderstaande derde-heraudit-tekst
+blijft ongewijzigd staan als accuraat verslag van wat er ten tijde van díe
+audit gold; deze update erboven is een latere, eigen herverificatie, geen
+correctie van wat er toen stond.
+
+---
+
+*(Origineel derde-heraudit-verslag hieronder, ongewijzigd gelaten — zie de
+update hierboven voor de actuele stand.)*
+
+Dit is een DALING
 ten opzichte van de vorige heraudit (10/14) — GEEN heroverweging van eerder
 bewijs, maar een op commitniveau geciteerde, reproduceerbare regressie die
 ná de vorige heraudit is geland: commit `7cc31a8` ("Add DM19:
@@ -351,3 +372,23 @@ aanroepen zijn omgezet naar de nieuwe `{ expectedPhase, newPhase, pausedState
 — de twee nieuwe, zelf geschreven en tegen de pre-regressiestand bewezen
 groene tests uit deze audit — voor het eerst te activeren, zonder dat de
 socketlaag zelf nog iets hoeft te veranderen.
+
+**Herverificatie 2026-08-02, kort na de derde heraudit — regressie bleek al
+elders opgelost.** De hierboven geciteerde `RangeError` in
+`setRoomAndMatchPhaseAtomically`-aanroepen bestaat niet meer op de actuele
+werkboom (commit `0537330`, "INTB-11 — fake loopt achter op DM19", erkende
+het probleem al expliciet; de daadwerkelijke aanroepfix landde kort erna via
+een andere, gelijktijdige sessie — niet door dit plan zelf aangebracht).
+Alle twaalf tests apart en samen opnieuw gedraaid:
+
+```
+node --test tests/integration/matrix-row-{01,02,03,05,07,08,09,10,11,12,13,14}-*.test.mjs
+→ 12/12 pass
+npm test (volledige repo)
+→ 2421 tests, 2415 pass, 6 fail (DataStore-conformance/Room+Match-phase-suite,
+   ongerelateerd aan enige matrixrij)
+```
+
+**Resultaat: 12/14 geactiveerd** (alles behalve rij 4 en 6). Geen enkele
+regel test-/productiecode is door deze herverificatie zelf aangepast — puur
+een hernieuwde meting tegen een werkboom die inmiddels was doorbewogen.
