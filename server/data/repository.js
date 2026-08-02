@@ -31,6 +31,15 @@
  * @property {(roomId: string, sessionId: string) => Promise<import('./types/session').Session|null>} loadSession
  * @property {(session: import('./types/session').Session) => Promise<void>} saveSession
  * @property {(tokenHash: string) => Promise<import('./types/session').Session|null>} loadSessionByTokenHash
+ *
+ * `saveSession` (DM17, Deel B — reactie op INTB-10's rotatie-eis): als een
+ * bestaande sessie een NIEUWE `tokenHash` krijgt, geeft de vorige
+ * `tokenHash`-index-entry in dezelfde stap vrij — anders blijft een oud token
+ * een tweede geldige capability naast het nieuwe (dezelfde klasse fout als
+ * INTB-5, nu voor sessies). `loadSessionByTokenHash` ververst nooit bij een
+ * lookup ("touch-on-read") — de TTL-koppeling loopt via de room-brede
+ * refresh, niet via hoe vaak een token wordt opgezocht, anders verliest een
+ * stille speler zijn reconnectrecht terwijl de room nog leeft.
  * @property {(roomId: string, playerId: string) => Promise<import('./types/player').Player|null>} loadPlayer
  * @property {(player: import('./types/player').Player) => Promise<void>} savePlayer
  * @property {(roomId: string) => Promise<import('./types/player').Player[]>} listPlayers

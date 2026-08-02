@@ -1,7 +1,8 @@
-// De Redis-adapter van de DataStore-poort (server/data/repository.js) — INTB2b.
+// De Redis-adapter van de DataStore-poort (server/data/repository.js) —
+// INTB2b, uitgebreid met de atomaire fasewissel in INTB2d.
 //
-// Twintig van de drieëntwintig poortmethoden draaien hier tegen echte Redis.
-// De drie die ontbreken zijn geen vergeten werk maar apart belegd:
+// Eenentwintig van de drieëntwintig poortmethoden draaien hier tegen echte
+// Redis. De twee die ontbreken zijn geen vergeten werk maar apart belegd:
 //
 // (De poort is tijdens dit werk twee keer uitgebreid: DM14/§10
 // `loadSessionByTokenHash` en DM16/§9 `rotateRoomLocators`. De tweede is
@@ -22,9 +23,12 @@
 //     in `repository.js` `{ replay: boolean }` vast, inclusief het foutcontract.
 //     INTB2c kan dus gebouwd worden; het valt alleen buiten de scope die deze
 //     opdracht meekreeg.
-//   * `setRoomAndMatchPhaseAtomically` -> INTB2d.
 //
-// Alle drie werpen `NotImplementedError` met de verwijzing erin, en staan ook in
+// `setRoomAndMatchPhaseAtomically` stond hier ook; die is in INTB2d gebouwd
+// (zie `SET_PHASE_LUA` en de functie zelf, inclusief wat er bij een onderbroken
+// uitvoering wél en niet gegarandeerd is).
+//
+// Beide werpen `NotImplementedError` met de verwijzing erin, en staan ook in
 // `UNIMPLEMENTED_METHODS` hieronder. Dat laatste is er met opzet: de INTB2b-
 // prompt waarschuwt dat placeholderfuncties `assertImplementsDataStore` laten
 // slagen terwijl de adapter niet af is. Die shapecheck kan dat niet zien — een
@@ -96,7 +100,6 @@ import { assertRoundShape } from '../../types/round.js';
  */
 export const UNIMPLEMENTED_METHODS = Object.freeze({
   saveAcceptedAnswerAtomically: 'INTB2c',
-  setRoomAndMatchPhaseAtomically: 'INTB2d',
   loadSessionByTokenHash: 'GEBLOKKEERD — geen sleutel in redis-keys.js (zie hieronder)',
 });
 
@@ -223,6 +226,54 @@ redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[2])
 for i = 3, #KEYS do redis.call('EXPIRE', KEYS[i], ARGV[2]) end
 return 1
 `;
+
+/**
+ * Verzet `Room.phase` én `Match.phase` in ÉÉN ondeelbare stap (DECISIONS #30:
+ * `Match.phase` is autoritair, `Room.phase` is de afgeleide projectie).
+ *
+ * KEYS: [roomKey, matchKey, ...refresh]. ARGV: [verwachtRoom, verwachtMatch,
+ * nieuwRoom, nieuwMatch, ttlSeconds]. Retourneert
+ * 'ok' | 'no-room' | 'no-match' | 'stale'.
+ *
+ * COMPARE-AND-SET, en niet "lees het document in Lua en pas het daar aan":
+ * `cjson` kan een domeindocument niet verliesvrij rondpompen. Een leeg array
+ * (`Match.previousMatchQuestionKeys: []`, en dat staat écht in de fixtures)
+ * wordt in Lua een lege tabel en komt er als `{}` weer uit — de aanroeper leest
+ * dan een object terug waar een array hoorde te staan. Datzelfde geldt voor de
+ * getalprecisie van `cjson`. Het JSON-werk gebeurt daarom in JavaScript, met
+ * dezelfde codec als elke andere schrijfactie, en dit script krijgt kant-en-
+ * klare strings. De twee `~=`-vergelijkingen sluiten het gat dat daardoor
+ * ontstaat: is een van beide documenten tussen de lees en dit script veranderd,
+ * dan schrijft het script niets en probeert de aanroeper het opnieuw — in
+ * plaats van andermans schrijfactie te overschrijven met een verouderd
+ * document.
+ *
+ * De bestaanscontroles staan BEWUST vóór elke schrijfactie en zitten in
+ * hetzelfde script: `EXISTS` gevolgd door `SET` over twee netwerkbeurten laat
+ * bij een onbekende match precies de half bijgewerkte toestand achter die #30
+ * verbiedt.
+ */
+const SET_PHASE_LUA = `
+local room = redis.call('GET', KEYS[1])
+if not room then return 'no-room' end
+local match = redis.call('GET', KEYS[2])
+if not match then return 'no-match' end
+if room ~= ARGV[1] then return 'stale' end
+if match ~= ARGV[2] then return 'stale' end
+redis.call('SET', KEYS[1], ARGV[3], 'EX', ARGV[5])
+redis.call('SET', KEYS[2], ARGV[4], 'EX', ARGV[5])
+for i = 3, #KEYS do redis.call('EXPIRE', KEYS[i], ARGV[5]) end
+return 'ok'
+`;
+
+/**
+ * Hoe vaak `setRoomAndMatchPhaseAtomically` het opnieuw probeert als een ander
+ * schrijfpad tussen de lees en de compare-and-set door kwam. Eindig, want een
+ * oneindige lus onder aanhoudende drukte is een hangende request; ruim genoeg,
+ * want elke poging kost twee GETs en een EVAL en er is geen tweede schrijver
+ * die `Room`/`Match` in een strakke lus bewerkt.
+ */
+const PHASE_SWAP_ATTEMPTS = 5;
 
 /**
  * @param {unknown} value
@@ -609,16 +660,110 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
   }
 
   // ----------------------------------------------------------------------
-  // De twee die hier niet thuishoren
+  // Fasewissel (DECISIONS #30) — INTB2d
   // ----------------------------------------------------------------------
 
-  async function setRoomAndMatchPhaseAtomically() {
-    throw new NotImplementedError(
-      'setRoomAndMatchPhaseAtomically',
-      UNIMPLEMENTED_METHODS.setRoomAndMatchPhaseAtomically,
-      'Room.phase en Match.phase moeten in één mutatie (DECISIONS #30); dat Lua-script is een eigen item.'
+  /**
+   * Zet `Room.phase` en `Match.phase` samen op `newPhase`, of geen van beide.
+   *
+   * DECISIONS #30: `Match.phase` is autoritair, `Room.phase` is een AFGELEIDE
+   * PROJECTIE die in DEZELFDE atomaire operatie meegaat. Twee documenten onder
+   * twee sleutels in twee opdrachten bijwerken is het dual-write-pad dat #30
+   * verbiedt: valt de verbinding ertussen weg, dan leest de rest van het
+   * systeem een projectie die een andere fase noemt dan de autoriteit.
+   *
+   * WAT ER GEBEURT ALS DE UITVOERING WORDT ONDERBROKEN — lees dit voordat je
+   * hier een rollback-verwachting aan toevoegt:
+   *
+   *   beide documenten zijn oud óf beide documenten zijn nieuw,
+   *   nooit één oud en één nieuw.
+   *
+   * Dat is de garantie, en het is NIET "bij een netwerkfout blijft alles oud".
+   * Een Lua-script draait server-side tot het einde door; valt de clientsocket
+   * weg terwijl het loopt, dan landt de wissel gewoon en verdwijnt alleen het
+   * antwoord. De aanroeper krijgt dan een verbindingsfout en weet niet welke
+   * van de twee uitkomsten het werd. De enige manier om dat te weten is na een
+   * reconnect de autoritatieve state opnieuw lezen (`loadMatch`). Redis kan
+   * een geland script niet terugdraaien — een `assert` dat na een
+   * netwerkonderbreking de oude fase eist, test iets dat geen enkele
+   * Redis-implementatie kan waarmaken.
+   *
+   * IDEMPOTENT: dezelfde fase nog een keer zetten is geen fout. Het schrijft
+   * wél opnieuw, want een fasewissel is activiteit en de TTL-refresh eromheen
+   * (`ttl.js`, refreshmatrix bovenaan dit bestand) hoort dan ook te gebeuren.
+   *
+   * BEWUST NIET GEBOUWD: zelfherstel voor een projectie die uit de pas is
+   * geraakt. Deze methode schrijft altijd beide documenten, dus ze kán een
+   * scheefstand niet zien — ze overschrijft hem gewoon met `newPhase`. Wil
+   * iemand `Match.phase` als bron gebruiken om een afgedwaalde `Room.phase`
+   * terug te zetten, dan is dat een eigen poortmethode met een eigen naam, geen
+   * verborgen bijwerking hier. Gemeld, niet ongevraagd ingebouwd.
+   *
+   * @param {string} roomId
+   * @param {string} matchId
+   * @param {string} newPhase - komt uit `server/architecture/state-machine.js`;
+   *   hier niet opnieuw gevalideerd, de store slaat op wat hij krijgt.
+   * @returns {Promise<void>}
+   */
+  async function setRoomAndMatchPhaseAtomically(roomId, matchId, newPhase) {
+    const room = roomKey(roomId);
+    const match = matchKey(roomId, matchId);
+
+    for (let attempt = 1; attempt <= PHASE_SWAP_ATTEMPTS; attempt += 1) {
+      // Lezen gebeurt buiten het script (zie SET_PHASE_LUA voor waarom), dus
+      // deze twee GETs zijn de basis van een compare-and-set en geen
+      // "kijken-en-dan-blind-schrijven". De onbewerkte strings gaan mee terug
+      // naar Redis als verwachtingswaarde.
+      const storedRoom = await client().get(room);
+      if (storedRoom === null) {
+        throw new RangeError(`setRoomAndMatchPhaseAtomically: unknown roomId ${JSON.stringify(roomId)}`);
+      }
+      const storedMatch = await client().get(match);
+      if (storedMatch === null) {
+        throw new RangeError(
+          `setRoomAndMatchPhaseAtomically: unknown matchId ${JSON.stringify(matchId)} for roomId ${JSON.stringify(roomId)}`
+        );
+      }
+
+      const outcome = await client().eval(SET_PHASE_LUA, {
+        keys: [room, match, ...roomScopeKeys(roomId), scoreboardKey(roomId, matchId)],
+        arguments: [
+          storedRoom,
+          storedMatch,
+          codec.encode('room', { ...codec.decode('room', storedRoom), phase: newPhase }),
+          codec.encode('match', { ...codec.decode('match', storedMatch), phase: newPhase }),
+          ttl,
+        ],
+      });
+
+      if (outcome === 'ok') return;
+      // De twee bestaanscontroles zitten óók in het script: tussen de GET
+      // hierboven en de EVAL past het verlopen of verwijderen van een sleutel,
+      // en dan is "hij bestond net nog" geen grond om te schrijven.
+      if (outcome === 'no-room') {
+        throw new RangeError(`setRoomAndMatchPhaseAtomically: unknown roomId ${JSON.stringify(roomId)}`);
+      }
+      if (outcome === 'no-match') {
+        throw new RangeError(
+          `setRoomAndMatchPhaseAtomically: unknown matchId ${JSON.stringify(matchId)} for roomId ${JSON.stringify(roomId)}`
+        );
+      }
+      if (outcome !== 'stale') {
+        throw new Error(`setRoomAndMatchPhaseAtomically: onverwacht scriptresultaat ${JSON.stringify(outcome)}`);
+      }
+      // 'stale': iemand anders schreef Room of Match tussen de lees en het
+      // script. Er is niets geschreven; opnieuw lezen en opnieuw proberen.
+    }
+
+    throw new Error(
+      `setRoomAndMatchPhaseAtomically: room ${JSON.stringify(roomId)} of match ${JSON.stringify(matchId)} werd ` +
+        `${PHASE_SWAP_ATTEMPTS} pogingen achter elkaar onder de operatie vandaan geschreven; er is niets gewijzigd.`
     );
   }
+
+  // ----------------------------------------------------------------------
+  // De methode die hier niet thuishoort
+  // ----------------------------------------------------------------------
 
   async function saveAcceptedAnswerAtomically() {
     throw new NotImplementedError(

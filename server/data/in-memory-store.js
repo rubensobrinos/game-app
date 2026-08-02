@@ -74,9 +74,18 @@ function createInMemoryStore() {
   }
 
   async function saveRoom(room) {
+    // DM17 (reactie op INTB-9): saveRoom raakt de lookup-indexen niet meer
+    // aan. Vóór deze fix schreef saveRoom onvoorwaardelijk naar roomIdByCode
+    // — een tweede, ongecontroleerde weg naar dezelfde index als
+    // claimRoomLocatorsAtomically, die de hele claim-garantie omzeilde. Voor
+    // de inviteHash-kant bestond dit gat al niet (Room draagt geen hash,
+    // saveRoom kon daar nooit bij) — nu geldt hetzelfde voor de code-kant.
+    // Roomcreatie is dus expliciet tweefasig: eerst
+    // claimRoomLocatorsAtomically, dan pas saveRoom. Een saveRoom zonder
+    // voorafgaande geslaagde claim levert een room op die nergens via code of
+    // inviteHash vindbaar is — dat is de bedoeling, geen bug.
     const copy = deepCopy(room);
     roomsById.set(copy.id, copy);
-    roomIdByCode.set(copy.code, copy.id);
   }
 
   async function loadRoomByCode(code) {
@@ -189,12 +198,27 @@ function createInMemoryStore() {
   }
 
   async function saveSession(session) {
-    sessionsByKey.set(`${session.roomId} ${session.id}`, deepCopy(session));
+    // DM17 (Deel B, reactie op INTB-10's rotatie-eis): als deze sessie al
+    // bestond met een ANDERE tokenHash, wordt die oude index-entry vrijgegeven
+    // in dezelfde synchrone stap als de nieuwe wordt gezet — anders blijft de
+    // oude tokenHash een tweede geldige capability naast de nieuwe, letterlijk
+    // INTB-5 nog een keer. Geen nieuwe reverse index nodig: sessionsByKey
+    // draagt de vorige sessie al op dezelfde sleutel.
+    const key = `${session.roomId} ${session.id}`;
+    const existing = sessionsByKey.get(key);
+    if (existing !== undefined && existing.tokenHash !== session.tokenHash) {
+      roomAndSessionByTokenHash.delete(existing.tokenHash);
+    }
+
+    sessionsByKey.set(key, deepCopy(session));
     // DM14 (§10, reactie op INT-3): tokenHash staat al op Session (DM2a) —
     // geen chicken-and-egg zoals bij inviteHash, dus deze index kan
     // rechtstreeks door saveSession gevuld worden. Niet leeggemaakt bij
     // revoked=true: de aanroeper moet "token onbekend" en "token bekend maar
-    // herroepen" uit elkaar kunnen houden (zie loadSessionByTokenHash).
+    // herroepen" uit elkaar kunnen houden (zie loadSessionByTokenHash). Geen
+    // touch-on-read in loadSessionByTokenHash (Deel B): TTL-koppeling loopt
+    // via de room-brede refresh, niet via lookup-frequentie — anders verliest
+    // een stille speler zijn reconnectrecht terwijl de room nog leeft.
     roomAndSessionByTokenHash.set(session.tokenHash, { roomId: session.roomId, sessionId: session.id });
   }
 

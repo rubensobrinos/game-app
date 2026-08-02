@@ -187,18 +187,42 @@ describe('CRUD-rondje per entiteit #4-10', () => {
   });
 });
 
-describe('loadRoomByCode/loadRoomByInviteHash — rechtstreeks op het veld resp. via een claim, geen hashing in de fake zelf #11-12', () => {
-  test('#11 loadRoomByCode vindt dezelfde room als loadRoom', async () => {
+describe('loadRoomByCode/loadRoomByInviteHash — via een voorafgaande claim, geen hashing in de fake zelf #11-12', () => {
+  test('#11 loadRoomByCode vindt dezelfde room als loadRoom, na een claim (DM17/INTB-9: saveRoom vult geen enkele lookup-index meer)', async () => {
     const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '482917', inviteHash: 'hash_abc', ttlSeconds: 14400 });
     await store.saveRoom(makeRoom());
     assert.deepStrictEqual(await store.loadRoomByCode('482917'), await store.loadRoom('room_1'));
   });
 
-  test('#12 loadRoomByInviteHash vindt dezelfde room als loadRoom, na een claim (saveRoom alleen vult de code-index, niet de inviteHash-index — zie DM10)', async () => {
+  test('#12 loadRoomByInviteHash vindt dezelfde room als loadRoom, na een claim (DM17/INTB-9: saveRoom vult geen enkele lookup-index meer)', async () => {
     const store = createInMemoryStore();
     await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '482917', inviteHash: 'hash_abc', ttlSeconds: 14400 });
     await store.saveRoom(makeRoom());
     assert.deepStrictEqual(await store.loadRoomByInviteHash('hash_abc'), await store.loadRoom('room_1'));
+  });
+});
+
+describe('saveRoom — raakt de lookup-indexen nooit aan (DM17, reactie op INTB-9) #59-60', () => {
+  test('#59 saveRoom zonder voorafgaande claim maakt de room via geen enkele code/inviteHash vindbaar (bedoeld gedrag, geen bug)', async () => {
+    const store = createInMemoryStore();
+    await store.saveRoom(makeRoom());
+    assert.strictEqual(await store.loadRoomByCode('482917'), null);
+    assert.strictEqual(await store.loadRoomByInviteHash('nope'), null);
+    // Het roomdocument zelf bestaat wel — alleen de twee lookup-ingangen niet.
+    assert.notStrictEqual(await store.loadRoom('room_1'), null);
+  });
+
+  test('#60 het letterlijke INTB-9-scenario is niet meer mogelijk: saveRoom kan een code niet stelen van de room die hem geclaimd heeft', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_a', code: '482917', inviteHash: 'hash_a', ttlSeconds: 14400 });
+    // room_b probeert dezelfde code te "stelen" met alleen saveRoom, zonder
+    // claim — dat mag nooit de lookup-index overschrijven.
+    await store.saveRoom(makeRoom({ id: 'room_b', code: '482917', inviteId: 'invite_b' }));
+
+    assert.deepStrictEqual(await store.loadRoomByCode('482917'), await store.loadRoom('room_a'), 'de code hoort nog steeds naar de eigenaar van de claim te wijzen, niet naar room_b');
+    const stillOwnedByA = await store.claimRoomLocatorsAtomically({ roomId: 'room_c', code: '482917', inviteHash: 'hash_c', ttlSeconds: 14400 });
+    assert.deepStrictEqual(stillOwnedByA, { ok: false, conflict: 'code' }, 'het claimregister is en blijft de bron van waarheid');
   });
 });
 
@@ -687,6 +711,34 @@ describe('loadSessionByTokenHash — DM14, §10, reactie op INT-3 #44-47', () =>
     await store.saveSession(inB);
     assert.deepStrictEqual(await store.loadSessionByTokenHash('hash_a'), inA);
     assert.deepStrictEqual(await store.loadSessionByTokenHash('hash_b'), inB);
+  });
+});
+
+describe('saveSession — tokenrotatie geeft de oude tokenHash-index vrij (DM17, reactie op INTB-10 Deel B) #61-63', () => {
+  test('#61 een sessie die een nieuwe tokenHash krijgt: de oude tokenHash is daarna onvindbaar, de nieuwe wel', async () => {
+    const store = createInMemoryStore();
+    const session = makeSession({ tokenHash: 'hash_oud' });
+    await store.saveSession(session);
+    await store.saveSession({ ...session, tokenHash: 'hash_nieuw' });
+
+    assert.strictEqual(await store.loadSessionByTokenHash('hash_oud'), null, 'de oude tokenHash mag geen tweede geldige capability blijven — dit is letterlijk INTB-5 voor sessies');
+    const found = await store.loadSessionByTokenHash('hash_nieuw');
+    assert.notStrictEqual(found, null);
+    assert.strictEqual(found.tokenHash, 'hash_nieuw');
+  });
+
+  test('#62 saveSession met een ONGEWIJZIGDE tokenHash blijft gewoon vindbaar (geen onnodige vrijgave)', async () => {
+    const store = createInMemoryStore();
+    const session = makeSession({ tokenHash: 'hash_1' });
+    await store.saveSession(session);
+    await store.saveSession({ ...session, lastSeenAt: 5000 }); // zelfde tokenHash, ander veld
+    assert.notStrictEqual(await store.loadSessionByTokenHash('hash_1'), null);
+  });
+
+  test('#63 de allereerste saveSession voor een sessie-id heeft geen "vorige" tokenHash om vrij te geven (geen crash op een lege store)', async () => {
+    const store = createInMemoryStore();
+    await assert.doesNotReject(() => store.saveSession(makeSession({ tokenHash: 'hash_1' })));
+    assert.notStrictEqual(await store.loadSessionByTokenHash('hash_1'), null);
   });
 });
 
