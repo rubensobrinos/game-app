@@ -18,11 +18,11 @@ oude menselijke checkpoints in het data-modelplan.
 - CorrectAnswer-vormen, rematch-leftgedrag en 1-based roundNumber zijn bevestigd.
 - Teams, spectators, Groepsbattle en mixed games worden nu niet gebouwd.
 
-## Nog niet beslist
+## Inmiddels ook beslist
 
-De autoriteit tussen `Room.phase` en `Match.phase` is nog open. Introduceer geen
-niet-atomair dual-write-pad. Houd dit als één smal checkpoint; laat het de overige
-DM-fasen niet blokkeren.
+`Match.phase` is autoritair; `Room.phase` is een afgeleide projectie, bijgewerkt
+in dezelfde atomaire operatie (`DECISIONS.md` #30, bevestigd 2 aug 2026).
+Introduceer geen niet-atomair dual-write-pad.
 
 ## Opdracht
 

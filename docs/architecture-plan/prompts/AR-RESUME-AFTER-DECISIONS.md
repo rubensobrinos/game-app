@@ -21,9 +21,9 @@ oudere open vragen, prompts en handoffs.
 
 ## Nog niet beslist
 
-De producteigenaar heeft nog niet gekozen of `Room.phase` en `Match.phase` beide
-worden opgeslagen of dat één daarvan wordt afgeleid. Introduceer geen niet-atomair
-dual-write-pad. Dit blokkeert AR2–AR5 en de overige servercomposition niet.
+**Inmiddels beslist (2 aug 2026):** `Match.phase` is autoritair; `Room.phase` is
+een afgeleide projectie, bijgewerkt in dezelfde atomaire operatie
+(`DECISIONS.md` #30). Introduceer geen niet-atomair dual-write-pad.
 
 ## Opdracht
 

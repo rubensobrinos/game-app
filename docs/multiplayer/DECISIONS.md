@@ -79,9 +79,10 @@ document totdat de betreffende fundamentele specificatie is bijgewerkt.
 29. De gedeelde contentmodule komt onder `shared/content/` en wordt de gedeelde
     bron voor genormaliseerde content, `contentVersion` en deterministische
     gegenereerde content.
-30. De precieze autoriteit/afleiding tussen `Room.phase` en `Match.phase` is nog
-    niet bevestigd. Wel bevestigd: JSON eerst; geen implementatie mag een
-    niet-atomair dual-write-pad introduceren.
+30. **Bevestigd (2 aug 2026, regie-sessie):** `Match.phase` is autoritair;
+    `Room.phase` is een afgeleide projectie die in dezelfde atomaire operatie
+    wordt bijgewerkt. Geen implementatie mag een niet-atomair dual-write-pad
+    introduceren.
 
 ## Productscope
 
@@ -92,6 +93,14 @@ document totdat de betreffende fundamentele specificatie is bijgewerkt.
 33. Teams en spectators blijven latere uitbreidingen, zoals hierboven bevestigd.
 34. Voor Golf 2 is geen nieuw besluit genomen. Canonieke IDs en feature-gates
     blijven uitgesteld.
+35. **Kernflow quick-start blijft bestaan** (bevestigd 2 aug 2026, regie-sessie).
+    Het schrappen van de Groepsbattle-preset (#31) schrapt níét de snelle
+    startroute. De kernbelofte, in de woorden van de producteigenaar: één host,
+    QR-code delen, spelersnaam invullen of laten genereren, en dan spelen —
+    10 vragen over vlaggen en een scoreboard wie er heeft gewonnen. Default bij
+    `Snel starten`: `flags_mc`, 10 rondes, moeilijkheid normaal, individueel,
+    auto-tempo, snelheidspunten aan, late join aan. Succescriteria 1–2 uit
+    PRODUCT.md (10 seconden naar room/lobby) blijven onverkort gelden.
 
 ## Uitvoeringsakkoord test- en deploymentwerk
 
