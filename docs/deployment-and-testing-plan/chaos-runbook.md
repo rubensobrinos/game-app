@@ -110,6 +110,34 @@ corrigeren, dus hier apart benoemd in plaats van genegeerd):
   is een bestaande aantekening in het bestand dat dit runbook nu als bron
   gebruikt, dus hier niet genegeerd.
 
+## Status (2026-08-02, derde update): scenario 1 opnieuw geblokkeerd — nu op roomaanmaak zelf
+
+De storekeuze op `REDIS_URL` is geland (`server/index.mjs` kiest nu
+daadwerkelijk `createRedisDataStore` als `REDIS_URL` gezet is; `/readyz`
+bevestigt `{"ok":true,"store":"redis"}`). Chaos-stack herbouwd
+(`up -d --build`) om de nieuwe image te draaien, in de verwachting dat de
+roomstate dit keer wél de restart zou overleven.
+
+**Kwam niet zo ver.** Al de allereerste `POST /api/v1/games` tegen de
+verse, Redis-gekoppelde stack faalt met `500 INTERNAL_ERROR` — vóór er ook
+maar iets met chaos of een restart gebeurt. Rechtstreekse reproductie
+(buiten de HTTP-laag, die de fout in een kale 500 verpakt) legt de oorzaak
+vast: de versioned sessietoken-hash (`v1:<hex>`, `server/protocol/
+auth-session.mjs`) bevat een `:`, en `server/data/redis-keys.js`'s
+`assertSegment` verbiedt `:` in elk sleutelsegment — dus `sessionTokenLookupKey`
+gooit bij elke `saveSession`, en `createRoom` roept die aan als eerste
+schrijfactie. Dit is dus geen chaos-/restartprobleem maar een blokkade die de
+Redis-store voor 100% van het verkeer non-functioneel maakt, ongeacht chaos.
+Volledige analyse + reproductie + voorstel: **INT-18** in
+[`docs/integration-plan/HANDOFF.md`](../integration-plan/HANDOFF.md)
+(gemeld daar omdat dit INT-B's eigen DoD-test voor de storekoppeling was).
+Niet zelf gefixt — `redis-keys.js`/`data-store.mjs`/`auth-session.mjs` zijn
+geen van alle mijn module.
+
+**Chaos-stack blijft draaiend en herbouwd** (`aseso-game-chaos`) — zodra
+INT-18 is opgelost is scenario 1 direct opnieuw uit te voeren zonder verdere
+voorbereiding.
+
 ## Status (2026-08-02, tweede update): scenario 1 herhaald, nu écht "midden in een ronde"
 
 De socketlaag bestond bij de eerste run nog niet, dus scenario 1 kon toen
