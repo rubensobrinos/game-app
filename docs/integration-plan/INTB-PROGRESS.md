@@ -13,7 +13,7 @@ uitgevoerd — ⛔ geblokkeerd — ⏸️ later.
 | --- | --- | --- | --- |
 | [INTB1a](prompts/INTB1a-conformance-harness.md) | Conformance-harness + de niet-atomaire methoden | ✅ | — |
 | [INTB1b](prompts/INTB1b-atomicity.md) | De 2 atomaire methoden + migratie naar 21 methoden | ✅ | 3 tests bewust rood op **INTB-4** |
-| [INTB2a](prompts/INTB2a-redis-adapter-basis.md) | Verbinding, lifecycle, JSON-documenten met schemaversie | 🟡 | in uitvoering |
+| [INTB2a](prompts/INTB2a-redis-adapter-basis.md) | Verbinding, lifecycle, JSON-documenten met schemaversie | ✅ | 54 tests, 7/7 mutanten |
 | [INTB2b](prompts/INTB2b-poortmethoden.md) | De methoden tegen Redis + TTL-refresh | 🔵 | INTB2a — **INTB-1 is opgelost** |
 | [INTB2c](prompts/INTB2c-lua-atomair-antwoord.md) | Lua-script voor atomair antwoord (#23) | ⛔ | INTB2a |
 | [INTB2d](prompts/INTB2d-atomaire-fasewissel.md) | Atomaire fasewissel Room/Match (#30) | ⛔ | INTB2a |
@@ -29,23 +29,41 @@ onrechte dat INTB2a en INTB3a op een dependency-commit wachtten. Ze zijn vrij.
 
 ## Status per poortmethode
 
-Een methode is pas ✅ als de conformance-suite er echt overheen loopt tegen een
-**Redis**-adapter. Groen tegen de in-memory fake telt als 🟡.
+De poort telt sinds DM10 **21** methoden. Een methode is pas ✅ als de
+conformance-suite er echt overheen loopt tegen een **Redis**-adapter; groen tegen
+de in-memory fake telt als 🟡. De Redis-kolom kan pas bewegen bij INTB2b — na
+INTB2a staat alleen het fundament.
 
 | Methode | Conformance | Redis-adapter |
 | --- | --- | --- |
-| `loadRoom` / `saveRoom` | 🔵 | ⛔ |
-| `loadRoomByCode` / `loadRoomByInviteId` | 🔵 | ⛔ |
-| `loadSession` / `saveSession` | 🔵 | ⛔ |
-| `loadPlayer` / `savePlayer` / `listPlayers` | 🔵 | ⛔ |
-| `loadMatch` / `saveMatch` | 🔵 | ⛔ |
-| `loadRound` | 🔵 | ⛔ |
-| `saveRound` | 🔵 | ⛔ **INTB-1** |
-| `loadAnswer` | 🔵 | ⛔ **INTB-1** |
-| `loadActionCacheEntry` | 🔵 | ⛔ **INTB-1** |
-| `setRoomAndMatchPhaseAtomically` | 🔵 | ⛔ |
-| `saveAcceptedAnswerAtomically` | 🔵 | ⛔ |
-| `getScoreboardTop` | 🔵 | ⛔ **INTB-3** |
+| `loadRoom` / `saveRoom` | 🟡 | 🔵 |
+| `loadRoomByCode` | 🟡 | 🔵 |
+| `loadRoomByInviteHash` | 🟡 | 🔵 |
+| `claimRoomLocatorsAtomically` | 🟡 | 🔵 |
+| `releaseRoomLocators` | 🟡 | 🔵 |
+| `refreshRoomLocators` | 🟡 | 🔵 |
+| `loadSession` / `saveSession` | 🟡 | 🔵 |
+| `loadPlayer` / `savePlayer` / `listPlayers` | 🟡 | 🔵 |
+| `loadMatch` / `saveMatch` | 🟡 | 🔵 |
+| `loadRound` / `saveRound` | 🟡 | 🔵 |
+| `loadAnswer` | 🟡 | 🔵 |
+| `loadActionCacheEntry` | 🟡 | 🔵 |
+| `setRoomAndMatchPhaseAtomically` | 🟡 | 🔵 |
+| `saveAcceptedAnswerAtomically` | 🔴 | 🔵 |
+| `getScoreboardTop` | 🟡 | 🔵 |
+
+`saveAcceptedAnswerAtomically` staat 🔴: drie tests zijn bewust rood op
+**INTB-4**. Ze toetsen het correcte contract uit `DATA-MODEL.md` (stappen 4 en 5)
+en blijven staan tot DM de fake corrigeert.
+
+## Fundament (INTB2a)
+
+| Onderdeel | Status |
+| --- | --- |
+| Verbinding, levenscyclus, herverbindingsbeleid | ✅ 30 tests |
+| Versieerbare documentenvelop | ✅ 24 tests |
+| Guard op de testinstantie | ✅ weigert 6379 en elke externe host |
+| Mutatietest | ✅ 7 van 7 gevangen |
 
 ## Testinfrastructuur
 
@@ -63,22 +81,45 @@ gemeten: poort 6379 is vanaf de host dicht, 6380 open. Beide testservices
 luisteren alleen op de loopback, en `down -v` gooit het volume weg omdat dit
 wegwerpdata is.
 
+## Bevindingen uit INTB2a
+
+**Een echte concurrency-bug in `connect()`**, gevonden door de eigen test en
+gefixt. `disposeClient` was `async`, waardoor `connect()` zijn beurt teruggaf
+vóórdat `connectPromise` was toegekend. Twee gelijktijdige aanroepen bouwden elk
+een eigen client en één werd een weeskind: een open socket zonder eigenaar die
+niemand meer sluit. Zichtbaar in productie pas wanneer een herverbinding
+samenvalt met een normale aanroep — dus zelden, en dan lastig te plaatsen.
+
+De invariant ("geen `await` tussen de check en de toewijzing") staat nu als
+comment in de code, en mutant M7 zet de oude volgorde terug om te bewijzen dat de
+test hem pakt.
+
+**`CLIENT INFO`/`laddr` bleek geen bruikbaar bewijs** dat we op de testinstantie
+zitten: Docker mapt host 6380 naar containerpoort 6379, dus Redis rapporteert
+altijd 6379. Vervangen door een socket-probe waarvan het OS de `remotePort` meet.
+Een goed voorbeeld van een verificatie die plausibel klinkt en niets bewijst.
+
 ## Bevindingen tot nu toe
 
-Twee dingen die al vóór de eerste regel adaptercode boven water kwamen:
+Beide zijn opgelost door DM, maar ze staan hier omdat ze boven water kwamen
+vóór de eerste regel adaptercode — dat was het hele punt van INTB1.
 
-**Drie methoden zijn niet tegen Redis implementeerbaar** (`INTB-1`).
+**Drie methoden waren niet tegen Redis implementeerbaar** (`INTB-1`, opgelost).
 `redis-keys.js` heeft `roomId` nodig voor de round-, answer- en
-action-cache-sleutels, maar `saveRound`, `loadAnswer` en
-`loadActionCacheEntry` krijgen dat niet mee, en `Round` en `Answer` dragen het
-niet. De in-memory fake verbergt dit met een lineaire scan over alle matches en
-globale Maps zonder room-scope. In Redis is het equivalent een `SCAN` over de
-hele keyspace per aanroep.
+action-cache-sleutels, maar `saveRound`, `loadAnswer` en `loadActionCacheEntry`
+kregen dat niet mee. De in-memory fake verborg dit met een lineaire scan over
+alle matches en globale Maps zonder room-scope; in Redis is het equivalent een
+`SCAN` over de hele keyspace per aanroep.
 
-**De poort mist een atomaire claim voor de join-code** (`INTB-2`). Er is alleen
-`loadRoomByCode`, een leesoperatie; uniciteit afdwingen met read-dan-write is
-check-then-act. Bijkomend is `generateGameCode({ isTaken })` synchroon en werpt
-sinds kort op een async callback — en een Redis-lookup ís async.
+**De poort miste een atomaire claim voor de join-code** (`INTB-2`, opgelost).
+Uniciteit afdwingen met read-dan-write is check-then-act. Zelf nagemeten na de
+fix: acht gelijktijdige claims op dezelfde code geven exact één winnaar.
+
+**En één die ik te vroeg afsloot** (`INTB-5`, heropend). Ik meldde hem als gedekt
+omdat mijn contracttest groen stond, maar die bewees dat `releaseRoomLocators`
+wérkt — niet dat een rotatie hem gebruikt. Een tweede claim voor dezelfde room
+slaagt zonder de vorige locators vrij te geven, dus een geroteerde uitnodiging
+blijft geldig. Het gat zat een laag hoger dan waar ik keek.
 
 ## Twee dingen die de prompts expliciet vastleggen
 
