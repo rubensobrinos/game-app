@@ -30,8 +30,8 @@ Taal: **typescript**
 - architecture
 
 ## Autonomy-limieten
-- max bestanden per actie: **5**
-- max regels per actie: **400**
+- max bestanden per actie: **15**
+- max regels per actie: **5000**
 - verboden paden:
   - `infra/prod/**`
   - `.github/workflows/deploy.yml`

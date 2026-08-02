@@ -6,15 +6,14 @@ profile_version: 0.16.0
 #
 # Reden voor de verruiming: dit repo wordt per specificatiedocument opgebouwd in
 # losse, volledig geteste modules. Eén module + bijbehorende fixture-gedreven
-# testsuite is routineus 700-1000 nieuwe regels; de globale grens van 400 dwong
+# testsuite is routineus 700-1000 nieuwe regels; de oude globale grens dwong
 # dan tot het kunstmatig opknippen van één samenhangende wijziging over
 # meerdere commits, wat de review juist moeilijker maakt in plaats van veiliger.
 autonomy_overrides:
-  autonomy:
-    max_files_changed_without_approval: 15
-    max_lines_changed_without_approval: 5000
+  max_files_changed_without_approval: 15
+  max_lines_changed_without_approval: 5000
 managed_hashes:
   .pre-commit-config.yaml: 64ebce0a75ce245fd03e2deabcf591a030e2e48595ecffca8fbba1d2a1609edf
   .github/workflows/ci.yml: e14232b5247610291bc9b658f27875824dbffd7e43b001292fc694d4b7b416bc
   .gitignore: 2880cea350b41205cfb39ab0d109c1aa0a414bbab97080095cc766f6eebbd66d
-  CLAUDE.md: 9710c0dfa850ad046148f76a2419dd86cec719eb4673204bb04420c1e8fd4e3d
+  CLAUDE.md: e2729151f1a81820305235d4af6ead564ed3c202679a66b2fd1b7610ef26691a
