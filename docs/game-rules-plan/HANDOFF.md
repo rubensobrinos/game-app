@@ -10,8 +10,8 @@ gevonden via `docs/`, of doorgestuurd door een mens.
 
 ## 1. Aan `server/protocol/` (of wie `DATA-MODEL.md`/`PROTOCOL.md` vastlegt) — actie gevraagd
 
-**Status: geblokkeerd, wachten op jullie bevestiging.** (Besluit van de mens:
-niet doorbouwen op de aanname totdat dit bevestigd is.)
+**Status: bevestigd door de producteigenaar op 2 augustus 2026.** De tabel hieronder
+is bindend; zie `docs/multiplayer/DECISIONS.md` #15.
 
 `server/rules/validators.js` (GR3, `GAME-RULES.md` §Spelvormen) moet weten
 welke vorm `Round.correctAnswer` heeft per spelvorm om een ingestuurd antwoord
@@ -28,11 +28,8 @@ aangenomen dat `correctAnswer` exact de vorm van de client-`answer` spiegelt
 | `higher_lower` | `{ side: 0 \| 1 }` |
 | `odd_one_out` | `{ cardIndex: number }` |
 
-**Gevraagd:** bevestig deze tabel, of stuur de afwijkende vorm terug. Onze
-code (`server/rules/validators.js`, 39/39 tests groen) is er al tegen gebouwd,
-dus een correctie kost ons hooguit een kleine, lokale wijziging — geen haast
-om het aan onze kant te passen, wél nodig vóór wij of jullie hier verder op
-voortbouwen.
+De bestaande code (`server/rules/validators.js`, 39/39 tests groen) sluit al op
+de bevestigde vormen aan; hiervoor is geen extern antwoord meer nodig.
 
 Details: [`prompts/GR3-validators.md`](prompts/GR3-validators.md), ontwerpbeslissing 2.
 

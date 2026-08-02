@@ -28,7 +28,12 @@ reden.
 
 ## Openstaande actiepunten
 
-- [ ] PD3 blijft geblokkeerd tot de canonieke Golf-2-ID's en de
+**Scopebesluit 2026-08-02:** Groepsbattle wordt nu niet verder gebouwd. Het reeds
+aanwezige presetartefact blijft bestaan, maar is geen opdracht om de modus te
+integreren. Mixed games, teams en spectators zijn eveneens latere scope; zie
+`docs/multiplayer/DECISIONS.md`.
+
+- [ ] PD3 blijft uitgesteld tot de canonieke Golf-2-ID's en de
       `golf2Enabled`-flagsemantiek zijn afgestemd met de eigenaren van
       `DATA-MODEL.md`, `PROTOCOL.md` en `GAME-RULES.md` — bevestigde
       gebruikersbeslissing, niet een aanname van mij.
@@ -50,7 +55,7 @@ reden.
 - **PD2:** gedeeltelijk — 3 nieuwe tests groen (`quick-start-preset.test.mjs`) +
   `client/flow/host-setup-state.test.mjs` blijft ongewijzigd 32/32 groen (bewijst dat
   de koppeling geen gedrag heeft veranderd).
-- **PD3:** geblokkeerd, geen code — gebruikersbeslissing: wachten.
+- **PD3:** uitgesteld, geen code — voor Golf 2 is nog geen nieuw besluit genomen.
 - **PD4:** gebouwd en geverifieerd, 8/8 tests groen (`later-extensions-registry.test.mjs`).
 - **PD5:** gebouwd en geverifieerd, 8/8 tests groen (`acceptance-criteria.test.mjs`).
 - **PD6:** afgerond — geen code, één niet-bindend voorstelsdocument

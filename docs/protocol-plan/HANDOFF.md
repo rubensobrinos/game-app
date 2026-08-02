@@ -45,9 +45,10 @@ of wanneer het berekend wordt.
 ## 3. Aan `game-flow-plan` — status van jullie interfacevoorstel
 
 [`protocol-interface-proposal.md`](../game-flow-plan/protocol-interface-proposal.md)
-is gelezen. Geen van de 7 relevante vragen (§1–§7) is hier beantwoord — dat zijn
-`public_api`-beslissingen (met name §1, de team-joinvolgorde-hoofdvraag) die wachten op
-de mens die `PROTOCOL.md` accordeert, niet op ons. Wel verwerkt in
+is gelezen. De producteigenaar heeft de relevante MVP-vragen inmiddels beantwoord in
+`docs/multiplayer/DECISIONS.md`. Teams en spectators zijn uit de huidige scope
+gehaald; pausedState, pauzeredenen en het previewendpoint zijn bevestigd. Eerder
+waren deze vragen verwerkt in
 [`README.md`](README.md)'s Open vragen, zodat ze niet alleen in jullie document
 bestaan:
 
@@ -60,8 +61,8 @@ bestaan:
   spelvorm-aantal) zijn door jullie zelf al gemarkeerd als "geen actie nodig" resp.
   "niet voor deze eigenaar" — wij nemen daar dus ook geen actie op.
 
-**Status: alle 7 vragen blijven open**, wachten op een mens. Geen ETA van onze kant —
-wij zijn niet de beslisser hierop.
+**Status: beantwoord voor de huidige MVP.** De historische vragen blijven hierboven
+traceerbaar; vervolgimplementatie volgt de centrale besluitregistratie.
 
 ## 4. Informationeel — geen actie nodig
 

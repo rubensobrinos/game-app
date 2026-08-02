@@ -45,6 +45,12 @@ generiek "klaar":
 | Release / Rollback | ⚪ Buiten scope | `prod`, always_ask |
 | Definition of Done (MVP) | 🚧 Nog niet gestart | hangt af van bijna alle rijen hierboven |
 
+**Uitvoeringsbesluit 2026-08-02:** de producteigenaar heeft akkoord gegeven om de
+test-/deploymentonderdelen en benodigde dependencies te realiseren. Dit verwijdert
+de menselijke akkoordblokkade, maar niet de expliciete technische prerequisites per
+rij (server, UI, Compose-stack, meetomgeving). Zie
+`docs/multiplayer/DECISIONS.md` §Uitvoeringsakkoord.
+
 ## Openstaande actiepunten
 
 - [ ] DT3b — 0/14 scenario's geactiveerd. Wacht op een echte server-implementatie

@@ -43,17 +43,17 @@ checklist — bijwerken bij elke fase-afronding, niet alleen aan het eind.
       snapshot-/`game:paused`-vraag, GF7-onafhankelijkheid).
 - [x] GF8 uitvoeren — `docs/game-flow-plan/protocol-interface-proposal.md` staat er,
       alle 10 secties, vraag 1 (joinvolgorde) vóór vraag 2/3, niets zelf beantwoord.
-- [ ] Antwoorden van de PROTOCOL.md-/DATA-MODEL.md-eigenaar afwachten.
-- [ ] GF7 herschrijven op basis van die antwoorden (inclusief robuustheidstests voor
-      ongeldige invoer, die de eerste versie miste), dan pas uitvoeren.
+- [x] Antwoorden van de producteigenaar ontvangen en centraal vastgelegd in
+      `docs/multiplayer/DECISIONS.md`.
+- [x] GF7 gesloten zonder uitvoering: teams en spectators vallen buiten de huidige
+      bouwscope. De prompt blijft alleen historisch ontwerpvoorstel.
 
 ## Cijfers
 
 - **GF0–GF6 + GF9–GF11:** gebouwd en geverifieerd, **217/217 tests groen** in
   `client/flow/` (10 modules).
-- **GF7:** prompt geschreven, uitvoering bevroren tot GF8 beantwoord is.
-- **GF8:** uitgevoerd — `protocol-interface-proposal.md` klaar voor de
-  `PROTOCOL.md`-eigenaar, wacht nu op hun antwoord.
+- **GF7:** vervallen voor de huidige MVP — teams en spectators worden niet gebouwd.
+- **GF8:** beantwoord; de bindende keuzes staan in
+  `docs/multiplayer/DECISIONS.md`.
 - De 3 nieuw gevonden gaten (session-store, hostbediening, verlaat-room) zijn
-  inmiddels gedicht — alleen GF7 (teams/spectator) staat nog open, geblokkeerd op
-  extern antwoord.
+  inmiddels gedicht; GF7 is bewust uit de huidige scope gehaald.

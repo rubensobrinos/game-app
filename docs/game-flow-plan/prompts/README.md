@@ -25,9 +25,10 @@ agent-aanroep wanneer die fase daadwerkelijk gebouwd wordt.
 | [`GF9-session-store.md`](GF9-session-store.md) | GF9 | Sessietoken lokaal bewaren/lezen; stond in de moduletabel maar miste een fasenummer |
 | [`GF10-host-controls-state.md`](GF10-host-controls-state.md) | GF10 | Welke hostknop wanneer actief is + de eventpayload; nieuw gevonden gat |
 | [`GF11-leave-state.md`](GF11-leave-state.md) | GF11 | Bevestiging-vóór-verlaten + `player:leave`; Randgeval 11 had geen module |
+| [`GF-RESUME-AFTER-DECISIONS.md`](GF-RESUME-AFTER-DECISIONS.md) | Hervatting | Bevestigde flowkeuzes verwerken; GF7 sluiten als buiten scope |
 
 GF0–GF6 en GF9–GF11 zijn gebouwd en geverifieerd (**217/217 tests groen** in
-`client/flow/`, 10 modules). GF7 blijft geblokkeerd tot GF8 beantwoord is (zie de
-review hierboven) — GF8 zelf is al uitgevoerd, zie
+`client/flow/`, 10 modules). GF7 wordt niet uitgevoerd: teams en spectators zijn
+uit de huidige scope gehaald. GF8 is beantwoord via
 [`../protocol-interface-proposal.md`](../protocol-interface-proposal.md). Zie
 [`../GF-PROGRESS.md`](../GF-PROGRESS.md) voor de volledige stand.

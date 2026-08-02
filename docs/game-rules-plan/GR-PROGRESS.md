@@ -20,7 +20,7 @@ zelf.
 | Spelvormen 6–7 (Golf 2, incl. logo's) | — | **Buiten scope** | Golf 2 / feature-flagged, expliciet niet nu |
 | Late join | GR5 | ⬜ Nog niet gestart | |
 | Speler verlaat of disconnect | GR5 | ⬜ Nog niet gestart | Zelfde fase als Late join |
-| Teams — fase 1.5 | GR6 | ⬜ Nog niet gestart | Bewust laag geprioriteerd, `PRODUCT.md` merkt teams al als latere uitbreiding aan |
+| Teams — fase 1.5 | GR6 | ⏭️ Uit huidige scope | Producteigenaar bevestigde: nu geen teams bouwen |
 | Verdiepende content (vlagverhaal) | — | **Buiten scope** | Doc zelf: "verandert geen punten" — geen serverregel om te bouwen |
 | Reactiezinnen en streaks | — | **Buiten scope** | Doc zelf: client-side, "geen invloed op de server-score" |
 | Groepsvlag of badge | — | **Buiten scope** | Doc zelf: "buiten de spelregels van de MVP" |

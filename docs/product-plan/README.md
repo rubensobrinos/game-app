@@ -225,6 +225,9 @@ een aanname.
 
 ## Prompts per fase
 
+Na de productbesluiten van 2 augustus 2026 gebruikt de uitvoerder eerst
+[`prompts/PD-RESUME-AFTER-DECISIONS.md`](prompts/PD-RESUME-AFTER-DECISIONS.md).
+
 Uitvoerbare, zelfstandige taakbeschrijvingen per fase staan in
 [`prompts/`](prompts/), zodat ze los te reviewen en los te starten zijn:
 

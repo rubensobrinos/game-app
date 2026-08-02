@@ -300,6 +300,12 @@ Elke module krijgt tests vóór of samen met de implementatie, nooit erna.
 
 ## Open vragen (uit onderzoek)
 
+> **Status 2 augustus 2026:** de producteigenaar heeft de MVP-keuzes uit deze
+> lijst beantwoord in [`../multiplayer/DECISIONS.md`](../multiplayer/DECISIONS.md).
+> Teams en spectators zijn uit de huidige scope gehaald. Deze sectie blijft als
+> onderzoekslog bestaan; bij verschil is `DECISIONS.md` bindend en moeten volgende
+> protocolfasen dat besluit volgen.
+
 Deze zijn geen dingen die ik zelf oplos door de specificatie uit te breiden — dat zou
 een `public_api`-besluit zijn. Ik implementeer wat er staat, markeer expliciet waar
 het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert.

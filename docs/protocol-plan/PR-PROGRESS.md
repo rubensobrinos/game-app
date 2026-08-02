@@ -11,7 +11,7 @@ fase-afronding, niet alleen aan het eind.
 | --- | --- | --- |
 | Basisregels (1–8) | ✅ Klaar | 5 (unieke `actionId`) ✅ PR1; 8 (geen stacktraces) ✅ PR2 (`buildErrorPayload`); 3 (geen token in eventpayload) en 7 (`UNSUPPORTED_EVENT`) ✅ PR4c (`client-events-dispatch.mjs`, `resolveEventValidator`) |
 | Authenticatie en tijdelijke sessies — vorm | ✅ Klaar | PR3 (`auth-shape.mjs`) — Bearer-header + socket-handshake vormcheck, hergebruikt in PR3's `rest-games-session.mjs` en PR6's `reconnect.mjs` |
-| Authenticatie en tijdelijke sessies — generatie/hashing | ⛔ Geblokkeerd (`auth`, ADR-plichtig) | PR8a: schriftelijk voorstel geschreven (`PR8a-auth-session-voorstel.md`), wacht nu op menselijk akkoord; PR8b-code (`auth-session.mjs`) pas ná expliciet akkoord, nog niet begonnen |
+| Authenticatie en tijdelijke sessies — generatie/hashing | 🟢 Besluit bevestigd / code nog niet begonnen | PR8a-voorstel bevestigd: 32 random bytes, base64url, versieerbare HMAC-SHA256 met pepper en constant-time verificatie; zie `docs/multiplayer/DECISIONS.md` #26 |
 | Event-envelope | ✅ Klaar | PR1 — envelope parsen/bouwen, ack-vorm, payloadgrootte |
 | REST-endpoints (5) | ✅ Klaar | PR3 — `rest-games-create-join.mjs` + `rest-games-session.mjs` |
 | State-snapshot | ✅ Klaar | PR5d — `snapshot-shape.mjs`: vorm + invariant "geen correct antwoord van actieve ronde" |
@@ -64,11 +64,11 @@ fase-afronding, niet alleen aan het eind.
       optionele suggestie (`shared/product/hard-rules.mjs` citeren in een
       contracttest) genoteerd in eigen `HANDOFF.md` als mogelijke latere PR7-revisie,
       niet met terugwerkende kracht toegepast.
-- [ ] Reactie van `architecture-plan` op de `countdownEndsAt`-vraag afwachten (via
-      eigen `HANDOFF.md` §2).
-- [ ] 15 van de 17 open vragen in `README.md` wachten nog volledig op antwoord (§13 en
-      §14 zijn grotendeels beantwoord door `data-model-plan`, zie boven — §14 heeft nog
-      1 restvraag). Niets hiervan is zelf stilzwijgend opgelost.
+- [x] `countdownEndsAt` bevestigd als vluchtige, bij de transitie berekende waarde;
+      niet persistent opslaan. Zie `docs/multiplayer/DECISIONS.md` #16.
+- [x] De open vragen zijn door de producteigenaar beantwoord en ontdubbeld in
+      `docs/multiplayer/DECISIONS.md`. Teams en spectators zijn uit de huidige scope;
+      de overige besluiten moeten nog in protocolcode en brondocument worden verwerkt.
 - [x] PR0/PR1 retroactief van een eigen promptbestand voorzien
       (`prompts/PR0-scaffold.md`, `prompts/PR1-envelope-idempotency.md`), voor
       consistentie met de zusterplannen.

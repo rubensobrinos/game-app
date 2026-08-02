@@ -23,6 +23,7 @@ De bestaande singleplayer-app blijft werken. Multiplayer is een aanvullende laag
 | [`PROTOCOL.md`](PROTOCOL.md) | Wat is het contract tussen client en server? |
 | [`DATA-MODEL.md`](DATA-MODEL.md) | Welke tijdelijke en persistente data bestaan? |
 | [`DEPLOYMENT-AND-TESTING.md`](DEPLOYMENT-AND-TESTING.md) | Hoe draaien, beveiligen, testen en releasen we het? |
+| [`DECISIONS.md`](DECISIONS.md) | Welke cross-documentkeuzes heeft de producteigenaar bindend bevestigd? |
 
 ## Aanbevolen leesvolgorde
 
@@ -84,3 +85,8 @@ Nieuwe ideeën die niet nodig zijn voor de kernervaring worden eerst onder
 **latere uitbreiding** geplaatst. Een gegenereerde groepsvlag of groepsbadge is zo'n
 extra: aantrekkelijk, maar geen voorwaarde voor creëren, joinen, spelen, delen of
 rematchen.
+
+Menselijke besluiten die meerdere documenten raken worden centraal vastgelegd in
+[`DECISIONS.md`](DECISIONS.md). Dat bestand gaat vóór oudere open-vragenlijsten,
+handoffs en realisatieprompts totdat de zeven brondocumenten ermee zijn
+gesynchroniseerd.

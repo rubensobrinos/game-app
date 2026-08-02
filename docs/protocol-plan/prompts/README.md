@@ -34,3 +34,7 @@ PR8 is de enige fase die `auth` raakt (ADR-plichtig): het bijbehorende bestand s
 zelf bij een niet-bindend schriftelijk voorstel en bevat een letterlijke
 checkpoint-instructie om op menselijke bevestiging te wachten vóór er ook maar één
 regel token-/hashingcode wordt geschreven.
+
+Na de productbesluiten van 2 augustus 2026 is de bindende hervattingsprompt:
+[`PR-RESUME-AFTER-DECISIONS.md`](PR-RESUME-AFTER-DECISIONS.md). Die vervangt de
+oude menselijke checkpointinstructie voor PR8 en ontdubbelt de open vragen.

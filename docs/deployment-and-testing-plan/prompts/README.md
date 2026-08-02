@@ -24,6 +24,7 @@ voor onszelf, niet voor de uitvoerder.
 | [`DT6-chaostests.md`](DT6-chaostests.md) | DT6 | Deel 1 runbook + preflight-stap — **klaar, 0/6 scenario's uitgevoerd**. Deel 2 uitvoering (na gefaseerde autorisatie) |
 | [`DT7-ci-voorstel.md`](DT7-ci-voorstel.md) | DT7 | CI-volgordevoorstel — **beide blockers uit de review verwerkt** (`.js`+`.mjs`-glob, `shared/product` toegevoegd, expliciete sectie dat de bestaande `ci.yml` al kapot is en dit voorstel dat niet zelf oplost); activatie blijft apart |
 | [`REVIEW-DT3B-DT7.md`](REVIEW-DT3B-DT7.md) | — | Review van de resterende fasen; beide DT7-blockers en de overige bevindingen zijn verwerkt, zie [`../DT-PROGRESS.md`](../DT-PROGRESS.md) |
+| [`DT-RESUME-AFTER-DECISIONS.md`](DT-RESUME-AFTER-DECISIONS.md) | Hervatting | Uitvoeringsakkoord toepassen en technisch uitvoerbare tests activeren |
 
 **DT0–DT3a** zijn de fases die ik zelfstandig kon doorlopen tot en met een matrix,
 voorstel of mapstructuur — alle vijf zijn afgerond en gecommit. **DT1b is
