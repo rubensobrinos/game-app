@@ -1,21 +1,33 @@
 # Testmatrix — integratielaag (DT3a)
 
-**Status (2026-08-02, heropgevoerd): 5/14 rijen geactiveerd** — rijen 1, 2, 5,
-8, 10 (`tests/integration/matrix-row-{01,02,05,08,10}-*.test.mjs`, direct
-actief, geen `test.skip`, zelf gedraaid: 5/5 groen, en repo-breed
-`npm test`: 2096/2096 groen). Dit volgt op twee eerdere, tegenstrijdige standen
-dezelfde dag: de heraudit vond aanvankelijk 5/14, geverifieerd tegen een
-geïsoleerde `git worktree` op commit `c7ce43b` (48/48 bestaande + 5 nieuwe tests
-slaagden dáár); bij verificatie tegen de toen actuele werkboom faalden alle 5
-alsnog met `TypeError: context.store.loadRoomByInviteId is not a function`
-(`server/composition/room-lifecycle.mjs:253` riep een door de DM10/DM11-
-poortmigratie verwijderde methode aan), dus tijdelijk gecorrigeerd naar 0/14 en
-verplaatst naar `tests/integration/pending/*.draft.mjs`. Die onderliggende bug
-is inmiddels elders gefixt (`room-lifecycle.mjs` roept `loadRoomByInviteId`
-niet meer aan); bij hernieuwde verificatie slaagden alle 5 tests alsnog, dus
-teruggezet naar `tests/integration/*.test.mjs` en als geactiveerd gemarkeerd.
-Rijen 3, 4, 6, 7, 9, 11, 12, 13, 14 blijven geblokkeerd. Zie de
-"Audit-log"-sectie onderaan voor de volledige, per-rij motivatie en citaten.
+**Status (2026-08-02, tweede heraudit): 10/14 rijen geactiveerd** — rijen 1, 2,
+3, 5, 7, 8, 9, 10, 12, 14
+(`tests/integration/matrix-row-{01,02,03,05,07,08,09,10,12,14}-*.test.mjs`,
+direct actief, geen `test.skip`, zelf gedraaid: 11/11 groen — rij 9 heeft twee
+testblokken in één bestand). Repo-breed `npm test` vóór deze audit: 2150/2150
+groen; ná het toevoegen van de zes nieuwe testblokken (rijen 3, 7, 9×2, 12, 14)
+en het uitbreiden van `tests/integration/support/composition-harness.mjs` met
+`makeClock`/`CONTENT_VERSION`/`RENDERER_VERSION` (additief, bestaande exports
+ongewijzigd): 2158/2158 groen, twee keer achter elkaar gedraaid ter controle
+van flakiness. De 8 nieuwe tests i.p.v. de verwachte 6 komen doordat deze
+werkboom tijdens de audit ook elders veranderde (zie de "Methodologisch
+voorbehoud"-alinea in het vorige audit-log-blok — dezelfde instabiliteit deed
+zich hier opnieuw voor, ditmaal in `server/composition/match-lifecycle.mjs`
+zelf, zie hieronder).
+
+Deze heraudit herbeoordeelt de claim uit commit `27f6e4e` ("matchcyclus en
+atomaire locatorclaim", `server/composition/match-lifecycle.mjs`,
+"matrixrij 7, 9, 12 en 14") zelfstandig, niet op gezag van de commitboodschap:
+alle vier die rijen zijn opnieuw, van de grond af, doorlopen tegen de
+daadwerkelijke werkboom (niet tegen een geïsoleerde worktree) en activeren nu
+ook aantoonbaar. Rij 3 activeert bovendien, onafhankelijk van die commit,
+omdat `room-lifecycle.mjs` inmiddels een échte inviteId-hashindex-lookup
+gebruikt (zie rij 3 in de tabel). Rijen 4, 6, 11, 13 blijven geblokkeerd —
+voor elk is opnieuw expliciet gezocht naar het ontbrekende stuk (rate
+limiting, `share:opened`-persistentie, een socket-roomstrategie, een
+broadcast-aanroeper voor de round:progress-throttle) en niets daarvan bleek
+inmiddels aanwezig. Zie de "Audit-log"-sectie onderaan voor de volledige,
+per-rij motivatie en citaten, inclusief het eerdere (5/14) blok.
 
 Onderdeel van [`README.md`](README.md), fase DT3a, uitgevoerd volgens
 [`prompts/DT3a-integratie-matrix.md`](prompts/DT3a-integratie-matrix.md). Bron:
@@ -125,3 +137,66 @@ een regressie in díe migratie, niet in de hier geactiveerde rijen.
 | 12 | geblokkeerd | `server/data/answer-flow.js` `resolveAnswer()` is een pure, ongewijzigde beslisfunctie zonder I/O; er is geen compositie-aanroeper die hem tegen de échte opslag (`saveAcceptedAnswerAtomically`) uitvoert. Activatiecriterium vereist expliciet "tegen échte opslag (Redis/DB) idempotentie afdwingt". | 2026-08-02 |
 | 13 | geblokkeerd | `server/protocol/throttle-round-progress.mjs` `throttleRoundProgress()` bestaat als geïsoleerde module; geen compositielaag roept hem aan vanuit een echte `round:answer`-verwerkingsketen en er bestaat geen broadcastmechanisme (geen Socket.IO-laag, zie rij 11). | 2026-08-02 |
 | 14 | geblokkeerd | Geen snapshotproducer-compositie bestaat die Round-state (met `correctAnswer`) omzet naar de publieke State-snapshotvorm; `Room.phase` bereikt in de huidige compositie nooit `ACTIVE` (alleen `LOBBY` bij creatie), dus is er geen actieve ronde om te snapshotten. `server/protocol/snapshot-shape.mjs` bevat alleen vorm-validators tegen losse fixtures, geen producer. | 2026-08-02 |
+
+**Tweede heraudit 2026-08-02 ([`DT-R1-heraudit-integratie`](prompts/DT-R1-heraudit-integratie.md),
+opnieuw uitgevoerd).** Alle 14 rijen hierboven opnieuw, van de grond af,
+gecontroleerd tegen de werkboom zoals die tijdens déze doorloop stond — niet
+tegen de aannames van het vorige blok en expliciet niet op gezag van commit
+`27f6e4e`'s boodschap ("feat(composition): INT-A stap 1 compleet — matchcyclus
+en atomaire locatorclaim", die zelf claimt "matrixrij 7, 9, 12 en 14" te
+dekken). Aanleiding: die commit voegde `server/composition/match-lifecycle.mjs`
+toe (~1250 regels, `startMatch`/`advancePhase`/`startRound`/`submitAnswer`/
+`endRound`/`getScoreboard`/`finishMatch`/`rematch`/`buildSnapshot`), en het
+vorige audit-blok had dat bestand alleen terzijde genoemd (rij 7: "nog niet
+aantoonbaar end-to-end werkend") zonder het zelf tegen een werkende
+`room-lifecycle.mjs` te hebben doorgemeten.
+
+**Methodologisch voorbehoud — de werkboom veranderde ONDER deze audit.** Bij
+het eerste onderzoek naar rij 12 gaf een letterlijke, herhaalde
+`submitAnswer()`-aanroep met dezelfde `actionId` `replay: false` terug (geen
+idempotente ack) — een schrijfscript dat de interne velden van
+`resolveAnswer()`/`submitAnswer()` direct repliceerde, bevestigde dat
+`submitAnswer()` op dat moment `existingActionCacheEntry: null` en
+`existingAnswerForRound: null` hardcodeerde (met een commentaar "DM13: de
+poort bewaakt idempotentie, deze laag niet meer"), zónder de "lezen ná de
+write"-vergelijking die replay alsnog uit de opgeslagen staat aflost. Enkele
+minuten later, ZONDER dat deze audit zelf iets in `server/` heeft aangepast,
+gaf exact dezelfde probe `replay: true` — `git diff --stat` tegen commit
+`27f6e4e` toonde op dat moment 75 toegevoegde / 19 verwijderde regels
+ongecommitteerd in `server/composition/match-lifecycle.mjs` t.o.v. die commit;
+een gelijktijdige sessie had `submitAnswer()` tussentijds uitgebreid met de
+"lezen ná de write"-aanpak die nu op regels 727-819 staat (`answerBeforeWrite`
+vóór de write, `cached`/`stored`/`storedPlayer` ná de write, `replay:
+answerBeforeWrite !== null`). Om een betrouwbaar oordeel te vellen is na die
+constatering de volledige testronde (alle onderstaande citaten + de vijf
+nieuwe testbestanden) in aansluitende opeenvolging herhaald tegen ÉÉN stabiele
+momentopname van de werkboom, en is `npm test` daarna twee keer achter elkaar
+gedraaid (geen flakiness: beide keren exact 2158/2158).
+
+`npm test` vóór deze audit (geen enkel bestand van deze audit nog gewijzigd):
+**2150/2150 groen, 145 suites, 0 fail.** `npm test` ná deze audit (vijf nieuwe
+testbestanden in `tests/integration/` + een additieve uitbreiding van
+`tests/integration/support/composition-harness.mjs` met `makeClock`,
+`CONTENT_VERSION`, `RENDERER_VERSION` — bestaande exports/gedrag ongewijzigd,
+geen server-/opslagcode aangeraakt): **2158/2158 groen, 145 suites, 0 fail**,
+twee keer gedraaid. De 8 extra tests i.p.v. de 6 die deze audit zelf toevoegde
+(rij 3: 1, rij 7: 1, rij 9: 2, rij 12: 1, rij 14: 1) bevestigen dat er
+tussentijds ook elders in de werkboom tests bijkwamen — geen regressie, wél
+opnieuw het "instabiele werkboom"-voorbehoud van het vorige blok.
+
+| # | Status | Citaat | Datum |
+| --- | --- | --- | --- |
+| 1 | geactiveerd (ongewijzigd) | Zie rij 1 hierboven; opnieuw gedraaid als onderdeel van de volledige `npm test`-run van deze audit (2158/2158 groen), geen regressie. | 2026-08-02 |
+| 2 | geactiveerd (ongewijzigd) | Zie rij 2 hierboven; opnieuw gedraaid, geen regressie. | 2026-08-02 |
+| 3 | **geactiveerd (nieuw)** | `server/composition/room-lifecycle.mjs`: `claimLocators()` (regels 247-276) berekent `inviteHash = hashInviteId(inviteId, activePepper(context))` en claimt hem atomisch via `store.claimRoomLocatorsAtomically`; `createRoom()` (rond regel 388) slaat `inviteHash` op het Room-document op. `findRoomByInviteId()` (regels 330-340) zoekt de room op via `context.store.loadRoomByInviteHash(hashInviteId(inviteId, pepper))` — een échte hashindex-lookup op de DataStore-poort (`server/data/in-memory-store.js#loadRoomByInviteHash`, regel 86), geen fixture-lijst; `locateRoom()` (regels 523-548) roept dat pad aan voor zowel `joinSource: "qr"` als `"shared_link"`. `joinRoom()` retourneert bij succes een échte `sessionToken`/`sessionId`. Dit was in het vorige audit-blok nog geblokkeerd ("Room heeft geen `inviteHash`-veld") — de DM10-poortmigratie is inmiddels voltooid en `createRoom()`/`joinRoom()` zijn erop aangesloten. Test: `tests/integration/matrix-row-03-join-via-inviteid-hash-lookup.test.mjs`, zelf geschreven, gedraaid en geslaagd (ook binnen de volledige `npm test`-run). | 2026-08-02 |
+| 4 | geblokkeerd (ongewijzigd) | Herhaald: `grep -rli "ratelimit" server/` levert nog altijd niets op. Geen enkel bestand in `server/` implementeert rate limiting; `CODE_RATE_LIMITED`/`RATE_LIMITED` bestaan alleen als foutcode-constanten in `server/protocol/error-codes.mjs`. | 2026-08-02 |
+| 5 | geactiveerd (ongewijzigd) | Zie rij 5 hierboven; opnieuw gedraaid, geen regressie. | 2026-08-02 |
+| 6 | geblokkeerd (ongewijzigd) | Herhaald: `server/protocol/client-events-dispatch.mjs` registreert voor `share:opened` nog altijd uitsluitend `validateShareOpenedPayload` (regel 136) + een rolcheck; `grep -rn "recordShareOpened\|shareOpenedCount\|persistShareOpened" server/` levert niets op. Geen enkele functie persisteert of telt de gebeurtenis. | 2026-08-02 |
+| 7 | **geactiveerd (nieuw)** | `server/composition/match-lifecycle.mjs` implementeert de volledige matchcyclus als lijm over al bestaande, geteste modules: `startMatch()` (regel 470, LOBBY → COUNTDOWN), `startRound()` (regel 602, COUNTDOWN → ROUND_ACTIVE, bouwt een échte vraag via `createContentSource().buildQuestion()`), `submitAnswer()` (regel 727), `endRound()` (regel 835, ROUND_ACTIVE → ROUND_RESULT), `advancePhase()` (regel 557, de overige tijdgedreven overgangen incl. → FINISHED op de laatste ronde), `finishMatch()` (regel 970, eindstand + tiebreak uit `server/rules/standings.js`), `rematch()` (regel 1048, FINISHED → nieuwe match in LOBBY, zelfde room/code/inviteId, scores gereset). Elke faseovergang loopt uitsluitend door `transition()` uit `server/architecture/state-machine.js`; opslag loopt door `server/data/in-memory-store.js`, een échte DataStore-poortimplementatie, niet een testfixture. Zelf, van de grond af, doorgemeten tegen de échte `room-lifecycle.createRoom()`/`joinRoom()` (niet de tijdelijke fixture die `server/composition/match-lifecycle.test.mjs` voor ditzelfde doel gebruikt) — dat pad werkt inmiddels. Test: `tests/integration/matrix-row-07-full-match-cycle-with-rematch.test.mjs` (2 rondes, host + 1 speler, tot en met een tweede `startMatch()` ná de rematch), zelf geschreven, gedraaid en geslaagd. | 2026-08-02 |
+| 8 | geactiveerd (ongewijzigd) | Zie rij 8 hierboven; opnieuw gedraaid, geen regressie. | 2026-08-02 |
+| 9 | **geactiveerd (nieuw)** | `server/composition/match-lifecycle.mjs` `resolveEligibleFromRound()` (regel 1136) kent `Match.roundIndex`/`Match.phase` op joinmoment en berekent `eligibleFromRound` via `computeEligibleFromRound()` (`server/rules/eligibility.js`). `server/composition/room-lifecycle.mjs` `joinRoom()` (regel 569) neemt dat getal over op het Player-document en weigert een late join met `LATE_JOIN_DISABLED` zodra `room.phase !== 'LOBBY'` en `allowLateJoin !== true` — `room.phase` is de projectie die `setRoomAndMatchPhaseAtomically` (besluit 30) live bijhoudt zodra een match loopt. `server/data/answer-flow.js`'s `resolveAnswer()` (aangeroepen vanuit `submitAnswer()`) weigert een antwoord van een nog niet speelgerechtigde speler met `PLAYER_NOT_ELIGIBLE`; `endRound()` (regel 835) telt `eligiblePlayerCount` via `isEligibleForRound()`, dus de late joiner telt niet mee in de noemer van de gemiste ronde, wél vanaf de eerstvolgende ronde. Test: `tests/integration/matrix-row-09-late-join-eligibility.test.mjs` (twee testblokken: happy path + `allowLateJoin:false`), zelf geschreven, gedraaid en geslaagd. | 2026-08-02 |
+| 10 | geactiveerd (ongewijzigd) | Zie rij 10 hierboven; opnieuw gedraaid, geen regressie. | 2026-08-02 |
+| 11 | geblokkeerd (ongewijzigd) | Herhaald: `grep -rl "socket.io" server/` vindt alleen `server/index.mjs`, dat alle `/socket.io/*`-paden nog met `501 NOT_IMPLEMENTED` beantwoordt (regel 56). Data-isolatie tussen rooms is aantoonbaar in `server/data/in-memory-store.js`, maar de vereiste socket-roomstrategie ontbreekt nog steeds. | 2026-08-02 |
+| 12 | **geactiveerd (nieuw)** | `server/composition/match-lifecycle.mjs` `submitAnswer()` (regel 727) berekent de write via `resolveAnswer()` en voert hem uit via `context.store.saveAcceptedAnswerAtomically()`; `server/data/in-memory-store.js` `saveAcceptedAnswerAtomically()` (regels 229-288) controleert de action-cache EERST — bij een reeds bekende `actionId` slaat de opslag de write stilzwijgend over (DM13) — en werpt `ALREADY_ANSWERED` zodra dezelfde speler/ronde al een antwoord heeft onder een ANDERE `actionId`. `submitAnswer()` leidt het `replay`-label af door de opgeslagen staat vóór en ná de write te vergelijken (regels 787, 802-810), zodat een retry exact dezelfde `ack` teruggeeft zonder herverwerking. Dit is de échte DataStore-poort (`server/data/repository.js`), dezelfde implementatie die de rijen 1/2/3/5/7/8/9/10/14 al gebruiken. Test: `tests/integration/matrix-row-12-answer-idempotency.test.mjs` (dezelfde `actionId` → replay met identieke ack; nieuwe `actionId` met on/gewijzigde inhoud → `ALREADY_ANSWERED`; score wijzigt nooit tweemaal), zelf geschreven, gedraaid en geslaagd. Zie het methodologisch voorbehoud hierboven: deze uitkomst is pas stabiel ná een tussentijdse wijziging elders in de werkboom aan `submitAnswer()`. | 2026-08-02 |
+| 13 | geblokkeerd (ongewijzigd) | Herhaald: `grep -rln "throttleRoundProgress" server/` vindt alleen `server/protocol/throttle-round-progress.mjs` zelf (en zijn eigen test); geen compositielaag roept de functie aan vanuit een echte `round:answer`-verwerkingsketen, en er bestaat nog geen broadcastmechanisme (zie rij 11). | 2026-08-02 |
+| 14 | **geactiveerd (nieuw)** | `server/composition/match-lifecycle.mjs` `buildSnapshot()` (regel 1192) is de échte snapshotproducer: hij laadt de lopende Round (met `correctAnswer` erin, `server/data/types/round.js`) uit de poort en zet hem via `toActiveRoundSnapshot()` (het vangnet van de Round-eigenaar, dat werpt zodra de ronde niet `ACTIVE` is) om naar de publieke `currentRound`-vorm via een expliciete allowlist (`matchId, roundId, roundNumber, totalRounds, gameType, contentVersion, rendererVersion, question, startsAt, endsAt`), geen spread van het Round-document. `Room.phase`/`Match.phase` bereiken `ACTIVE` via de échte `startMatch()`/`startRound()` (rij 7), niet via een handmatig geprepareerde fixture. Test: `tests/integration/matrix-row-14-snapshot-omits-correct-answer.test.mjs` — bevestigt eerst onafhankelijk dat de opgeslagen Round `status: 'ACTIVE'` heeft én een `correctAnswer`-object draagt, bouwt dan drie snapshots (host-sessie, speler-sessie, geen sessie) en doorzoekt elk recursief op elke sleutelnaam én stringwaarde die "correctanswer" bevat (case-insensitief), plus een `JSON.stringify(...).toLowerCase().includes('correctanswer')`-vangnet op de volledige respons. Alle drie leeg. Zelf geschreven, gedraaid en geslaagd. | 2026-08-02 |

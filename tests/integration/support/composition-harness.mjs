@@ -26,6 +26,13 @@ export const FIXED_NOW = 1_754_136_000_000;
 export const PEPPER = 'integratietest-pepper-met-ruim-voldoende-bytes';
 export const APP_URL = 'https://play.aseso.nl';
 
+// Voor scenario's die server/composition/match-lifecycle.mjs raken (matrixrijen
+// 7, 9, 12, 14): die module eist `context.config.contentVersion` (besluit 21,
+// zie match-lifecycle.mjs's `contentSourceFor`). Twee vaste, willekeurige
+// versiestrings — de inhoud doet er niet toe, alleen dat ze aanwezig zijn.
+export const CONTENT_VERSION = 'integratietest-content-1';
+export const RENDERER_VERSION = 'integratietest-renderer-1';
+
 /**
  * Besluit 26: versieerbare peppers — één ACTIEVE versie plus alle versies die
  * nog geverifieerd moeten kunnen worden. Dit is de vorm die
@@ -46,4 +53,25 @@ export function makeContext({ store = createInMemoryStore(), now = () => FIXED_N
     now,
     config: { tokenPeppers: TOKEN_PEPPERS, publicAppUrl: APP_URL, ...config },
   });
+}
+
+/**
+ * Handmatig verzette klok voor scenario's die fasetimers moeten laten
+ * verstrijken (countdown, ronde-deadline, resultaat-/scoreboardduur). Geen
+ * enkele test in deze map mag van de échte klok afhangen — `now()` leest
+ * uitsluitend deze waarde.
+ * @param {number} [start]
+ */
+export function makeClock(start = FIXED_NOW) {
+  const clock = { value: start };
+  clock.now = () => clock.value;
+  clock.set = (value) => {
+    clock.value = value;
+    return clock.value;
+  };
+  clock.advance = (ms) => {
+    clock.value += ms;
+    return clock.value;
+  };
+  return clock;
 }
