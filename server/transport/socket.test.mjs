@@ -672,6 +672,42 @@ test('room:state gaat naar één sessie en bevat tijdens een actieve ronde geen 
   assert.equal(host.eventsNamed('room:state').length, 0, 'room:state is een single_session-event');
 });
 
+test('game:kick meldt de gekickte sessie persoonlijk en de room het nieuwe aantal', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness);
+  const target = await seedPlayer(harness, room, 'Weg');
+  const bystander = await seedPlayer(harness, room, 'Blijft');
+
+  const host = await harness.connect(authFor(room));
+  const targetClient = await harness.connect(authFor(target));
+  const bystanderClient = await harness.connect(authFor(bystander));
+
+  const ack = await host.emitWithAck('game:kick', { actionId: 'act_kick', payload: { playerId: target.playerId } });
+  assert.equal(ack.ok, true);
+
+  const kicked = await targetClient.waitFor('session:kicked');
+  assert.equal(kicked.payload.reason, 'host');
+
+  const changed = await host.waitFor('room:player-changed');
+  assert.deepEqual(changed.payload, { playerCount: 2, delta: { type: 'kick', playerId: target.playerId } });
+
+  await settle();
+  assert.equal(bystanderClient.eventsNamed('session:kicked').length, 0, 'session:kicked is een single_session-event');
+});
+
+test('broadcastPlayerChanged geeft de REST-laag een ingang voor room:player-changed', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness);
+  const host = await harness.connect(authFor(room));
+
+  // Joinen loopt over REST, niet over de socket — de room moet het toch horen.
+  const joined = await seedPlayer(harness, room, 'Laatkomer');
+  await harness.attached.broadcastPlayerChanged(room.roomId, { type: 'join', playerId: joined.playerId });
+
+  const changed = await host.waitFor('room:player-changed');
+  assert.deepEqual(changed.payload, { playerCount: 2, delta: { type: 'join', playerId: joined.playerId } });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Opruimen
 // ─────────────────────────────────────────────────────────────────────────────

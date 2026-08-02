@@ -365,11 +365,18 @@ export async function buildServer(options = {}) {
   registerStaticRoutes(fastify);
 
   if (attachSockets) {
+    // De onClose-hook moet vóór `ready()` geregistreerd zijn — daarna weigert
+    // Fastify nieuwe hooks. Vandaar de holder in plaats van de hook pas te
+    // registreren als de socketlaag er blijkt te zijn.
+    /** @type {{ close: () => Promise<void> } | null} */
+    let sockets = null;
+    fastify.addHook('onClose', async () => {
+      if (sockets !== null) {
+        await sockets.close();
+      }
+    });
     await fastify.ready();
-    const sockets = await attachSocketsIfAvailable(fastify.server, { context, config });
-    if (sockets !== null) {
-      fastify.addHook('onClose', async () => { await sockets.close(); });
-    }
+    sockets = await attachSocketsIfAvailable(fastify.server, { context, config });
   }
 
   return fastify;

@@ -1001,6 +1001,22 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
     /** Voor `server/index.mjs`: een snapshot naar één sessie duwen na reconnect. */
     sendSnapshot,
     /**
+     * Voor `server/transport/rest.mjs`: `POST /games/join` en `POST /leave`
+     * lopen NIET over de socket, terwijl `room:player-changed` wel room-breed
+     * moet worden gemeld. Zonder deze ingang ziet een lobby een nieuwe joiner
+     * nooit. `delta.type` is een van `join | leave | rename | kick`
+     * (`server-events-room-lifecycle.mjs`).
+     *
+     * @param {string} roomId
+     * @param {{ type: 'join' | 'leave' | 'rename' | 'kick', playerId: string }} delta
+     */
+    async broadcastPlayerChanged(roomId, delta) {
+      await publish('room:player-changed', {
+        roomId,
+        payload: { playerCount: await playerCountOf(roomId), delta },
+      });
+    },
+    /**
      * Stopt de socketlaag: timers weg, sockets los, engine dicht.
      *
      * Sluit BEWUST de meegegeven `httpServer` niet — die is eigendom van
