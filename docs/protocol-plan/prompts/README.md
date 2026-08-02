@@ -9,6 +9,8 @@ agent-aanroep wanneer die fase daadwerkelijk gebouwd wordt.
 
 | Bestand | Fase | Dekt |
 | --- | --- | --- |
+| [`PR0-scaffold.md`](PR0-scaffold.md) | PR0 | Locatie + moduleformaat, geen dependencies — retroactief geschreven, status: uitgevoerd |
+| [`PR1-envelope-idempotency.md`](PR1-envelope-idempotency.md) | PR1 | Event-envelope + idempotentiebeslissing — retroactief geschreven, status: uitgevoerd |
 | [`PR2-error-codes.md`](PR2-error-codes.md) | PR2 | Foutcode-enum (23 codes, 4 categorieën) + errorenvelope zonder debugdetails |
 | [`PR3-rest-schemas.md`](PR3-rest-schemas.md) | PR3 | REST-schema's (5 endpoints), input-safety naamvalidatie, auth-shape vormcheck |
 | [`PR4-client-events.md`](PR4-client-events.md) | PR4 | Client→server event-schema's (PR4a–PR4d), incl. `UNSUPPORTED_EVENT`-dispatch |
@@ -17,10 +19,11 @@ agent-aanroep wanneer die fase daadwerkelijk gebouwd wordt.
 | [`PR7-contract-tests.md`](PR7-contract-tests.md) | PR7 | Contracttest-suite tegen een fake Socket.IO/Fastify-harnas (PR7a–PR7e) |
 | [`PR8-session-token-proposal.md`](PR8-session-token-proposal.md) | PR8 | Sessie/tokenvoorstel (PR8a, geen code) + verplicht checkpoint + PR8b ná akkoord |
 
-PR0 en PR1 (scaffold + event-envelope/idempotentie) zijn al uitgevoerd — zie
-`server/protocol/` en de rest van [`../README.md`](../README.md#fasering) voor wat
-daar staat. Deze prompts zijn dus alle nog te bouwen fasen; ze zijn in één keer
-vooraf geschreven (op verzoek), niet per fase vlak voordat die start zoals
+PR0 en PR1 zijn al uitgevoerd vóórdat hun promptbestand bestond; die twee zijn dus
+retroactief geschreven (documentatie van wat al gebouwd is), terwijl PR2–PR8 vooraf
+zijn geschreven en pas daarna (deels) uitgevoerd. Zie [`../PR-PROGRESS.md`](../PR-PROGRESS.md)
+voor de actuele status per fase. PR2–PR8 zijn in één keer vooraf geschreven (op
+verzoek), niet per fase vlak voordat die start zoals
 [`../README.md`](../README.md#prompts-per-fase) oorspronkelijk als aanpak noemde.
 Elke prompt kan daardoor iets moeten schuiven zodra een vorige fase in de praktijk
 afwijkt van de aanname, of zodra een Open vraag uit `../README.md#open-vragen-uit-onderzoek`

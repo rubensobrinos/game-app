@@ -320,6 +320,14 @@ het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert
    plan. Blokkeert een volledige PR5-validator voor `game:paused`; PR7e neemt een
    contracttestscenario op voor pauze-op-recovery → hervatten-met-nieuwe-countdown
    tegen de fake transport.
+   **Aangescherpt door `game-flow-plan`'s [`protocol-interface-proposal.md`
+   §5/§7](../game-flow-plan/protocol-interface-proposal.md):** dit zijn eigenlijk
+   twee losse vragen, niet één — (a) bevat de `room:state`-snapshot een
+   `pausedState`-veld in de volledige `DATA-MODEL.md`-vorm
+   (`previousPhase`/`remainingMs`/`reason`/`pausedAt`), en (b) draagt het live
+   `game:paused`-*event* diezelfde volledige vorm of alleen `reason`/`previousPhase`?
+   Plus: wat is de volledige, officiële lijst mogelijke `reason`-waarden (geen
+   enum in `PROTOCOL.md`, alleen één voorbeeldwaarde `"host"` in `DATA-MODEL.md`)?
 3. Geen proactief `eligible`-veld (bv. in `round:started` of `self`) voor late
    joiners die pas vanaf een volgende ronde mogen meedoen — nu alleen reactief via
    `PLAYER_NOT_ELIGIBLE` na een poging. Blokkeert volledige dekking van PR4/PR5.
@@ -351,8 +359,28 @@ het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert
    live-configoptie elders wordt genoemd. Buiten scope tot dit is toegevoegd aan de
    specificatie (zie ook GAME-RULES-plan GR6 en GAME-FLOW-plan GF7, die hetzelfde
    gat signaleren).
+   **Concreet gemaakt door `game-flow-plan`'s
+   [`protocol-interface-proposal.md` §1–§3](../game-flow-plan/protocol-interface-proposal.md):**
+   hoofdvraag is *waar* teamkeuze in de joinvolgorde valt — drie mogelijke
+   contracten, neutraal geschetst: (a) `team`-veld in `POST /games/join` zelf
+   (vereist teams al bekend vóór join), (b) een beperkte pre-join-sessie alleen
+   voor teamkeuze, of (c) een verplichte tussenstate ná formeel joinen, vóór de
+   lobby. GF7 (teamkeuze-reducer) staat on hold totdat hier een keuze ligt — de
+   vorm van hun `teamRequestFor` hangt hier inhoudelijk van af. Pas ná die keuze
+   zijn twee vervolgvragen concreet te maken: de team-identifier (`teamId` vs.
+   zichtbare naam; uniciteit) en het bevestigingspad (ack op het clientevent, een
+   nieuw serverevent, `room:player-changed`-uitbreiding, of alleen de
+   eerstvolgende snapshot — inclusief idempotentie bij een dubbele poging en het
+   signaal bij automatische indeling zonder voorafgaande clientactie).
 9. Spectatorroute (`/screen/{code}`) heeft geen rol naast `host`/`player` en geen
    beschreven auth/subscribe-mechanisme voor read-only events.
+   **Concreet gemaakt door `game-flow-plan`'s
+   [`protocol-interface-proposal.md` §4](../game-flow-plan/protocol-interface-proposal.md):**
+   drie deelvragen — hoe authenticeert/identificeert een spectator zich zonder
+   host-/spelersrol, hoe abonneert die zich op roomupdates (dezelfde socketroom
+   of een apart read-only kanaal), en welke velden uit snapshot/events moeten
+   voor een spectator worden weg-geprojecteerd (bv. individuele antwoorden of
+   namen)?
 
 **Vraaginhoud en scoring — grensvlak met GAME-RULES.md**
 10. `question`-payloadvorm is alleen voor multiple-choice uitgewerkt; de andere vier
@@ -368,12 +396,25 @@ het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert
     scoreberekening geaccepteerd-maar-zonder-bonus? Deze grens is niet expliciet en
     moet worden vastgelegd vóór PR4's `round:answer`-validator "te laat" definitief
     afhandelt.
-13. `roundNumber` en `countdownEndsAt` hebben geen bronveld in `DATA-MODEL.md`
-    (vermoedelijk afgeleid van `Match.roundIndex`) — af te stemmen met de eigenaar
-    van [`docs/data-model-plan/`](../data-model-plan/README.md); diens plan noemt
-    deze twee velden nog niet expliciet.
-14. `game:rematch`: reset `Player.score/correctCount/...` voor de nieuwe match? Speler
-    is room-scoped, niet match-scoped in `DATA-MODEL.md` — onduidelijk voor PR4/PR5.
+13. **Grotendeels beantwoord** door `data-model-plan`'s
+    [`HANDOFF.md` §2](../data-model-plan/HANDOFF.md): `roundNumber = Match.roundIndex + 1`
+    (voorstel, `roundIndex` is 0-based) en `countdownEndsAt` wordt bewust **niet** een
+    opgeslagen `DATA-MODEL.md`-veld — het is een vluchtige, berekende waarde
+    (`serverTime + 3s`), on-the-fly bepaald door wie de `LOBBY → COUNTDOWN`-transitie
+    uitvoert. Nog open: dat voorstel wacht zelf nog op bevestiging/weerlegging van
+    `architecture-plan` (de eigenaar van die transitie) — dus PR4/PR5 mogen deze twee
+    velden als vorm-check meenemen (`roundNumber: number`, `countdownEndsAt: number`
+    in de betreffende payloads), maar niet aannemen dat de afgeleide-waarde-aanname
+    al bindend bevestigd is.
+14. **Grotendeels beantwoord** door `data-model-plan`'s
+    [`HANDOFF.md` §3](../data-model-plan/HANDOFF.md): `game:rematch` reset
+    **dezelfde** `Player`-record in place (geen nieuw record — `Player` is room-scoped,
+    geen `matchId`). Reset: `score`, `correctCount`, `correctResponseTimeMsTotal`,
+    `eligibleFromRound → 1`. Niet reset: `connected`, `left`, `kicked`, `joinedAt`,
+    naamvelden. **Nog volledig open** (door niemand opgelost): telt een speler die
+    `left: true` had in de vórige match automatisch weer mee in de rematch-roster, of
+    blijft die als "verlaten" staan tot een nieuwe join? `GAME-FLOW.md` §11 gaat over
+    vrijwillig verlaten binnen één match, niet expliciet over het rematch-geval.
 15. De gedeelde content-module (`COUNTRIES`, `COUNTRY_FACTS`, `checkAnswer`, e.d.)
     bestaat nog niet als importeerbaar package — de bestaande `data/*.js`-bestanden
     zijn browser-globals zonder `module.exports`. Zolang dat niet is opgelost, kan
@@ -389,6 +430,19 @@ het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert
     `code`. Blokkeert een nette, betekenisvolle foutcode voor dit endpoint totdat
     de `PROTOCOL.md`-eigenaar hier een keuze in maakt (nieuwe code, of expliciet
     hergebruik van een bestaande).
+17. Naamsuggestie vóór join ontbreekt als servercontract. `GAME-FLOW.md` beschrijft
+    de volgorde *scan QR → inviteId gevalideerd → naamveld met reeds voorgestelde
+    willekeurige naam → [Meedoen] → sessie aangemaakt*, wat een validatie-/
+    naamsuggestiestap vóór `POST /games/join` impliceert — maar `PROTOCOL.md` kent
+    alleen dat ene endpoint, dat in één stap valideert én de sessie aanmaakt. Twee
+    mogelijke lezingen (uit `game-flow-plan`'s
+    [`protocol-interface-proposal.md` §6](../game-flow-plan/protocol-interface-proposal.md),
+    neutraal geschetst): (a) een nieuw licht `GET`-previewendpoint, of (b) de
+    voorgestelde naam blijft puur lokaal/clientgegenereerd zonder servercall, met
+    het risico dat de naam na join alsnog wijzigt (bv. bij een botsing). Niet
+    blokkerend voor PR3 (dat valideert alleen het bestaande `POST /games/join`),
+    wel relevant zodra deze vraag beantwoord is — een nieuw endpoint zou een eigen
+    PR3-achtige validatorfase nodig hebben.
 
 ## Wat hier expliciet buiten valt
 
