@@ -172,9 +172,14 @@ vragen". Een kruisverwijzing tussen beide lijsten staat als addendum onderaan
   `actionId`, plus de temporele/idempotente checks die uit DT1b hierheen zijn
   verplaatst.
 - **DT3b:** pas wanneer een scenario's prerequisites concreet zijn (interfaces van de
-  betrokken eigenaren liggen vast), omzetten naar uitvoerbare `test.skip`-code mét
-  metadata (prerequisite-referentie, datum) en een aparte controle die overdatum/
-  onverwachte skips rapporteert.
+  betrokken eigenaren liggen vast), omzetten naar een **direct actieve** test —
+  geen `test.skip` meer (herzien na
+  [`prompts/REVIEW-DT3B-DT7.md`](prompts/REVIEW-DT3B-DT7.md) #7: de matrix zelf is
+  al de plek voor "nog niet bewezen", een tweede skip-registratie voegde niets toe).
+- **Status (2026-08-02):** alle 14 rijen geblokkeerd op dezelfde prerequisite — zie
+  [`server-composition-request.md`](server-composition-request.md) voor het
+  verzoek aan architecture-plan om die te ontgrendelen zonder dat daar al een
+  `deps`-akkoord (Fastify/Socket.IO/Redis-client) voor nodig is.
 
 ### DT4a — Browser-E2E met Playwright (automatiseerbare subset)
 - Scope: routes/navigatie, refresh, responsive viewports, browser-API-fallbacks —
