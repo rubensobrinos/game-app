@@ -7,17 +7,31 @@
 //
 // GRENZEN VAN DEZE SUITE (bewust, niet vergeten):
 //
-//   * Drie poortmethoden ontbreken: `saveRound`, `loadAnswer` en
-//     `loadActionCacheEntry`. Zie het `describe.skip`-blok onderaan en
-//     HANDOFF-item INTB-1. Hun huidige gedrag is hier NIET vastgelegd; dat zou
-//     een bekende fout tot norm promoveren.
-//   * De twee atomaire methoden (`setRoomAndMatchPhaseAtomically`,
-//     `saveAcceptedAnswerAtomically`) horen bij INTB1b. Ze worden hier alleen
-//     als *arrangement* gebruikt (het scoreboard heeft geen andere schrijfweg);
-//     hun eigen contract wordt hier niet geassserteerd.
-//   * De overige dertien methoden zijn volledig gedekt op vier categorieën:
-//     happy path, ontbrekend record, isolatie tussen rooms, en geen gedeelde
-//     referenties.
+//   * Alle EENENTWINTIG poortmethoden zijn gedekt op vier categorieën: happy
+//     path, ontbrekend record, isolatie tussen rooms, en geen gedeelde
+//     referenties. Het `describe.skip`-blok voor `saveRound`/`loadAnswer`/
+//     `loadActionCacheEntry` is weg: DM11 heeft die drie signaturen verbreed
+//     met `roomId` (HANDOFF-item INTB-1), dus de bodies die tégen de verbrede
+//     signaturen waren geschreven draaien nu gewoon mee.
+//   * De vijf atomaire/lifecycle-methoden (`setRoomAndMatchPhaseAtomically`,
+//     `saveAcceptedAnswerAtomically`, `claimRoomLocatorsAtomically`,
+//     `releaseRoomLocators`, `refreshRoomLocators`) staan in DEZELFDE suite en
+//     niet in een tweede harness. De eerste twee worden daarnaast als
+//     *arrangement* gebruikt door de getScoreboardTop-tests (het scoreboard
+//     heeft geen andere schrijfweg).
+//   * De room-locators zijn een LIFECYCLE, geen losse setter: claim → gebruik
+//     → release/refresh (DM10, HANDOFF-item INTB-2). `saveRoom` vult alleen de
+//     code-index en kán de inviteHash-index niet vullen — `Room` draagt een
+//     plat `inviteId`, geen hash. Elke test die `loadRoomByInviteHash` wil
+//     bewijzen claimt dus eerst; dat spiegelt de echte flow, waarin de claim
+//     altijd aan de roomcreatie voorafgaat.
+//   * DRIE TESTS STAAN BEWUST ROOD, op HANDOFF-item INTB-4. Zie het
+//     gelijknamige blok onderaan: de fake dwingt idempotentie op `actionId` en
+//     "één antwoord per speler per ronde" niet af, terwijl DATA-MODEL.md die
+//     controles (stappen 4 en 5) expliciet ÍN de atomaire operatie plaatst.
+//     Die tests zijn tegen het correcte contract geschreven, niet tegen het
+//     huidige gedrag: ze horen groen te worden door de fake te corrigeren, niet
+//     door de verwachting af te zwakken.
 //
 // Alleen node:test en node:assert. Geen klok, geen willekeur: alle fixtures
 // gebruiken vaste literals, zodat een falende test altijd reproduceerbaar is.
@@ -99,6 +113,53 @@ function makeRoom(overrides = {}) {
   };
   assertRoomShape(room);
   return room;
+}
+
+/**
+ * Eén `RoomLocatorClaim` (repository.js): het paar (join-code, invite-hash) dat
+ * een room atomair claimt, plus de TTL die als vangnet dient voor een creatie
+ * die halverwege sneuvelt.
+ *
+ * `inviteHash`, niet `inviteId`: de aanroeper hasht vóór de repository
+ * (`hashInviteId()` uit `server/architecture/room-codes.js`). Die functie wordt
+ * hier BEWUST niet geïmporteerd — `server/data` -> `server/architecture` is de
+ * verkeerde afhankelijkheidsrichting (zie de gelijke noot in types/room.js), en
+ * de poort behandelt de hash toch als een ondoorzichtige string. Vaste
+ * literals dus, net als bij elke andere fixture hier.
+ *
+ * Geen `assertRoomLocatorClaimShape` in server/data/types/: een claim is geen
+ * persistent document maar een parameterobject. De invarianten die de poort
+ * wél veronderstelt staan daarom hieronder, zodat een kapotte fixture hier
+ * stukloopt in plaats van een adapter te laten slagen op onzin.
+ */
+const LOCATOR_TTL_SECONDS = 3600;
+const INVITE_HASH_A = 'invitehash_a';
+const INVITE_HASH_B = 'invitehash_b';
+
+function makeLocatorClaim(overrides = {}) {
+  const claim = {
+    roomId: 'room_a',
+    code: 'AAA111',
+    inviteHash: INVITE_HASH_A,
+    ttlSeconds: LOCATOR_TTL_SECONDS,
+    ...overrides,
+  };
+  for (const field of ['roomId', 'code', 'inviteHash']) {
+    assert.ok(
+      typeof claim[field] === 'string' && claim[field].length > 0,
+      `RoomLocatorClaim.${field} moet een niet-lege string zijn, kreeg: ${JSON.stringify(claim[field])}`
+    );
+  }
+  assert.ok(
+    Number.isInteger(claim.ttlSeconds) && claim.ttlSeconds > 0,
+    `RoomLocatorClaim.ttlSeconds moet een positief geheel getal zijn, kreeg: ${JSON.stringify(claim.ttlSeconds)}`
+  );
+  return claim;
+}
+
+/** De `RoomLocatorPair` van een claim: dezelfde drie velden zonder de TTL. */
+function toLocatorPair({ roomId, code, inviteHash }) {
+  return { roomId, code, inviteHash };
 }
 
 function makeSession(overrides = {}) {
@@ -198,6 +259,68 @@ function makeAnswer(overrides = {}) {
 }
 
 /**
+ * Eén volledige `AcceptedAnswerWrite` (zie de typedef in repository.js): de
+ * drie dingen die stappen 7–10 van de atomaire antwoordverwerking in ÉÉN
+ * mutatie moeten wegschrijven.
+ *
+ * `updatedPlayer` draagt ABSOLUTE nieuwe waarden, geen delta — de aanroeper
+ * (answer-flow.js) rekent `player.score + points` zelf uit. Daarom staan
+ * `points` (van dit antwoord) en `score` (het nieuwe totaal) hier als aparte
+ * parameters: elke test schrijft zijn eigen sommetje expliciet op, zodat de
+ * verwachte eindscore in de test staat en niet in een hulpfunctie verdwijnt.
+ *
+ * `ack` volgt answer-flow.js: `{ roundId }`, zonder correct/points.
+ */
+function makeAcceptedAnswerWrite({
+  roundId = 'round_1',
+  playerId = 'player_1',
+  actionId = 'action_1',
+  points = 120,
+  responseTimeMs = 2000,
+  correct = true,
+  score = 120,
+  correctCount = 1,
+  correctResponseTimeMsTotal = 2000,
+} = {}) {
+  // Beide helften apart valideren: makeAnswer draait assertAnswerShape, en de
+  // absolute spelerwaarden moeten samen een geldige Player kunnen vormen.
+  // Zonder deze tweede controle zou een test kunnen slagen op een score die
+  // server/data/types/player.js in productie weigert.
+  makePlayer({ id: playerId, score, correctCount, correctResponseTimeMsTotal });
+
+  return {
+    answer: makeAnswer({
+      roundId,
+      playerId,
+      actionId,
+      points,
+      correct,
+      responseTimeMs,
+      receivedAt: T_ROUND_STARTS + responseTimeMs,
+    }),
+    updatedPlayer: { id: playerId, score, correctCount, correctResponseTimeMsTotal },
+    actionCacheEntry: { actionId, ack: { roundId } },
+  };
+}
+
+/**
+ * `loadAnswer` en `loadActionCacheEntry` zijn de enige manier om te zien of
+ * twee van de vier writes van `saveAcceptedAnswerAtomically` zijn geland. Ze
+ * lopen via deze twee hulpfuncties, die de volledige context aannemen, zodat
+ * een volgende signatuurwijziging één plek raakt en geen enkele verwachting.
+ *
+ * Beide dragen sinds DM11 het `roomId` (en `loadAnswer` ook het `matchId`) —
+ * dat was HANDOFF-item INTB-1 en is inmiddels opgelost.
+ */
+function readAnswer(store, context) {
+  return store.loadAnswer(context.roomId, context.matchId, context.roundId, context.playerId);
+}
+
+function readActionCacheEntry(store, context) {
+  return store.loadActionCacheEntry(context.roomId, context.actionId);
+}
+
+/**
  * Arrangement voor `getScoreboardTop`: het scoreboard heeft geen eigen
  * schrijfmethode op de poort. De enige weg erheen is
  * `saveAcceptedAnswerAtomically` — dat is INTB1b-terrein en wordt hier dus
@@ -259,9 +382,10 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
   if (typeof describe !== 'function') {
     throw new TypeError('runDataStoreConformance: `describe` moet een functie zijn');
   }
-  if (typeof describe.skip !== 'function') {
-    throw new TypeError('runDataStoreConformance: `describe` moet een `.skip` hebben — het INTB-1-blok hoort overgeslagen te worden, niet gedraaid');
-  }
+  // Tot DM11 stond hier ook de eis dat `describe` een `.skip` heeft, voor het
+  // overgeslagen INTB-1-blok. Die eis is weg omdat dat blok nu meedraait: de
+  // suite slaat niets meer over. Wie hier ooit weer een `.skip` neerzet, laat
+  // een gat in het contract vallen en hoort dat expliciet te verantwoorden.
   if (typeof name !== 'string' || name.length === 0) {
     throw new TypeError('runDataStoreConformance: `name` moet een niet-lege string zijn');
   }
@@ -276,7 +400,15 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
 
   describe(`DataStore-conformance — ${name}`, () => {
     // ------------------------------------------------------------------
-    // Room: loadRoom, saveRoom, loadRoomByCode, loadRoomByInviteId
+    // Room: loadRoom, saveRoom, loadRoomByCode, loadRoomByInviteHash
+    //
+    // `loadRoomByInviteHash` verving `loadRoomByInviteId` (DM10, HANDOFF-item
+    // INTB-7): de poort neemt de HASH, nooit de platte capability, en heeft dus
+    // ook nooit de pepper nodig. Gevolg voor de arrangementen hieronder:
+    // `saveRoom` kan de invite-index niet vullen (een Room draagt `inviteId`,
+    // geen `inviteHash`), dus elke test die langs die ingang leest claimt eerst
+    // met `claimRoomLocatorsAtomically`. Het contract van de claim zelf staat
+    // verderop in zijn eigen blok; hier is hij puur arrangement.
     // ------------------------------------------------------------------
     describe('Room', () => {
       it('een opgeslagen room komt veld voor veld ongewijzigd terug', () => withStore(async (store) => {
@@ -294,17 +426,19 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
         assertIsNull(await store.loadRoomByCode('ZZZ999'), 'loadRoomByCode van een onbekende code');
       }));
 
-      it('een onbekend invite-id levert null op', () => withStore(async (store) => {
+      it('een onbekende invite-hash levert null op', () => withStore(async (store) => {
         await store.saveRoom(makeRoom());
-        assertIsNull(await store.loadRoomByInviteId('invite_bestaat_niet'), 'loadRoomByInviteId van een onbekend invite-id');
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
+        assertIsNull(await store.loadRoomByInviteHash('invitehash_bestaat_niet'), 'loadRoomByInviteHash van een onbekende invite-hash');
       }));
 
-      it('dezelfde room is langs drie ingangen vindbaar: id, join-code en invite-id', () => withStore(async (store) => {
+      it('dezelfde room is langs drie ingangen vindbaar: id, join-code en invite-hash', () => withStore(async (store) => {
         const room = makeRoom();
         await store.saveRoom(room);
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
 
         assert.deepStrictEqual(await store.loadRoomByCode('AAA111'), room);
-        assert.deepStrictEqual(await store.loadRoomByInviteId('invite_a'), room);
+        assert.deepStrictEqual(await store.loadRoomByInviteHash(INVITE_HASH_A), room);
         assert.deepStrictEqual(await store.loadRoom('room_a'), room);
       }));
 
@@ -317,7 +451,7 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
         assert.strictEqual(loaded.locked, true);
       }));
 
-      it('twee rooms met een eigen code en invite-id lekken niet naar elkaar', () => withStore(async (store) => {
+      it('twee rooms met een eigen code en invite-hash lekken niet naar elkaar', () => withStore(async (store) => {
         const roomA = makeRoom();
         const roomB = makeRoom({
           id: 'room_b',
@@ -327,13 +461,15 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
         });
         await store.saveRoom(roomA);
         await store.saveRoom(roomB);
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim({ roomId: 'room_b', code: 'BBB222', inviteHash: INVITE_HASH_B }));
 
         assert.deepStrictEqual(await store.loadRoom('room_a'), roomA);
         assert.deepStrictEqual(await store.loadRoom('room_b'), roomB);
         assert.deepStrictEqual(await store.loadRoomByCode('AAA111'), roomA);
         assert.deepStrictEqual(await store.loadRoomByCode('BBB222'), roomB);
-        assert.deepStrictEqual(await store.loadRoomByInviteId('invite_a'), roomA);
-        assert.deepStrictEqual(await store.loadRoomByInviteId('invite_b'), roomB);
+        assert.deepStrictEqual(await store.loadRoomByInviteHash(INVITE_HASH_A), roomA);
+        assert.deepStrictEqual(await store.loadRoomByInviteHash(INVITE_HASH_B), roomB);
       }));
 
       it('het aanpassen van het weggeschreven object raakt de opslag niet, tot in de geneste config', () => withStore(async (store) => {
@@ -365,23 +501,327 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
         assert.deepStrictEqual(second, makeRoom());
       }));
 
-      it('ook de room die via code of invite-id is teruggelezen is losgekoppeld van de opslag', () => withStore(async (store) => {
+      it('ook de room die via code of invite-hash is teruggelezen is losgekoppeld van de opslag', () => withStore(async (store) => {
         // Apart van de test hierboven: een adapter mag de drie leeswegen los
         // implementeren, dus mag "geen gedeelde referenties" niet alleen langs
         // loadRoom worden bewezen.
         await store.saveRoom(makeRoom());
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
 
         const viaCode = await store.loadRoomByCode('AAA111');
         viaCode.phase = 'FINISHED';
         viaCode.config.totalRounds = 999;
 
-        const viaInvite = await store.loadRoomByInviteId('invite_a');
+        const viaInvite = await store.loadRoomByInviteHash(INVITE_HASH_A);
         assert.deepStrictEqual(viaInvite, makeRoom());
         viaInvite.hostSessionIds.push('session_indringer');
 
         assert.deepStrictEqual(await store.loadRoomByCode('AAA111'), makeRoom());
-        assert.deepStrictEqual(await store.loadRoomByInviteId('invite_a'), makeRoom());
+        assert.deepStrictEqual(await store.loadRoomByInviteHash(INVITE_HASH_A), makeRoom());
         assert.deepStrictEqual(await store.loadRoom('room_a'), makeRoom());
+      }));
+    });
+
+    // ------------------------------------------------------------------
+    // Room-locators: claimRoomLocatorsAtomically, releaseRoomLocators,
+    // refreshRoomLocators
+    //
+    // HANDOFF-item INTB-2: uniciteit van de join-code afdwingen met een read
+    // gevolgd door een write is check-then-act — tussen `loadRoomByCode` en
+    // `saveRoom` past een tweede roomcreatie met dezelfde code. De claim sluit
+    // dat venster: `room-codes.js` levert kandidaten, de aanroeper claimt, en
+    // een bezette locator komt terug als NORMALE returnwaarde (`{ ok: false,
+    // conflict }`), niet als exception (DM10-beslissing 4).
+    //
+    // Code en inviteHash worden SAMEN geclaimd, nooit los (DM10-beslissing 1):
+    // een toestand waarin de code geclaimd is en de inviteHash niet, is precies
+    // de halve toestand die DECISIONS.md #30 voor Room.phase/Match.phase al
+    // verbiedt. Claim en lookup delen bovendien exact dezelfde index
+    // (DM10-beslissing 2): in Redis is `room:code:{code}` letterlijk dezelfde
+    // sleutel voor de claim (SET NX) en de lookup (GET), dus mag een geslaagde
+    // claim nooit onvindbaar zijn via `loadRoomByCode`. Elke test hieronder
+    // leest daarom niet alleen de returnwaarde terug, maar ook de index.
+    // ------------------------------------------------------------------
+    describe('room-locators (INTB-2)', () => {
+      it('een vrije claim slaagt en maakt de room langs beide indexen vindbaar', () => withStore(async (store) => {
+        const room = makeRoom();
+        await store.saveRoom(room);
+
+        assert.deepStrictEqual(await store.claimRoomLocatorsAtomically(makeLocatorClaim()), { ok: true });
+
+        // Claim en lookup delen dezelfde index (DM10-beslissing 2): een
+        // geslaagde claim die daarna onvindbaar blijkt, is een desync die in
+        // Redis niet eens kán bestaan en hier dus ook niet mag.
+        assert.deepStrictEqual(await store.loadRoomByCode('AAA111'), room);
+        assert.deepStrictEqual(await store.loadRoomByInviteHash(INVITE_HASH_A), room);
+      }));
+
+      it('dezelfde room die zijn eigen claim herhaalt krijgt ok, geen conflict', () => withStore(async (store) => {
+        // DM10-beslissing 5: idempotent per roomId. Een retry van de creatie
+        // mag niet op zijn eigen, al geslaagde claim stuklopen.
+        await store.saveRoom(makeRoom());
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
+
+        assert.deepStrictEqual(await store.claimRoomLocatorsAtomically(makeLocatorClaim()), { ok: true });
+        assert.strictEqual((await store.loadRoomByCode('AAA111')).id, 'room_a');
+        assert.strictEqual((await store.loadRoomByInviteHash(INVITE_HASH_A)).id, 'room_a');
+      }));
+
+      it('een claim op een al bezette code levert conflict "code" op en laat de zittende claim staan', () => withStore(async (store) => {
+        await store.saveRoom(makeRoom());
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
+
+        assert.deepStrictEqual(
+          await store.claimRoomLocatorsAtomically(makeLocatorClaim({ roomId: 'room_b', code: 'AAA111', inviteHash: INVITE_HASH_B })),
+          { ok: false, conflict: 'code' }
+        );
+
+        // De verliezer mag niets hebben achtergelaten, en de winnaar niets
+        // hebben verloren.
+        assert.strictEqual((await store.loadRoomByCode('AAA111')).id, 'room_a');
+        assertIsNull(await store.loadRoomByInviteHash(INVITE_HASH_B), 'de invite-hash van de verliezende claim');
+      }));
+
+      it('conflicteren code én invite-hash allebei, dan wint de code in de returnwaarde', () => withStore(async (store) => {
+        // DM10 stap 2: "code eerst als beide conflicteren". Een vaste volgorde,
+        // zodat twee adapters niet elk een andere helft van de waarheid melden
+        // en de aanroeper zijn retry-lus op één signaal kan bouwen.
+        await store.saveRoom(makeRoom());
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
+
+        assert.deepStrictEqual(
+          await store.claimRoomLocatorsAtomically(makeLocatorClaim({ roomId: 'room_b' })),
+          { ok: false, conflict: 'code' }
+        );
+      }));
+
+      it('een claim op een al bezette invite-hash levert conflict "inviteHash" op', () => withStore(async (store) => {
+        await store.saveRoom(makeRoom());
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
+
+        assert.deepStrictEqual(
+          await store.claimRoomLocatorsAtomically(makeLocatorClaim({ roomId: 'room_b', code: 'BBB222', inviteHash: INVITE_HASH_A })),
+          { ok: false, conflict: 'inviteHash' }
+        );
+
+        assert.strictEqual((await store.loadRoomByInviteHash(INVITE_HASH_A)).id, 'room_a');
+      }));
+
+      it('een gedeeltelijk conflict laat geen half geclaimde toestand achter', () => withStore(async (store) => {
+        // Het scherpste faalpad van de drie: de code is VRIJ en de invite-hash
+        // bezet. Een implementatie die de code alvast wegschrijft en pas daarna
+        // de invite-hash controleert, geeft keurig `conflict: 'inviteHash'`
+        // terug en heeft ondertussen een code gelekt die niemand meer kan
+        // claimen — onzichtbaar in de returnwaarde, dodelijk voor de
+        // coderuimte. Vandaar de derde room hieronder: alleen een geslaagde
+        // herclaim van diezelfde code bewijst dat de vrije helft ook echt vrij
+        // is gebleven.
+        await store.saveRoom(makeRoom());
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
+
+        assert.deepStrictEqual(
+          await store.claimRoomLocatorsAtomically(makeLocatorClaim({ roomId: 'room_b', code: 'BBB222', inviteHash: INVITE_HASH_A })),
+          { ok: false, conflict: 'inviteHash' }
+        );
+
+        const roomC = makeRoom({ id: 'room_c', code: 'BBB222', inviteId: 'invite_c', hostSessionIds: ['session_host_c'] });
+        assert.deepStrictEqual(
+          await store.claimRoomLocatorsAtomically(makeLocatorClaim({ roomId: 'room_c', code: 'BBB222', inviteHash: 'invitehash_c' })),
+          { ok: true },
+          'de vrije helft van een gedeeltelijk conflict mag niet stilzwijgend geclaimd zijn achtergebleven'
+        );
+        await store.saveRoom(roomC);
+        assert.deepStrictEqual(await store.loadRoomByCode('BBB222'), roomC);
+      }));
+
+      it('gelijktijdige claims op dezelfde code leveren precies één winnaar op', () => withStore(async (store) => {
+        // HET acceptatiecriterium van INTB-2: "bij N tegelijk aangeboden claims
+        // op dezelfde code is er exact één winnaar. Dat is het enige dat
+        // bewijst dat de race echt dicht is."
+        //
+        // Tegen de fake bewijst deze test WEINIG: die is single-threaded en
+        // voert elke claim volledig synchroon uit, dus de aanroepen kunnen
+        // elkaar er niet eens kruisen. Tegen een Redis-adapter bewijst hij
+        // ALLES: daar zit een netwerkbeurt tussen de controle en de schrijf, en
+        // precies daar ontstaan twee rooms met dezelfde join-code. Hij staat
+        // hier omdat de suite tegen BEIDE gericht moet kunnen worden — wie hem
+        // straks op de adapter richt, hoeft hem niet alsnog te bedenken.
+        //
+        // Elke deelnemer krijgt een EIGEN invite-hash: alleen de code is
+        // omstreden, zodat een verliezer niet per ongeluk op de invite-hash
+        // struikelt en het resultaat over de code niets zou zeggen.
+        const deelnemers = ['room_1', 'room_2', 'room_3', 'room_4', 'room_5', 'room_6', 'room_7', 'room_8'];
+
+        const uitkomsten = await Promise.all(deelnemers.map((roomId, index) => store.claimRoomLocatorsAtomically(
+          makeLocatorClaim({ roomId, code: 'AAA111', inviteHash: `invitehash_${index + 1}` })
+        )));
+
+        const winnaars = uitkomsten.filter((uitkomst) => uitkomst.ok === true);
+        assert.strictEqual(
+          winnaars.length,
+          1,
+          `precies één van de ${deelnemers.length} gelijktijdige claims mag slagen, kreeg: ${JSON.stringify(uitkomsten)}`
+        );
+        for (const uitkomst of uitkomsten.filter((u) => u.ok === false)) {
+          assert.deepStrictEqual(uitkomst, { ok: false, conflict: 'code' }, 'elke verliezer struikelt op de code, niet op zijn eigen invite-hash');
+        }
+
+        // En de INDEX moet diezelfde winnaar dragen: één winnaar in de
+        // returnwaarden terwijl er twee in de index hebben geschreven, is
+        // hetzelfde dubbelboekingsgevaar, alleen stiller. Meten kan hier niet
+        // via `saveRoom` (dat overschrijft de code-index zelf) maar wél via de
+        // idempotente herclaim: alleen de zittende eigenaar krijgt `ok`.
+        const winnaarIndex = uitkomsten.findIndex((uitkomst) => uitkomst.ok === true);
+        const verliezerIndex = winnaarIndex === 0 ? 1 : 0;
+        assert.deepStrictEqual(
+          await store.claimRoomLocatorsAtomically(makeLocatorClaim({ roomId: deelnemers[winnaarIndex], code: 'AAA111', inviteHash: `invitehash_${winnaarIndex + 1}` })),
+          { ok: true },
+          'de winnaar hoort zijn eigen claim te bezitten — een herclaim door de eigenaar is idempotent'
+        );
+        assert.deepStrictEqual(
+          await store.claimRoomLocatorsAtomically(makeLocatorClaim({ roomId: deelnemers[verliezerIndex], code: 'AAA111', inviteHash: `invitehash_${verliezerIndex + 1}` })),
+          { ok: false, conflict: 'code' },
+          'een verliezer mag ook achteraf niet blijken de code te bezitten'
+        );
+      }));
+
+      it('na releaseRoomLocators is de code weer claimbaar en vindt loadRoomByCode niets meer', () => withStore(async (store) => {
+        const roomA = makeRoom();
+        await store.saveRoom(roomA);
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
+
+        await store.releaseRoomLocators(toLocatorPair(makeLocatorClaim()));
+
+        assertIsNull(await store.loadRoomByCode('AAA111'), 'de vrijgegeven join-code');
+        assertIsNull(await store.loadRoomByInviteHash(INVITE_HASH_A), 'de vrijgegeven invite-hash');
+        // Het roomdocument zelf blijft bestaan: een release ruimt de locators
+        // op, geen room.
+        assert.deepStrictEqual(await store.loadRoom('room_a'), roomA);
+
+        const roomB = makeRoom({ id: 'room_b', code: 'AAA111', inviteId: 'invite_b', hostSessionIds: ['session_host_b'] });
+        assert.deepStrictEqual(
+          await store.claimRoomLocatorsAtomically(makeLocatorClaim({ roomId: 'room_b', code: 'AAA111', inviteHash: INVITE_HASH_B })),
+          { ok: true },
+          'een vrijgegeven code hoort weer beschikbaar te zijn — anders lekt de coderuimte bij elke mislukte creatie vol'
+        );
+        await store.saveRoom(roomB);
+        assert.deepStrictEqual(await store.loadRoomByCode('AAA111'), roomB);
+      }));
+
+      it('INTB-5: een geroteerde uitnodiging is na vrijgave niet meer geldig', () => withStore(async (store) => {
+        // WAS EEN KARAKTERISATIETEST, NU CONTRACT — en omgekeerd, niet
+        // afgezwakt. Vastgelegd stond: na een hercodering bleven de OUDE
+        // join-code en het OUDE invite-id naar diezelfde room wijzen, en
+        // leverden zelfs het nieuwe document op. Voor de invite is dat een
+        // securitygevolg, geen hygiëne: ARCHITECTURE.md §inviteId eist dat een
+        // invite "direct intrekbaar of roteerbaar" is, terwijl roteren toen een
+        // TWEEDE geldige capability toevoegde in plaats van de eerste te
+        // vervangen.
+        //
+        // INTB-5 bood twee routes: `saveRoom` de vorige indexen laten opruimen,
+        // óf het koppelen aan de lifecycle uit INTB-2. DM10 koos de tweede. Het
+        // gevolg is dat ROTEREN EEN RELEASE IS: `saveRoom` alleen ruimt niets
+        // op (en kan dat voor de invite-hash niet eens — Room draagt geen
+        // hash). Deze test legt die route vast: claim → release → herclaim, en
+        // daarna vindt de oude locator niets meer.
+        await store.saveRoom(makeRoom({ code: 'AAA111' }));
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim({ code: 'AAA111', inviteHash: INVITE_HASH_A }));
+
+        // Roteren: eerst de oude locators intrekken, dan het nieuwe paar claimen.
+        await store.releaseRoomLocators(toLocatorPair(makeLocatorClaim({ code: 'AAA111', inviteHash: INVITE_HASH_A })));
+        assert.deepStrictEqual(
+          await store.claimRoomLocatorsAtomically(makeLocatorClaim({ code: 'CCC333', inviteHash: 'invitehash_a2' })),
+          { ok: true }
+        );
+        await store.saveRoom(makeRoom({ code: 'CCC333', inviteId: 'invite_a2' }));
+
+        // De nieuwe uitnodiging werkt.
+        assert.strictEqual((await store.loadRoomByCode('CCC333')).id, 'room_a');
+        assert.strictEqual((await store.loadRoomByInviteHash('invitehash_a2')).inviteId, 'invite_a2');
+
+        // De oude is dood — geen tweede geldige capability naast de nieuwe.
+        assertIsNull(await store.loadRoomByCode('AAA111'), 'de ingetrokken join-code');
+        assertIsNull(await store.loadRoomByInviteHash(INVITE_HASH_A), 'de ingetrokken invite-hash — een geroteerde uitnodiging hoort niet geldig te blijven (INTB-5)');
+      }));
+
+      it('een release door een ander roomId dan de claimer geeft de claim niet vrij', () => withStore(async (store) => {
+        // De release neemt het roomId mee zodat een room nooit de claim van een
+        // ander kan intrekken (INTB-2). Zonder die controle is elke join-code
+        // van elke lopende room door iedere andere room op te blazen.
+        const roomA = makeRoom();
+        await store.saveRoom(roomA);
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
+
+        await store.releaseRoomLocators({ roomId: 'room_indringer', code: 'AAA111', inviteHash: INVITE_HASH_A });
+
+        assert.deepStrictEqual(await store.loadRoomByCode('AAA111'), roomA, 'de vreemde release mag de code-index niet hebben geleegd');
+        assert.deepStrictEqual(await store.loadRoomByInviteHash(INVITE_HASH_A), roomA, 'de vreemde release mag de invite-index niet hebben geleegd');
+        assert.deepStrictEqual(
+          await store.claimRoomLocatorsAtomically(makeLocatorClaim({ roomId: 'room_indringer', inviteHash: INVITE_HASH_B })),
+          { ok: false, conflict: 'code' },
+          'de claim staat nog: een vreemde release mag geen achterdeur naar andermans code zijn'
+        );
+      }));
+
+      it('een release die maar één van beide locators bezit ruimt niets op', () => withStore(async (store) => {
+        // Alles-of-niets (DM10-beslissing 7): bij gedeeltelijk bezit doet de
+        // release niets, in plaats van stilzwijgend de helft op te ruimen. In
+        // het echte systeem loopt de blijvende locator gewoon op zijn eigen TTL
+        // af; een halve opruiming zou een room bereikbaar laten via de ene
+        // ingang en niet via de andere.
+        const roomA = makeRoom();
+        await store.saveRoom(roomA);
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
+
+        await store.releaseRoomLocators({ roomId: 'room_a', code: 'AAA111', inviteHash: 'invitehash_nooit_geclaimd' });
+
+        assert.deepStrictEqual(await store.loadRoomByCode('AAA111'), roomA);
+        assert.deepStrictEqual(await store.loadRoomByInviteHash(INVITE_HASH_A), roomA);
+      }));
+
+      it('refreshRoomLocators verlengt de claim zonder hem vrij te geven', () => withStore(async (store) => {
+        // DM10-beslissing 8: zonder refreshpad kan een actieve room bereikbaar
+        // blijven via room:{roomId} terwijl zijn code-claim al is verlopen en
+        // door een ander is overgenomen. De fake telt geen TTL af, dus hier is
+        // alleen het CONTRACT te bewijzen: na een refresh is er niets
+        // veranderd — de room blijft langs beide ingangen vindbaar en de code
+        // blijft bezet.
+        const roomA = makeRoom();
+        await store.saveRoom(roomA);
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
+
+        await store.refreshRoomLocators(makeLocatorClaim({ ttlSeconds: 7200 }));
+
+        assert.deepStrictEqual(await store.loadRoomByCode('AAA111'), roomA);
+        assert.deepStrictEqual(await store.loadRoomByInviteHash(INVITE_HASH_A), roomA);
+        assert.deepStrictEqual(
+          await store.claimRoomLocatorsAtomically(makeLocatorClaim({ roomId: 'room_b', inviteHash: INVITE_HASH_B })),
+          { ok: false, conflict: 'code' },
+          'een refresh hoort de claim te verlengen, niet te ontgrendelen'
+        );
+      }));
+
+      it('refreshRoomLocators op een claim die je niet bezit werpt RangeError', () => withStore(async (store) => {
+        // Luid falen, niet stil slagen (DM10-beslissing 8): een refresh op een
+        // claim die je niet meer hebt, betekent dat de claim al gestolen of
+        // verlopen is — precies het moment waarop de aanroeper moet ingrijpen.
+        await store.saveRoom(makeRoom());
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
+
+        await assert.rejects(
+          () => store.refreshRoomLocators(makeLocatorClaim({ roomId: 'room_indringer' })),
+          RangeError,
+          'een refresh op andermans claim hoort RangeError te geven'
+        );
+        await assert.rejects(
+          () => store.refreshRoomLocators(makeLocatorClaim({ code: 'ZZZ999' })),
+          RangeError,
+          'een refresh op een nooit geclaimde code hoort RangeError te geven'
+        );
+
+        // En geen van beide mislukte refreshes mag de zittende claim hebben geraakt.
+        assert.strictEqual((await store.loadRoomByCode('AAA111')).id, 'room_a');
+        assert.strictEqual((await store.loadRoomByInviteHash(INVITE_HASH_A)).id, 'room_a');
       }));
     });
 
@@ -592,18 +1032,18 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
     // ------------------------------------------------------------------
     // Round: loadRound
     //
-    // Alleen de LEESKANT hoort hier. `saveRound` valt onder INTB-1 en wordt
-    // uitsluitend als arrangement gebruikt: geen enkele assertie hieronder legt
-    // zijn gedrag vast (de fake leidt roomId af met een scan over alle matches
-    // en eist dat de match al is opgeslagen — precies wat INTB-1 wil
-    // wegnemen). Zodra `saveRound(roomId, round)` bestaat, verandert alleen de
-    // arrangement-regel, niet de verwachting.
+    // Alleen de LEESKANT hoort hier. `saveRound` wordt uitsluitend als
+    // arrangement gebruikt: geen enkele assertie hieronder legt zijn gedrag
+    // vast. De arrangement-regels dragen sinds DM11 het `roomId` mee
+    // (`saveRound(roomId, round)`) — dat was INTB-1; zoals voorspeld veranderde
+    // alleen de arrangement-regel en geen enkele verwachting. Het contract van
+    // `saveRound` zelf staat in het INTB-1-blok onderaan.
     // ------------------------------------------------------------------
     describe('Round (leeskant)', () => {
       it('een opgeslagen ronde komt veld voor veld ongewijzigd terug op room, match en ronde-id', () => withStore(async (store) => {
         const round = makeRound();
         await store.saveMatch(makeMatch());
-        await store.saveRound(round); // arrangement, geen contract — zie INTB-1
+        await store.saveRound('room_a', round); // arrangement, geen contract
 
         assert.deepStrictEqual(await store.loadRound('room_a', 'match_1', 'round_1'), round);
       }));
@@ -611,7 +1051,7 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
       it('een teruggelezen ronde draagt geen countdownEndsAt', () => withStore(async (store) => {
         // DECISIONS #16, zie de gelijknamige Match-test.
         await store.saveMatch(makeMatch());
-        await store.saveRound(makeRound());
+        await store.saveRound('room_a', makeRound());
         const loaded = await store.loadRound('room_a', 'match_1', 'round_1');
         assert.ok(
           !Object.prototype.hasOwnProperty.call(loaded, 'countdownEndsAt'),
@@ -621,13 +1061,13 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
 
       it('een ronde die nooit is opgeslagen levert null op', () => withStore(async (store) => {
         await store.saveMatch(makeMatch());
-        await store.saveRound(makeRound());
+        await store.saveRound('room_a', makeRound());
         assertIsNull(await store.loadRound('room_a', 'match_1', 'round_bestaat_niet'), 'loadRound van een onbekend ronde-id');
       }));
 
       it('een bestaande ronde is onvindbaar onder de verkeerde match of de verkeerde room', () => withStore(async (store) => {
         await store.saveMatch(makeMatch());
-        await store.saveRound(makeRound());
+        await store.saveRound('room_a', makeRound());
 
         assertIsNull(await store.loadRound('room_a', 'match_ander', 'round_1'), 'loadRound met het verkeerde matchId');
         assertIsNull(await store.loadRound('room_b', 'match_1', 'round_1'), 'loadRound met het verkeerde roomId');
@@ -644,8 +1084,8 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
 
         await store.saveMatch(matchA);
         await store.saveMatch(matchB);
-        await store.saveRound(roundA);
-        await store.saveRound(roundB);
+        await store.saveRound('room_a', roundA);
+        await store.saveRound('room_b', roundB);
 
         assert.deepStrictEqual(await store.loadRound('room_a', 'match_a', 'round_1'), roundA);
         assert.deepStrictEqual(await store.loadRound('room_b', 'match_b', 'round_1'), roundB);
@@ -653,7 +1093,7 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
 
       it('het aanpassen van een teruggelezen ronde raakt de opslag niet, tot in het geneste antwoord en de payload', () => withStore(async (store) => {
         await store.saveMatch(makeMatch());
-        await store.saveRound(makeRound());
+        await store.saveRound('room_a', makeRound());
 
         const loaded = await store.loadRound('room_a', 'match_1', 'round_1');
         loaded.status = 'ENDED';
@@ -662,6 +1102,564 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
         loaded.validOptionIds.push('es');
 
         assert.deepStrictEqual(await store.loadRound('room_a', 'match_1', 'round_1'), makeRound());
+      }));
+    });
+
+    // ------------------------------------------------------------------
+    // setRoomAndMatchPhaseAtomically
+    //
+    // DECISIONS #30: `Match.phase` is autoritair, `Room.phase` is een afgeleide
+    // projectie die in DEZELFDE atomaire operatie wordt bijgewerkt. Geen
+    // implementatie mag hier een niet-atomair dual-write-pad introduceren.
+    // Daarom test dit blok niet alleen "beide staan achteraf goed", maar ook
+    // dat elk faalpad BEIDE documenten ongemoeid laat: een adapter die eerst
+    // de room schrijft en dan pas de match valideert, valt daar door de mand.
+    // ------------------------------------------------------------------
+    describe('setRoomAndMatchPhaseAtomically', () => {
+      it('Room.phase en Match.phase dragen na afloop dezelfde nieuwe waarde (DECISIONS #30)', () => withStore(async (store) => {
+        // Bewust ONGELIJKE beginwaarden: als de assertie hieronder ook zou
+        // slagen wanneer er niets gebeurt, bewijst ze niets.
+        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
+        await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+
+        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'SCOREBOARD');
+
+        const room = await store.loadRoom('room_a');
+        const match = await store.loadMatch('room_a', 'match_1');
+        assert.strictEqual(room.phase, 'SCOREBOARD');
+        assert.strictEqual(match.phase, 'SCOREBOARD');
+        assert.strictEqual(room.phase, match.phase, 'de projectie mag nooit uit de pas lopen met de autoritaire fase');
+      }));
+
+      it('de operatie verplaatst alleen phase en laat elk ander veld van beide documenten staan', () => withStore(async (store) => {
+        await store.saveRoom(makeRoom());
+        await store.saveMatch(makeMatch());
+
+        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'PAUSED');
+
+        assert.deepStrictEqual(await store.loadRoom('room_a'), makeRoom({ phase: 'PAUSED' }));
+        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'PAUSED' }));
+      }));
+
+      it('een hele fasereeks blijft in lockstep — geen enkele overgang laat één van beide achter', () => withStore(async (store) => {
+        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
+        await store.saveMatch(makeMatch({ phase: 'LOBBY' }));
+
+        for (const phase of ['COUNTDOWN', 'ROUND_ACTIVE', 'ROUND_RESULT', 'SCOREBOARD', 'PAUSED', 'ROUND_ACTIVE', 'FINISHED']) {
+          await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', phase);
+          const room = await store.loadRoom('room_a');
+          const match = await store.loadMatch('room_a', 'match_1');
+          assert.strictEqual(room.phase, phase, `Room.phase na overgang naar ${phase}`);
+          assert.strictEqual(match.phase, phase, `Match.phase na overgang naar ${phase}`);
+        }
+      }));
+
+      it('een onbekend roomId werpt RangeError en laat room én match onaangeraakt', () => withStore(async (store) => {
+        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
+        await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+
+        await assert.rejects(
+          () => store.setRoomAndMatchPhaseAtomically('room_bestaat_niet', 'match_1', 'FINISHED'),
+          RangeError,
+          'een onbekend roomId hoort RangeError te geven, niet stil te slagen'
+        );
+
+        // Beide documenten teruglezen, niet alleen het meest voor de hand
+        // liggende: een half uitgevoerde schrijving verraadt zich in het
+        // document waar je niet keek.
+        assert.deepStrictEqual(await store.loadRoom('room_a'), makeRoom({ phase: 'LOBBY' }));
+        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'ROUND_ACTIVE' }));
+        assertIsNull(await store.loadRoom('room_bestaat_niet'), 'de mislukte aanroep mag geen room hebben aangemaakt');
+      }));
+
+      it('een onbekend matchId werpt RangeError en laat room én match onaangeraakt', () => withStore(async (store) => {
+        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
+        await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+
+        await assert.rejects(
+          () => store.setRoomAndMatchPhaseAtomically('room_a', 'match_bestaat_niet', 'FINISHED'),
+          RangeError,
+          'een onbekend matchId hoort RangeError te geven, niet stil te slagen'
+        );
+
+        // Dit is het scherpste faalpad van de twee: het roomId is hier geldig,
+        // dus een implementatie die de room alvast bijwerkt en pas daarna de
+        // match opzoekt, heeft precies hier een dual-write achtergelaten.
+        assert.deepStrictEqual(await store.loadRoom('room_a'), makeRoom({ phase: 'LOBBY' }));
+        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'ROUND_ACTIVE' }));
+        assertIsNull(await store.loadMatch('room_a', 'match_bestaat_niet'), 'de mislukte aanroep mag geen match hebben aangemaakt');
+      }));
+
+      it('een tweede room met een eigen match beweegt niet mee', () => withStore(async (store) => {
+        const roomB = makeRoom({ id: 'room_b', code: 'BBB222', inviteId: 'invite_b', hostSessionIds: ['session_host_b'], phase: 'LOBBY' });
+        const matchB = makeMatch({ id: 'match_b', roomId: 'room_b', phase: 'ROUND_ACTIVE' });
+        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
+        await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+        await store.saveRoom(roomB);
+        await store.saveMatch(matchB);
+
+        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED');
+
+        assert.strictEqual((await store.loadRoom('room_a')).phase, 'FINISHED');
+        assert.strictEqual((await store.loadMatch('room_a', 'match_1')).phase, 'FINISHED');
+        assert.deepStrictEqual(await store.loadRoom('room_b'), roomB);
+        assert.deepStrictEqual(await store.loadMatch('room_b', 'match_b'), matchB);
+      }));
+
+      it('een tweede match in DEZELFDE room beweegt niet mee', () => withStore(async (store) => {
+        // Aparte test van de kruisbesmetting hierboven: een adapter die de
+        // fase over "alle matches van deze room" zet, komt door de vorige test
+        // heen en struikelt hier.
+        const matchTwee = makeMatch({ id: 'match_2', roomId: 'room_a', sequence: 2, phase: 'ROUND_ACTIVE' });
+        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
+        await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+        await store.saveMatch(matchTwee);
+
+        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED');
+
+        assert.strictEqual((await store.loadMatch('room_a', 'match_1')).phase, 'FINISHED');
+        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_2'), matchTwee);
+      }));
+
+      it('dezelfde fase nog een keer zetten is idempotent en geen fout', () => withStore(async (store) => {
+        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
+        await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+
+        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'SCOREBOARD');
+        await assert.doesNotReject(
+          () => store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'SCOREBOARD'),
+          'een herhaalde faseovergang naar dezelfde waarde hoort geen fout te zijn'
+        );
+
+        assert.deepStrictEqual(await store.loadRoom('room_a'), makeRoom({ phase: 'SCOREBOARD' }));
+        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'SCOREBOARD' }));
+      }));
+    });
+
+    // ------------------------------------------------------------------
+    // saveAcceptedAnswerAtomically — contract
+    //
+    // Hier wordt score toegekend, dus hier is "half uitgevoerd" het duurst.
+    // De operatie schrijft VIER dingen (repository.js §AcceptedAnswerWrite,
+    // DATA-MODEL.md stappen 7–10): het Answer, de bijgewerkte Player, het
+    // sorted scoreboard en de ack-cache-entry. Elke assertie na een faalpad
+    // controleert daarom alle vier, niet alleen degene die je verwacht.
+    //
+    // De poort krijgt ABSOLUTE nieuwe spelerwaarden mee, geen delta: de
+    // aanroeper telt zelf op. De store hoeft dus niet te sommeren — maar mag
+    // ook niet stilzwijgend een tweede schrijving accepteren die de eerste
+    // ongedaan maakt. Dat laatste staat in het INTB-4-blok hieronder.
+    // ------------------------------------------------------------------
+    describe('saveAcceptedAnswerAtomically', () => {
+      it('alle vier de writes landen: antwoord, speler, scoreboard en ack-cache', () => withStore(async (store) => {
+        await store.savePlayer(makePlayer({ score: 0, correctCount: 0, correctResponseTimeMsTotal: 0 }));
+        const write = makeAcceptedAnswerWrite({ points: 120, score: 120, correctCount: 1, correctResponseTimeMsTotal: 2000 });
+
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', write);
+
+        // 1. het Answer
+        assert.deepStrictEqual(
+          await readAnswer(store, { roomId: 'room_a', matchId: 'match_1', roundId: 'round_1', playerId: 'player_1' }),
+          write.answer
+        );
+        // 2. de bijgewerkte Player — alle drie de velden, niet alleen score
+        const player = await store.loadPlayer('room_a', 'player_1');
+        assert.strictEqual(player.score, 120);
+        assert.strictEqual(player.correctCount, 1);
+        assert.strictEqual(player.correctResponseTimeMsTotal, 2000);
+        // 3. het scoreboard
+        assert.deepStrictEqual(await store.getScoreboardTop('room_a', 'match_1', 10), [{ playerId: 'player_1', score: 120 }]);
+        // 4. de ack-cache-entry (REVIEW-DM2-DM9.md bevinding 5: hoort in
+        //    dezelfde mutatie, niet als losse latere uitbreiding)
+        assert.deepStrictEqual(
+          await readActionCacheEntry(store, { roomId: 'room_a', actionId: 'action_1' }),
+          { actionId: 'action_1', ack: { roundId: 'round_1' } }
+        );
+      }));
+
+      it('de bijgewerkte speler behoudt elk veld dat de write niet noemt', () => withStore(async (store) => {
+        // De write draagt alleen id/score/correctCount/correctResponseTimeMsTotal.
+        // Naam, team, verbindingsstatus en eligibleFromRound mogen daar niet
+        // door verdwijnen of terugvallen op een default.
+        await store.savePlayer(makePlayer({ displayName: 'Ruben', effectiveName: 'Ruben', nameSource: 'custom', eligibleFromRound: 3, connected: false }));
+
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({ points: 120, score: 120, correctCount: 1, correctResponseTimeMsTotal: 2000 }));
+
+        assert.deepStrictEqual(
+          await store.loadPlayer('room_a', 'player_1'),
+          makePlayer({
+            displayName: 'Ruben', effectiveName: 'Ruben', nameSource: 'custom', eligibleFromRound: 3, connected: false,
+            score: 120, correctCount: 1, correctResponseTimeMsTotal: 2000,
+          })
+        );
+      }));
+
+      it('een onbekende playerId laat geen van de vier writes landen', () => withStore(async (store) => {
+        // Arrangement met een geslaagde write ervóór: zo zien we niet alleen
+        // dat het faalpad niets nieuws schrijft, maar ook dat het niets
+        // bestaands wegvaagt.
+        await store.savePlayer(makePlayer());
+        const geslaagd = makeAcceptedAnswerWrite({ points: 120, score: 120, correctCount: 1, correctResponseTimeMsTotal: 2000 });
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', geslaagd);
+
+        await assert.rejects(
+          () => store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({
+            playerId: 'player_onbekend', roundId: 'round_2', actionId: 'action_2', points: 200, score: 200, correctCount: 1, correctResponseTimeMsTotal: 1000,
+          })),
+          RangeError,
+          'een onbekende playerId hoort RangeError te geven, niet stil te slagen'
+        );
+
+        // Alle vier controleren, ook degene waar je geen probleem verwacht.
+        assertIsNull(
+          await readAnswer(store, { roomId: 'room_a', matchId: 'match_1', roundId: 'round_2', playerId: 'player_onbekend' }),
+          'het antwoord van de mislukte aanroep'
+        );
+        assertIsNull(await store.loadPlayer('room_a', 'player_onbekend'), 'de speler van de mislukte aanroep');
+        assertIsNull(await readActionCacheEntry(store, { roomId: 'room_a', actionId: 'action_2' }), 'de ack-cache-entry van de mislukte aanroep');
+        assert.deepStrictEqual(
+          await store.getScoreboardTop('room_a', 'match_1', 10),
+          [{ playerId: 'player_1', score: 120 }],
+          'het scoreboard mag geen regel voor de onbekende speler hebben gekregen'
+        );
+
+        // En de geslaagde write van hiervóór staat er nog, ongewijzigd.
+        assert.deepStrictEqual(
+          await readAnswer(store, { roomId: 'room_a', matchId: 'match_1', roundId: 'round_1', playerId: 'player_1' }),
+          geslaagd.answer
+        );
+        assert.strictEqual((await store.loadPlayer('room_a', 'player_1')).score, 120);
+        assert.deepStrictEqual(await readActionCacheEntry(store, { roomId: 'room_a', actionId: 'action_1' }), geslaagd.actionCacheEntry);
+      }));
+
+      it('dezelfde speler in twee verschillende rondes scoort twee keer: 120 + 100 = 220', () => withStore(async (store) => {
+        await store.savePlayer(makePlayer());
+
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({
+          roundId: 'round_1', actionId: 'action_1', points: 120, responseTimeMs: 2000,
+          score: 120, correctCount: 1, correctResponseTimeMsTotal: 2000,
+        }));
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({
+          roundId: 'round_2', actionId: 'action_2', points: 100, responseTimeMs: 3000,
+          score: 220, correctCount: 2, correctResponseTimeMsTotal: 5000,
+        }));
+
+        const player = await store.loadPlayer('room_a', 'player_1');
+        assert.strictEqual(player.score, 220, 'eindscore na twee rondes');
+        assert.strictEqual(player.correctCount, 2);
+        assert.strictEqual(player.correctResponseTimeMsTotal, 5000);
+        assert.deepStrictEqual(await store.getScoreboardTop('room_a', 'match_1', 10), [{ playerId: 'player_1', score: 220 }]);
+
+        // Beide antwoorden bestaan naast elkaar; ronde 2 overschrijft ronde 1 niet.
+        assert.strictEqual((await readAnswer(store, { roomId: 'room_a', matchId: 'match_1', roundId: 'round_1', playerId: 'player_1' })).points, 120);
+        assert.strictEqual((await readAnswer(store, { roomId: 'room_a', matchId: 'match_1', roundId: 'round_2', playerId: 'player_1' })).points, 100);
+        // En beide acks, want elke ronde had zijn eigen actionId.
+        assert.deepStrictEqual(await readActionCacheEntry(store, { roomId: 'room_a', actionId: 'action_1' }), { actionId: 'action_1', ack: { roundId: 'round_1' } });
+        assert.deepStrictEqual(await readActionCacheEntry(store, { roomId: 'room_a', actionId: 'action_2' }), { actionId: 'action_2', ack: { roundId: 'round_2' } });
+      }));
+
+      it('twee verschillende spelers in dezelfde ronde scoren allebei: 120 en 80', () => withStore(async (store) => {
+        await store.savePlayer(makePlayer({ id: 'player_1', sessionId: 'session_1' }));
+        await store.savePlayer(makePlayer({ id: 'player_2', sessionId: 'session_2', generatedName: 'Rode Das', effectiveName: 'Rode Das' }));
+
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({
+          playerId: 'player_1', actionId: 'action_1', points: 120, responseTimeMs: 2000,
+          score: 120, correctCount: 1, correctResponseTimeMsTotal: 2000,
+        }));
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({
+          playerId: 'player_2', actionId: 'action_2', points: 80, responseTimeMs: 6000,
+          score: 80, correctCount: 1, correctResponseTimeMsTotal: 6000,
+        }));
+
+        assert.strictEqual((await store.loadPlayer('room_a', 'player_1')).score, 120);
+        assert.strictEqual((await store.loadPlayer('room_a', 'player_2')).score, 80);
+        // Verschillende scores, bewust: de tiebreak bij gelijkspel ligt nergens
+        // vast (HANDOFF INTB-6), dus asserteert deze suite er niet op.
+        assert.deepStrictEqual(await store.getScoreboardTop('room_a', 'match_1', 10), [
+          { playerId: 'player_1', score: 120 },
+          { playerId: 'player_2', score: 80 },
+        ]);
+        assert.strictEqual((await readAnswer(store, { roomId: 'room_a', matchId: 'match_1', roundId: 'round_1', playerId: 'player_1' })).points, 120);
+        assert.strictEqual((await readAnswer(store, { roomId: 'room_a', matchId: 'match_1', roundId: 'round_1', playerId: 'player_2' })).points, 80);
+      }));
+
+      it('een latere ronde herschikt het scoreboard aflopend en voegt geen tweede regel voor dezelfde speler toe', () => withStore(async (store) => {
+        await store.savePlayer(makePlayer({ id: 'player_1', sessionId: 'session_1' }));
+        await store.savePlayer(makePlayer({ id: 'player_2', sessionId: 'session_2', generatedName: 'Rode Das', effectiveName: 'Rode Das' }));
+        await store.savePlayer(makePlayer({ id: 'player_3', sessionId: 'session_3', generatedName: 'Groene Uil', effectiveName: 'Groene Uil' }));
+
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({ playerId: 'player_1', actionId: 'a1', points: 100, score: 100 }));
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({ playerId: 'player_2', actionId: 'a2', points: 200, score: 200 }));
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({ playerId: 'player_3', actionId: 'a3', points: 150, score: 150 }));
+
+        assert.deepStrictEqual(await store.getScoreboardTop('room_a', 'match_1', 10), [
+          { playerId: 'player_2', score: 200 },
+          { playerId: 'player_3', score: 150 },
+          { playerId: 'player_1', score: 100 },
+        ]);
+        assert.deepStrictEqual(await store.getScoreboardTop('room_a', 'match_1', 2), [
+          { playerId: 'player_2', score: 200 },
+          { playerId: 'player_3', score: 150 },
+        ]);
+
+        // Ronde 2: player_1 haalt in. De regel van player_1 hoort te worden
+        // BIJGEWERKT, niet aangevuld — een scoreboard met vier regels voor drie
+        // spelers is stiller kapot dan een verkeerde volgorde.
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({
+          playerId: 'player_1', roundId: 'round_2', actionId: 'a4', points: 200, responseTimeMs: 3000,
+          score: 300, correctCount: 2, correctResponseTimeMsTotal: 5000,
+        }));
+
+        assert.deepStrictEqual(await store.getScoreboardTop('room_a', 'match_1', 10), [
+          { playerId: 'player_1', score: 300 },
+          { playerId: 'player_2', score: 200 },
+          { playerId: 'player_3', score: 150 },
+        ]);
+      }));
+
+      // ----------------------------------------------------------------
+      // Interleaving.
+      //
+      // De fake is single-threaded en voert elke aanroep volledig synchroon
+      // uit, dus tegen de fake bewijzen deze twee tests weinig — de aanroepen
+      // kunnen elkaar er niet eens kruisen. Tegen een Redis-adapter bewijzen
+      // ze alles: daar zit een netwerkbeurt tussen elke lees en elke schrijf,
+      // en precies daar ontstaat een half doorgevoerde score. Ze staan hier
+      // omdat de suite tegen BEIDE gericht moet kunnen worden; wie hem straks
+      // op de adapter richt, hoeft ze niet alsnog te bedenken.
+      // ----------------------------------------------------------------
+      it('vier gelijktijdige inzendingen leveren precies vier scoreboardregels op, elk met een aangeboden waarde', () => withStore(async (store) => {
+        const aangeboden = { player_1: 200, player_2: 150, player_3: 100, player_4: 50 };
+        for (const [index, playerId] of Object.keys(aangeboden).entries()) {
+          await store.savePlayer(makePlayer({ id: playerId, sessionId: `session_${index + 1}` }));
+        }
+
+        // Geen await tussen de aanroepen: alle vier gaan tegelijk de deur uit.
+        await Promise.all(Object.entries(aangeboden).map(([playerId, score]) => store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({
+          playerId, actionId: `action_${playerId}`, points: score > 200 ? 200 : score, score,
+        }))));
+
+        const board = await store.getScoreboardTop('room_a', 'match_1', 10);
+        assert.strictEqual(board.length, 4, 'precies één regel per speler, geen dubbele en geen verdwenen regel');
+        assert.deepStrictEqual(
+          board.map((entry) => entry.playerId).sort(),
+          ['player_1', 'player_2', 'player_3', 'player_4']
+        );
+        for (const entry of board) {
+          assert.strictEqual(entry.score, aangeboden[entry.playerId], `${entry.playerId} draagt een score die daadwerkelijk voor hem is aangeboden`);
+          assert.strictEqual(
+            (await store.loadPlayer('room_a', entry.playerId)).score,
+            entry.score,
+            `${entry.playerId}: scoreboard en spelerdocument mogen niet uiteenlopen`
+          );
+        }
+      }));
+
+      it('twee gelijktijdige inzendingen voor dezelfde speler leveren geen mengvorm op', () => withStore(async (store) => {
+        await store.savePlayer(makePlayer());
+
+        // Twee legitieme writes (verschillende ronde, verschillende actionId)
+        // die elkaar kunnen kruisen. Welke van de twee als laatste landt ligt
+        // niet vast — dat mag ook niet, want de poort belooft geen volgorde.
+        // Wat wél moet gelden: de eindstand is één van de twee, niet de score
+        // van de één met de correctCount van de ander.
+        await Promise.all([
+          store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({
+            roundId: 'round_1', actionId: 'action_1', points: 120, responseTimeMs: 2000,
+            score: 120, correctCount: 1, correctResponseTimeMsTotal: 2000,
+          })),
+          store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({
+            roundId: 'round_2', actionId: 'action_2', points: 100, responseTimeMs: 3000,
+            score: 220, correctCount: 2, correctResponseTimeMsTotal: 5000,
+          })),
+        ]);
+
+        const player = await store.loadPlayer('room_a', 'player_1');
+        const consistenteEindstanden = [
+          { score: 120, correctCount: 1, correctResponseTimeMsTotal: 2000 },
+          { score: 220, correctCount: 2, correctResponseTimeMsTotal: 5000 },
+        ];
+        assert.ok(
+          consistenteEindstanden.some((stand) =>
+            stand.score === player.score &&
+            stand.correctCount === player.correctCount &&
+            stand.correctResponseTimeMsTotal === player.correctResponseTimeMsTotal),
+          `de speler draagt een mengvorm van twee writes: ${JSON.stringify({ score: player.score, correctCount: player.correctCount, correctResponseTimeMsTotal: player.correctResponseTimeMsTotal })}`
+        );
+
+        const board = await store.getScoreboardTop('room_a', 'match_1', 10);
+        assert.strictEqual(board.length, 1, 'één speler, één scoreboardregel');
+        assert.strictEqual(board[0].score, player.score, 'scoreboard en spelerdocument mogen niet uiteenlopen');
+      }));
+    });
+
+    // ------------------------------------------------------------------
+    // saveAcceptedAnswerAtomically — INTB-4: idempotentie en één antwoord
+    // per ronde
+    //
+    // DEZE DRIE TESTS STAAN BEWUST ROOD, en dat is geen verzuim.
+    //
+    // De fake (server/data/in-memory-store.js:148-172) controleert niet of er
+    // al een antwoord voor deze speler in deze ronde bestaat, en niet of de
+    // actionId al in de action-cache staat — hij overschrijft beide. Zie
+    // HANDOFF-item INTB-4.
+    //
+    // Ze zijn geschreven tegen het CORRECTE contract, niet tegen wat de fake
+    // vandaag doet. Dat onderscheid is de hele reden dat ze hier staan: een
+    // karakterisatietest die vastlegt "de store overschrijft gewoon" zou het
+    // gat wegschrijven, en de latere correctie tot testbreuk maken.
+    //
+    // Het contract:
+    //   * dezelfde actionId opnieuw -> de bewaarde ack, zonder te muteren
+    //     (DATA-MODEL.md stap 4, PROTOCOL.md §Idempotentie: "zelfde actionId:
+    //     zelfde ack");
+    //   * een ANDERE actionId voor dezelfde speler in dezelfde ronde -> wordt
+    //     afgewezen (DATA-MODEL.md stap 5).
+    //
+    // Beide controles staan in DATA-MODEL.md expliciet ÍN de atomaire
+    // operatie, niet ervóór. Dat is geen stijlkwestie: answer-flow.js doet ze
+    // ook (stappen 1 en 5 daar), maar op context die de aanroeper vooraf heeft
+    // ingelezen. Tussen dat inlezen en de schrijfactie past een tweede
+    // aanroep — dezelfde klasse fout als INTB-2. De poort is de enige plek waar
+    // check en write samen kunnen vallen.
+    //
+    // GROEN MAKEN DOE JE IN DE FAKE, NIET HIER.
+    // ------------------------------------------------------------------
+    describe('saveAcceptedAnswerAtomically — INTB-4: idempotentie en één antwoord per ronde', () => {
+      it('INTB-4 (verwacht rood tot DM de fake corrigeert): dezelfde actionId een tweede keer muteert niets', () => withStore(async (store) => {
+        await store.savePlayer(makePlayer());
+        const eerste = makeAcceptedAnswerWrite({
+          roundId: 'round_1', actionId: 'action_1', points: 120, responseTimeMs: 2000,
+          score: 120, correctCount: 1, correctResponseTimeMsTotal: 2000,
+        });
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', eerste);
+
+        // Dezelfde actionId, maar met een hogere score en een ander antwoord —
+        // zoals een dubbel afgeleverde socketboodschap eruitziet nadat de
+        // aanroeper op verouderde spelerstand heeft gerekend. Zou de store dit
+        // doorlaten, dan is dat aantoonbaar dubbel scoren.
+        const herhaling = makeAcceptedAnswerWrite({
+          roundId: 'round_1', actionId: 'action_1', points: 200, responseTimeMs: 3000,
+          score: 320, correctCount: 2, correctResponseTimeMsTotal: 5000,
+        });
+        await assert.doesNotReject(
+          () => store.saveAcceptedAnswerAtomically('room_a', 'match_1', herhaling),
+          'een herhaalde actionId is een replay, geen fout: hij hoort de bewaarde ack op te leveren'
+        );
+
+        const player = await store.loadPlayer('room_a', 'player_1');
+        assert.strictEqual(player.score, 120, 'eindscore blijft 120 — de retry mag er geen 320 van maken');
+        assert.strictEqual(player.correctCount, 1);
+        assert.strictEqual(player.correctResponseTimeMsTotal, 2000);
+        assert.deepStrictEqual(
+          await readAnswer(store, { roomId: 'room_a', matchId: 'match_1', roundId: 'round_1', playerId: 'player_1' }),
+          eerste.answer,
+          'het bewaarde antwoord blijft dat van de eerste, geslaagde inzending'
+        );
+        assert.deepStrictEqual(await store.getScoreboardTop('room_a', 'match_1', 10), [{ playerId: 'player_1', score: 120 }]);
+        assert.deepStrictEqual(
+          await readActionCacheEntry(store, { roomId: 'room_a', actionId: 'action_1' }),
+          eerste.actionCacheEntry,
+          'de bewaarde ack blijft ongewijzigd — dat is precies wat "zelfde actionId: zelfde ack" betekent'
+        );
+      }));
+
+      it('INTB-4 (verwacht rood tot DM de fake corrigeert): een tweede actionId voor dezelfde speler in dezelfde ronde wordt afgewezen', () => withStore(async (store) => {
+        await store.savePlayer(makePlayer());
+        const eerste = makeAcceptedAnswerWrite({
+          roundId: 'round_1', actionId: 'action_1', points: 120, responseTimeMs: 2000,
+          score: 120, correctCount: 1, correctResponseTimeMsTotal: 2000,
+        });
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', eerste);
+
+        const tweede = makeAcceptedAnswerWrite({
+          roundId: 'round_1', actionId: 'action_2', points: 200, responseTimeMs: 3000,
+          score: 320, correctCount: 2, correctResponseTimeMsTotal: 5000,
+        });
+        await assert.rejects(
+          () => store.saveAcceptedAnswerAtomically('room_a', 'match_1', tweede),
+          'een speler heeft per ronde precies één antwoord (DATA-MODEL.md stap 5) — een tweede actionId hoort afgewezen te worden, niet de eerste te overschrijven'
+        );
+
+        // Geen van de vier writes van de afgewezen inzending mag geland zijn.
+        const player = await store.loadPlayer('room_a', 'player_1');
+        assert.strictEqual(player.score, 120, 'eindscore blijft 120');
+        assert.strictEqual(player.correctCount, 1);
+        assert.strictEqual(player.correctResponseTimeMsTotal, 2000);
+        assert.deepStrictEqual(
+          await readAnswer(store, { roomId: 'room_a', matchId: 'match_1', roundId: 'round_1', playerId: 'player_1' }),
+          eerste.answer
+        );
+        assert.deepStrictEqual(await store.getScoreboardTop('room_a', 'match_1', 10), [{ playerId: 'player_1', score: 120 }]);
+        assertIsNull(await readActionCacheEntry(store, { roomId: 'room_a', actionId: 'action_2' }), 'de ack van de afgewezen inzending');
+      }));
+
+      it('INTB-4 (verwacht rood tot DM de fake corrigeert): nooit dubbele punten — na een retry, een afgewezen tweede inzending en een geldige volgende ronde is de eindscore precies 220', () => withStore(async (store) => {
+        // Het volledige verhaal in één test, want zo komt het in productie
+        // langs: een retry, een dubbele inzending, en daarna een legitieme
+        // ronde die wél moet tellen. De drie leaks apart zijn te repareren met
+        // een lokale check; alleen samen laten ze zien wat de eindscore moet
+        // zijn.
+        //
+        // LET OP bij het lezen van het faalrapport: tegen de huidige fake
+        // struikelt deze test op het ANTWOORD van ronde 1, niet op de score.
+        // Dat is geen toeval en het is de moeite waard om te onthouden. Omdat
+        // de poort absolute spelerwaarden krijgt, wist elke volgende geldige
+        // write het spoor van een doorgelaten duplicaat uit de score: de
+        // laatste schrijver bepaalt de eindstand, en die stond hier toevallig
+        // op 220. De score alleen is dus GEEN betrouwbare detector van dubbel
+        // verwerken op opslagniveau — het Answer en de ack-cache zijn dat wel,
+        // want die worden per ronde respectievelijk per actionId gesleuteld en
+        // overleven de volgende write.
+        await store.savePlayer(makePlayer());
+
+        // Ronde 1, geaccepteerd: 0 + 120 = 120.
+        const rondeEen = makeAcceptedAnswerWrite({
+          roundId: 'round_1', actionId: 'action_1', points: 120, responseTimeMs: 2000,
+          score: 120, correctCount: 1, correctResponseTimeMsTotal: 2000,
+        });
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', rondeEen);
+
+        // Retry van diezelfde actie: replay, geen mutatie.
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({
+          roundId: 'round_1', actionId: 'action_1', points: 200, responseTimeMs: 3000,
+          score: 320, correctCount: 2, correctResponseTimeMsTotal: 5000,
+        })).catch(() => {
+          // Of dit resolvet (replay) of rejectet, is hierboven al vastgelegd;
+          // deze test gaat alleen over de eindstand.
+        });
+
+        // Tweede, andere actie in DEZELFDE ronde: afgewezen.
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeAcceptedAnswerWrite({
+          roundId: 'round_1', actionId: 'action_2', points: 200, responseTimeMs: 4000,
+          score: 320, correctCount: 2, correctResponseTimeMsTotal: 6000,
+        })).catch(() => {});
+
+        // Ronde 2, geaccepteerd: 120 + 100 = 220. Deze MOET tellen — een fix
+        // die alles na de eerste inzending blokkeert, is net zo fout.
+        const rondeTwee = makeAcceptedAnswerWrite({
+          roundId: 'round_2', actionId: 'action_3', points: 100, responseTimeMs: 3000,
+          score: 220, correctCount: 2, correctResponseTimeMsTotal: 5000,
+        });
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', rondeTwee);
+
+        const player = await store.loadPlayer('room_a', 'player_1');
+        assert.strictEqual(player.score, 220, 'eindscore is 120 (ronde 1) + 100 (ronde 2) — niet 320, niet 420');
+        assert.strictEqual(player.correctCount, 2);
+        assert.strictEqual(player.correctResponseTimeMsTotal, 5000);
+        assert.deepStrictEqual(await store.getScoreboardTop('room_a', 'match_1', 10), [{ playerId: 'player_1', score: 220 }]);
+        assert.deepStrictEqual(
+          await readAnswer(store, { roomId: 'room_a', matchId: 'match_1', roundId: 'round_1', playerId: 'player_1' }),
+          rondeEen.answer,
+          'ronde 1 draagt nog steeds het eerste antwoord'
+        );
+        assert.deepStrictEqual(
+          await readAnswer(store, { roomId: 'room_a', matchId: 'match_1', roundId: 'round_2', playerId: 'player_1' }),
+          rondeTwee.answer
+        );
+        assert.deepStrictEqual(await readActionCacheEntry(store, { roomId: 'room_a', actionId: 'action_1' }), rondeEen.actionCacheEntry);
+        assertIsNull(await readActionCacheEntry(store, { roomId: 'room_a', actionId: 'action_2' }), 'de ack van de afgewezen tweede inzending');
+        assert.deepStrictEqual(await readActionCacheEntry(store, { roomId: 'room_a', actionId: 'action_3' }), rondeTwee.actionCacheEntry);
       }));
     });
 
@@ -736,6 +1734,24 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
         assert.deepStrictEqual(await store.getScoreboardTop('room_b', 'match_b', 10), [{ playerId: 'player_2', score: 700 }]);
       }));
 
+      it('twee rooms die HETZELFDE match-id gebruiken houden alsnog gescheiden ranglijsten', () => withStore(async (store) => {
+        // Was tot DM12 een karakterisatietest onder "vastgelegd gedrag, geen
+        // broneis": de fake keyde het scoreboard op alleen `matchId` en
+        // negeerde de `roomId`-parameter, terwijl `scoreboardKey(roomId,
+        // matchId)` er wél op keyt (HANDOFF-item INTB-3). Dat besluit is
+        // genomen — het scoreboard is nu room-gescoped — dus is de test
+        // omgekeerd en verhuisd naar het contract. De test hierboven dekt dit
+        // niet af: die gebruikt twee VERSCHILLENDE match-ids en slaagt dus ook
+        // op een implementatie die roomId negeert.
+        await store.savePlayer(makePlayer({ id: 'player_1', roomId: 'room_a', sessionId: 'session_1' }));
+        await store.savePlayer(makePlayer({ id: 'player_2', roomId: 'room_b', sessionId: 'session_2' }));
+        await scoreOne(store, { roomId: 'room_a', matchId: 'match_gedeeld', playerId: 'player_1', score: 100, actionId: 'action_1', roundId: 'round_1' });
+        await scoreOne(store, { roomId: 'room_b', matchId: 'match_gedeeld', playerId: 'player_2', score: 700, actionId: 'action_2', roundId: 'round_1' });
+
+        assert.deepStrictEqual(await store.getScoreboardTop('room_a', 'match_gedeeld', 10), [{ playerId: 'player_1', score: 100 }]);
+        assert.deepStrictEqual(await store.getScoreboardTop('room_b', 'match_gedeeld', 10), [{ playerId: 'player_2', score: 700 }]);
+      }));
+
       it('het aanpassen van de teruggegeven ranglijst raakt de opslag niet', () => withStore(async (store) => {
         await store.savePlayer(makePlayer({ id: 'player_1', sessionId: 'session_1' }));
         await scoreOne(store, { roomId: 'room_a', matchId: 'match_1', playerId: 'player_1', score: 100, actionId: 'action_1', roundId: 'round_1' });
@@ -749,100 +1765,57 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
     });
 
     // ------------------------------------------------------------------
-    // Karakterisatie: VASTGELEGD GEDRAG, GEEN BRONEIS
+    // Karakterisatie: VASTGELEGD GEDRAG, GEEN BRONEIS — VANDAAG LEEG
     //
-    // Alles hieronder beschrijft wat de huidige implementatie DOET, niet wat
-    // een adapter MOET doen. Elk item wacht op een besluit (HANDOFF-INTB.md).
-    // Slaagt een nieuwe adapter hier níet, lees dat dan als "het besluit is
-    // genomen en het gedrag is gecorrigeerd" — pas de test dan aan in plaats
-    // van de adapter. Ze staan bewust apart van de contracttests hierboven,
-    // zodat het verschil zichtbaar blijft.
+    // Een karakterisatietest beschrijft wat de huidige implementatie DOET, niet
+    // wat een adapter MOET doen: een item dat op een besluit wacht
+    // (HANDOFF-INTB.md), bewust apart van de contracttests zodat het verschil
+    // zichtbaar blijft.
+    //
+    // Deze sectie had er twee, allebei INTB-5: de oude join-code en het oude
+    // invite-id bleven na een hercodering naar dezelfde room wijzen — een
+    // geroteerde uitnodiging bleef dus geldig. Dat besluit is genomen (DM10:
+    // roteren gaat via `releaseRoomLocators`), dus zijn ze OMGEKEERD en
+    // verhuisd naar het contract: zie "INTB-5: een geroteerde uitnodiging is na
+    // vrijgave niet meer geldig" in het room-locator-blok hierboven. De kop
+    // blijft staan zodat een volgende bevinding weet waar hij hoort te landen.
     // ------------------------------------------------------------------
-    describe('karakterisatie — vastgelegd gedrag, geen broneis', () => {
-      it('na een hercodering van de room blijft de OUDE join-code naar diezelfde room wijzen', () => withStore(async (store) => {
-        // Geen broneis: dit is de lookup-index die niet wordt opgeruimd. Zodra
-        // INTB-2 (claimGameCode/releaseGameCode) er is, hoort de oude code
-        // vrijgegeven te worden en hoort deze lookup null te geven.
-        await store.saveRoom(makeRoom({ code: 'AAA111' }));
-        await store.saveRoom(makeRoom({ code: 'CCC333' }));
-
-        assert.deepStrictEqual(await store.loadRoomByCode('CCC333'), makeRoom({ code: 'CCC333' }));
-
-        const viaOldCode = await store.loadRoomByCode('AAA111');
-        assert.notStrictEqual(viaOldCode, null, 'vandaag blijft de oude code hangen');
-        assert.strictEqual(viaOldCode.id, 'room_a');
-        assert.strictEqual(viaOldCode.code, 'CCC333', 'de oude code levert het NIEUWE document op — de index is stale, het document niet');
-      }));
-
-      it('na een nieuw invite-id blijft het OUDE invite-id naar diezelfde room wijzen', () => withStore(async (store) => {
-        // Zelfde mechanisme als hierboven, tweede index. Zie het voorgestelde
-        // HANDOFF-item over het opruimen van room-indexen.
-        await store.saveRoom(makeRoom({ inviteId: 'invite_a' }));
-        await store.saveRoom(makeRoom({ inviteId: 'invite_a2' }));
-
-        const viaOldInvite = await store.loadRoomByInviteId('invite_a');
-        assert.notStrictEqual(viaOldInvite, null, 'vandaag blijft het oude invite-id hangen');
-        assert.strictEqual(viaOldInvite.inviteId, 'invite_a2');
-      }));
-
-      it('twee rooms die hetzelfde match-id gebruiken delen één ranglijst', () => withStore(async (store) => {
-        // INTB-3: de fake keyt het scoreboard op alleen matchId en negeert de
-        // roomId-parameter, terwijl scoreboardKey(roomId, matchId) er wél op
-        // keyt. Ofwel matchId is globaal uniek en de parameter verdwijnt,
-        // ofwel de fake moet op beide keyen. Tot dat besluit legt deze test
-        // alleen vast wat er nu gebeurt.
-        await store.savePlayer(makePlayer({ id: 'player_1', roomId: 'room_a', sessionId: 'session_1' }));
-        await store.savePlayer(makePlayer({ id: 'player_2', roomId: 'room_b', sessionId: 'session_2' }));
-        await scoreOne(store, { roomId: 'room_a', matchId: 'match_gedeeld', playerId: 'player_1', score: 100, actionId: 'action_1', roundId: 'round_1' });
-        await scoreOne(store, { roomId: 'room_b', matchId: 'match_gedeeld', playerId: 'player_2', score: 700, actionId: 'action_2', roundId: 'round_1' });
-
-        const beide = [
-          { playerId: 'player_2', score: 700 },
-          { playerId: 'player_1', score: 100 },
-        ];
-        assert.deepStrictEqual(await store.getScoreboardTop('room_a', 'match_gedeeld', 10), beide);
-        assert.deepStrictEqual(await store.getScoreboardTop('room_b', 'match_gedeeld', 10), beide);
-      }));
-    });
 
     // ------------------------------------------------------------------
-    // UITGESLOTEN — wacht op HANDOFF-item INTB-1
+    // INTB-1 — room-scoped saveRound, loadAnswer en loadActionCacheEntry
     //
-    // `saveRound`, `loadAnswer` en `loadActionCacheEntry` krijgen geen roomId
-    // mee, terwijl server/data/redis-keys.js dat voor alle drie de sleutels
-    // nodig heeft (roundKey/answersKey/actionCacheKey). Ze zijn dus niet tegen
-    // Redis implementeerbaar, en hun huidige gedrag hier vastleggen zou een
-    // bekende fout tot norm promoveren: de latere correctie wordt dan een
-    // testbreuk in plaats van een verbetering.
+    // Dit blok stond tot DM11 op `describe.skip`: `saveRound`, `loadAnswer` en
+    // `loadActionCacheEntry` kregen geen roomId mee, terwijl
+    // server/data/redis-keys.js dat voor alle drie de sleutels nodig heeft
+    // (roundKey/answersKey/actionCacheKey). Ze waren dus niet tegen Redis
+    // implementeerbaar, en hun gedrag toen vastleggen zou een bekende fout tot
+    // norm hebben gepromoveerd.
     //
-    // WAT ER MOET GEBEUREN voordat dit blok meedoet — de poortsignaturen
-    // verbreden tot:
-    //
-    //     saveRound(roomId, round)
-    //     loadAnswer(roomId, matchId, roundId, playerId)
-    //     loadActionCacheEntry(roomId, actionId)
-    //
-    // en in de fake de answers en de action-cache werkelijk room-scoped maken
-    // (nu globale Maps — precies waarom het gat onzichtbaar bleef). Daarna:
-    // haal `.skip` weg, hang dit blok aan de vier categorieën van de rest van
-    // deze suite, en schrap deze noot.
-    //
-    // De testbodies hieronder zijn geschreven tégen de verbrede signaturen en
-    // falen dus tot INTB-1 is doorgevoerd. Dat is de bedoeling: ze zijn de
-    // acceptatietest van dat item, niet dood commentaar.
+    // DM11 heeft de drie signaturen verbreed tot `saveRound(roomId, round)`,
+    // `loadAnswer(roomId, matchId, roundId, playerId)` en
+    // `loadActionCacheEntry(roomId, actionId)`, en in de fake de rondes,
+    // antwoorden en action-cache werkelijk room-scoped gemaakt. De bodies
+    // hieronder waren al tégen die verbrede signaturen geschreven — ze waren
+    // de acceptatietest van dat item, geen dood commentaar — en draaien nu
+    // ongewijzigd mee, op één arrangement na: `saveRound` heeft zijn
+    // integriteitscontrole behouden (een ronde mag niet wees worden), dus moet
+    // de bijbehorende Match eerst bestaan.
     // ------------------------------------------------------------------
-    describe.skip('INTB-1 — uitgesloten tot de drie signaturen roomId dragen', () => {
+    describe('INTB-1 — room-scoped saveRound, loadAnswer en loadActionCacheEntry', () => {
       it('een ronde wordt weggeschreven onder de room die de aanroeper meegeeft, niet onder een geraden room', () => withStore(async (store) => {
         const round = makeRound();
-        await store.saveRound('room_a', round); // verbrede signatuur
+        await store.saveMatch(makeMatch()); // saveRound weigert een weesronde
+        await store.saveRound('room_a', round);
 
         assert.deepStrictEqual(await store.loadRound('room_a', 'match_1', 'round_1'), round);
         assertIsNull(await store.loadRound('room_b', 'match_1', 'round_1'), 'de ronde hoort niet in een andere room te staan');
       }));
 
       it('twee rooms met hetzelfde match-id houden hun rondes gescheiden', () => withStore(async (store) => {
-        // Vandaag onmogelijk te arrangeren: saveRound leidt roomId af met een
-        // scan over alle matches en pakt de eerste treffer.
+        // Vóór DM11 onmogelijk te arrangeren: saveRound leidde het roomId af
+        // met een scan over alle matches en pakte de eerste treffer.
+        await store.saveMatch(makeMatch({ id: 'match_gedeeld', roomId: 'room_a' }));
+        await store.saveMatch(makeMatch({ id: 'match_gedeeld', roomId: 'room_b' }));
         await store.saveRound('room_a', makeRound({ id: 'round_1', matchId: 'match_gedeeld' }));
         await store.saveRound('room_b', makeRound({ id: 'round_1', matchId: 'match_gedeeld', questionKey: 'capitals_mc:be', gameType: 'capitals_mc' }));
 
@@ -850,13 +1823,27 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
         assert.strictEqual((await store.loadRound('room_b', 'match_gedeeld', 'round_1')).questionKey, 'capitals_mc:be');
       }));
 
+      it('een ronde zonder bestaande match werpt RangeError in plaats van een wees weg te schrijven', () => withStore(async (store) => {
+        // De integriteitscontrole die DM11 bewust HEEFT BEHOUDEN toen de scan
+        // een directe lookup werd. Zonder deze test zou een adapter die de
+        // controle laat vallen ongemerkt door de suite komen — en dan bestaat
+        // er een ronde die via geen enkele match meer te vinden is.
+        await assert.rejects(
+          () => store.saveRound('room_a', makeRound()),
+          RangeError,
+          'een ronde in een onbekende match hoort RangeError te geven, niet stil te slagen'
+        );
+        assertIsNull(await store.loadRound('room_a', 'match_1', 'round_1'), 'de geweigerde ronde');
+      }));
+
       it('een antwoord is alleen leesbaar binnen zijn eigen room en match', () => withStore(async (store) => {
         const answer = makeAnswer();
         await store.savePlayer(makePlayer());
         await scoreOne(store, { roomId: 'room_a', matchId: 'match_1', playerId: 'player_1', score: 120, actionId: 'action_1', roundId: 'round_1' });
 
-        assert.deepStrictEqual(await store.loadAnswer('room_a', 'match_1', 'round_1', 'player_1'), answer); // verbrede signatuur
+        assert.deepStrictEqual(await store.loadAnswer('room_a', 'match_1', 'round_1', 'player_1'), answer);
         assertIsNull(await store.loadAnswer('room_b', 'match_1', 'round_1', 'player_1'), 'het antwoord hoort niet vanuit een andere room leesbaar te zijn');
+        assertIsNull(await store.loadAnswer('room_a', 'match_ander', 'round_1', 'player_1'), 'het antwoord hoort niet vanuit een andere match leesbaar te zijn');
         assertIsNull(await store.loadAnswer('room_a', 'match_1', 'round_1', 'player_onbekend'), 'een speler zonder antwoord hoort null op te leveren');
       }));
 
@@ -864,7 +1851,7 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
         await store.savePlayer(makePlayer());
         await scoreOne(store, { roomId: 'room_a', matchId: 'match_1', playerId: 'player_1', score: 120, actionId: 'action_1', roundId: 'round_1' });
 
-        assert.deepStrictEqual(await store.loadActionCacheEntry('room_a', 'action_1'), { actionId: 'action_1', ack: { status: 'accepted' } }); // verbrede signatuur
+        assert.deepStrictEqual(await store.loadActionCacheEntry('room_a', 'action_1'), { actionId: 'action_1', ack: { status: 'accepted' } });
         assertIsNull(await store.loadActionCacheEntry('room_b', 'action_1'), 'het cache-item hoort niet vanuit een andere room leesbaar te zijn');
         assertIsNull(await store.loadActionCacheEntry('room_a', 'action_onbekend'), 'een onbekend actie-id hoort null op te leveren');
       }));
