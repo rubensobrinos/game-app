@@ -18,6 +18,45 @@ Bijgewerkt: 2026-08-02. Legenda (vast, uit `UI1-multiplayer-ui.md`):
 | Live end-to-end, 2 telefoons LAN | ⛔ | idem, ná de tabs-test |
 | UI1b (foutmeldingen, pauze, verlaten, EN/ES, landscape) | 🟡 | EN/ES vervroegd gedeeltelijk gedaan (zie hieronder) — foutmeldingen/pauze/verlaten/landscape blijven uitgesteld |
 
+## Fundamentlaag — layout, focus en toegankelijkheid (2 aug 2026)
+
+Vóór UI2/UI3 opgeruimd, omdat elk nieuw scherm deze drie anders zou erven
+(commit `fix(ui): fundamentlaag`):
+
+- **Layout-overflow weg.** `#app-root` én `.screen` stonden allebei op
+  `min-height: 100dvh`, met de sticky `#app-header` nog daarbovenop — elk
+  scherm scrollde ~3.5rem te ver. `.screen` trekt de headerhoogte er nu af via
+  het nieuwe token `--header-h`. Ook `justify-content: safe center` i.p.v.
+  `center`, zodat een lijst die hoger wordt dan het scherm niet half buiten het
+  scrollgebied valt. Nieuwe modifier `.screen-top` voor schermen die van boven
+  af opbouwen (lobby, tussenstand).
+- **Duplicatie base.css ↔ components.css opgeheven.** `body` en `#app-root`
+  stonden in allebei met verschillende waarden (dubbele padding, `100vh` vs
+  `100dvh`). base.css is eigenaar van reset+layout, components.css van de
+  componenten — die grens stond al in beide headers maar werd doorbroken.
+- **Toetsenbordfocus bestond niet.** `:focus-visible` toegevoegd in base.css;
+  `outline: none` van `.field-input` gehaald (stond later in de cascade en won
+  dus ook tijdens focus). Ring op `--text`, niet `--accent-light`, want het
+  accent betekent al "geselecteerd".
+- **Hamburgermenu toegankelijk:** `aria-haspopup`/`-expanded`/`-controls`,
+  `aria-pressed` op de taal- en themaknoppen, `role=group` +
+  `aria-labelledby` per sectie, Escape sluit met focus terug naar de knop.
+  Eén `setOpen()` regelt open/dicht, zodat `aria-expanded` niet uit de pas kan
+  lopen met `hidden`.
+- **`maximum-scale=1.0`** uit de singleplayer-`index.html` (WCAG 1.4.4 —
+  pinch-zoom was geblokkeerd). De multiplayer-index deed dit al goed.
+
+Geverifieerd in headless Chromium (390×844, portret) tegen `transport-mock`:
+20/20 checks, inclusief een negatieve controle dat de header écht hoogte
+inneemt — anders zou de overflow-check slagen omdat er niets af te trekken
+viel. Regressie op taalwissel, themawissel, Snel starten en code-invoer
+opnieuw gelopen, geen consolefouten.
+
+**Openstaand (niet van UI):** `server/index.mjs` mapt `/client/*` en
+`/shared/*`, maar niet `/flags/*`. Lokaal tegen de game-server geeft elke vlag
+daardoor een 404; via Caddy klopt het wel (nginx bedient `/flags/`). Raakt UI3
+zodra dat scherm gemonteerd wordt — zie HANDOFF-UI.
+
 ## Hamburgermenu — taal (app-UI) + licht/donker-thema
 
 Op verzoek zichtbaar vanaf de indexpagina, niet pas vanaf UI5. Gebouwd:
