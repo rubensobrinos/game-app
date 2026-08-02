@@ -13,7 +13,7 @@ Bijgewerkt: 2026-08-02. Legenda (vast, uit `UI1-multiplayer-ui.md`):
 | UI2 — Lobby + Delen | 🟡 | `views/lobby.mjs` gebouwd: deelnemerslijst (zie datagat hieronder), alle vier deelacties (schermvullende QR via `qr.mjs`, copy-link met zichtbare fallback, code, native-share), hostknop Start. Volledig e2e geverifieerd (zie hieronder). |
 | UI3 — Spelscherm flags_mc | 🟡 | DOM-scherm (`views/gameplay.mjs`) nu daadwerkelijk gemount via `session-shell.mjs` — niet meer alleen de pure modellaag. Volledige ronde (vraag→antwoord→vergrendeling→uitslag) e2e geverifieerd. |
 | UI4 — Tussenstand + Eindpodium | 🟡 | Zelfde als UI3: `views/scoreboard.mjs`/`views/podium.mjs` nu gemount en e2e geverifieerd t/m rematch → terug naar LOBBY. |
-| UI5 — Hostbalk | 🔵 | Nog steeds niet gebouwd. Wél: een minimale Pauzeer/Hervat-toggle (`session-shell.mjs`) is vooruitlopend toegevoegd — zonder die knop was de pauze-overlay (UI-2/#11) onbereikbaar. Lock/kick/finish/next/instellingen blijven UI5. |
+| UI5 — Hostbalk | 🔵 | Nog steeds niet gebouwd. Wél: een minimale Pauzeer/Hervat-toggle (`session-shell.mjs`) is vooruitlopend toegevoegd — zonder die knop was de pauze-overlay (UI-2/#11) onbereikbaar. Lock/kick/finish/next volgt nu. |
 | Live end-to-end, 2 browsertabs | ⛔ | vereist INT-A's stap 2 (echte transportlaag) |
 | Live end-to-end, 2 telefoons LAN | ⛔ | idem, ná de tabs-test |
 | UI1b-kern (foutmeldingen, pauze, reconnect, `/samen`) | 🟡 | Zie sectie hieronder — alle vier gebouwd en geverifieerd. Verlaten-met-bevestiging en landscape blijven uitgesteld. |
@@ -139,9 +139,54 @@ pilotwaardige UI1b-kern. Alles hieronder is (2) en (3).
   (fast-forwarded) → eindpodium → rematch → terug in LOBBY. Losstaand:
   `/samen` → home, ongeldige invite → vertaalde foutmelding + retry. Nul
   consolefouten. 363/363 `node --test` groen (frontend + client/flow).
-- **Niet gedaan, bewust:** punt (1) — de importwijziging naar de echte
-  `transport.mjs` — wacht op het expliciete signaal (na PR + INT-A's stap 3).
-  Verlaten-met-bevestiging en landscape blijven UI1b-restpunten.
+- **Niet gedaan door mij, bewust:** punt (1), de importwijziging naar de echte
+  `transport.mjs` — die is inmiddels wél gedaan, door een ander, ná het
+  regie-sein (`98a114d`, "DE SWAP"). Verlaten-met-bevestiging en landscape
+  blijven UI1b-restpunten.
+
+## Visuele + toegankelijkheidspas: lobby, gameplay, scoreboard, podium (2 aug 2026)
+
+Op verzoek, vóór UI5: `.screen`-conventie consequent (al gedaan via
+`session-shell.mjs`'s `phaseContainer`, hier alleen bevestigd) en een
+toegankelijkheidsronde over de vier net gemounte schermen — dezelfde
+discipline die de Fundamentlaag-pas al op het hamburgermenu toepaste
+(`setOpen()`-patroon, Escape, focusbeheer, `aria-pressed` naast `.active`).
+
+- **`.sr-only`-utility toegevoegd** (`base.css`) — visueel weg, niet uit de
+  toegankelijkheidsboom, voor schermtitels die geen plek verdienen in de
+  layout maar wel een aankondigingspunt zijn bij een schermwissel.
+- **`views/gameplay.mjs`:** de vlag had `alt=""` (decoratief) — maar de vlag
+  ís de vraag, geen decoratie. Bewust geen landnaam in de alt-tekst (dat zou
+  het antwoord verklappen aan wie een screenreader gebruikt, vóór ze kunnen
+  "kijken" zoals een ziende speler) — een neutrale `t('game.flagAlt')`
+  i.p.v. lege alt. Verder: `aria-live="polite"` op de verzendstatus en de uitslag,
+  `aria-pressed` op elke antwoordoptie (naast `.is-selected`), en een
+  `.sr-only`-schermtitel (dit scherm had nooit een `<h1>`/`<h2>`).
+- **`views/scoreboard.mjs`/`podium.mjs`:** `aria-live="polite"` op de eigen
+  regel ("Jij: #1 — 100"). Het medaille-emoji op het podium is nu
+  `aria-hidden` — de positie zit al in de volgorde van de `<ol>` (native
+  "item 1 van 3"-aankondiging), het emoji voegt voor een screenreader niets
+  toe.
+- **`views/lobby.mjs`:** de schermvullende QR-overlay is nu een echte modale
+  dialoog — `role="dialog"`, `aria-modal`, `aria-label`, Escape sluit, focus
+  gaat bij openen naar de terugknop en bij sluiten terug naar de knop die 'm
+  opende (zelfde patroon als `app-menu.mjs`). De kopieer-linkfallback (zonder
+  Clipboard API) heeft nu een `aria-label`, de kopieerfeedback ("Gekopieerd!")
+  is `aria-live`, en "Toon code" heeft `aria-expanded`.
+- **`session-shell.mjs`:** de pauze-overlay is nu ook zo'n dialoog —
+  `role="dialog"`, `aria-modal`, `aria-label` (de pauzereden zelf), focus naar
+  de Hervat-knop (host) of de kaart (niet-host, die kán toch niet hervatten)
+  bij openen, terug naar de hosttoggle bij sluiten. Escape hervat, maar
+  uitsluitend voor de host — een niet-host kan sowieso niet hervatten, dus
+  daar doet Escape bewust niets (moet wachten, net als bij het eindpodium).
+  De reconnect-statusbalk is nu `aria-live="assertive"`.
+- Geverifieerd in headless Chromium (390×844, donker): alle
+  rol/aria-modal/aria-label-waarden kloppen, focus verplaatst en keert
+  correct terug bij Escape op zowel de QR- als de pauze-dialoog,
+  `aria-pressed` wisselt mee met een tik, geen consolefouten. Screenshots van
+  alle vier schermen genomen ter bevestiging van de huisstijl (gradient-
+  titels, kaartstijl, kleuren) — visueel consistent met elkaar en met de
+  singleplayer. 363/363 `node --test` groen.
 
 ## Openstaande actiepunten
 
