@@ -123,10 +123,12 @@ export class NotImplementedError extends Error {
 }
 
 // --------------------------------------------------------------------------
-// Lua. Drie van de vier scripts hieronder bestaan omdat een lees gevolgd door
-// een schrijf over twee netwerkbeurten precies het venster is waarin twee
-// rooms dezelfde join-code krijgen (HANDOFF-item INTB-2). Geen enkele sleutel
-// wordt in Lua samengesteld: alles komt als KEYS[i] binnen.
+// Lua. De meeste scripts hieronder bestaan omdat een lees gevolgd door een
+// schrijf over twee netwerkbeurten precies het venster is waarin twee rooms
+// dezelfde join-code krijgen (HANDOFF-item INTB-2); het laatste script bestaat
+// omdat twee documenten in twee opdrachten bijwerken het dual-write-pad is dat
+// DECISIONS #30 verbiedt. Geen enkele sleutel wordt in Lua samengesteld: alles
+// komt als KEYS[i] binnen.
 // --------------------------------------------------------------------------
 
 /**

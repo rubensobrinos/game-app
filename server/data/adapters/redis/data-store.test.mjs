@@ -10,21 +10,23 @@
 //    conformance-suite: hem aanpassen tot hij groen wordt is hetzelfde als hem
 //    weggooien.
 //
-// 2. ZEVENENTWINTIG VAN DE TACHTIG CONFORMANCE-TESTS ZIJN ROOD, en dat is geen
-//    adapterfout. `saveAcceptedAnswerAtomically` (INTB2c) en
-//    `setRoomAndMatchPhaseAtomically` (INTB2d) zijn bewust niet gebouwd — zie
-//    de kop van `data-store.mjs` voor waarom INTB2c geblokkeerd is. De suite
-//    gebruikt de eerste bovendien als ARRANGEMENT voor het scoreboard, het
-//    Answer en de action-cache: die hebben op deze poort geen andere
-//    schrijfweg (de suite zegt dat zelf, bij `scoreOne`). Rood dus:
-//      * describe 'setRoomAndMatchPhaseAtomically'                  8 tests
+// 2. NEGENTIEN VAN DE CONFORMANCE-TESTS ZIJN ROOD, en dat is geen adapterfout.
+//    `saveAcceptedAnswerAtomically` (INTB2c) is bewust niet gebouwd — zie de
+//    kop van `data-store.mjs`. De suite gebruikt die methode bovendien als
+//    ARRANGEMENT voor het scoreboard, het Answer en de action-cache: die
+//    hebben op deze poort geen andere schrijfweg (de suite zegt dat zelf, bij
+//    `scoreOne`). Rood dus:
 //      * describe 'saveAcceptedAnswerAtomically'                    8 tests
 //      * describe 'saveAcceptedAnswerAtomically — INTB-4'           3 tests
 //      * describe 'getScoreboardTop'                6 van de 7 tests
 //      * describe 'INTB-1 …'                        2 van de 5 tests
-//    Elke faalregel wijst terug naar `NotImplementedError` met `INTB2c` of
-//    `INTB2d` in de melding; komt er ooit een ANDERE fout uit deze blokken,
-//    dan is dat wél een adapterfout.
+//    Elke faalregel wijst terug naar `NotImplementedError` met `INTB2c` in de
+//    melding; komt er ooit een ANDERE fout uit deze blokken, dan is dat wél een
+//    adapterfout.
+//
+//    HET BLOK `setRoomAndMatchPhaseAtomically` (8 tests) STOND HIER OOK, en is
+//    met INTB2d groen geworden. De adapter-eigen tests daarvoor staan in
+//    sectie 6b hieronder.
 //
 //    Het leesgedrag dat daardoor onbewezen zou blijven — `getScoreboardTop`,
 //    `loadAnswer`, `loadActionCacheEntry` — staat hieronder alsnog getest, met
@@ -599,17 +601,208 @@ if (!probe.ok) {
   });
 
   // ------------------------------------------------------------------
+  // 6b. setRoomAndMatchPhaseAtomically (INTB2d, DECISIONS #30).
+  //
+  // Het contract staat volledig in de conformance-suite. Hier staat wat die
+  // suite per definitie niet kan zien: dat de wissel écht één Redis-opdracht
+  // is, dat de TTL meebeweegt, dat de envelop het document niet vervormt, en
+  // wat er van de opslag overblijft als de uitvoering wordt onderbroken.
+  // ------------------------------------------------------------------
+  describe('Redis-adapter — setRoomAndMatchPhaseAtomically', () => {
+    async function arrangePhaseFixture() {
+      await fresh();
+      await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
+      await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+    }
+
+    it('ververst de room-scope, de matchkey en het scoreboard — een fasewissel is activiteit', async () => {
+      await arrangePhaseFixture();
+      await store.saveSession(makeSession());
+      await store.savePlayer(makePlayer());
+      await arrangeScores('room_a', 'match_1', { player_1: 120 });
+      for (const key of [
+        roomKey('room_a'), roomSessionsKey('room_a'), roomPlayersKey('room_a'),
+        matchKey('room_a', 'match_1'), scoreboardKey('room_a', 'match_1'),
+      ]) {
+        assert.ok(await client().expire(key, 5), `sleutel ${key} bestaat niet`);
+      }
+
+      await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'SCOREBOARD');
+
+      for (const key of [
+        roomKey('room_a'), roomSessionsKey('room_a'), roomPlayersKey('room_a'),
+        matchKey('room_a', 'match_1'), scoreboardKey('room_a', 'match_1'),
+      ]) {
+        assert.strictEqual(await client().ttl(key), ROOM_TTL_SECONDS, `TTL van ${key} na de fasewissel`);
+      }
+    });
+
+    it('laat de envelop en de vorm van elk veld intact — ook een LEEG array blijft een array', async () => {
+      // Dit is de reden dat het Lua-script de documenten NIET zelf decodeert.
+      // `cjson` maakt van een lege tabel bij het terugschrijven een `{}`, dus
+      // een implementatie die het JSON-werk in Lua doet, verandert
+      // `previousMatchQuestionKeys: []` stilzwijgend in een object. De
+      // conformance-suite ziet dat via deepStrictEqual; hier staat het op de
+      // opslag zelf, zodat de oorzaak zichtbaar is en niet alleen het gevolg.
+      await arrangePhaseFixture();
+
+      await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED');
+
+      const roomEnvelope = JSON.parse(await client().get(roomKey('room_a')));
+      const matchEnvelope = JSON.parse(await client().get(matchKey('room_a', 'match_1')));
+      assert.deepStrictEqual(Object.keys(roomEnvelope).sort(), ['documentType', 'payload', 'schemaVersion']);
+      assert.strictEqual(roomEnvelope.documentType, 'room');
+      assert.strictEqual(matchEnvelope.documentType, 'match');
+      assert.strictEqual(roomEnvelope.schemaVersion, 1);
+      assert.strictEqual(matchEnvelope.schemaVersion, 1);
+      assert.ok(Array.isArray(matchEnvelope.payload.previousMatchQuestionKeys), 'een leeg array blijft een array');
+      assert.deepStrictEqual(matchEnvelope.payload.previousMatchQuestionKeys, []);
+      assert.strictEqual(matchEnvelope.payload.finishedAt, null, 'null blijft null, geen weggevallen veld');
+      assert.strictEqual(roomEnvelope.payload.currentMatchId, null);
+      assert.deepStrictEqual(roomEnvelope.payload.config, makeConfig(), 'de geneste config blijft ongemoeid');
+    });
+
+    it('schrijft geen enkele andere sleutel dan de twee documenten', async () => {
+      await arrangePhaseFixture();
+      const before = (await client().keys('*')).sort();
+
+      await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'PAUSED');
+
+      assert.deepStrictEqual((await client().keys('*')).sort(), before, 'de wissel maakt geen sleutels aan');
+    });
+
+    it('een gelijktijdige schrijfactie tussen lees en wissel wordt niet overschreven — de operatie leest opnieuw', async () => {
+      // De documenten worden buiten Redis omgezet (zie SET_PHASE_LUA), dus er
+      // zit per definitie een lees vóór de schrijf. Zonder compare-and-set in
+      // het script zou deze operatie de tussentijdse `saveRoom` hieronder
+      // wegschrijven met een verouderd document — een verloren update die
+      // nergens gemeld wordt. De injectie hieronder zet `locked: true` precies
+      // in dat venster; overleeft die vlag de fasewissel, dan is er echt
+      // opnieuw gelezen.
+      await arrangePhaseFixture();
+
+      let ingegrepen = false;
+      const raced = createRedisDataStore({
+        connection: {
+          getClient: () => ({
+            async get(key) {
+              const value = await client().get(key);
+              if (!ingegrepen && key === matchKey('room_a', 'match_1')) {
+                ingegrepen = true;
+                await store.saveRoom(makeRoom({ phase: 'LOBBY', locked: true }));
+              }
+              return value;
+            },
+            eval: (script, options) => client().eval(script, options),
+          }),
+        },
+      });
+
+      await raced.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED');
+
+      assert.strictEqual(ingegrepen, true, 'het venster is echt geraakt, anders bewijst deze test niets');
+      const room = await store.loadRoom('room_a');
+      assert.strictEqual(room.locked, true, 'de gelijktijdige schrijfactie mag niet zijn weggevallen');
+      assert.strictEqual(room.phase, 'FINISHED');
+      assert.strictEqual((await store.loadMatch('room_a', 'match_1')).phase, 'FINISHED');
+    });
+
+    it('een onderbroken uitvoering laat beide documenten oud óf beide nieuw achter — nooit één van elk', async () => {
+      // DE GARANTIE DIE HIER GETEST WORDT, en vooral de garantie die hier NIET
+      // getest wordt.
+      //
+      // Verwacht GEEN rollback. Een Lua-script draait server-side door; valt de
+      // clientsocket weg terwijl het loopt, dan landt de wissel gewoon en
+      // verdwijnt alleen het antwoord. De aanroeper krijgt een verbindingsfout
+      // en kan uit die fout niet afleiden wat er is gebeurd — hij leest na een
+      // reconnect de autoritatieve state opnieuw. Een netwerkonderbreking is
+      // geen transactie-abort.
+      //
+      // Wat wél altijd waar is, en wat elke ronde hieronder assert:
+      //   beide documenten oud óf beide nieuw, nooit één oud en één nieuw.
+      //
+      // De onderbreking is een echte: een tweede verbinding doet CLIENT KILL op
+      // het id van de eerste, alleen op onze eigen verbinding en op niemand
+      // anders. De vertraging loopt op, zodat de kill zowel vóór als ná het
+      // script kan landen en beide uitkomsten aan bod komen.
+      const victim = createRedisConnection(testConnectionConfig());
+      const killer = createRedisConnection(testConnectionConfig());
+      await victim.connect();
+      await killer.connect();
+      const victimStore = createRedisDataStore({ connection: victim });
+
+      /** @type {Set<string>} */
+      const uitkomsten = new Set();
+      let onderbroken = 0;
+      try {
+        for (const vertragingMs of [0, 0, 0, 0, 1, 1, 2, 3, 5, 8]) {
+          // Hier BEGINNEN room en match op dezelfde fase, anders dan in de
+          // andere tests: de invariant die bewezen moet worden is "de twee
+          // dragen dezelfde waarde", en dat is alleen een uitspraak over de
+          // operatie als het vóóraf al klopte. Een scheve begintoestand zou de
+          // assertie laten falen op iets wat de fixture zelf heeft gedaan.
+          await fresh();
+          await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
+          await store.saveMatch(makeMatch({ phase: 'LOBBY' }));
+          const victimId = await victim.getClient().sendCommand(['CLIENT', 'ID']);
+
+          const bezig = victimStore
+            .setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED')
+            .then(() => 'geland', () => 'onbekend');
+          if (vertragingMs > 0) await new Promise((resolve) => setTimeout(resolve, vertragingMs));
+          await killer.getClient().sendCommand(['CLIENT', 'KILL', 'ID', String(victimId)]);
+
+          const gemeld = await bezig;
+          if (gemeld === 'onbekend') onderbroken += 1;
+
+          // De opslag via een ANDERE, levende verbinding lezen: wat de gedode
+          // client dacht, doet er niet toe — het gaat om wat er staat.
+          const room = await store.loadRoom('room_a');
+          const match = await store.loadMatch('room_a', 'match_1');
+          assert.strictEqual(
+            room.phase, match.phase,
+            `de projectie (Room.phase=${room.phase}) mag nooit uit de pas lopen met de autoriteit (Match.phase=${match.phase})`
+          );
+          assert.ok(
+            room.phase === 'LOBBY' || room.phase === 'FINISHED',
+            `alleen de oude of de nieuwe fase is een geldige uitkomst, kreeg ${room.phase}`
+          );
+          uitkomsten.add(`${gemeld}/${room.phase}`);
+
+          // Wachten tot de gedode verbinding zichzelf heeft hersteld, anders
+          // meet de volgende ronde de herverbinding in plaats van het gedrag.
+          const deadline = Date.now() + 5_000;
+          while (!victim.isReady() && Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 10));
+          }
+          assert.ok(victim.isReady(), 'de gedode verbinding hoort zichzelf te herstellen');
+        }
+      } finally {
+        await victim.close();
+        await killer.close();
+      }
+
+      assert.ok(onderbroken > 0, `er is minstens één keer echt onderbroken (uitkomsten: ${[...uitkomsten].join(', ')})`);
+      // Geen assertie op WELKE uitkomsten voorkomen: dat hangt af van waar de
+      // kill landt, en een test die daarop vastpint test de planner van Redis
+      // in plaats van de adapter. De invariant hierboven is de eis.
+    });
+  });
+
+  // ------------------------------------------------------------------
   // 7. De twee methoden die hier NIET horen.
   // ------------------------------------------------------------------
   describe('Redis-adapter — bewust niet geïmplementeerd', () => {
-    it('UNIMPLEMENTED_METHODS noemt exact de drie methoden en hun blokkade', () => {
+    it('UNIMPLEMENTED_METHODS noemt exact de twee resterende methoden en hun blokkade', () => {
       assert.deepStrictEqual(Object.keys(UNIMPLEMENTED_METHODS).sort(), [
         'loadSessionByTokenHash',
         'saveAcceptedAnswerAtomically',
-        'setRoomAndMatchPhaseAtomically',
       ]);
       assert.strictEqual(UNIMPLEMENTED_METHODS.saveAcceptedAnswerAtomically, 'INTB2c');
-      assert.strictEqual(UNIMPLEMENTED_METHODS.setRoomAndMatchPhaseAtomically, 'INTB2d');
+      // INTB2d heeft `setRoomAndMatchPhaseAtomically` gebouwd; de lijst hoort
+      // met de adapter mee te krimpen, anders is hij een verouderd briefje in
+      // plaats van een machineleesbare stand van zaken.
+      assert.strictEqual(UNIMPLEMENTED_METHODS.setRoomAndMatchPhaseAtomically, undefined);
     });
 
     it('loadSessionByTokenHash werpt en noemt de ontbrekende sleutel, in plaats van een globale SCAN te doen', async () => {
@@ -667,22 +860,19 @@ if (!probe.ok) {
       assert.strictEqual((await store.loadPlayer('room_a', 'player_1')).score, 0);
     });
 
-    it('setRoomAndMatchPhaseAtomically werpt met een verwijzing naar INTB2d en schrijft niets', async () => {
+    it('setRoomAndMatchPhaseAtomically werpt NIET meer — INTB2d heeft hem gebouwd', async () => {
+      // De tegenhanger van de test hierboven, en bewust blijven staan in plaats
+      // van weggehaald: dit blok is de plek waar de stand van zaken van de
+      // adapter wordt vastgelegd, en "deze methode is er nu wél" hoort daar net
+      // zo goed in als "deze methode is er nog niet".
       await fresh();
       await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
       await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
 
-      await assert.rejects(
-        () => store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'SCOREBOARD'),
-        (error) => {
-          assert.ok(error instanceof NotImplementedError);
-          assert.match(error.message, /INTB2d/);
-          return true;
-        }
-      );
+      await assert.doesNotReject(() => store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'SCOREBOARD'));
 
-      assert.strictEqual((await store.loadRoom('room_a')).phase, 'LOBBY');
-      assert.strictEqual((await store.loadMatch('room_a', 'match_1')).phase, 'ROUND_ACTIVE');
+      assert.strictEqual((await store.loadRoom('room_a')).phase, 'SCOREBOARD');
+      assert.strictEqual((await store.loadMatch('room_a', 'match_1')).phase, 'SCOREBOARD');
     });
   });
 }
