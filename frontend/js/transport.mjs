@@ -12,17 +12,36 @@
 // gezet op de PROTOCOL.md-foutcode, zodat een aanroeper
 // `edge-case-messaging.messageForErrorCode(err.code)` direct kan gebruiken.
 //
-// Contract: docs/frontend-plan/prompts/UI0-scaffold.md §Transport-interfacecontract.
+// Contract: docs/frontend-plan/prompts/UI0-scaffold.md §Transport-interfacecontract,
+// bijgesteld met de vier correcties uit INT-A's antwoord op HANDOFF-UI.md UI-1
+// (docs/integration-plan/transport-contract-response.md):
+//   1. createGame(request) i.p.v. createGame(config) -- request bevat
+//      { config, hostParticipates, displayName }, symmetrisch met joinGame.
+//   2. connect() krijgt een handlers-object met zowel onEvent als onStatus
+//      ('connecting'|'connected'|'disconnected') -- reconnect-state.mjs moet
+//      dit voeden. De transportlaag doet zelf de backoff; de UI vraagt zelf
+//      een snapshot op na een herverbinding (snapshot boven events).
+//   3. send() verwerpt ook bij een formele { ok: false }-ack, met dezelfde
+//      Error+.code-vorm als de REST-functies -- één foutmechanisme, geen
+//      apart ok-veld dat elk aanroeppunt ook nog moet checken.
+//   4. actionId blijft van de UI (bevestigd, geen interfacewijziging): bij een
+//      retry na een weggevallen ack hoort dezelfde actionId hergebruikt te
+//      worden, nooit een nieuwe (anders ALREADY_ANSWERED i.p.v. de
+//      oorspronkelijke ack). Zie ook HANDOFF.md INT-14 (een bekend, apart
+//      poortprobleem -- niet iets om in de UI omheen te bouwen).
 
 /**
  * @typedef {{
- *   createGame: (config: object) => Promise<object>,
+ *   createGame: (request: { config: object, hostParticipates: boolean, displayName: string | null }) => Promise<object>,
  *   previewInvite: (inviteId: string) => Promise<object>,
  *   joinGame: (request: object) => Promise<object>,
  *   fetchState: (code: string, sessionToken: string) => Promise<object>,
  *   leaveGame: (code: string, sessionToken: string) => Promise<void>,
  *   fetchServerTime: () => Promise<{ serverTime: number }>,
- *   connect: (sessionToken: string, onEvent: (envelope: object) => void) => { send: (event: string, actionId: string, payload: object) => Promise<object>, close: () => void },
+ *   connect: (sessionToken: string, handlers: {
+ *     onEvent: (envelope: object) => void,
+ *     onStatus: (status: 'connecting' | 'connected' | 'disconnected') => void,
+ *   }) => { send: (event: string, actionId: string, payload: object) => Promise<object>, close: () => void },
  * }} Transport
  */
 

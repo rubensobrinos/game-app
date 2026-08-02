@@ -92,12 +92,16 @@ export function createMockTransport() {
 
   // ---- REST-achtige functies -------------------------------------------
 
-  async function createGame(config) {
-    const safeConfig = config !== null && typeof config === 'object' ? config : {};
-    const hostParticipates = safeConfig.hostParticipates !== false;
-    const requestedDisplayName = normalizeDisplayName(safeConfig.displayName);
+  // Correctie 1 (transport-contract-response.md): het argument is het hele
+  // POST /api/v1/games-verzoek ({ config, hostParticipates, displayName }),
+  // niet alleen de roomconfig -- was intern al zo geïmplementeerd, alleen de
+  // parameternaam/JSDoc hieronder zijn nu in lijn gebracht met het contract.
+  async function createGame(request) {
+    const safeRequest = request !== null && typeof request === 'object' ? request : {};
+    const hostParticipates = safeRequest.hostParticipates !== false;
+    const requestedDisplayName = normalizeDisplayName(safeRequest.displayName);
 
-    room = buildRoom(safeConfig.config);
+    room = buildRoom(safeRequest.config);
 
     const sessionToken = randomToken();
     const roles = hostParticipates ? ['host', 'player'] : ['host'];
@@ -210,12 +214,25 @@ export function createMockTransport() {
 
   // ---- Fake "socket" ------------------------------------------------------
 
-  function connect(sessionToken, onEvent) {
-    if (room === null || !room.sessions.has(sessionToken) || typeof onEvent !== 'function') {
+  // Correctie 2 (transport-contract-response.md): `connect` neemt nu een
+  // `handlers`-object (`onEvent` + `onStatus`) i.p.v. kaal `onEvent`.
+  // `reconnect-state.mjs` heeft `onStatus` nodig om connecting/connected/
+  // disconnected te kunnen tonen. Dit is een single-process mock zonder echt
+  // netwerk om te laten falen, dus er is geen backoff te simuleren — wél de
+  // normale status-overgangen bij verbinden/sluiten, synchroon genoeg om
+  // `reconnect-state`'s conventie (dispatch eerst, vraag dan pas iets op) te
+  // kunnen testen.
+  function connect(sessionToken, handlers) {
+    const safeHandlers = handlers !== null && typeof handlers === 'object' ? handlers : {};
+    const onEvent = typeof safeHandlers.onEvent === 'function' ? safeHandlers.onEvent : () => {};
+    const onStatus = typeof safeHandlers.onStatus === 'function' ? safeHandlers.onStatus : () => {};
+
+    if (room === null || !room.sessions.has(sessionToken)) {
       // Geen geldige sessie om aan te koppelen: lever een inert paar functies
       // terug in plaats van te gooien — `connect()` zelf is synchroon en
       // heeft in het echte contract geen foutpad; elke `send()` op deze
       // connectie faalt alsnog met TOKEN_INVALID.
+      onStatus('disconnected');
       return {
         send: async () => {
           throw new ProtocolError('TOKEN_INVALID', 'connect() called with an unknown sessionToken.');
@@ -223,6 +240,8 @@ export function createMockTransport() {
         close() {},
       };
     }
+
+    onStatus('connecting');
 
     const listener = { onEvent };
     room.listeners.set(sessionToken, listener);
@@ -232,6 +251,7 @@ export function createMockTransport() {
     // van te wachten op de eerstvolgende faseovergang.
     queueMicrotask(() => {
       if (room !== null && room.listeners.get(sessionToken) === listener) {
+        onStatus('connected');
         emit(listener, 'room:state', buildSnapshot(room, sessionToken));
       }
     });
@@ -242,6 +262,7 @@ export function createMockTransport() {
         if (room !== null) {
           room.listeners.delete(sessionToken);
         }
+        onStatus('disconnected');
       },
     };
   }

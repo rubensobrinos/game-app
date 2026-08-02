@@ -28,7 +28,7 @@ function withFakeTimers(fn) {
 async function createRoomInRound1() {
   const transport = createMockTransport();
   const created = await transport.createGame({ config: {}, hostParticipates: true, displayName: 'Host' });
-  const hostConn = transport.connect(created.sessionToken, () => {});
+  const hostConn = transport.connect(created.sessionToken, { onEvent: () => {} });
   await hostConn.send('game:start', 'act_start', {});
   mock.timers.tick(COUNTDOWN_TICK_MS);
   return { transport, created, hostConn };
@@ -169,7 +169,7 @@ test('host-only socket actions reject a player-only session with NOT_HOST', asyn
   const transport = createMockTransport();
   const created = await transport.createGame({ hostParticipates: false });
   const joined = await transport.joinGame({ inviteId: created.inviteId });
-  const conn = transport.connect(joined.sessionToken, () => {});
+  const conn = transport.connect(joined.sessionToken, { onEvent: () => {} });
   const hostOnlyEvents = [
     'game:start',
     'game:pause',
@@ -192,7 +192,7 @@ test('host-only socket actions reject a player-only session with NOT_HOST', asyn
 test('player-only socket actions reject a host-only session with NOT_PLAYER', async () => {
   const transport = createMockTransport();
   const created = await transport.createGame({ hostParticipates: false });
-  const conn = transport.connect(created.sessionToken, () => {});
+  const conn = transport.connect(created.sessionToken, { onEvent: () => {} });
   const playerOnlyEvents = ['player:rename', 'player:leave', 'round:answer'];
   for (const event of playerOnlyEvents) {
     await assert.rejects(
@@ -206,17 +206,17 @@ test('player-only socket actions reject a host-only session with NOT_PLAYER', as
 test('share:opened is allowed for host-only and player-only sessions alike', async () => {
   const transport = createMockTransport();
   const created = await transport.createGame({ hostParticipates: false });
-  const hostAck = await transport.connect(created.sessionToken, () => {}).send('share:opened', 'act_1', { method: 'qr' });
+  const hostAck = await transport.connect(created.sessionToken, { onEvent: () => {} }).send('share:opened', 'act_1', { method: 'qr' });
   assert.equal(hostAck.ok, true);
   const joined = await transport.joinGame({ inviteId: created.inviteId });
-  const playerAck = await transport.connect(joined.sessionToken, () => {}).send('share:opened', 'act_2', { method: 'link' });
+  const playerAck = await transport.connect(joined.sessionToken, { onEvent: () => {} }).send('share:opened', 'act_2', { method: 'link' });
   assert.equal(playerAck.ok, true);
 });
 
 test('an unsupported event yields UNSUPPORTED_EVENT', async () => {
   const transport = createMockTransport();
   const created = await transport.createGame({});
-  const conn = transport.connect(created.sessionToken, () => {});
+  const conn = transport.connect(created.sessionToken, { onEvent: () => {} });
   await assert.rejects(() => conn.send('totally:unknown', 'act_1', {}), (err) => err.code === 'UNSUPPORTED_EVENT');
 });
 
@@ -229,7 +229,7 @@ test(
   withFakeTimers(async () => {
     const transport = createMockTransport();
     const created = await transport.createGame({});
-    const conn = transport.connect(created.sessionToken, () => {});
+    const conn = transport.connect(created.sessionToken, { onEvent: () => {} });
 
     const ack1 = await conn.send('game:start', 'act_start_1', {});
     const ack2 = await conn.send('game:start', 'act_start_1', {});
@@ -288,7 +288,7 @@ test(
     const joined = await transport.joinGame({ inviteId: created.inviteId, displayName: 'Laatkomer' });
     // roundIndex is 0 (round 1 active) -> eligibleFromRound = roundIndex + 2 = 2.
     assert.equal(joined.state.self.eligibleFromRound, 2);
-    const lateConn = transport.connect(joined.sessionToken, () => {});
+    const lateConn = transport.connect(joined.sessionToken, { onEvent: () => {} });
 
     let state = await transport.fetchState(created.gameCode, created.sessionToken);
     assert.equal(state.currentRound.roundNumber, 1);
@@ -318,7 +318,7 @@ test(
 test('game:lock prevents subsequent joinGame with ROOM_LOCKED', async () => {
   const transport = createMockTransport();
   const created = await transport.createGame({});
-  const conn = transport.connect(created.sessionToken, () => {});
+  const conn = transport.connect(created.sessionToken, { onEvent: () => {} });
   const ack = await conn.send('game:lock', 'act_lock', { locked: true });
   assert.deepEqual(ack.payload, {});
 
@@ -338,8 +338,8 @@ test(
     const transport = createMockTransport();
     const created = await transport.createGame({});
     const joined = await transport.joinGame({ inviteId: created.inviteId, displayName: 'Kickme' });
-    const hostConn = transport.connect(created.sessionToken, () => {});
-    const targetConn = transport.connect(joined.sessionToken, () => {});
+    const hostConn = transport.connect(created.sessionToken, { onEvent: () => {} });
+    const targetConn = transport.connect(joined.sessionToken, { onEvent: () => {} });
 
     const kickAck = await hostConn.send('game:kick', 'act_kick', { playerId: joined.playerId });
     assert.equal(kickAck.ok, true);
@@ -363,7 +363,7 @@ test('player:leave deactivates the player and lowers playerCount, but leaves the
   const transport = createMockTransport();
   const created = await transport.createGame({});
   const joined = await transport.joinGame({ inviteId: created.inviteId, displayName: 'Vertrekker' });
-  const conn = transport.connect(joined.sessionToken, () => {});
+  const conn = transport.connect(joined.sessionToken, { onEvent: () => {} });
 
   const leaveAck = await conn.send('player:leave', 'act_leave', {});
   assert.equal(leaveAck.ok, true);
@@ -413,7 +413,7 @@ test(
 test('game:resume outside of PAUSED is rejected with INVALID_PHASE', async () => {
   const transport = createMockTransport();
   const created = await transport.createGame({});
-  const conn = transport.connect(created.sessionToken, () => {});
+  const conn = transport.connect(created.sessionToken, { onEvent: () => {} });
   await assert.rejects(() => conn.send('game:resume', 'act_resume', {}), (err) => err.code === 'INVALID_PHASE');
 });
 
@@ -453,7 +453,7 @@ test(
     const events = [];
     // One connection per sessionToken: connect() replaces any prior listener
     // for that token, so listening and sending must share the connection.
-    const conn = transport.connect(created.sessionToken, (envelope) => events.push(envelope));
+    const conn = transport.connect(created.sessionToken, { onEvent: (envelope) => events.push(envelope) });
 
     await conn.send('game:start', 'act_start', {});
     mock.timers.tick(COUNTDOWN_TICK_MS);
@@ -510,7 +510,7 @@ test(
 test('game:rematch outside of FINISHED is rejected with INVALID_PHASE', async () => {
   const transport = createMockTransport();
   const created = await transport.createGame({});
-  const conn = transport.connect(created.sessionToken, () => {});
+  const conn = transport.connect(created.sessionToken, { onEvent: () => {} });
   await assert.rejects(() => conn.send('game:rematch', 'act_rematch', {}), (err) => err.code === 'INVALID_PHASE');
 });
 
