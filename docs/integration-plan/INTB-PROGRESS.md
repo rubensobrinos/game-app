@@ -55,21 +55,32 @@ INTB2a staat alleen het fundament.
 Conformance-suite: **80/80 groen**. De drie tests die op **INTB-4** rood stonden
 zijn met DM13 groen geworden — ze waren de acceptatietoets van die fix.
 
-## De Redis-adapter — INTB2 compleet
+## De opslagadapters — INTB2 en INTB3a compleet
 
 | Bestand | Tests |
 | --- | ---: |
-| `connection.mjs` — verbinding, levenscyclus, herverbinding | 30 |
-| `documents.mjs` — versieerbare envelop | 24 |
-| `data-store.mjs` — 22 van de 23 poortmethoden | 132 |
-| `aof-restart.test.mjs` — herstart-overleving | 14 |
-| **Totaal** | **200, alles groen** |
+| `redis/connection.mjs` — verbinding, levenscyclus, herverbinding | 30 |
+| `redis/documents.mjs` — versieerbare envelop | 24 |
+| `redis/data-store.mjs` — **23 van de 23 poortmethoden** | 156 |
+| `redis/aof-restart.test.mjs` — herstart-overleving | 14 |
+| `postgres/analytics.mjs` — gebufferde analytics | 53 |
+| **Totaal** | **277, alles groen** |
 
-Alleen `loadSessionByTokenHash` ontbreekt, geblokkeerd op het sleutelontwerp uit
-**INTB-10**.
+De gedeelde conformance-suite staat op 96/96 tegen de in-memory fake.
 
-Mutatiedekking per fase: 7/7, 11/11, 12/12, 9/10 (één beargumenteerd equivalent)
-en zes verzwakte varianten voor de herstarttest.
+Mutatiedekking per fase: 7/7, 11/11, 12/12, 9/10 (één beargumenteerd
+equivalent), 9/9, 10/10, plus zes verzwakte varianten voor de herstarttest.
+
+## De laatste blokkade — INTB-12
+
+**De draaiende server gebruikt geen van dit alles.** `REDIS_URL` staat in
+compose maar komt niet voor in `server/index.mjs`; `buildServer()` valt terug op
+`createInMemoryStore()`. Zie
+[`HANDOFF-INTB-redis-bedrading.md`](HANDOFF-INTB-redis-bedrading.md) voor de
+kant-en-klare bedrading.
+
+Tot die regel er ligt is de INTB4a-DoD — een match die een game-server-herstart
+overleeft — niet haalbaar, en staat alles hierboven buiten de keten.
 
 ## Rapportageroutine
 
