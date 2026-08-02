@@ -4,9 +4,22 @@
 // Spec: docs/multiplayer/PROTOCOL.md basisregel 6 + sectie "Reconnect",
 // docs/multiplayer/ARCHITECTURE.md §3 en docs/multiplayer/DATA-MODEL.md (rematch =
 // nieuwe matchId binnen dezelfde room). Alleen node:test + node:assert, geen externe
-// dependencies; geschreven vanuit de spec, niet vanuit de implementatie. Geen enkele
-// test raakt de systeemklok: alle tijdstempels zijn vaste literals, zodat elke
-// ordening exact te asserten is.
+// dependencies. Geen enkele test raakt de systeemklok: alle tijdstempels zijn vaste
+// literals, zodat elke ordening exact te asserten is.
+//
+// TWEE SOORTEN RIJEN — LEES DIT VOORDAT JE ER EEN VERANDERT
+// De meeste rijen leggen een BRONEIS vast: haal je die weg, dan wijkt de module af van
+// PROTOCOL.md, ARCHITECTURE.md of DATA-MODEL.md. Maar een deel van het gedrag staat in
+// géén enkele bron; dat is een MODULEAFSPRAAK die snapshot-precedence.js zelf heeft
+// gekozen omdat de spec zwijgt. Die rijen dragen het voorvoegsel "moduleafspraak — " en
+// zijn precies zo hard getest, maar om een andere reden: ze bevriezen een keuze zodat
+// een wijziging zichtbaar wordt in plaats van stilzwijgend. Verandert de spec (of de
+// besluiten in de modulekop), dan mag zo'n rij meebewegen; een broneis niet.
+// Als moduleafspraak gemarkeerd: DUPLICATE_SNAPSHOT (een tweede snapshot op hetzelfde
+// tijdstip), het gelijke-serverTime-rematchgeval, de afwijzing op protocolVersion
+// (PROTOCOL.md schrijft geen clientgedrag voor — zie open punt a/b in de modulekop) en
+// de keuze om fractionele epoch-ms te accepteren. De meta-test onderaan bewaakt dat de
+// markering blijft staan.
 
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -23,6 +36,16 @@ const MATCH_B = 'match_01JB';
 const T_EARLY = 1_785_623_400_000;
 const T_NOW = 1_785_623_412_000;
 const T_LATE = 1_785_623_427_000;
+
+/** Halve milliseconden. server-time.js produceert die aantoonbaar (`offsetMs = t1 - (t0 +
+ * roundTripMs / 2)` geeft bij een oneven round-trip bijv. 498.5), dus "epoch-ms" mag hier
+ * niet stilzwijgend "geheel getal" betekenen. De modulekop kiest expliciet: fracties zijn
+ * geldige epoch-ms en ordenen gewoon mee. */
+const T_JUST_AFTER_NOW = T_NOW + 0.5;
+const T_JUST_BEFORE_NOW = T_NOW - 0.5;
+
+/** Voorvoegsel voor rijen die een moduleafspraak vastleggen i.p.v. een broneis. */
+const MODULE_CHOICE = 'moduleafspraak — ';
 
 /** @typedef {{ description: string, localState: unknown, incoming: unknown,
  *   expected: object }} Fixture */
@@ -97,7 +120,10 @@ const SNAPSHOT_FIXTURES = [
   row('trage tweede /state-respons van vóór de laatste event-tick is stale',
     local({ appliedServerTime: T_LATE }), snap({ serverTime: T_EARLY }),
     denied(REASONS.STALE_SNAPSHOT)),
-  row('snapshot met GELIJKE serverTime als reeds toegepaste snapshot is een duplicaat',
+  // DUPLICATE_SNAPSHOT staat in geen enkele bron: PROTOCOL.md zegt niets over twee
+  // snapshots op hetzelfde tijdstip. De module redeneert dat een snapshot TOTALE state
+  // is en een tweede dus niets toevoegt. Dat is een afspraak, geen eis.
+  row(`${MODULE_CHOICE}snapshot met GELIJKE serverTime als reeds toegepaste snapshot is een duplicaat`,
     local({ appliedFrom: 'snapshot' }), snap({ serverTime: T_NOW }),
     denied(REASONS.DUPLICATE_SNAPSHOT)),
 
@@ -106,18 +132,21 @@ const SNAPSHOT_FIXTURES = [
   row('eerste snapshot zonder actieve match', fresh(), snap({ matchId: null }), applied(false)),
   row('oude serverTime is op een verse client prima', fresh(), snap({ serverTime: T_EARLY }), applied(true)),
 
-  // [4] Protocolversie gaat vóór alles wat inhoud is (open punt a in de module).
-  row('afwijkende protocolVersion v2 wordt afgewezen',
+  // [4] Protocolversie gaat vóór alles wat inhoud is. PROTOCOL.md schrijft NIET voor wat
+  // een client met een afwijkende protocolVersion moet doen, en gebruikt
+  // PROTOCOL_VERSION_UNSUPPORTED als wire-foutcode server → client. Afwijzen én die code
+  // lokaal als motief hergebruiken zijn allebei keuzes van de module (open punt a en b).
+  row(`${MODULE_CHOICE}afwijkende protocolVersion v2 wordt afgewezen`,
     local(), snap({ protocolVersion: 'v2' }), denied(REASONS.PROTOCOL_VERSION_UNSUPPORTED)),
-  row('protocolVersion is hoofdlettergevoelig: "V1" wordt afgewezen',
+  row(`${MODULE_CHOICE}protocolVersion is hoofdlettergevoelig: "V1" wordt afgewezen`,
     local(), snap({ protocolVersion: 'V1' }), denied(REASONS.PROTOCOL_VERSION_UNSUPPORTED)),
-  row('versiecheck gaat vóór de tijdcheck: stale én v2 → PROTOCOL_VERSION_UNSUPPORTED',
+  row(`${MODULE_CHOICE}versiecheck gaat vóór de tijdcheck: stale én v2 → PROTOCOL_VERSION_UNSUPPORTED`,
     local(), snap({ protocolVersion: 'v2', serverTime: T_EARLY }),
     denied(REASONS.PROTOCOL_VERSION_UNSUPPORTED)),
-  row('versiecheck gaat vóór de roomcheck: andere room én v2 → PROTOCOL_VERSION_UNSUPPORTED',
+  row(`${MODULE_CHOICE}versiecheck gaat vóór de roomcheck: andere room én v2 → PROTOCOL_VERSION_UNSUPPORTED`,
     local(), snap({ protocolVersion: 'v2', code: OTHER_ROOM }),
     denied(REASONS.PROTOCOL_VERSION_UNSUPPORTED)),
-  row('lokaal verwachte v2 wijst een v1-snapshot af',
+  row(`${MODULE_CHOICE}lokaal verwachte v2 wijst een v1-snapshot af`,
     local({ protocolVersion: 'v2' }), snap(), denied(REASONS.PROTOCOL_VERSION_UNSUPPORTED)),
 
   // [5] Room-identiteit: een snapshot van een andere room is een routeringsfout.
@@ -133,8 +162,23 @@ const SNAPSHOT_FIXTURES = [
   // fout. matchId ordent niet — dat doet uitsluitend serverTime.
   row('rematch: nieuwe matchId binnen dezelfde room wordt toegepast en gemarkeerd',
     local(), snap({ matchId: MATCH_B }), applied(true)),
-  row('rematch met gelijke serverTime wint alsnog van event-state',
+  // Gelijke serverTime + andere matchId: geen bron zegt wat hier moet gebeuren, en de
+  // uitkomst hangt af van de HERKOMST van de lokale state. Beide richtingen liggen hier
+  // vast, inclusief het geval dat de module (nog) verkeerd doet — zie open punt (e) in de
+  // modulekop: ná een snapshot wint de duplicaatpoort en wordt de rematch gemist.
+  row(`${MODULE_CHOICE}rematch met gelijke serverTime wint alsnog van event-state`,
     local(), snap({ matchId: MATCH_B, serverTime: T_NOW }), applied(true)),
+  row(`${MODULE_CHOICE}gelijke serverTime met ándere matchId ná een snapshot: rematch A→B wordt gemist`,
+    local({ appliedFrom: 'snapshot' }), snap({ matchId: MATCH_B, serverTime: T_NOW }),
+    denied(REASONS.DUPLICATE_SNAPSHOT)),
+  row(`${MODULE_CHOICE}gelijke serverTime met ándere matchId ná een snapshot: ook B→A wordt gemist`,
+    local({ matchId: MATCH_B, appliedFrom: 'snapshot' }), snap({ matchId: MATCH_A, serverTime: T_NOW }),
+    denied(REASONS.DUPLICATE_SNAPSHOT)),
+  row(`${MODULE_CHOICE}gelijke serverTime met matchId B→A ná een event wordt wél toegepast en gemarkeerd`,
+    local({ matchId: MATCH_B }), snap({ matchId: MATCH_A, serverTime: T_NOW }), applied(true)),
+  row(`${MODULE_CHOICE}gelijke serverTime met matchId → null ná een snapshot wordt gemist`,
+    local({ appliedFrom: 'snapshot' }), snap({ matchId: null, serverTime: T_NOW }),
+    denied(REASONS.DUPLICATE_SNAPSHOT)),
   row('eerste match: matchId null → id wordt gemarkeerd als matchwissel',
     local({ matchId: null }), snap({ matchId: MATCH_A }), applied(true)),
   row('room zonder actieve match: matchId id → null wordt gemarkeerd als matchwissel',
@@ -197,6 +241,22 @@ const SNAPSHOT_FIXTURES = [
   row('appliedServerTime ontbreekt volledig', omit(local(), 'appliedServerTime'), snap(),
     denied(REASONS.INVALID_LOCAL_STATE)),
   row('ongeldige localState wint van ongeldige snapshot', null, null, denied(REASONS.INVALID_LOCAL_STATE)),
+
+  // [9] Fractionele epoch-ms. server-time.js levert halve milliseconden (`offsetMs`
+  // 498.5), dus "epoch-ms" mag niet twee verschillende impliciete betekenissen krijgen.
+  // De modulekop kiest expliciet: elke eindige, niet-negatieve waarde is geldig, ook een
+  // fractie, en fracties ordenen gewoon mee. Beide richtingen liggen hier vast.
+  row(`${MODULE_CHOICE}fractionele serverTime is geldig: een halve ms nieuwer wint`,
+    local(), snap({ serverTime: T_JUST_AFTER_NOW }), applied(false)),
+  row(`${MODULE_CHOICE}fractionele serverTime een halve ms ouder is stale`,
+    local(), snap({ serverTime: T_JUST_BEFORE_NOW }), denied(REASONS.STALE_SNAPSHOT)),
+  row(`${MODULE_CHOICE}fractionele appliedServerTime in de lokale state is geldig`,
+    local({ appliedServerTime: T_JUST_BEFORE_NOW }), snap({ serverTime: T_NOW }), applied(false)),
+  row(`${MODULE_CHOICE}identiek fractioneel tijdstip na een snapshot is een duplicaat`,
+    local({ appliedServerTime: T_JUST_AFTER_NOW, appliedFrom: 'snapshot' }),
+    snap({ serverTime: T_JUST_AFTER_NOW }), denied(REASONS.DUPLICATE_SNAPSHOT)),
+  row(`${MODULE_CHOICE}fractionele serverTime op een verse client wordt toegepast`,
+    fresh(), snap({ serverTime: T_JUST_AFTER_NOW }), applied(true)),
 ];
 
 /** @type {Fixture[]} */
@@ -232,7 +292,19 @@ const EVENT_FIXTURES = [
   row('event zonder eventnaam is geldig: alleen serverTime telt voor de ordening',
     local(), { serverTime: T_LATE }, appliedEvent()),
 
-  // [5] LocalState-validatie gaat ook hier voorop.
+  // [5] Fractionele epoch-ms, dezelfde keuze als bij de snapshotregel: een halve ms telt
+  // volwaardig mee in de ordening, in beide richtingen en tegen beide herkomsten.
+  row(`${MODULE_CHOICE}event een halve ms ná het laatste event landt`,
+    local(), evt(T_JUST_AFTER_NOW), appliedEvent()),
+  row(`${MODULE_CHOICE}event een halve ms vóór het laatste event is stale`,
+    local(), evt(T_JUST_BEFORE_NOW), denied(REASONS.STALE_EVENT)),
+  row(`${MODULE_CHOICE}event een halve ms vóór de toegepaste snapshot is achterhaald`,
+    local({ appliedFrom: 'snapshot' }), evt(T_JUST_BEFORE_NOW),
+    denied(REASONS.SUPERSEDED_BY_SNAPSHOT)),
+  row(`${MODULE_CHOICE}event een halve ms ná de toegepaste snapshot landt wel`,
+    local({ appliedFrom: 'snapshot' }), evt(T_JUST_AFTER_NOW), appliedEvent()),
+
+  // [6] LocalState-validatie gaat ook hier voorop.
   row('event: localState null', null, evt(T_LATE), denied(REASONS.INVALID_LOCAL_STATE)),
   row('event: ongeldige local wint van ongeldig event', 'state', null, denied(REASONS.INVALID_LOCAL_STATE)),
 ];
@@ -308,6 +380,74 @@ test('werpende getters leveren een afwijzing op, geen exception', () => {
     denied(REASONS.INVALID_EVENT));
 });
 
+/** Ingetrokken Proxy: élke bewerking werpt, inclusief `Array.isArray()` — dus ook de
+ * typecontrole zelf, niet alleen de veldlezing. Dit is de vorm die een opgeruimde wrapper
+ * rond een verbroken socket kan achterlaten. Kan niet door de tabelrunner: hij is niet te
+ * klonen en niet te vergelijken. */
+function revokedProxy() {
+  const { proxy, revoke } = Proxy.revocable({}, {});
+  revoke();
+  return proxy;
+}
+
+/** Proxy waarvan élke trap werpt: zowel de aanwezigheidscheck als de lezing loopt erop
+ * stuk, ook bij een veld dat "gewoon" zou moeten bestaan. */
+function hostileProxy() {
+  const boom = () => {
+    throw new Error('vijandige trap');
+  };
+  return new Proxy({}, { get: boom, has: boom, getOwnPropertyDescriptor: boom, ownKeys: boom });
+}
+
+test('ingetrokken Proxy geeft een afwijzing, geen exception — alle drie de ingangen', () => {
+  const revoked = revokedProxy();
+
+  assert.deepStrictEqual(shouldApplySnapshot(local(), revoked), denied(REASONS.INVALID_SNAPSHOT));
+  assert.deepStrictEqual(shouldApplySnapshot(revoked, snap()), denied(REASONS.INVALID_LOCAL_STATE));
+  assert.deepStrictEqual(shouldApplyEvent(local(), revoked), denied(REASONS.INVALID_EVENT));
+  // En genest: `room` is de enige geneste lezing in de beslissing.
+  assert.deepStrictEqual(shouldApplySnapshot(local(), snap({ room: revoked })),
+    denied(REASONS.INVALID_SNAPSHOT));
+});
+
+test('Proxy met werpende traps geeft een afwijzing, geen exception — alle drie de ingangen', () => {
+  const hostile = hostileProxy();
+
+  assert.deepStrictEqual(shouldApplySnapshot(local(), hostile), denied(REASONS.INVALID_SNAPSHOT));
+  assert.deepStrictEqual(shouldApplySnapshot(hostile, snap()), denied(REASONS.INVALID_LOCAL_STATE));
+  assert.deepStrictEqual(shouldApplyEvent(local(), hostile), denied(REASONS.INVALID_EVENT));
+  assert.deepStrictEqual(shouldApplySnapshot(local(), snap({ room: hostile })),
+    denied(REASONS.INVALID_SNAPSHOT));
+});
+
+test('vervuild Object.prototype vult geen ontbrekend veld in', () => {
+  const snapshotZonderMatchId = snap({ room: { code: ROOM, phase: 'LOBBY' } });
+
+  assert.deepStrictEqual(shouldApplySnapshot(local(), snapshotZonderMatchId),
+    denied(REASONS.INVALID_SNAPSHOT), 'schoon prototype: ontbrekend veld blijft ongeldig');
+
+  // Opruimen in finally, anders lekt de vervuiling naar elke andere test in dit proces.
+  Object.prototype.matchId = MATCH_B;
+  Object.prototype.serverTime = T_LATE;
+  Object.prototype.appliedFrom = 'event';
+  try {
+    assert.deepStrictEqual(shouldApplySnapshot(local(), snapshotZonderMatchId),
+      denied(REASONS.INVALID_SNAPSHOT), 'geen verzonnen matchId, dus ook geen verzonnen rematch');
+    assert.deepStrictEqual(shouldApplySnapshot(local(), omit(snap(), 'serverTime')),
+      denied(REASONS.INVALID_SNAPSHOT), 'geen verzonnen serverTime in een snapshot');
+    assert.deepStrictEqual(shouldApplyEvent(local(), omit(evt(), 'serverTime')),
+      denied(REASONS.INVALID_EVENT), 'geen verzonnen serverTime in een envelope');
+    assert.deepStrictEqual(shouldApplySnapshot(omit(local(), 'appliedFrom'), snap()),
+      denied(REASONS.INVALID_LOCAL_STATE), 'geen verzonnen herkomst in de lokale state');
+  } finally {
+    delete Object.prototype.matchId;
+    delete Object.prototype.serverTime;
+    delete Object.prototype.appliedFrom;
+  }
+
+  assert.strictEqual('matchId' in {}, false, 'Object.prototype is weer schoon');
+});
+
 test('reconnectscenario: snapshot en events lopen door elkaar (PROTOCOL.md "Reconnect")', () => {
   // De aanroeper werkt zijn LocalState telkens bij zoals de modulekop voorschrijft;
   // deze test doet dat expliciet, met vaste tijdstempels en zonder klok.
@@ -334,6 +474,12 @@ test('reconnectscenario: snapshot en events lopen door elkaar (PROTOCOL.md "Reco
     shouldApplySnapshot(state, snap({ serverTime: T_LATE + 1, matchId: MATCH_B })), applied(true));
 });
 
+/** Motieven die deze module zelf verzint: PROTOCOL.md kent ze niet als clientgedrag. */
+const SOURCELESS_REASONS = new Set([
+  REASONS.DUPLICATE_SNAPSHOT,
+  REASONS.PROTOCOL_VERSION_UNSUPPORTED,
+]);
+
 // Meta-test op de fixture-sets zelf: bewaakt de eisen aan de suite.
 test('meta: exacte verwachtingen, unieke beschrijvingen en volledige motiefdekking', () => {
   const allFixtures = [...SNAPSHOT_FIXTURES, ...EVENT_FIXTURES];
@@ -349,6 +495,12 @@ test('meta: exacte verwachtingen, unieke beschrijvingen en volledige motiefdekki
     if (!fixture.expected.apply) {
       assert.ok(known.has(fixture.expected.reason), `onbekend motief: ${fixture.description}`);
       usedReasons.add(fixture.expected.reason);
+      // Deze twee motieven staan in geen enkele bron; hun rijen moeten zichtbaar een
+      // moduleafspraak vastleggen, anders vervaagt het onderscheid met een broneis weer.
+      if (SOURCELESS_REASONS.has(fixture.expected.reason)) {
+        assert.ok(fixture.description.startsWith(MODULE_CHOICE),
+          `moet als moduleafspraak gemarkeerd zijn: ${fixture.description}`);
+      }
       continue;
     }
     // Alleen de snapshotregel kent matchChanged; de eventregel interpreteert matchId
@@ -360,4 +512,8 @@ test('meta: exacte verwachtingen, unieke beschrijvingen en volledige motiefdekki
 
   // Elk gepubliceerd motief moet minstens één rij hebben.
   assert.deepStrictEqual([...usedReasons].sort(), [...known].sort());
+
+  // De markering zelf mag niet stilletjes uit de suite verdwijnen.
+  const marked = allFixtures.filter((f) => f.description.startsWith(MODULE_CHOICE));
+  assert.ok(marked.length > 0, 'geen enkele rij is nog als moduleafspraak gemarkeerd');
 });

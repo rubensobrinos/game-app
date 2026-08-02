@@ -11,6 +11,18 @@
 // bewust nergens een `Date.now()` — tijd komt uitsluitend uit de `serverTime` van de
 // meegegeven data (PROTOCOL.md: "tijden in epoch-milliseconden volgens servertijd").
 //
+// EPOCH-MS: FRACTIES ZIJN GELDIG (expliciete keuze)
+// `serverTime` en `appliedServerTime` hoeven geen hele milliseconde te zijn; elke
+// eindige, niet-negatieve waarde telt. Dat is dezelfde definitie als `isTimestamp()` in
+// server-time.js, dat aantoonbaar halve milliseconden produceert: `offsetMs = t1 - (t0 +
+// roundTripMs / 2)` levert bij een oneven round-trip bijv. 498.5 op, en `serverNow()`
+// telt die offset op bij de lokale tijd. Twee modules in dezelfde repo met een verschillende
+// impliciete definitie van "epoch-ms" is een bug in wording. Voor de ordening maakt het
+// niets uit — `<` werkt op fracties net zo goed — en afwijzen is juist duur: op het
+// reconnectpad zou een `.5` een INVALID_SNAPSHOT worden en de herstelpoging laten
+// sneuvelen. Deze module rondt niets af en geeft niets van de invoer door; hij vergelijkt
+// alleen. Wie hele milliseconden wil afdwingen doet dat in de protocol-adapter.
+//
 // HET PROBLEEM
 // Na een reconnect vraagt de client áltijd een snapshot op (PROTOCOL.md "Reconnect",
 // stap 5), terwijl events van vóór de onderbreking nog onderweg kunnen zijn. Snapshot
@@ -22,12 +34,14 @@
 // (ARCHITECTURE.md §2) en elke payload draagt servertijd. `serverTime` is daarmee de
 // ENIGE volgorde-autoriteit; `matchId` ordent niets, want een rematch is
 // server-authoritative en krijgt vanzelf een hogere `serverTime` (een snapshot van de
-// vórige match is dus per definitie stale en valt al op tijd af).
+// vórige match is dus per definitie stale en valt al op tijd af). Die aanname houdt
+// alleen bij een STRIKT hogere serverTime — bij een gelijke breekt ze; zie open punt (e).
 //
 // GELIJKE serverTime (ms-resolutie is grof genoeg om echt voor te komen)
 //   snapshot vs. toegepast event     → snapshot wint (basisregel 6, letterlijk)
 //   snapshot vs. toegepaste snapshot → duplicaat; een snapshot is TOTALE state, dus
-//     een tweede op hetzelfde tijdstip voegt niets toe
+//     een tweede op hetzelfde tijdstip voegt niets toe. LET OP: dat geldt niet als de
+//     matchId verschilt — open punt (e), gevolg 1.
 //   event vs. toegepaste snapshot    → event verliest (basisregel 6)
 //   event vs. toegepast event        → event wint; events zijn PARTIËLE delta's en
 //     twee broadcasts kunnen dezelfde ms delen (`round:ended` + `scoreboard:updated`)
@@ -57,6 +71,18 @@
 // werpende getter naar buiten propageren, hier gaat elke lezing via `readField()` — op
 // het reconnectpad zou een throw de hele herstelpoging laten sneuvelen.
 //
+// GEEN ENKEL PAD WERPT, OOK DE TYPECONTROLE NIET
+// Elke lezing gaat via `readField()`, dat binnen ÉÉN try zowel de aanwezigheidscheck als
+// de lezing doet: op een Proxy kan `hasOwnProperty` zelf al werpen, dus een check buiten
+// de try zou het gat alleen verplaatsen. Om dezelfde reden zit `Array.isArray()` in
+// `isObject()` in een try — het werpt op een INGETROKKEN Proxy, en dat is precies de
+// vorm die een verbroken verbinding kan achterlaten.
+// `readField()` eist een EIGEN property. Overgeërfd telt als afwezig: met een vervuild
+// `Object.prototype` zou een ontbrekende `room.matchId` anders een impliciete waarde
+// krijgen en deze module een rematch laten verzinnen die nooit is gestart. Een
+// JSON-payload van de wire heeft per definitie alleen eigen properties; een snapshot dat
+// zijn beslissingsvelden van een prototype erft, wordt hier bewust afgewezen.
+//
 // OPEN PUNTEN VOOR DE PROTOCOL.md-EIGENAAR (docs/architecture-plan/README.md,
 // "Openstaande besluiten"):
 //   a. PROTOCOL.md zegt niet wat een client moet doen met een snapshot waarvan de
@@ -71,6 +97,29 @@
 //   d. De aanname dat `serverTime` per room monotoon is, houdt bij één game-server
 //      (ARCHITECTURE.md Fase 0/1). Bij meerdere instances (Fase 2) kan klokverschil die
 //      aanname breken; dan is punt (c) geen luxe meer.
+//   e. OPENSTAAND, NIET OPGELOST — er is geen totale ordening OVER MATCHES HEEN.
+//      `serverTime` ordent binnen één timeline; een matchwissel is een breuk die het niet
+//      ziet. Drie bekende gevolgen, alle drie dezelfde oorzaak:
+//        1. Gelijke `serverTime` met een ándere `matchId` geeft nu `DUPLICATE_SNAPSHOT`
+//           (de duplicaatpoort kijkt alleen naar tijd en herkomst). Een snapshot van de
+//           NIEUWE match wordt daarmee gemist en de per-match state van de vorige match
+//           blijft staan — precies wat `matchChanged` moest voorkomen.
+//        2. Een matchId-flip-flop (A→B→A→B) met oplopende `serverTime` wordt viermaal
+//           geaccepteerd, terwijl matchIds uniek zijn per room (DATA-MODEL.md) en
+//           terugkeer naar een eerdere match dus altijd een fout is.
+//        3. `game:rematch-started` is een server→client EVENT, geen snapshot, en
+//           `shouldApplyEvent` geeft geen matchwissel-signaal (bewust: zie die functie).
+//           Op het NORMALE rematchpad houdt de aanroeper dus de per-match state van de
+//           vorige match vast, terwijl GAME-FLOW.md §12 eist dat scores en streaks naar
+//           nul gaan. `matchChanged` dekt alleen het snapshotpad.
+//      Voorgestelde oplossing: DATA-MODEL.md definieert al `Match.sequence`, die matches
+//      binnen een room totaal ordent. Eerst op `sequence` ordenen en pas daarna op
+//      `serverTime` binnen één match lost alle drie in één keer op. Dat vereist wel dat
+//      `sequence` in het snapshot-`room`-object van PROTOCOL.md komt te staan (en bij
+//      voorkeur ook in de rematch-event-payload), en dat is een besluit van de
+//      PROTOCOL.md-eigenaar. Tot dat besluit blijft de ordeningslogica hieronder
+//      ONGEWIJZIGD; de huidige uitkomsten liggen vast in de fixtures, zodat een latere
+//      wijziging zichtbaar wordt in plaats van stilzwijgend.
 
 /**
  * De lokaal bijgehouden herkomst van de huidige state. `protocolVersion` en `roomCode`
@@ -107,8 +156,9 @@ const LOCAL_REASONS = Object.freeze({
 /** De enige motieven die deze module kan retourneren. */
 const REASONS = Object.freeze({ ...PROTOCOL_REASONS, ...LOCAL_REASONS });
 
-/** Sentinel voor een property-getter die zelf werpt; faalt elke typecheck hieronder. */
-const THREW = Symbol('werpende-getter');
+/** Sentinel voor een veld dat niet betrouwbaar te lezen was: het ontbreekt als eigen
+ * property, of de lezing wierp. Faalt elke typecheck hieronder. */
+const UNREADABLE = Symbol('onleesbaar-veld');
 
 /**
  * Mag deze binnenkomende snapshot de lokale state overschrijven?
@@ -117,7 +167,8 @@ const THREW = Symbol('werpende-getter');
  * ordening (serverTime). Een snapshot met een andere protocolversie kan geen
  * betrouwbare `serverTime` dragen, en een snapshot van een andere room hoort niet op
  * deze tijdlijn thuis. Werpt nooit — ook niet op ontbrekende, vijandige of werpende
- * velden. Muteert `localState` noch `incomingSnapshot`.
+ * velden, op een ingetrokken Proxy of bij een vervuild `Object.prototype`. Muteert
+ * `localState` noch `incomingSnapshot`.
  *
  * @param {LocalState} localState
  * @param {unknown} incomingSnapshot - snapshot volgens PROTOCOL.md "State-snapshot"
@@ -169,7 +220,8 @@ function shouldApplySnapshot(localState, incomingSnapshot) {
  * (basisregel 2, socket-auth pint de versie). Deze functie beslist dus alleen op tijd,
  * en expliciet niet op `payload.matchId`: `game:rematch-started` draagt legitiem een
  * NIEUWE matchId, dus dat onderscheid vereist kennis van het event-type en hoort in de
- * protocol-adapter. Werpt nooit. Muteert `localState` noch `incomingEvent`.
+ * protocol-adapter. Werpt nooit, onder dezelfde garantie als `shouldApplySnapshot`.
+ * Muteert `localState` noch `incomingEvent`.
  *
  * @param {LocalState} localState
  * @param {unknown} incomingEvent - envelope met minimaal een `serverTime`
@@ -282,23 +334,35 @@ function readEventServerTime(incomingEvent) {
 }
 
 /**
- * Leest één property zonder ooit te werpen. Een getter die zelf werpt levert de
- * THREW-sentinel op, die elke typecheck hieronder faalt en dus tot een nette
- * afwijzing leidt.
+ * Leest één EIGEN property zonder ooit te werpen. Aanwezigheidscheck en lezing staan in
+ * DEZELFDE try: `hasOwnProperty` roept op een Proxy de `getOwnPropertyDescriptor`-trap
+ * aan en kan dus net zo goed werpen als de getter erna. Een veld dat ontbreekt, dat
+ * alleen via de prototypeketen bereikbaar is, of waarvan de lezing werpt, levert de
+ * UNREADABLE-sentinel op — die faalt elke typecheck hieronder en leidt tot een nette
+ * afwijzing.
  * @param {object} source @param {string} key @returns {unknown}
  */
 function readField(source, key) {
   try {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) {
+      return UNREADABLE;
+    }
     return /** @type {Record<string, unknown>} */ (source)[key];
   } catch {
-    return THREW;
+    return UNREADABLE;
   }
 }
 
-/** Bruikbaar payload-object: geen null, geen array, geen primitieve.
+/** Bruikbaar payload-object: geen null, geen array, geen primitieve. Werpt niet:
+ * `Array.isArray()` werpt op een ingetrokken Proxy en staat daarom binnen de try, zodat
+ * ook de typecontrole zelf geen ontsnappingsroute is.
  * @param {unknown} value @returns {boolean} */
 function isObject(value) {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+  try {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+  } catch {
+    return false;
+  }
 }
 
 /** @param {unknown} value @returns {boolean} */
@@ -306,8 +370,9 @@ function isNonEmptyString(value) {
   return typeof value === 'string' && value !== '';
 }
 
-/** Epoch-ms: eindig en niet-negatief. NaN, Infinity, numerieke strings en booleans
- * vallen af — een string vergelijkt met `<` stilzwijgend verkeerd.
+/** Epoch-ms: eindig en niet-negatief. Fracties zijn GELDIG (zie modulekop: server-time.js
+ * levert halve milliseconden). NaN, Infinity, numerieke strings en booleans vallen af —
+ * een string vergelijkt met `<` stilzwijgend verkeerd.
  * @param {unknown} value @returns {boolean} */
 function isEpochMs(value) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
