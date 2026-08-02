@@ -9,8 +9,8 @@ Bijgewerkt: 2026-08-02. Legenda (vast, uit `UI1-multiplayer-ui.md`):
 | Onderdeel | Status | Toelichting |
 | --- | --- | --- |
 | UI0 — Scaffold + mock-transportlaag | 🟡 | Onafhankelijke review verwerkt: alle 6 gevonden bugs in `transport-mock.mjs` + de bugs in `server-time.mjs`/`view-switcher.mjs` zijn gefixed en (opnieuw) getest. **UI-1 en UI-3 zijn inmiddels ✅ beantwoord door INT-A** (`HANDOFF-UI.md`) — de vier contractcorrecties zijn verwerkt in `transport.mjs`/`transport-mock.mjs`, en `index.html` heeft nu `<base href="/">` + absolute paden. Blijft 🟡 i.p.v. ✅ om de enige overgebleven reden: er is nog geen echte server (INT-A's stap 2) om tegen te draaien — dat vereist de ✅-lat zelf, niet een openstaand contractpunt. |
-| UI1 — Home + Preview/Join | 🔵 | prompt klaar, nog niet gestart — geen scherm-/DOM-bestanden onder `frontend/js/` voor home/join |
-| UI2 — Lobby + Delen | 🔵 | prompt klaar, wacht op UI1 |
+| UI1 — Home + Preview/Join | 🟡 | `views/home.mjs` + `views/join.mjs` gebouwd, bedraad via `app.mjs` (`route-resolver` + `view-switcher`). Handmatig doorlopen in headless Chromium tegen `transport-mock.mjs`: Snel starten → `/host/{code}` in één tik; code-invoer → direct naamveld zonder previewaanroep, leeg naamveld geaccepteerd, join → `/game/{code}`; invite-URL → preview → vooringevulde suggestienaam → join → `/game/{code}`; ongeldige invite → foutmelding + retry. Geen consolefouten, geen `innerHTML` op de naamvelden (gegrept). Blijft 🟡, niet ✅: vereist nog een echte server. |
+| UI2 — Lobby + Delen | 🔵 | prompt klaar, wacht op UI1 (nu klaar); QR-vendorkeuze al gedaan door CT/regie (`HANDOFF-UI.md` UI-4) |
 | UI3 — Spelscherm flags_mc | 🟡 | pure view-modellaag al gebouwd en getest (`views/round-model.mjs`, `views/gameplay.mjs`, `views/country-names.mjs`); DOM-montage/scherm zelf nog niet gebouwd |
 | UI4 — Tussenstand + Eindpodium | 🟡 | pure view-modellaag al gebouwd en getest (`views/standings-model.mjs`, `views/scoreboard.mjs`, `views/podium.mjs`); DOM-montage/scherm zelf nog niet gebouwd |
 | UI5 — Hostbalk | 🔵 | prompt klaar, wacht op UI3/UI4 |
@@ -64,8 +64,14 @@ Bijgewerkt: 2026-08-02. Legenda (vast, uit `UI1-multiplayer-ui.md`):
 - [ ] Mock-transportlaag vervangen door de echte (`transport.mjs`) zodra
       INT-A's stap 2 bestaat — één import-wijziging in `frontend/js/app.mjs`,
       contract ligt al vast.
-- [ ] UI1 (Home + Preview/Join) daadwerkelijk bouwen — eerstvolgende stap, nog
-      niet gestart qua scherm/DOM.
+- [x] UI1 (Home + Preview/Join) gebouwd: `views/home.mjs` (Snel starten,
+      code-invoer), `views/join.mjs` (preview/name-entry/submit/error,
+      hergebruikt voor zowel invite- als code-locators), `app.mjs` bedraadt
+      route → view. Routes `game`/`host` tonen bewust nog de UI0-placeholder
+      zolang UI2's lobby niet bestaat — `view-switcher.viewFor()` valt daar
+      zonder actieve fase terug op `'preview-join'`, wat na een net gelukte
+      create/join geen locator heeft om op te tonen; de placeholder is dus
+      correcter dan een tweede naamveld voorspiegelen. `node --test` groen.
 - [ ] UI2 (Lobby + Delen), UI3/UI4 (DOM-montage bovenop de al bestaande
       view-modellen), UI5 (Hostbalk + pauze-overlay/UI-2) uitvoeren, elk
       handmatig geverifieerd tegen de mock (en later de echte server).
