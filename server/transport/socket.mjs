@@ -1,0 +1,1032 @@
+// server/transport/socket.mjs
+//
+// De Socket.IO-transportlaag: LIJM tussen de al bestaande eventschema's
+// (server/protocol/), de al bestaande domeinlogica (server/composition/) en
+// een echte Socket.IO-server.
+//
+// GEEN EIGEN SCHEMA'S, GEEN EIGEN DOMEINLOGICA, GEEN TWEEDE MECHANISME:
+//   - envelope/ack             → ../protocol/envelope.mjs
+//   - clientevent-alfabet+rol  → ../protocol/client-events-dispatch.mjs
+//   - idempotentie             → ../protocol/idempotency.mjs
+//   - ontvangersregel          → ../protocol/server-events-recipients.mjs
+//   - round:progress-frequentie→ ../protocol/throttle-round-progress.mjs
+//   - foutcodes/`error`-payload→ ../protocol/error-codes.mjs, error-payload.mjs
+//   - snapshotvorm             → ../protocol/snapshot-shape.mjs
+//   - sessietoken-hash/verify  → ../protocol/auth-session.mjs (via ../composition/context.mjs)
+//   - alle mutaties            → ../composition/{room,match}-lifecycle.mjs
+//
+// VIER HARDE REGELS IN DIT BESTAND
+//
+// 1. Na de handshake draagt geen enkel event nog een token (PROTOCOL.md
+//    Basisregel 3). `socket.data` is de enige plek waar room/sessie/speler
+//    staat; er wordt nergens een token uit een payload gelezen.
+// 2. Interne foutcodes (besluit 12, `INVALID_PAUSE_STATE` en alles wat niet in
+//    `ALL_ERROR_CODES` staat) verlaten deze laag NOOIT ongefilterd. Elke code
+//    die naar een client gaat, gaat eerst door `toPublicErrorCode()`.
+// 3. Tijden zijn absoluut in epoch-ms en komen uit de compositielaag. Er gaat
+//    geen enkele timer-tick over de socket; er zijn alleen servertimers die op
+//    een absoluut tijdstip één fasewissel doen.
+// 4. Er wordt niets gelogd wat een token, een displaynaam of een stacktrace
+//    bevat. `logSafe()` is de enige loguitgang.
+
+import { Server as SocketIOServer } from 'socket.io';
+
+import { hashToken } from '../protocol/auth-session.mjs';
+import {
+  ALL_CLIENT_EVENT_NAMES,
+  hasRequiredRole,
+  resolveEventValidator,
+} from '../protocol/client-events-dispatch.mjs';
+import { buildAck, buildServerEnvelope, parseClientEnvelope } from '../protocol/envelope.mjs';
+import { ALL_ERROR_CODES } from '../protocol/error-codes.mjs';
+import { buildErrorPayload } from '../protocol/error-payload.mjs';
+import { resolveDuplicateAction } from '../protocol/idempotency.mjs';
+import { resolveRecipientRule } from '../protocol/server-events-recipients.mjs';
+import { throttleRoundProgress } from '../protocol/throttle-round-progress.mjs';
+import { assertNoActiveRoundAnswerLeak, validateSnapshotShape } from '../protocol/snapshot-shape.mjs';
+
+import { createId, verifySessionToken } from '../composition/context.mjs';
+import {
+  advancePhase,
+  buildSnapshot,
+  endRound,
+  finishMatch,
+  getScoreboard,
+  rematch,
+  startMatch,
+  startRound,
+  submitAnswer,
+} from '../composition/match-lifecycle.mjs';
+import { kickPlayer, setRoomLocked } from '../composition/room-lifecycle.mjs';
+
+import { isEligibleForRound } from '../rules/eligibility.js';
+
+/** De protocolversies die deze server accepteert (PROTOCOL.md, kop). */
+export const SUPPORTED_PROTOCOL_VERSIONS = Object.freeze(new Set(['v1']));
+
+/** Socket.IO-roomnaam per game-room. Prefix zodat hij nooit botst met socket.id. */
+export function roomChannel(roomId) {
+  return `room:${roomId}`;
+}
+
+/** Socket.IO-roomnaam per sessie — de drager van `single_session`-events. */
+export function sessionChannel(sessionId) {
+  return `sess:${sessionId}`;
+}
+
+/**
+ * `actionId` die we gebruiken wanneer de client er zelf geen bruikbare
+ * meestuurde. `buildAck`/`validateErrorPayload` eisen een niet-lege string,
+ * dus een lege envelope mag niet in een lege `actionId` resulteren.
+ */
+const UNKNOWN_ACTION_ID = 'unknown';
+
+/**
+ * KEUZE — `PROTOCOL.md` §Foutcodes kent geen generieke "payload voldoet niet
+ * aan het schema"-code voor de elf niet-`round:answer`-events; alleen
+ * `INVALID_ANSWER_FORMAT` bestaat. De protocolvalidators geven daarom
+ * `code: null` terug. Deze laag moet iets naar de client sturen en kiest
+ * `INVALID_ANSWER_FORMAT` als dichtstbijzijnde gepubliceerde code voor elk
+ * vormprobleem. Zie het handoff-item: er ontbreekt een `INVALID_PAYLOAD`.
+ */
+const MALFORMED_PAYLOAD_CODE = 'INVALID_ANSWER_FORMAT';
+
+/**
+ * Fallback voor elke code die niet in `ALL_ERROR_CODES` staat — dezelfde keuze
+ * die `match-lifecycle.mjs`'s `toWireCode` intern al maakt, hier herhaald
+ * omdat de transportlaag de laatste poort naar de client is en ook codes
+ * verwerkt die niet door die functie zijn gekomen.
+ */
+const FALLBACK_PUBLIC_CODE = 'INVALID_PHASE';
+
+/** State-machine-eventtypes die deze laag gebruikt (waarden uit state-machine.js). */
+const HOST_PAUSE = 'HOST_PAUSE';
+const HOST_RESUME = 'HOST_RESUME';
+const HOST_NEXT = 'HOST_NEXT';
+const TIMER_ELAPSED = 'TIMER_ELAPSED';
+
+/** Fasewaarden uit ARCHITECTURE.md/state-machine.js. */
+const PHASE = Object.freeze({
+  LOBBY: 'LOBBY',
+  COUNTDOWN: 'COUNTDOWN',
+  ROUND_ACTIVE: 'ROUND_ACTIVE',
+  ROUND_RESULT: 'ROUND_RESULT',
+  SCOREBOARD: 'SCOREBOARD',
+  PAUSED: 'PAUSED',
+  FINISHED: 'FINISHED',
+});
+
+/**
+ * Beeldt elke foutcode af op een code die de wire mag halen (besluit 12).
+ *
+ * `state-machine.js` stelt letterlijk: de adapter MOET interne codes afvangen
+ * "voordat er iets naar een client gaat — nooit ongefilterd doorsturen". Dit
+ * is die adapter. De toets is een allowlist tegen `ALL_ERROR_CODES` en géén
+ * denylist van bekende interne namen, zodat een toekomstige tweede interne
+ * code er niet stilletjes doorheen glipt.
+ *
+ * @param {unknown} code
+ * @returns {import('../protocol/error-codes.mjs').ErrorCode}
+ */
+export function toPublicErrorCode(code) {
+  return ALL_ERROR_CODES.has(code) ? code : FALLBACK_PUBLIC_CODE;
+}
+
+/** @param {unknown} value @returns {value is Record<string, unknown>} */
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * DE ENIGE PLEK DIE EEN SESSIETOKEN NAAR EEN SESSIE VERTAALT.
+ *
+ * Bewust één functie: op DM14 ligt een openstaand implementeerbaarheidsissue
+ * (`docs/integration-plan/HANDOFF-INTB.md` INTB-9/INTB-10 — de sleutelcatalogus
+ * heeft geen tokenhash-index, de Redis-adapter werpt op deze methode). Als de
+ * signatuur straks wijzigt naar bijvoorbeeld `loadSessionByTokenHash(roomId,
+ * tokenHash)`, hoeft alleen deze functie mee te veranderen; de rest van dit
+ * bestand kent de poortmethode niet.
+ *
+ * Werkt tegen de POORT, niet tegen een aanname over Redis-sleutels:
+ *   1. hash het token met `hashToken` uit ../protocol/auth-session.mjs — geen
+ *      tweede hashmechanisme;
+ *   2. zoek op via `context.store.loadSessionByTokenHash(tokenHash)`;
+ *   3. verifieer daarna alsnog constant-time met `verifySessionToken` tegen de
+ *      hash op het Session-document, zodat een index-hit nooit op zichzelf
+ *      volstaat;
+ *   4. onderscheid `SESSION_REVOKED` van `TOKEN_INVALID` — de poort houdt
+ *      herroepen sessies bewust vindbaar (DM14).
+ *
+ * ALLE pepperversies uit `context.config.tokenPeppers.peppers` worden
+ * geprobeerd, niet alleen de actieve: een index op de hash is anders
+ * onverenigbaar met de pepper-rotatie die besluit 26 vraagt. Zie het
+ * handoff-item.
+ *
+ * @param {import('../composition/context.mjs').Context} context
+ * @param {unknown} sessionToken
+ * @returns {Promise<{ ok: true, session: object } | { ok: false, code: string }>}
+ */
+export async function lookupSessionByToken(context, sessionToken) {
+  if (typeof sessionToken !== 'string' || sessionToken.length === 0) {
+    return { ok: false, code: 'TOKEN_INVALID' };
+  }
+  const peppers = context.config?.tokenPeppers?.peppers ?? {};
+  for (const [version, pepper] of Object.entries(peppers)) {
+    const tokenHash = hashToken(sessionToken, { version, pepper });
+    const session = await context.store.loadSessionByTokenHash(tokenHash);
+    if (session === null || session === undefined) {
+      continue;
+    }
+    if (!verifySessionToken(context, sessionToken, session.tokenHash)) {
+      continue;
+    }
+    if (session.revoked === true) {
+      return { ok: false, code: 'SESSION_REVOKED' };
+    }
+    return { ok: true, session };
+  }
+  return { ok: false, code: 'TOKEN_INVALID' };
+}
+
+/** Timers op absolute tijdstippen; injecteerbaar zodat tests niet op de klok wachten. */
+const DEFAULT_SCHEDULER = Object.freeze({
+  setTimer(delayMs, fn) {
+    const handle = setTimeout(fn, Math.max(0, delayMs));
+    if (typeof handle.unref === 'function') {
+      handle.unref();
+    }
+    return handle;
+  },
+  clearTimer(handle) {
+    clearTimeout(handle);
+  },
+});
+
+/** Stille standaardlogger: deze laag logt nooit ongevraagd naar stdout. */
+const NOOP_LOGGER = Object.freeze({ info() {}, warn() {}, error() {} });
+
+/**
+ * Koppelt de Socket.IO-server aan een bestaande HTTP-server.
+ *
+ * @param {import('node:http').Server} httpServer
+ * @param {{
+ *   context: import('../composition/context.mjs').Context,
+ *   config?: {
+ *     path?: string,
+ *     logger?: { info: Function, warn: Function, error: Function },
+ *     scheduler?: { setTimer: (delayMs: number, fn: () => void) => unknown, clearTimer: (handle: unknown) => void },
+ *     socketIoOptions?: object,
+ *   },
+ * }} params
+ * @returns {{ close(): Promise<void>, io: import('socket.io').Server }}
+ */
+export function attachSocketServer(httpServer, { context, config = {} } = {}) {
+  if (httpServer === null || typeof httpServer !== 'object') {
+    throw new TypeError('attachSocketServer: `httpServer` is verplicht.');
+  }
+  if (context === null || typeof context !== 'object' || typeof context.now !== 'function') {
+    throw new TypeError('attachSocketServer: `context` moet de compositiecontext zijn (zie server/composition/context.mjs).');
+  }
+
+  const logger = config.logger ?? NOOP_LOGGER;
+  const scheduler = config.scheduler ?? DEFAULT_SCHEDULER;
+
+  const io = new SocketIOServer(httpServer, {
+    path: config.path ?? '/socket.io',
+    serveClient: false,
+    ...(config.socketIoOptions ?? {}),
+  });
+
+  let closed = false;
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Transportstate (per proces, nooit domeinstate)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Idempotentiecache per room: `actionId -> ack-envelope`. Voedt
+   * `resolveDuplicateAction`; er wordt hier geen tweede mechanisme gebouwd.
+   * Room-gescoped zodat twee rooms elkaars `actionId` nooit kunnen raken.
+   * @type {Map<string, Map<string, object>>}
+   */
+  const ackCacheByRoom = new Map();
+
+  /**
+   * Throttle-administratie voor `round:progress`, in de `ThrottleStore`-vorm
+   * die `throttle-round-progress.mjs` verwacht: `get(roundId)`.
+   * @type {Map<string, { emittedAtMs: number[] }>}
+   */
+  const throttleRecordsByRound = new Map();
+  const throttleStore = { get: (roundId) => throttleRecordsByRound.get(roundId) };
+
+  /**
+   * Looptijdstate per room: de lopende servertimer en wat we van de actieve
+   * ronde weten. Uitsluitend transport: gaat verloren bij herstart en is nooit
+   * de waarheid over het spel.
+   * @type {Map<string, { timer: unknown, round: { roundId: string, roundNumber: number } | null, answeredPlayerIds: Set<string> }>}
+   */
+  const runtimeByRoom = new Map();
+
+  function runtimeFor(roomId) {
+    let runtime = runtimeByRoom.get(roomId);
+    if (runtime === undefined) {
+      runtime = { timer: null, round: null, answeredPlayerIds: new Set() };
+      runtimeByRoom.set(roomId, runtime);
+    }
+    return runtime;
+  }
+
+  function ackCacheFor(roomId) {
+    let cache = ackCacheByRoom.get(roomId);
+    if (cache === undefined) {
+      cache = new Map();
+      ackCacheByRoom.set(roomId, cache);
+    }
+    return { get: (actionId) => cache.get(actionId), set: (actionId, ack) => cache.set(actionId, ack) };
+  }
+
+  /**
+   * Logt zonder ooit een token, displaynaam of stacktrace mee te nemen
+   * (PROTOCOL.md Basisregel 8). Alleen eventnaam, foutcode en room-/sessie-id.
+   */
+  function logSafe(level, message, fields = {}) {
+    const safe = {};
+    for (const [key, value] of Object.entries(fields)) {
+      if (value === undefined) continue;
+      safe[key] = value;
+    }
+    logger[level]?.({ layer: 'socket', ...safe }, message);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Servertimers — absolute tijdstippen, nooit ticks over de socket
+  // ───────────────────────────────────────────────────────────────────────────
+
+  function cancelTimer(roomId) {
+    const runtime = runtimeByRoom.get(roomId);
+    if (runtime?.timer != null) {
+      scheduler.clearTimer(runtime.timer);
+      runtime.timer = null;
+    }
+  }
+
+  /**
+   * Plant één fasewissel op een ABSOLUUT tijdstip dat de compositielaag heeft
+   * teruggegeven (`countdownEndsAt`, `endsAt`, `phaseEndsAt`). Er wordt niets
+   * per seconde verstuurd; de client rekent zelf met de absolute tijd.
+   */
+  function scheduleAt(roomId, atEpochMs, fn) {
+    cancelTimer(roomId);
+    if (typeof atEpochMs !== 'number' || !Number.isFinite(atEpochMs)) {
+      return;
+    }
+    const runtime = runtimeFor(roomId);
+    runtime.timer = scheduler.setTimer(atEpochMs - context.now(), () => {
+      runtime.timer = null;
+      // De promise wordt teruggegeven zodat een geïnjecteerde (test)scheduler
+      // de afhandeling kan afwachten; de echte `setTimeout` negeert hem.
+      return Promise.resolve(fn()).catch((error) => {
+        logSafe('error', 'geplande fasewissel mislukt', { roomId, reason: errorLabel(error) });
+      });
+    });
+  }
+
+  /** Een korte, veilige labelvorm van een exception: nooit de stacktrace. */
+  function errorLabel(error) {
+    if (error === null || typeof error !== 'object') return 'unknown';
+    if (typeof error.code === 'string') return error.code;
+    return error.constructor?.name ?? 'Error';
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Server → client
+  // ───────────────────────────────────────────────────────────────────────────
+
+  function envelopeFor(event, payload) {
+    const built = buildServerEnvelope(event, payload, context.now(), createId(context, 'evt'));
+    if (!built.ok) {
+      throw new Error(`socket: kon envelope voor "${event}" niet bouwen (${built.reason})`);
+    }
+    return built.envelope;
+  }
+
+  /** `room`-events: naar de Socket.IO-room van deze game-room, nergens anders heen. */
+  function emitToRoom(roomId, event, payload) {
+    io.to(roomChannel(roomId)).emit(event, envelopeFor(event, payload));
+  }
+
+  /** `single_session`-events: alleen naar de sockets van die ene sessie. */
+  function emitToSession(sessionId, event, payload) {
+    io.to(sessionChannel(sessionId)).emit(event, envelopeFor(event, payload));
+  }
+
+  /**
+   * `room_with_personal_fields`: één logisch event (één `eventId`, één
+   * `serverTime`) maar per ontvanger aangevuld met diens eigen velden. De
+   * persoonlijke velden gaan dus nooit room-breed de lucht in.
+   */
+  async function emitToRoomWithPersonalFields(roomId, event, basePayload, personalByPlayerId, fallbackPersonal) {
+    const sockets = await io.in(roomChannel(roomId)).fetchSockets();
+    const serverTime = context.now();
+    const eventId = createId(context, 'evt');
+    for (const socket of sockets) {
+      const playerId = socket.data?.playerId ?? null;
+      const personal = (playerId !== null ? personalByPlayerId.get(playerId) : undefined) ?? fallbackPersonal;
+      const built = buildServerEnvelope(event, { ...basePayload, ...personal }, serverTime, eventId);
+      if (built.ok) {
+        socket.emit(event, built.envelope);
+      }
+    }
+  }
+
+  /**
+   * Verstuurt een serverevent volgens de ontvangersregel uit
+   * `server-events-recipients.mjs` — die tabel is de bron, niet een tweede
+   * lijstje hier.
+   */
+  async function publish(event, { roomId, sessionId = null, payload, personalByPlayerId, fallbackPersonal }) {
+    const rule = resolveRecipientRule(event);
+    if (rule === 'single_session') {
+      emitToSession(sessionId, event, payload);
+      return;
+    }
+    if (rule === 'room_with_personal_fields') {
+      await emitToRoomWithPersonalFields(roomId, event, payload, personalByPlayerId ?? new Map(), fallbackPersonal ?? {});
+      return;
+    }
+    if (rule === 'room') {
+      emitToRoom(roomId, event, payload);
+      return;
+    }
+    throw new Error(`socket: onbekend serverevent "${event}" — geen ontvangersregel`);
+  }
+
+  /** `error` gaat naar precies één sessie (tabel §Server → client events). */
+  function emitError(socket, actionId, code) {
+    const payload = buildErrorPayload(toPublicErrorCode(code), {});
+    socket.emit('error', envelopeFor('error', { actionId, ...payload }));
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Afgeleide gegevens die de compositielaag (nog) niet aanbiedt
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * De noemer van `round:progress`. GAT — geen compositiefunctie levert live
+   * voortgangstellers; `endRound()` berekent ze pas ná afloop. Hier wordt
+   * daarom exact dezelfde predicaat-combinatie gebruikt die `endRound()`
+   * gebruikt (`kicked/left` eruit, dan `isEligibleForRound`), zodat er geen
+   * tweede regel ontstaat. Zie het handoff-item.
+   */
+  async function eligiblePlayerCount(roomId, roundNumber) {
+    const players = await context.store.listPlayers(roomId);
+    return players.filter(
+      (player) => player.kicked !== true
+        && player.left !== true
+        && isEligibleForRound(player.eligibleFromRound, roundNumber),
+    ).length;
+  }
+
+  /** Actueel aantal spelers in de room, via de snapshot — geen eigen telregel. */
+  async function playerCountOf(roomId) {
+    const snapshot = await buildSnapshot(context, { roomId });
+    return snapshot.ok ? snapshot.value.room.playerCount : 0;
+  }
+
+  /** playerId → sessionId, nodig om `session:kicked` aan één sessie te richten. */
+  async function sessionIdOfPlayer(roomId, playerId) {
+    const players = await context.store.listPlayers(roomId);
+    return players.find((player) => player.id === playerId)?.sessionId ?? null;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // De fasepomp: één compositie-aanroep per overgang, geen tweede fasetabel
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Reageert op de fase waarin de room zojuist is beland. Kiest géén
+   * bestemming zelf — dat doet `resolveNextPhase()` binnen `advancePhase()`;
+   * deze functie bepaalt alleen welk serverevent erbij hoort en wanneer de
+   * volgende, timergedreven overgang gepland moet worden.
+   */
+  async function onPhaseEntered(roomId, phase, phaseEndsAt) {
+    if (phase === PHASE.COUNTDOWN) {
+      scheduleAt(roomId, phaseEndsAt, () => runStartRound(roomId));
+      return;
+    }
+    if (phase === PHASE.SCOREBOARD) {
+      const scoreboard = await getScoreboard(context, { roomId });
+      if (scoreboard.ok) {
+        await publish('scoreboard:updated', {
+          roomId,
+          payload: { top: scoreboard.value.top, self: {} },
+          personalByPlayerId: new Map(
+            scoreboard.value.top.map((entry) => [entry.playerId, { self: { playerId: entry.playerId, score: entry.score, position: entry.rank } }]),
+          ),
+          fallbackPersonal: { self: {} },
+        });
+      }
+      // Bij host-tempo is dit de ENE hostactie-fase (besluit 1): niets plannen,
+      // wachten op `game:next`. Bij auto-tempo levert de compositielaag een
+      // `phaseEndsAt` en loopt het door.
+      if (phaseEndsAt !== null) {
+        scheduleAt(roomId, phaseEndsAt, () => runAdvanceOnTimer(roomId));
+      }
+      return;
+    }
+    if (phase === PHASE.ROUND_RESULT) {
+      scheduleAt(roomId, phaseEndsAt, () => runAdvanceOnTimer(roomId));
+      return;
+    }
+    if (phase === PHASE.FINISHED) {
+      cancelTimer(roomId);
+      await publishFinished(roomId);
+    }
+  }
+
+  /** COUNTDOWN → ROUND_ACTIVE, met `round:started` room-breed. */
+  async function runStartRound(roomId) {
+    const result = await startRound(context, { roomId });
+    if (!result.ok) {
+      logSafe('warn', 'startRound geweigerd', { roomId, code: toPublicErrorCode(result.code) });
+      return;
+    }
+    const runtime = runtimeFor(roomId);
+    runtime.round = { roundId: result.value.roundId, roundNumber: result.value.roundNumber };
+    runtime.answeredPlayerIds = new Set();
+    throttleRecordsByRound.delete(result.value.roundId);
+
+    // Exact de tien velden die `validateRoundStartedPayload` toestaat; de
+    // compositielaag levert ze al als allowlist (besluit 20: geen correct
+    // antwoord in `round:started`).
+    await publish('round:started', { roomId, payload: { ...result.value } });
+    scheduleAt(roomId, result.value.endsAt, () => runEndRound(roomId));
+  }
+
+  /** ROUND_ACTIVE → ROUND_RESULT, met `round:ended` inclusief persoonlijke velden. */
+  async function runEndRound(roomId) {
+    const result = await endRound(context, { roomId });
+    if (!result.ok) {
+      logSafe('warn', 'endRound geweigerd', { roomId, code: toPublicErrorCode(result.code) });
+      return;
+    }
+    const value = result.value;
+    const personal = new Map(
+      value.results.map((entry) => [entry.playerId, {
+        ownPoints: entry.points,
+        ownCorrect: entry.correct,
+        ownResponseTimeMs: entry.responseTimeMs,
+      }]),
+    );
+    await publish('round:ended', {
+      roomId,
+      payload: {
+        matchId: value.matchId,
+        roundId: value.roundId,
+        roundNumber: value.roundNumber,
+        totalRounds: value.totalRounds,
+        correctAnswer: value.correctAnswer,
+        distribution: value.distribution,
+        answeredCount: value.answeredCount,
+        eligiblePlayerCount: value.eligiblePlayerCount,
+      },
+      personalByPlayerId: personal,
+      fallbackPersonal: { ownPoints: 0, ownCorrect: false, ownResponseTimeMs: null },
+    });
+
+    const runtime = runtimeFor(roomId);
+    runtime.round = null;
+    await onPhaseEntered(roomId, value.phase, value.phaseEndsAt);
+  }
+
+  /** Elke timergedreven overgang die geen ronde opent of sluit. */
+  async function runAdvanceOnTimer(roomId) {
+    const result = await advancePhase(context, { roomId, event: { type: TIMER_ELAPSED } });
+    if (!result.ok) {
+      logSafe('warn', 'timerovergang geweigerd', { roomId, code: toPublicErrorCode(result.code) });
+      return;
+    }
+    await onPhaseEntered(roomId, result.value.phase, result.value.phaseEndsAt);
+  }
+
+  /** `game:finished`: podium room-breed, eigen samenvatting per speler. */
+  async function publishFinished(roomId) {
+    const result = await finishMatch(context, { roomId });
+    if (!result.ok) {
+      logSafe('warn', 'finishMatch geweigerd', { roomId, code: toPublicErrorCode(result.code) });
+      return result;
+    }
+    const personal = new Map(result.value.standings.map((entry) => [entry.playerId, { self: entry }]));
+    await publish('game:finished', {
+      roomId,
+      payload: {
+        matchId: result.value.matchId,
+        sequence: result.value.sequence,
+        finishedAt: result.value.finishedAt,
+        podium: result.value.podium,
+      },
+      personalByPlayerId: personal,
+      fallbackPersonal: { self: { playerId: null } },
+    });
+    return result;
+  }
+
+  /**
+   * `round:progress`, maximaal tweemaal per seconde per ronde
+   * (`throttle-round-progress.mjs`, matrixrij 13). De beslissing zit in die
+   * module; hier staat alleen het opslaan van het bijgewerkte record en het
+   * daadwerkelijke verzenden.
+   */
+  async function maybeEmitRoundProgress(roomId, round) {
+    const now = context.now();
+    const decision = throttleRoundProgress(throttleStore, round.roundId, now);
+    if (!decision.allow) {
+      return false;
+    }
+    throttleRecordsByRound.set(round.roundId, decision.record);
+
+    const runtime = runtimeFor(roomId);
+    const eligible = await eligiblePlayerCount(roomId, round.roundNumber);
+    emitToRoom(roomId, 'round:progress', {
+      answeredCount: Math.min(runtime.answeredPlayerIds.size, eligible),
+      eligiblePlayerCount: eligible,
+    });
+    return true;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Handshake
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /** Een handshake-weigering die als `connect_error` bij de client aankomt. */
+  function handshakeError(code) {
+    const publicCode = toPublicErrorCode(code);
+    const error = new Error(publicCode);
+    error.data = buildErrorPayload(publicCode, {});
+    return error;
+  }
+
+  io.use(async (socket, next) => {
+    const auth = isPlainObject(socket.handshake?.auth) ? socket.handshake.auth : {};
+    const { sessionToken, protocolVersion } = auth;
+
+    if (!SUPPORTED_PROTOCOL_VERSIONS.has(protocolVersion)) {
+      logSafe('warn', 'handshake geweigerd', { code: 'PROTOCOL_VERSION_UNSUPPORTED' });
+      next(handshakeError('PROTOCOL_VERSION_UNSUPPORTED'));
+      return;
+    }
+
+    let found;
+    try {
+      found = await lookupSessionByToken(context, sessionToken);
+    } catch (error) {
+      // De poort kan werpen (INTB-10: de Redis-adapter blokkeert deze methode
+      // nog). Naar buiten is dat een gewone afwijzing; nooit een stacktrace.
+      logSafe('error', 'sessie-lookup mislukt', { reason: errorLabel(error) });
+      next(handshakeError('TOKEN_INVALID'));
+      return;
+    }
+
+    if (!found.ok) {
+      logSafe('warn', 'handshake geweigerd', { code: found.code });
+      next(handshakeError(found.code));
+      return;
+    }
+
+    const { session } = found;
+    socket.data = {
+      roomId: session.roomId,
+      sessionId: session.id,
+      playerId: session.playerId ?? null,
+      roles: [...session.roles],
+    };
+    next();
+  });
+
+  io.on('connection', (socket) => {
+    const { roomId, sessionId } = socket.data;
+    socket.join(roomChannel(roomId));
+    socket.join(sessionChannel(sessionId));
+    logSafe('info', 'socket verbonden', { roomId, sessionId });
+
+    socket.onAny((eventName, ...args) => {
+      const ack = typeof args[args.length - 1] === 'function' ? args.pop() : null;
+      handleClientEvent(socket, eventName, args[0], ack).catch((error) => {
+        logSafe('error', 'clientevent mislukt', { roomId, event: eventName, reason: errorLabel(error) });
+        respondFailure(socket, UNKNOWN_ACTION_ID, FALLBACK_PUBLIC_CODE, ack);
+      });
+    });
+
+    socket.on('disconnect', () => {
+      logSafe('info', 'socket verbroken', { roomId, sessionId });
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Client → server
+  // ───────────────────────────────────────────────────────────────────────────
+
+  function respondSuccess(socket, actionId, payload, ack) {
+    const built = buildAck(actionId, true, context.now(), payload);
+    if (!built.ok) {
+      return null;
+    }
+    ack?.(built.envelope);
+    return built.envelope;
+  }
+
+  function respondFailure(socket, actionId, code, ack) {
+    const publicCode = toPublicErrorCode(code);
+    const built = buildAck(actionId, false, context.now(), buildErrorPayload(publicCode, {}));
+    if (built.ok) {
+      ack?.(built.envelope);
+    }
+    // Naast de ack ook het `error`-event: PROTOCOL.md §Foutcodes definieert dat
+    // event los van de ack, en een client kan ook zónder ack meeluisteren.
+    emitError(socket, actionId, publicCode);
+  }
+
+  /**
+   * De hele client→server-weg: envelope → alfabet → rol → payloadvorm →
+   * idempotentie → compositie → ack + serverevents.
+   *
+   * WIRE-VORM. De client emit `socket.emit('<protocol-event>', { actionId,
+   * payload }, ack)`: de Socket.IO-eventnaam ís de protocoleventnaam (nodig om
+   * per event te kunnen routeren) en de rest van de envelope zit in het
+   * argument. Draagt het argument óók een `event`-veld, dan moet dat gelijk
+   * zijn aan de Socket.IO-eventnaam; anders is het een onbekend event.
+   */
+  async function handleClientEvent(socket, eventName, raw, ack) {
+    const { roomId, sessionId, roles } = socket.data;
+    const body = isPlainObject(raw) ? raw : {};
+
+    if (typeof body.event === 'string' && body.event !== eventName) {
+      respondFailure(socket, typeof body.actionId === 'string' && body.actionId.length > 0 ? body.actionId : UNKNOWN_ACTION_ID, 'UNSUPPORTED_EVENT', ack);
+      return;
+    }
+
+    const parsed = parseClientEnvelope({
+      event: eventName,
+      actionId: body.actionId,
+      payload: isPlainObject(body.payload) ? body.payload : undefined,
+    });
+    if (!parsed.ok) {
+      const actionId = typeof body.actionId === 'string' && body.actionId.length > 0 ? body.actionId : UNKNOWN_ACTION_ID;
+      respondFailure(socket, actionId, parsed.reason === 'missing-event' ? 'UNSUPPORTED_EVENT' : MALFORMED_PAYLOAD_CODE, ack);
+      return;
+    }
+    const { actionId, payload } = parsed;
+
+    // Basisregel 7: het alfabet van 12 eventnamen zit in client-events-dispatch.
+    const resolved = resolveEventValidator(eventName);
+    if (!resolved.ok) {
+      respondFailure(socket, actionId, resolved.code, ack);
+      return;
+    }
+    const entry = resolved.entry;
+
+    if (!hasRequiredRole(roles, entry.requiredRole)) {
+      respondFailure(socket, actionId, entry.requiredRole === 'host' ? 'NOT_HOST' : 'NOT_PLAYER', ack);
+      return;
+    }
+
+    const validated = entry.validate(payload);
+    if (!validated.ok) {
+      respondFailure(socket, actionId, validated.code ?? MALFORMED_PAYLOAD_CODE, ack);
+      return;
+    }
+
+    // Idempotentie: dezelfde `actionId` geeft dezelfde ack zonder de mutatie te
+    // herhalen. `alreadyAnswered` blijft `false` — DM13 heeft die bewaking bij
+    // de poort belegd (zie submitAnswer's JSDoc), en twee plekken die hetzelfde
+    // bewaken maken de poort niet meer de enige waarheid.
+    const store = ackCacheFor(roomId);
+    const duplicate = resolveDuplicateAction(store, actionId, eventName);
+    if (duplicate.replay) {
+      ack?.(duplicate.ack);
+      return;
+    }
+    if (!duplicate.ok) {
+      respondFailure(socket, actionId, duplicate.reason, ack);
+      return;
+    }
+
+    const outcome = await runEvent(socket, eventName, actionId, payload);
+    if (!outcome.ok) {
+      logSafe('warn', 'clientevent geweigerd', { roomId, sessionId, event: eventName, code: toPublicErrorCode(outcome.code) });
+      respondFailure(socket, actionId, outcome.code, ack);
+      return;
+    }
+
+    const ackEnvelope = respondSuccess(socket, actionId, outcome.value ?? {}, ack);
+    if (ackEnvelope !== null) {
+      // Pas ná geslaagde uitvoering opslaan: een mislukking mag nooit als
+      // "al gedaan" in de cache belanden.
+      store.set(actionId, ackEnvelope);
+    }
+    await outcome.after?.();
+  }
+
+  /**
+   * Eén compositie-aanroep per clientevent. Geeft `{ ok, value, after }`
+   * terug: `after` doet de serverevents en loopt pas ná de ack, zodat een
+   * client zijn eigen ack nooit ná het bijbehorende broadcast-event ziet.
+   */
+  async function runEvent(socket, eventName, actionId, payload) {
+    const { roomId, sessionId, playerId } = socket.data;
+
+    switch (eventName) {
+      case 'game:start': {
+        const result = await startMatch(context, { roomId });
+        if (!result.ok) return result;
+        const value = result.value;
+        return {
+          ok: true,
+          value: { matchId: value.matchId, phase: value.phase },
+          after: async () => {
+            await publish('game:started', {
+              roomId,
+              payload: {
+                matchId: value.matchId,
+                totalRounds: value.totalRounds,
+                countdownEndsAt: value.countdownEndsAt,
+              },
+            });
+            scheduleAt(roomId, value.countdownEndsAt, () => runStartRound(roomId));
+          },
+        };
+      }
+
+      case 'game:pause': {
+        const result = await advancePhase(context, {
+          roomId,
+          event: { type: HOST_PAUSE, ...(typeof payload.reason === 'string' ? { reason: payload.reason } : {}) },
+        });
+        if (!result.ok) return result;
+        const pausedState = result.value.pausedState;
+        cancelTimer(roomId);
+        return {
+          ok: true,
+          value: { phase: result.value.phase },
+          // Besluit 10: snapshot en live event dragen dezelfde volledige vorm.
+          after: () => publish('game:paused', { roomId, payload: { ...pausedState } }),
+        };
+      }
+
+      case 'game:resume': {
+        const result = await advancePhase(context, { roomId, event: { type: HOST_RESUME } });
+        if (!result.ok) return result;
+        const value = result.value;
+        return {
+          ok: true,
+          value: { phase: value.phase },
+          after: async () => {
+            await publish('game:resumed', {
+              roomId,
+              payload: { phase: value.phase, countdownEndsAt: value.phaseEndsAt ?? context.now() },
+            });
+            await onPhaseEntered(roomId, value.phase, value.phaseEndsAt);
+          },
+        };
+      }
+
+      case 'game:next': {
+        // Besluit 1: één hostactie per ronde, altijd vanuit SCOREBOARD.
+        const result = await advancePhase(context, { roomId, event: { type: HOST_NEXT } });
+        if (!result.ok) return result;
+        const value = result.value;
+        return {
+          ok: true,
+          value: { phase: value.phase },
+          after: () => onPhaseEntered(roomId, value.phase, value.phaseEndsAt),
+        };
+      }
+
+      case 'game:lock': {
+        const result = await setRoomLocked(context, { roomId, locked: payload.locked });
+        if (!result.ok) return result;
+        return {
+          ok: true,
+          value: { locked: result.value.locked },
+          after: () => publish('room:lock-changed', { roomId, payload: { locked: result.value.locked } }),
+        };
+      }
+
+      case 'game:kick': {
+        const targetSessionId = await sessionIdOfPlayer(roomId, payload.playerId);
+        const result = await kickPlayer(context, { roomId, playerId: payload.playerId });
+        if (!result.ok) return result;
+        return {
+          ok: true,
+          value: { playerId: payload.playerId },
+          after: async () => {
+            if (targetSessionId !== null) {
+              await publish('session:kicked', { roomId, sessionId: targetSessionId, payload: { reason: 'host' } });
+            }
+            await publish('room:player-changed', {
+              roomId,
+              payload: { playerCount: await playerCountOf(roomId), delta: { type: 'kick', playerId: payload.playerId } },
+            });
+            // De sessie is ingetrokken; de socket mag niet blijven meeluisteren.
+            for (const target of await io.in(sessionChannel(targetSessionId ?? '')).fetchSockets()) {
+              target.disconnect(true);
+            }
+          },
+        };
+      }
+
+      case 'game:finish': {
+        cancelTimer(roomId);
+        const result = await finishMatch(context, { roomId });
+        if (!result.ok) return result;
+        const value = result.value;
+        return {
+          ok: true,
+          value: { matchId: value.matchId, phase: value.phase },
+          after: async () => {
+            const personal = new Map(value.standings.map((entry) => [entry.playerId, { self: entry }]));
+            await publish('game:finished', {
+              roomId,
+              payload: {
+                matchId: value.matchId,
+                sequence: value.sequence,
+                finishedAt: value.finishedAt,
+                podium: value.podium,
+              },
+              personalByPlayerId: personal,
+              fallbackPersonal: { self: { playerId: null } },
+            });
+          },
+        };
+      }
+
+      case 'game:rematch': {
+        const result = await rematch(context, { roomId });
+        if (!result.ok) return result;
+        const value = result.value;
+        return {
+          ok: true,
+          value: { matchId: value.matchId, sequence: value.sequence },
+          after: async () => {
+            const snapshot = await buildSnapshot(context, { roomId });
+            await publish('game:rematch-started', {
+              roomId,
+              payload: { matchId: value.matchId, lobbyState: snapshot.ok ? snapshot.value.room : {} },
+            });
+          },
+        };
+      }
+
+      case 'round:answer': {
+        const result = await submitAnswer(context, {
+          roomId,
+          playerId,
+          roundId: payload.roundId,
+          answer: payload.answer,
+          actionId,
+          clientAnsweredAt: payload.clientAnsweredAt,
+        });
+        if (!result.ok) return result;
+        const runtime = runtimeFor(roomId);
+        if (result.value.replay !== true) {
+          runtime.answeredPlayerIds.add(playerId);
+        }
+        return {
+          // De ack draagt geen punten/correctheid: die mogen de ronde niet
+          // verlaten vóór `round:ended` (Basisregel 4).
+          ok: true,
+          value: { roundId: payload.roundId },
+          after: async () => {
+            await publish('round:answer-accepted', { roomId, sessionId, payload: { roundId: payload.roundId } });
+            if (runtime.round !== null) {
+              await maybeEmitRoundProgress(roomId, runtime.round);
+            }
+          },
+        };
+      }
+
+      case 'share:opened': {
+        // "analytics, mag falen zonder UX-effect" — geen mutatie, alleen een ack.
+        logSafe('info', 'share geopend', { roomId, method: payload.method });
+        return { ok: true, value: {} };
+      }
+
+      case 'player:rename':
+      case 'player:leave': {
+        // GAT — er bestaat geen compositiefunctie voor hernoemen of vrijwillig
+        // verlaten (`server/composition/room-lifecycle.mjs` heeft alleen
+        // `kickPlayer`). Hier wordt er BEWUST niet omheen gebouwd met een eigen
+        // mutatie: dat zou naamnormalisatie/`left: true`-semantiek buiten de
+        // eigenaar om vastleggen. Zie het handoff-item.
+        logSafe('warn', 'clientevent zonder compositiefunctie', { roomId, event: eventName });
+        return { ok: false, code: 'UNSUPPORTED_EVENT' };
+      }
+
+      default:
+        return { ok: false, code: 'UNSUPPORTED_EVENT' };
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Snapshot
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Stuurt de volledige snapshot naar één sessie (`room:state`). Beide
+   * invarianten uit `snapshot-shape.mjs` worden hier getoetst — de vorm én
+   * "een snapshot van een actieve ronde bevat nooit het correcte antwoord".
+   * Een snapshot die daar niet doorheen komt, wordt niet verstuurd.
+   */
+  async function sendSnapshot(roomId, sessionId) {
+    const snapshot = await buildSnapshot(context, { roomId, sessionId });
+    if (!snapshot.ok) {
+      return { ok: false, code: toPublicErrorCode(snapshot.code) };
+    }
+    const shape = validateSnapshotShape(snapshot.value);
+    const leak = assertNoActiveRoundAnswerLeak(snapshot.value);
+    if (!shape.ok || !leak.ok) {
+      logSafe('error', 'snapshot afgekeurd, niet verstuurd', { roomId, sessionId });
+      return { ok: false, code: FALLBACK_PUBLIC_CODE };
+    }
+    await publish('room:state', { roomId, sessionId, payload: snapshot.value });
+    return { ok: true };
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Afsluiten
+  // ───────────────────────────────────────────────────────────────────────────
+
+  return {
+    io,
+    /** Voor `server/index.mjs`: een snapshot naar één sessie duwen na reconnect. */
+    sendSnapshot,
+    /**
+     * Stopt de socketlaag: timers weg, sockets los, engine dicht.
+     *
+     * Sluit BEWUST de meegegeven `httpServer` niet — die is eigendom van
+     * `server/index.mjs`. `io.close()` zou hem wél sluiten, dus die wordt hier
+     * niet gebruikt.
+     */
+    async close() {
+      if (closed) {
+        return;
+      }
+      closed = true;
+      for (const roomId of runtimeByRoom.keys()) {
+        cancelTimer(roomId);
+      }
+      runtimeByRoom.clear();
+      ackCacheByRoom.clear();
+      throttleRecordsByRound.clear();
+      for (const socket of io.sockets.sockets.values()) {
+        socket.disconnect(true);
+      }
+      io.removeAllListeners();
+      io.engine.close();
+      await new Promise((resolve) => { setImmediate(resolve); });
+    },
+  };
+}
+
+/** Alle clientevents die deze laag bedient — afgeleid, geen tweede lijst. */
+export const WIRED_CLIENT_EVENTS = ALL_CLIENT_EVENT_NAMES;
