@@ -6,6 +6,28 @@ itemnummer, bijvoorbeeld `INTB-1`.
 
 Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ geparkeerd.
 
+## Stand
+
+| Item | Onderwerp | Status |
+| --- | --- | --- |
+| INTB-1 | Drie methoden misten `roomId` | ✅ DM verbreedde de signaturen |
+| INTB-2 | Geen atomaire claim voor de join-code | ✅ locator-lifecycle, geverifieerd |
+| INTB-3 | `getScoreboardTop` negeerde `roomId` | ✅ opgelost in DM12 |
+| INTB-4 | Fake dwingt idempotentie niet af | 🔵 **open** — 3 tests bewust rood |
+| INTB-5 | Geroteerde uitnodiging bleef geldig | ✅ `releaseRoomLocators`, nu contracttest |
+| INTB-6 | Tiebreak `getScoreboardTop` ligt niet vast | 🔵 open |
+| INTB-7 | Ruw invite-id of hash? | ✅ poort neemt de hash |
+| INTB-8 | Fixtures produceren ongeldige documenten | 🔵 open |
+
+DM heeft de poort van 18 naar 21 methoden gebracht en daarmee vijf items gesloten.
+De oplossing voor INTB-2 is beter dan mijn voorstel: één
+`claimRoomLocatorsAtomically` voor code én inviteHash samen, met een
+`conflict`-veld dat zegt wélke botste. Twee losse claims zouden een half
+geclaimde toestand kunnen achterlaten.
+
+Zelf geverifieerd: acht gelijktijdige claims op dezelfde code geven exact één
+winnaar.
+
 ---
 
 ## INTB-1 🔵 — Drie poortmethoden zijn niet tegen Redis implementeerbaar

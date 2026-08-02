@@ -11,10 +11,10 @@ uitgevoerd — ⛔ geblokkeerd — ⏸️ later.
 
 | Prompt | Inhoud | Status | Blokkade |
 | --- | --- | --- | --- |
-| [INTB1a](prompts/INTB1a-conformance-harness.md) | Conformance-harness + 13 methoden (3 uitgesloten op INTB-1) | 🔵 | geen |
-| [INTB1b](prompts/INTB1b-atomicity.md) | De 2 atomaire methoden | 🔵 | **INTB-4** — levert bewust rode tests |
-| [INTB2a](prompts/INTB2a-redis-adapter-basis.md) | Verbinding, lifecycle, JSON-documenten met schemaversie | 🔵 | geen |
-| [INTB2b](prompts/INTB2b-poortmethoden.md) | De methoden tegen Redis + TTL-refresh | ⛔ | **INTB-1** |
+| [INTB1a](prompts/INTB1a-conformance-harness.md) | Conformance-harness + de niet-atomaire methoden | ✅ | — |
+| [INTB1b](prompts/INTB1b-atomicity.md) | De 2 atomaire methoden + migratie naar 21 methoden | ✅ | 3 tests bewust rood op **INTB-4** |
+| [INTB2a](prompts/INTB2a-redis-adapter-basis.md) | Verbinding, lifecycle, JSON-documenten met schemaversie | 🟡 | in uitvoering |
+| [INTB2b](prompts/INTB2b-poortmethoden.md) | De methoden tegen Redis + TTL-refresh | 🔵 | INTB2a — **INTB-1 is opgelost** |
 | [INTB2c](prompts/INTB2c-lua-atomair-antwoord.md) | Lua-script voor atomair antwoord (#23) | ⛔ | INTB2a |
 | [INTB2d](prompts/INTB2d-atomaire-fasewissel.md) | Atomaire fasewissel Room/Match (#30) | ⛔ | INTB2a |
 | [INTB2e](prompts/INTB2e-aof-herstart.md) | AOF-herstart: rooms overleven een restart | ⛔ | INTB2b–d |
@@ -46,6 +46,22 @@ Een methode is pas ✅ als de conformance-suite er echt overheen loopt tegen een
 | `setRoomAndMatchPhaseAtomically` | 🔵 | ⛔ |
 | `saveAcceptedAnswerAtomically` | 🔵 | ⛔ |
 | `getScoreboardTop` | 🔵 | ⛔ **INTB-3** |
+
+## Testinfrastructuur
+
+Adaptertests draaien tegen een **aparte** Compose-stack, niet tegen de
+draaiende productie-stack:
+
+```
+docker compose -p aseso-game-test -f compose.test.yml up -d
+Redis    redis://127.0.0.1:6380
+Postgres postgresql://…@127.0.0.1:5434/gamestats_test
+```
+
+De productie-Redis publiceert bewust niets naar de host en dat blijft zo —
+gemeten: poort 6379 is vanaf de host dicht, 6380 open. Beide testservices
+luisteren alleen op de loopback, en `down -v` gooit het volume weg omdat dit
+wegwerpdata is.
 
 ## Bevindingen tot nu toe
 

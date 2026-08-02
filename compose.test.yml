@@ -1,0 +1,56 @@
+# Testinfrastructuur voor INT-B — volledig gescheiden van de draaiende
+# productie-stack (Compose-project `aseso-game`).
+#
+# Waarom een apart project en een andere poort:
+# de productie-Redis publiceert bewust NIETS naar de host (`6379/tcp` zonder
+# mapping) en dat blijft zo. Adaptertests hebben wel een bereikbare instantie
+# nodig, dus die krijgt een eigen project, een eigen volume en poort 6380.
+# Zo kan een test nooit per ongeluk de productiedata raken, ook niet als iemand
+# de verkeerde URL meegeeft: op 6379 luistert vanaf de host simpelweg niets.
+#
+# Starten:  docker compose -p aseso-game-test -f compose.test.yml up -d
+# Stoppen:  docker compose -p aseso-game-test -f compose.test.yml down -v
+#
+# De `-v` bij down is bewust: dit is wegwerpdata en mag nooit blijven staan.
+
+name: aseso-game-test
+
+services:
+  redis-test:
+    image: redis:7-alpine
+    restart: "no"
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+    ports:
+      # Alleen op de loopback, niet op alle interfaces — deze instantie hoeft
+      # het netwerk niet op.
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - redis-test-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres-test:
+    image: postgres:16
+    restart: "no"
+    environment:
+      POSTGRES_DB: gamestats_test
+      POSTGRES_USER: gameapp_test
+      POSTGRES_PASSWORD: test-only-not-a-secret
+    ports:
+      - "127.0.0.1:5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gameapp_test -d gamestats_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  redis-test-data:
