@@ -8,20 +8,13 @@
    base.css (die al gelijk zijn aan style.css). Viewspecifieke layout blijft
    van de UI-agent; dit bestand stylet de gedeelde componentklassen. */
 
-body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  margin: 0;
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-}
-
-#app-root {
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 24px 20px 48px;
-}
+/* `body` en `#app-root` stonden hier óók, met eigen waarden naast die van
+   base.css. Weggehaald, want ze liepen uit elkaar en dat was zichtbaar:
+   `#app-root { padding: 24px 20px 48px }` kwam bovenop `.screen`'s eigen
+   2rem/1.5rem (dubbele marge), en `min-height: 100vh` week af van base.css'
+   `100dvh` — juist op mobiel het verschil dat de adresbalk maakt.
+   base.css is eigenaar van reset + layout, dit bestand van de componenten;
+   die grens stond al in beide headers maar werd hier doorbroken. */
 
 /* Titels — zelfde gradient als .app-title in de singleplayer */
 h1,
@@ -93,9 +86,13 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   color: var(--text);
   font: inherit;
   font-size: 1.1rem;
-  outline: none;
 }
 
+/* Géén `outline: none` meer op de basisregel: die stond later in de cascade
+   dan base.css' `:focus-visible` en met gelijke specificiteit won hij dus
+   ook tijdens focus — het veld had daardoor helemaal geen zichtbare
+   toetsenbordfocus. De accentgloed hieronder is de visuele stijl, de ring uit
+   base.css blijft de toegankelijkheidsgarantie. */
 .field-input:focus {
   border-color: var(--accent-light);
   box-shadow: 0 0 0 3px var(--accent-glow);

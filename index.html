@@ -2,7 +2,9 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <!-- Geen maximum-scale: dat blokkeerde pinch-zoom (WCAG 1.4.4 vraagt om
+       tot 200% kunnen inzoomen). De multiplayer-index doet dit al goed. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Game App</title>
   <link rel="stylesheet" href="style.css">
 </head>

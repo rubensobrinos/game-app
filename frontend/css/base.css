@@ -24,8 +24,15 @@
   --error-bg: rgba(239, 68, 68, 0.12);
   --text: #f1f5f9;
   --text-muted: #8b92b0;
+  --gold: #f59e0b;
   --r: 14px;
   --r-sm: 10px;
+
+  /* Hoogte van #app-header (0.75rem padding-top + 2.75rem knop). De header
+     staat in de normale flow (sticky), dus een scherm dat 100dvh hoog is
+     duwt de pagina exact deze hoogte te ver door. `.screen` trekt 'm er
+     daarom weer af — zie de opmerking daar. */
+  --header-h: 3.5rem;
 }
 
 /* Lichte variant (UI-vraag: thema-instelling naast de taalkeuze). Bewust geen
@@ -66,8 +73,10 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Géén min-height hier: `.screen` vult zelf de resthoogte onder de header.
+   Stond die 100dvh hier én op `.screen`, dan telde de header (die in de
+   normale flow staat) er bovenop en scrollde élk scherm ~3.5rem te ver. */
 #app-root {
-  min-height: 100dvh;
   max-width: 480px;
   margin: 0 auto;
 }
@@ -97,6 +106,27 @@ button {
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* Toetsenbordfocus. Stond nergens: `components.css` zet `outline: none` op
+   `.field-input` en de knoppen kregen alleen een hover-stijl, dus wie met Tab
+   navigeerde zag niet waar hij was. `:focus-visible` (niet `:focus`) houdt de
+   ring weg bij een muisklik op een knop, maar toont 'm bij Tab — en bij
+   tekstvelden altijd, want daar matcht `:focus-visible` per spec ook op klik.
+
+   De ring staat bewust op --text i.p.v. --accent-light: het accent is óók de
+   kleur van "geselecteerd" (.btn-opt.active, .gameplay-option.is-selected),
+   en focus mag niet lijken op selectie. */
+:focus-visible {
+  outline: 3px solid var(--text);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* Alleen weghalen waar de UA-ring niets toevoegt (de overlay heeft al een
+   eigen zichtbare rand) — nooit globaal. */
+.app-menu:focus-visible {
+  outline: none;
 }
 
 /* ── Appheader (hamburgermenu) — zichtbaar op élk scherm, buiten #app-root ── */
@@ -191,13 +221,23 @@ button {
 
 /* ── Scherm-layout ─────────────────────────────────────────────────────── */
 .screen {
-  min-height: 100dvh;
+  min-height: calc(100dvh - var(--header-h));
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* `safe center` i.p.v. `center`: bij inhoud die hoger is dan het scherm
+     (lange deelnemerslijst, opengeklapte instellingen) schuift gewoon
+     `center` de bovenkant buiten het scrollgebied, waar je niet meer bij
+     kunt. `safe` valt in dat geval terug op flex-start. */
+  justify-content: safe center;
   align-items: stretch;
   gap: 1rem;
   padding: 2rem 1.5rem;
+}
+
+/* Voor schermen die van boven af opbouwen (lobby, tussenstand) — centreren
+   heeft daar geen zin zodra de lijst groeit. */
+.screen.screen-top {
+  justify-content: flex-start;
 }
 
 .app-logo {
