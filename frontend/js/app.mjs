@@ -1,8 +1,11 @@
-// app.mjs — UI1. Entry point (`<script type="module">`), geladen vanuit
-// `index.html`. Bepaalt de route (`route-resolver`) en de bijbehorende view
-// (`view-switcher`), en mount scherm 1 (Home) of scherm 2 (Preview/join) uit
-// `views/`. UI2-UI5's routes (`lobby`/`gameplay`/`scoreboard`/`podium`) tonen
-// hier bewust nog een placeholder — die schermen bestaan pas vanaf UI2.
+// app.mjs — UI1/UI2/UI1b-kern. Entry point (`<script type="module">`),
+// geladen vanuit `index.html`. Bepaalt de route (`route-resolver`) en mount
+// het bijbehorende scherm: `home` (Snel starten/code), `join` (invite-
+// preview), of — voor `game`/`host` — `session-shell.mjs`, dat zelf de
+// socketverbinding en faseafhankelijke schermen (lobby/gameplay/scoreboard/
+// podium) beheert zodra er een lokaal opgeslagen sessie is. Zonder sessie
+// (een kale deep link) valt `game`/`host` terug op de code-invoerflow met de
+// code uit de URL — dat is een betere UX dan een permanente placeholder.
 //
 // Ook verantwoordelijk voor het appbrede hamburgermenu (`app-menu.mjs`,
 // gemount in `#app-header`, buiten `#app-root` zodat het elke routewissel
@@ -21,17 +24,18 @@ import { loadLang, saveLang, loadTheme, saveTheme } from './preferences.mjs';
 import { createAppMenu } from './app-menu.mjs';
 import { resolveRoute } from '../../client/flow/route-resolver.mjs';
 import { joinSourceFor } from '../../client/flow/share-actions.mjs';
-import { viewFor } from './view-switcher.mjs';
+import { loadSession } from '../../client/flow/session-store.mjs';
 import { createMockTransport } from './transport-mock.mjs';
 import { createHomeView } from './views/home.mjs';
 import { createJoinView } from './views/join.mjs';
+import { createSessionShell } from './session-shell.mjs';
 
 const ROOT_ID = 'app-root';
 const HEADER_ID = 'app-header';
 const transport = createMockTransport();
 const storage = window.localStorage;
 
-let currentScreen = null; // { render() } van de actief gemounte view — ververst bij een taalwissel
+let currentScreen = null; // { render()?, destroy()? } van de actief gemounte view
 
 function getRoot() {
   return document.getElementById(ROOT_ID);
@@ -50,16 +54,30 @@ function renderPlaceholder(root, key) {
   applyI18n();
 }
 
+function mountJoin(root, locator) {
+  const view = createJoinView({
+    root,
+    t,
+    transport,
+    storage,
+    onJoined: (session) => navigate(`/game/${session.gameCode}`),
+  });
+  view.start(locator);
+  return view;
+}
+
 function render() {
   const root = getRoot();
   if (root === null) {
     return;
   }
 
-  const route = resolveRoute(window.location.pathname, window.location.search);
-  const view = viewFor({ route: route.route });
+  currentScreen?.destroy?.(); // sluit een eventueel open socket vóór de volgende view mount
+  currentScreen = null;
 
-  if (view === 'home') {
+  const route = resolveRoute(window.location.pathname, window.location.search);
+
+  if (route.route === 'home') {
     currentScreen = createHomeView({
       root,
       t,
@@ -67,47 +85,43 @@ function render() {
       storage,
       onNavigate: navigate,
       onCodeLocator: (locator) => {
-        root.textContent = '';
-        currentScreen = createJoinView({
-          root,
-          t,
-          transport,
-          storage,
-          onJoined: (session) => navigate(`/game/${session.gameCode}`),
-        });
-        currentScreen.start(locator);
+        currentScreen = mountJoin(root, locator);
       },
     });
     return;
   }
 
-  if (view === 'preview-join') {
-    const locator =
-      route.route === 'join'
-        ? { type: 'invite', inviteId: route.inviteId, joinSource: joinSourceFor(window.location.search) }
-        : null;
-    if (locator === null) {
-      // route 'game'/'host' zonder actieve fase en zonder invite/code bij de
-      // hand (bv. een herladen deep link zonder opgeslagen sessie) — UI1b
-      // regelt reconnect via een opgeslagen sessie; nu nog een placeholder.
-      currentScreen = null;
-      renderPlaceholder(root, 'scaffold.ready');
-      return;
-    }
-    currentScreen = createJoinView({
-      root,
-      t,
-      transport,
-      storage,
-      onJoined: (session) => navigate(`/game/${session.gameCode}`),
+  if (route.route === 'join') {
+    currentScreen = mountJoin(root, {
+      type: 'invite',
+      inviteId: route.inviteId,
+      joinSource: joinSourceFor(window.location.search),
     });
-    currentScreen.start(locator);
     return;
   }
 
-  // 'lobby' | 'gameplay' | 'scoreboard' | 'podium' | 'unknown': schermen van
-  // UI2-UI5, nog niet gebouwd.
-  currentScreen = null;
+  if (route.route === 'game' || route.route === 'host') {
+    const session = loadSession(storage, route.code);
+    if (session !== null) {
+      currentScreen = createSessionShell({
+        root,
+        t,
+        transport,
+        storage,
+        code: route.code,
+        isHostRoute: route.route === 'host',
+        session,
+        onLeaveHome: () => navigate('/'),
+      });
+      return;
+    }
+    // Kale deep link zonder lokale sessie: laat de code-invoerflow het
+    // oplossen met de code uit de URL, in plaats van een dode placeholder.
+    currentScreen = mountJoin(root, { type: 'code', code: route.code });
+    return;
+  }
+
+  // 'screen' (spectators, buiten scope — DECISIONS.md #9) | 'unknown'
   renderPlaceholder(root, 'scaffold.ready');
 }
 
@@ -159,7 +173,7 @@ function main() {
   setupMenu();
   render();
   window.addEventListener('popstate', render);
-  console.log('[frontend] UI1 home + join screens wired up.');
+  console.log('[frontend] UI1/UI2 screens + session-shell wired up.');
 }
 
 main();

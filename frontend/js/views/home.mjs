@@ -106,7 +106,7 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
     codeLabel.hidden = state.status === 'creating';
     codeSubmitButton.hidden = state.status === 'creating';
     codeSubmitButton.textContent = t('home.codeSubmit');
-    quickStartError.textContent = state.status === 'error' ? messageForErrorCode(state.errorCode) : '';
+    quickStartError.textContent = state.status === 'error' ? t(`error.${messageForErrorCode(state.errorCode)}`) : '';
   }
 
   render();

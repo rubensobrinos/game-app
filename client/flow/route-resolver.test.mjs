@@ -6,6 +6,14 @@ test('/ resolves to home', () => {
   assert.deepStrictEqual(resolveRoute('/'), { route: 'home' });
 });
 
+test('/samen resolves to home (HANDOFF-UI UI-6, multiplayer entry from singleplayer menu)', () => {
+  assert.deepStrictEqual(resolveRoute('/samen'), { route: 'home' });
+});
+
+test('/samen/ (trailing slash) does not resolve to home -- no fuzzy matching, same discipline as other routes', () => {
+  assert.deepStrictEqual(resolveRoute('/samen/'), { route: 'unknown' });
+});
+
 test('/j/{inviteId} resolves to join', () => {
   assert.deepStrictEqual(resolveRoute('/j/N4x7pQm2K8tW'), {
     route: 'join',

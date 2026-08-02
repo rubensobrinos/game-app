@@ -52,4 +52,64 @@ export const nl = Object.freeze({
   'podium.third': '🥉',
   'podium.rematch': 'Nog een keer!',
   'podium.waitForHost': 'Wachten tot de host een nieuwe game start…',
+
+  // — Foutmeldingen: sleutel = `edge-case-messaging.messageForErrorCode()`'s
+  // teruggegeven code, vertaald hier. PROTOCOL.md's volledige foutcodetabel. —
+  'error.GAME_NOT_FOUND': 'Deze game bestaat niet (meer).',
+  'error.INVITE_INVALID': 'Deze uitnodiging is ongeldig.',
+  'error.GAME_FULL': 'Deze game zit vol.',
+  'error.GAME_ALREADY_STARTED': 'Deze game is al begonnen.',
+  'error.LATE_JOIN_DISABLED': 'Deze game is al begonnen en laat geen nieuwe spelers meer toe.',
+  'error.ROOM_LOCKED': 'Deze game is vergrendeld door de host.',
+  'error.CODE_RATE_LIMITED': 'Te veel pogingen. Probeer het zo weer.',
+  'error.TOKEN_INVALID': 'Je sessie is niet (meer) geldig.',
+  'error.TOKEN_EXPIRED': 'Je sessie is verlopen.',
+  'error.SESSION_REVOKED': 'Je sessie is beëindigd.',
+  'error.NOT_HOST': 'Alleen de host kan dit doen.',
+  'error.NOT_PLAYER': 'Alleen spelers kunnen dit doen.',
+  'error.INVALID_PHASE': 'Dat kan nu niet.',
+  'error.ROUND_NOT_ACTIVE': 'Er is nu geen actieve ronde.',
+  'error.PLAYER_NOT_ELIGIBLE': 'Je doet nog niet mee aan deze ronde.',
+  'error.ALREADY_ANSWERED': 'Je hebt deze ronde al beantwoord.',
+  'error.DEADLINE_PASSED': 'Te laat — deze ronde is voorbij.',
+  'error.INVALID_ANSWER_FORMAT': 'Dat antwoord kon niet verstuurd worden.',
+  'error.UNSUPPORTED_EVENT': 'Dat wordt nu niet ondersteund.',
+  'error.NAME_TOO_LONG': 'Die naam is te lang.',
+  'error.NAME_INVALID': 'Die naam is niet geldig.',
+  'error.RATE_LIMITED': 'Te veel pogingen. Wacht even.',
+  'error.PROTOCOL_VERSION_UNSUPPORTED': 'Je app is verouderd — ververs de pagina.',
+  'error.UNKNOWN_ERROR': 'Er ging iets mis. Probeer het opnieuw.',
+
+  // — Verbindingsstatus (reconnect-state.mjs via messageForConnectionStatus) —
+  'connection.disconnected': 'Verbinding verbroken…',
+  'connection.reconnecting': 'Opnieuw verbinden…',
+
+  // — Pauzeredenen (DECISIONS.md #11 via messageForPauseReason) —
+  'pause.host': 'Gepauzeerd door de host',
+  'pause.host_disconnected': 'Gepauzeerd — de host is de verbinding kwijt',
+  'pause.no_answers': 'Gepauzeerd — niemand heeft geantwoord',
+  'pause.server_recovery': 'Gepauzeerd — de server herstelt zich',
+  'pause.unknown': 'Gepauzeerd',
+
+  // — Sessie-beëindiging (messageForSessionTermination) —
+  'session.kicked': 'Je bent verwijderd door de host.',
+  'session.pause': 'Pauzeer',
+  'session.resume': 'Hervat',
+  'session.revoked': 'Je sessie is beëindigd.',
+  'session.unknown': 'Je bent losgekoppeld.',
+
+  // — UI2: Lobby + Delen —
+  'lobby.title': 'Lobby',
+  'lobby.waiting': 'Wachten tot de host start…',
+  'lobby.players': 'spelers',
+  'lobby.share': 'Uitnodigen',
+  'lobby.shareQr': 'Toon QR-code',
+  'lobby.shareNative': 'Delen',
+  'lobby.shareCopy': 'Kopieer link',
+  'lobby.shareCode': 'Toon code',
+  'lobby.copied': 'Gekopieerd!',
+  'lobby.copyFailed': 'Kopiëren lukte niet — selecteer en kopieer handmatig',
+  'lobby.code': 'Code',
+  'lobby.back': 'Terug',
+  'lobby.start': 'Start de game',
 });

@@ -135,7 +135,7 @@ export function createJoinView({ root, t, transport, storage, onJoined }) {
 
     if (state.status === 'error') {
       status.textContent = '';
-      errorMessage.textContent = messageForErrorCode(state.code);
+      errorMessage.textContent = t(`error.${messageForErrorCode(state.code)}`);
       retryButton.hidden = false;
       retryButton.textContent = t('join.retry');
       return;

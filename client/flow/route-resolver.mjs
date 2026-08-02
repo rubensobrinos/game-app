@@ -1,4 +1,7 @@
 /**
+ * `/samen` is de multiplayer-ingang vanuit het singleplayer-menu (HANDOFF-UI
+ * UI-6, producteigenaar 2 aug 2026) — resolvet identiek aan `/`, ook `home`.
+ *
  * @param {string} pathname
  * @param {string} [search]
  * @returns
@@ -27,7 +30,7 @@ export function resolveRoute(pathname, search) {
     return { route: 'unknown' };
   }
 
-  if (pathname === '/') {
+  if (pathname === '/' || pathname === '/samen') {
     return { route: 'home' };
   }
 

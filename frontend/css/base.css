@@ -303,3 +303,120 @@ button {
 .field-error:not(:empty) {
   padding: 0.5rem 0.75rem;
 }
+
+/* ── UI2: Lobby + Delen ────────────────────────────────────────────────── */
+.lobby-waiting,
+.lobby-count {
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.lobby-players {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.lobby-player {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 0.6rem 0.9rem;
+}
+
+.lobby-share-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.lobby-share-feedback {
+  text-align: center;
+  color: var(--accent-light);
+  font-size: 0.85rem;
+  min-height: 1.2em;
+}
+
+.lobby-code-reveal {
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.lobby-link-fallback {
+  text-align: center;
+}
+
+.lobby-qr-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 1.5rem;
+}
+
+.lobby-qr-image {
+  width: min(80vw, 340px);
+  height: min(80vw, 340px);
+  background: #fff;
+  border-radius: var(--r);
+  padding: 1rem;
+}
+
+/* ── Reconnect-status + pauze-overlay (session-shell.mjs) ─────────────────
+   Zichtbaar over élke onderliggende fase-view heen, geen eigen route. */
+.session-banner {
+  text-align: center;
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+  color: var(--text);
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+
+.session-banner.is-disconnected {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.session-pause-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.session-pause-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r);
+  padding: 2rem 1.5rem;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  max-width: 320px;
+}
+
+.session-pause-resume {
+  display: block;
+  width: 100%;
+  margin-top: 1.25rem;
+}
+
+/* Minimale hosttoggle vooruitlopend op UI5's hostbalk — zie session-shell.mjs. */
+.session-host-pause {
+  display: block;
+  margin: 0.75rem auto 0;
+}
