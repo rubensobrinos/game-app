@@ -17,12 +17,13 @@ voor onszelf, niet voor de uitvoerder.
 | [`DT1a-traceability-matrix.md`](DT1a-traceability-matrix.md) | DT1a | Traceability-matrix PROTOCOL.md → open beslispunten — **afgerond**, incl. addendum-kruisverwijzing met protocol-plan |
 | [`DT2-fixtures-voorstel.md`](DT2-fixtures-voorstel.md) | DT2 | Pure data-factories conform DATA-MODEL.md (voorstel) — **afgerond** |
 | [`DT3a-integratie-matrix.md`](DT3a-integratie-matrix.md) | DT3a | Genummerde integratiescenario-matrix met activatiecriteria — **afgerond** |
-| [`DT3b-integratie-code.md`](DT3b-integratie-code.md) | DT3b | `test.skip`-code per matrixrij, pas na activatiecriterium — **geblokkeerd**, geen enkele rij voldoet nog |
-| [`DT4a-playwright-e2e.md`](DT4a-playwright-e2e.md) | DT4a | Deel 1 pseudocode-scenario's (nu), Deel 2 echte specs (na `deps`-akkoord) |
-| [`DT4b-device-matrix.md`](DT4b-device-matrix.md) | DT4b | Handmatige device-/browsermatrix — volledig nu uitvoerbaar |
-| [`DT5-loadtests.md`](DT5-loadtests.md) | DT5 | Deel 1 evidence-tabel (nu), Deel 2/3 k6-scripts + uitvoering (na akkoord) |
-| [`DT6-chaostests.md`](DT6-chaostests.md) | DT6 | Deel 1 runbook-tekst (nu), Deel 2 uitvoering (na gefaseerde autorisatie) |
-| [`DT7-ci-voorstel.md`](DT7-ci-voorstel.md) | DT7 | CI-volgordevoorstel — volledig nu uitvoerbaar, activatie apart |
+| [`DT3b-integratie-code.md`](DT3b-integratie-code.md) | DT3b | Direct actieve test per matrixrij (geen `test.skip` meer, zie REVIEW-DT3B-DT7.md #7), pas na activatiecriterium — **geblokkeerd**, 0/14 rijen voldoet nog |
+| [`DT4a-playwright-e2e.md`](DT4a-playwright-e2e.md) | DT4a | Deel 1: 6 pseudocode-scenario's, elk met een eigen implementatieprerequisite — **klaar, 0/6 uitvoerbaar**. Deel 2 echte specs (na `deps`-akkoord + prerequisite) |
+| [`DT4b-device-matrix.md`](DT4b-device-matrix.md) | DT4b | Handmatige device-/browsermatrix — **runbook klaar, 0/10 devicechecks uitgevoerd** |
+| [`DT5-loadtests.md`](DT5-loadtests.md) | DT5 | Deel 1 evidence-tabel — **klaar, 0/10 criteria gemeten**. Deel 2/3 k6-scripts + uitvoering (na akkoord) |
+| [`DT6-chaostests.md`](DT6-chaostests.md) | DT6 | Deel 1 runbook + preflight-stap — **klaar, 0/6 scenario's uitgevoerd**. Deel 2 uitvoering (na gefaseerde autorisatie) |
+| [`DT7-ci-voorstel.md`](DT7-ci-voorstel.md) | DT7 | CI-volgordevoorstel — **beide blockers uit de review verwerkt** (`.js`+`.mjs`-glob, `shared/product` toegevoegd, expliciete sectie dat de bestaande `ci.yml` al kapot is en dit voorstel dat niet zelf oplost); activatie blijft apart |
+| [`REVIEW-DT3B-DT7.md`](REVIEW-DT3B-DT7.md) | — | Review van de resterende fasen; beide DT7-blockers en de overige bevindingen zijn verwerkt, zie [`../DT-PROGRESS.md`](../DT-PROGRESS.md) |
 
 **DT0–DT3a** zijn de fases die ik zelfstandig kon doorlopen tot en met een matrix,
 voorstel of mapstructuur — alle vijf zijn afgerond en gecommit. **DT1b is

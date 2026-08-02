@@ -47,8 +47,23 @@ expliciet `deps`-akkoord (CLAUDE.md §Beslisbevoegdheid).
   `/host/{code}` (host, dezelfde UI + hostbediening), `/screen/{code}` (optionele
   spectatorroute — expliciet **niet** vereist voor de kernflow, zie scenario 6).
 
+**Aanvulling na [`prompts/REVIEW-DT3B-DT7.md`](prompts/REVIEW-DT3B-DT7.md) #6:**
+geen van deze zes scenario's is uitvoerbaar door alleen Playwright te installeren.
+Geverifieerd (2026-08-02): `client/flow/` bevat uitsluitend losse, pure
+`.mjs`-state-machinemodules (`route-resolver.mjs`, `session-store.mjs`,
+`join-state.mjs`, `match-phase-state.mjs`, `reconnect-state.mjs`, enz.) — geen
+enkel HTML-/DOM-toegangspunt dat ze aan een echte pagina koppelt. Playwright bestuurt
+een browser die een pagina laadt; zonder een geïntegreerde host/player-kernflow
+(routering, spelscherm, timer, scoreboard, podium, hostbedieningsbalk) is er geen
+pagina om te besturen. Elk scenario hieronder krijgt daarom een expliciete
+**implementatieprerequisite**, naar het voorbeeld van DT3a's activatiecriteria —
+Deel 2 mag een scenario pas omzetten naar een echte spec zodra zowel het
+`deps`-akkoord voor Playwright er is, én de genoemde prerequisite aantoonbaar
+bestaat.
+
 Elk scenario hieronder volgt hetzelfde format: **doel**, **betrokken route(s)**,
-**voorwaarden**, genummerde **stappen** (pseudocode), **verwacht resultaat**.
+**implementatieprerequisite**, **voorwaarden**, genummerde **stappen**
+(pseudocode), **verwacht resultaat**.
 
 ---
 
@@ -60,6 +75,12 @@ aangemaakte room — en dat een ongeldige/verlopen `inviteId` juist geen room op
 (GAME-FLOW.md Randgeval 9).
 
 **Betrokken route(s):** `/j/{inviteId}` → `/game/{code}`.
+
+**Implementatieprerequisite:** een draaiende pagina die `route-resolver.mjs`
+daadwerkelijk aan browser-navigatie/DOM koppelt (nu bestaat alleen de losstaande,
+geteste functie), plus een naamveld- en lobby-rendering die op `join-state.mjs`
+reageert. Geen backend-server nodig — een gemockte transportlaag volstaat — maar wel
+een echte, gerenderde pagina om naartoe te navigeren.
 
 **Voorwaarden:**
 - Gemockte transportlaag met minimaal twee onafhankelijke, vooraf aangemaakte rooms
@@ -102,6 +123,12 @@ verzonden").
 **Betrokken route(s):** `/game/{code}` (speler); dezelfde stappen zijn ook van
 toepassing op `/host/{code}` voor een meespelende host.
 
+**Implementatieprerequisite:** `session-store.mjs` en `reconnect-state.mjs`
+daadwerkelijk gekoppeld aan respectievelijk browser-`localStorage` en een
+DOM-gerenderde paginalevenscyclus (refresh-event), plus een gerenderd spelscherm
+dat fase/score toont — nu bestaan beide modules alleen als losse, pure
+state-machines zonder koppeling aan een echte pagina.
+
 **Voorwaarden:**
 - Gemockte transportlaag die op een snapshot-aanvraag een vaste fase/score
   retourneert die bewust afwijkt van wat er vóór de refresh lokaal staat (bijv.
@@ -142,6 +169,12 @@ overlappen.
 
 **Betrokken route(s):** `/game/{code}`.
 
+**Implementatieprerequisite:** een daadwerkelijk gerenderd spelscherm (vraag,
+antwoordopties, timer, ontvangstbevestiging) met responsive CSS/layout — dit is
+letterlijk de "UI-samenstelling" die tot nu toe bewust buiten de
+`game-flow-plan`-modules is gehouden (die leveren alleen state, geen DOM/CSS). Zonder
+gerenderde UI is er niets om op portrait/landscape te controleren.
+
 **Voorwaarden:**
 - Viewport ingesteld op een representatieve telefoonmaat, bijv. 390×844
   (portrait).
@@ -174,6 +207,10 @@ bij het draaien van portrait naar landscape tijdens dezelfde ronde.
 een klein schermformaat, niet alleen op een groter referentietoestel.
 
 **Betrokken route(s):** `/j/{inviteId}`, `/game/{code}`.
+
+**Implementatieprerequisite:** dezelfde gerenderde join- en spelschermen als
+scenario's 1 en 3, nu getoetst op een kleiner formaat — voegt geen nieuwe
+onderliggende module toe, maar vereist wel dat de UI-samenstelling er al is.
 
 **Voorwaarden:**
 - Viewport op een klein telefoonformaat, bijv. 375×667.
@@ -208,6 +245,11 @@ kleiner of drukker oogt dan bij een gewone speler — conform GAME-FLOW.md
 de antwoordinterface niet kleiner of onrustiger wordt").
 
 **Betrokken route(s):** `/host/{code}`.
+
+**Implementatieprerequisite:** een gerenderde hostbedieningsbalk (`host-controls-
+state.mjs` gekoppeld aan zichtbare, aanklikbare knoppen) náást hetzelfde gerenderde
+spelscherm als scenario 3 — twee UI-onderdelen die nu allebei alleen als state-
+module bestaan, nooit samen gerenderd.
 
 **Voorwaarden:**
 - Host-sessie met meespelen aan (host heeft dus ook een eigen `playerId`, net als
@@ -248,6 +290,12 @@ of centraal scherm komt in deze route niet voor.").
 
 **Betrokken route(s):** `/`, `/j/{inviteId}`, `/host/{code}`, `/game/{code}`.
 Expliciet buiten dit scenario: `/screen/{code}`.
+
+**Implementatieprerequisite:** de zwaarste van de zes — de volledige, geïntegreerde
+kernflow (homepage, lobby met QR, spelscherm, tussenstand, eindpodium) daadwerkelijk
+gerenderd en gekoppeld aan alle onderliggende `client/flow`-modules tegelijk. Dit
+scenario is realistisch pas uitvoerbaar nadat scenario's 1–5 elk al individueel
+werken.
 
 **Voorwaarden:**
 - Twee onafhankelijke browsercontexten: één voor de host, één voor een speler.

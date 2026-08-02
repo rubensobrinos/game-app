@@ -50,12 +50,17 @@ kiezen bij goedkeuring. Kernpunten:
   de `node:test`-boom, niet een parallelle lint- of securitycheck.
 - **Geen falende stap op lege mappen**: `tests/contract/` en `tests/integration/`
   bevatten nu alleen een `.gitkeep` (`tests/integration` sowieso zolang DT3b
-  geblokkeerd is; zie README.md-status), en `server/protocol/` en `client/flow/`
-  hebben op dit moment ook nog geen `*.test.js`-bestanden. `node --test <map>` faalt
-  op een lege map met `MODULE_NOT_FOUND` (al vastgesteld tijdens DT0-scaffold, zie
-  README.md). Elke stap expandeert daarom eerst zelf de glob (`*.test.js`) en slaat
-  over — met een duidelijke logregel, exit 0 — als er niets te draaien is, in plaats
-  van de map direct aan `node --test` door te geven.
+  geblokkeerd is; zie README.md-status). `node --test <map>` faalt op een lege map
+  met `MODULE_NOT_FOUND` (al vastgesteld tijdens DT0-scaffold, zie README.md). Elke
+  stap expandeert daarom eerst zelf de glob en slaat over — met een duidelijke
+  logregel, exit 0 — als er niets te draaien is, in plaats van de map direct aan
+  `node --test` door te geven.
+- **Beide bestandsextensies, niet alleen `.js`.** Een eerdere versie van dit
+  voorstel zocht uitsluitend `*.test.js` en zou daarmee alle bestaande
+  `.test.mjs`-suites in `server/protocol/` (15 bestanden) en `client/flow/` (10
+  bestanden) stilzwijgend als "leeg" hebben overgeslagen — precies de fout die
+  `REVIEW-DT3B-DT7.md` #1 als blocker aanmerkte. Elke glob hieronder verzamelt
+  daarom zowel `*.test.js` als `*.test.mjs`.
 
 ### Lagen in volgorde, gekoppeld aan `agent_rules.deployment_order`
 
@@ -68,7 +73,7 @@ blijven in `ci.yml`, en `build`/`deploy` zijn hier niet van toepassing.
 | --- | --- | --- |
 | `lint` | — blijft in `ci.yml`, niet gedupliceerd | *(geen)* |
 | `security` | — blijft in `ci.yml`, niet gedupliceerd | *(geen)* |
-| `test` | `node --test` unittests per module-eigenaar (`server/rules`, `server/architecture`, `server/protocol`, `server/data`, `client/flow`, `tests/fixtures`) — elke eigenaar test zijn eigen module, ik dupliceer niets (README.md, tabel "Testlagen → eigenaarschap") | `unit` (matrix-job) |
+| `test` | `node --test` unittests per module-eigenaar (`server/rules`, `server/architecture`, `server/protocol`, `server/data`, `client/flow`, `shared/product`, `tests/fixtures`) — elke eigenaar test zijn eigen module, ik dupliceer niets (README.md, tabel "Testlagen → eigenaarschap") | `unit` (matrix-job) |
 | `validate` | eerst `tests/contract/*.test.js` (bevestigt dat module-output aan het gedeelde protocol-/datacontract voldoet), dán `tests/integration/*.test.js` (bevestigt samenwerking tussen modules — breder, dus pas ná contract) | `contract`, gevolgd door `integration` |
 | `build` | n.v.t. voor deze workflow | *(geen)* |
 | `deploy` | n.v.t. voor deze workflow | *(geen)* |
@@ -104,19 +109,20 @@ jobs:
           - server/protocol
           - server/data
           - client/flow
+          - shared/product
           - tests/fixtures
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: node --test (no-op if no *.test.js yet)
+      - name: node --test (both .test.js and .test.mjs; no-op if none yet)
         shell: bash
         run: |
           shopt -s nullglob
-          files=(${{ matrix.module }}/*.test.js)
+          files=(${{ matrix.module }}/*.test.js ${{ matrix.module }}/*.test.mjs)
           if [ ${#files[@]} -eq 0 ]; then
-            echo "No *.test.js files yet in ${{ matrix.module }} — skipping."
+            echo "No *.test.js or *.test.mjs files yet in ${{ matrix.module }} — skipping."
             exit 0
           fi
           node --test "${files[@]}"
@@ -130,13 +136,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: node --test tests/contract (no-op if no *.test.js yet)
+      - name: node --test tests/contract (both extensions; no-op if none yet)
         shell: bash
         run: |
           shopt -s nullglob
-          files=(tests/contract/*.test.js)
+          files=(tests/contract/*.test.js tests/contract/*.test.mjs)
           if [ ${#files[@]} -eq 0 ]; then
-            echo "No *.test.js files yet in tests/contract — skipping."
+            echo "No *.test.js or *.test.mjs files yet in tests/contract — skipping."
             exit 0
           fi
           node --test "${files[@]}"
@@ -150,17 +156,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: node --test tests/integration (no-op if no *.test.js yet — DT3b not activated)
+      - name: node --test tests/integration (both extensions; no-op if none yet — DT3b not activated)
         shell: bash
         run: |
           shopt -s nullglob
-          files=(tests/integration/*.test.js)
+          files=(tests/integration/*.test.js tests/integration/*.test.mjs)
           if [ ${#files[@]} -eq 0 ]; then
-            echo "No *.test.js files yet in tests/integration — skipping (DT3b not activated)."
+            echo "No *.test.js or *.test.mjs files yet in tests/integration — skipping (DT3b not activated)."
             exit 0
           fi
           node --test "${files[@]}"
 ```
+
+Lokaal geverifieerd tegen de daadwerkelijke boom (2026-08-02, vóór dit voorstel als
+tekst vast te leggen): `server/protocol` → 15 `.test.mjs`-bestanden,
+`client/flow` → 10 `.test.mjs`, `shared/product` → 5 `.test.mjs`,
+`server/rules`/`server/architecture`/`server/data`/`tests/fixtures` → 9 `.test.js`
+samen. Met de gecombineerde glob hierboven vindt elke module-job dus daadwerkelijk
+tests; met de oude, `.js`-only versie zouden `server/protocol`, `client/flow` en
+`shared/product` (30 van de 39 bestaande testbestanden) stil zijn overgeslagen.
 
 `fail-fast: false` op de `unit`-matrix is een bewuste keuze: een falende
 `server/data`-test mag `server/rules`s eigen resultaat niet verbergen — elke
@@ -195,6 +209,44 @@ module-eigenaar krijgt zijn eigen groen/rood, niet één samengevouwen matrix-ui
   beschreven activatiestap.
 - **Geen `npm ci`/nieuwe dependency-installatie**: `node:test` is ingebouwd, dus
   niets hier vereist een `deps`-akkoord op zichzelf.
+
+## De bestaande `ci.yml` is al kapot — dit voorstel lost dat niet op
+
+**Blocker, vastgesteld door `REVIEW-DT3B-DT7.md` #2.** Een eerdere versie van dit
+document suggereerde dat een nieuwe, parallelle `tests-node.yml` de "CI-kloof"
+dichtzet. Dat is onjuist. De bestaande, devkit-managed `ci.yml` draait `npm ci`,
+`npx eslint .` en `npx jest` — en deze repo heeft geen `package.json`. Die stappen
+falen dus nu al, onafhankelijk van dit voorstel en onafhankelijk van of
+`tests-node.yml` ooit wordt geactiveerd. Een tweede, groene workflow naast een
+kapotte eerste workflow is geen oplossing: dezelfde push/PR toont dan nog steeds een
+rode `ci.yml`-check.
+
+Dit gat voorafde aan het hele `DEPLOYMENT-AND-TESTING.md`-realisatieplan (het volgt
+uit het `react-native-app`-devkitprofiel, niet uit iets wat in deze plan-map is
+gebouwd) en dit voorstel lost het bewust niet zelf op — elke concrete oplossing is
+zelf al `deps`/`architecture`, `always_ask`:
+
+- **Optie A — minimale `package.json` toevoegen** zodat `npm ci`/`eslint`/`jest`
+  daadwerkelijk iets hebben om tegen te draaien. Dit is een `deps`-beslissing (de
+  repo gaat dan voor het eerst dependencies/een lockfile hebben) en raakt het
+  bestaande "geen build-stap, geen dependencies"-uitgangspunt van de hele repo, niet
+  alleen van dit testplan.
+- **Optie B — het devkit-profiel/de managed `execution`-config aanpassen** (`lint`/
+  `test`/`build` in `devkit policy --json` staan nu vast op
+  `eslint`/`jest`/`expo export`) zodat die commando's passen bij een repo zonder
+  package-manager-project. Dit is een wijziging op profielniveau, niet iets wat één
+  document-eigenaar voor deze ene repo beslist.
+- **Optie C — bewust uitstellen tot een latere, sowieso al `deps`-plichtige stap**
+  (bijvoorbeeld wanneer Playwright of TypeScript wordt goedgekeurd) een
+  `package.json` meebrengt, en de bestaande `ci.yml`-stappen dan pas voor het eerst
+  iets zinnigs hebben om te draaien. Dit voorstel raadt deze optie aan als
+  standaardpad: geen aparte `deps`-vraag nu voor iets dat toch al aankomt, maar wel
+  expliciet benoemd zodat niemand aanneemt dat `tests-node.yml` het probleem al
+  heeft opgelost.
+
+Welke optie ook gekozen wordt, dat is een keuze voor een mens, niet voor dit
+document. Tot die keuze gemaakt is, blijft `ci.yml`'s `lint`/`test`-job rood op elke
+push/PR, ongeacht of `tests-node.yml` bestaat.
 
 ## Openstaande vragen voor de beoordelaar
 

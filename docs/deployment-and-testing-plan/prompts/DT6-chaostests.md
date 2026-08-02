@@ -48,8 +48,15 @@ dus zelfs deel 1 blijft tekst, geen enkele opdracht wordt hier al uitgevoerd.
 
 1. Lokale Compose-stack **installeren/opstarten** — vraag akkoord.
 2. De stack **resetten** naar een schone teststand — vraag akkoord.
-3. Eén runbook-scenario **daadwerkelijk uitvoeren** — vraag akkoord per scenario,
-   niet één keer voor alle zes tegelijk.
+3. **Preflight**: valideer per scenario de documentaannames in
+   [`chaos-runbook.md`](../chaos-runbook.md) (containernamen, healthcheck-
+   parameters, AOF-instellingen) tegen de daadwerkelijk draaiende stack, vóórdat
+   het scenario wordt uitgevoerd — zie de runbook-sectie "Volgorde die voor élk
+   scenario geldt" voor de concrete preflight-commando's. Corrigeer het runbook
+   als de preflight iets anders laat zien.
+4. Eén runbook-scenario **daadwerkelijk uitvoeren** — vraag akkoord per scenario,
+   niet één keer voor alle zes tegelijk, en alleen ná een preflight zonder
+   afwijking.
 
 Geen van deze drie gebeurt zonder expliciete, aparte bevestiging — ook niet als
 scenario 1 al is goedgekeurd.

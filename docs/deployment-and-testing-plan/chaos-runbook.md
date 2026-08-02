@@ -45,9 +45,25 @@ autorisatie nodig (Deel 2 van [`DT6-chaostests.md`](prompts/DT6-chaostests.md)):
    docker compose -p aseso-game-chaos up -d
    ```
 
-3. **Het scenario zelf uitvoeren** — het scenario-specifieke commando uit de
+3. **Preflight tegen de échte stack** — vóórdat een scenario's opdracht wordt
+   gegeven, controleren dat de aannames in dit runbook nog kloppen tegen wat er
+   daadwerkelijk draait: bestaat de containernaam exact zo (`docker compose -p
+   aseso-game-chaos ps`)? Rapporteert de healthcheck het interval/retries zoals
+   hieronder aangenomen (`docker inspect --format '{{json .State.Health}}'
+   <container>`)? Draait Redis daadwerkelijk met `--appendonly yes
+   --appendfsync everysec` (`docker compose -p aseso-game-chaos exec redis
+   redis-cli config get appendonly` / `appendfsync`)? Dit runbook is geschreven
+   vóórdat de Compose-stack en de servercontainers echt bestonden
+   ([`REVIEW-DT3B-DT7.md`](prompts/REVIEW-DT3B-DT7.md) #9); containernamen,
+   healthchecks, AOF-instellingen en hersteltijdvensters hieronder zijn
+   documentaannames op basis van `ARCHITECTURE.md`/`DEPLOYMENT-AND-TESTING.md`,
+   niet geverifieerd gedrag. Wijkt de preflight af van wat een sectie hieronder
+   aanneemt, corrigeer eerst deze sectie's aanname vóórdat het scenario wordt
+   uitgevoerd — voer nooit een scenario uit tegen een aanname waarvan de preflight
+   al liet zien dat die niet klopt.
+4. **Het scenario zelf uitvoeren** — het scenario-specifieke commando uit de
    betreffende sectie hieronder, per scenario apart geautoriseerd (niet één keer
-   voor alle zes tegelijk).
+   voor alle zes tegelijk), en pas ná een preflight die geen afwijking vond.
 
 Gedeelde randvoorwaarden voor alle zes scenario's:
 
