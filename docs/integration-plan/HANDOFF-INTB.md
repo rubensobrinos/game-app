@@ -18,6 +18,8 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INTB-6 | Tiebreak `getScoreboardTop` ligt niet vast | 🔵 open |
 | INTB-7 | Ruw invite-id of hash? | ✅ poort neemt de hash |
 | INTB-8 | Fixtures produceren ongeldige documenten | 🔵 open |
+| INTB-9 | `saveRoom` omzeilt de atomaire locatorclaim | 🔴 **open, hoog** |
+| INTB-10 | `loadSessionByTokenHash` niet implementeerbaar | 🔵 open |
 
 DM heeft de poort van 18 naar 21 methoden gebracht en daarmee vijf items gesloten.
 De oplossing voor INTB-2 is beter dan mijn voorstel: één
@@ -153,6 +155,76 @@ aangeboden claims op dezelfde code is er exact één winnaar. Dat is het enige d
 bewijst dat de race echt dicht is.
 
 Ik implementeer dit zodra de poort de methoden kent.
+
+---
+
+## INTB-9 🔴 — `saveRoom` omzeilt de atomaire locatorclaim volledig
+
+**Aan:** DM-agent, met kopie aan INT-A. **Ernst:** hoog.
+**Gevonden bij:** INTB2b. **Zelf gereproduceerd.**
+
+`saveRoom` schrijft de code-index onvoorwaardelijk (`SET`, geen `NX`) — in beide
+implementaties, en de conformance-suite rekent erop. Daarmee is de hele
+claim-machinerie uit **INTB-2** te omzeilen:
+
+```
+A claimt 482917 via claimRoomLocatorsAtomically   -> A is eigenaar
+B doet alleen saveRoom met diezelfde code          -> geen claim, geen controle
+
+loadRoomByCode('482917')                           -> B
+claimRoomLocatorsAtomically door C                 -> { ok:false, conflict:'code' }
+```
+
+De lookup-index zegt **B**, het claimregister zegt **A**. Een speler die de code
+intypt komt in de verkeerde room; een derde room krijgt een conflict op een code
+die feitelijk van niemand meer is.
+
+Dit maakt de fix voor INTB-2 gedeeltelijk ongedaan. We hebben de TOCTOU-race
+tussen twee claims gedicht, maar er loopt een tweede weg naar dezelfde index die
+helemaal niet langs de claim gaat.
+
+**Voorstel:** `saveRoom` raakt de lookup-indexen niet meer aan. Locators worden
+uitsluitend beheerd via `claimRoomLocatorsAtomically`, `rotateRoomLocators`,
+`releaseRoomLocators` en `refreshRoomLocators` — één weg naar één index. Dat is
+ook consistent met wat er al geldt voor de invite-index: `Room` draagt geen hash,
+dus `saveRoom` kán die sowieso niet vullen. De code-index is nu de uitzondering,
+en juist die uitzondering is het gat.
+
+Let op dat de conformance-suite hier op rekent; die tests gaan mee veranderen.
+
+---
+
+## INTB-10 🔵 — `loadSessionByTokenHash` is niet tegen Redis implementeerbaar
+
+**Aan:** DM-agent. **Blokkeert:** die ene methode in de Redis-adapter.
+**Klasse:** identiek aan het opgeloste INTB-1.
+
+DM14 voegde `loadSessionByTokenHash(tokenHash)` toe met de redenering dat
+`saveSession` de index gewoon kan vullen, zoals `saveRoom` dat voor de code doet.
+Dat gaat op voor een `Map`, niet voor Redis:
+
+- er bestaat **geen sleutel** voor een tokenHash — niet in `redis-keys.js` en
+  niet in `DATA-MODEL.md` §Redis-sleutels;
+- de signatuur draagt **geen `roomId`**, terwijl sessies room-scoped zijn
+  (`roomSessionsKey(roomId)`).
+
+De twee uitwegen zijn allebei verboden: zelf een sleutelnaam samenstellen, of een
+globale `SCAN`. De adapter werpt daarom, met in de melding wat er nodig is.
+
+**Nodig om dit te deblokkeren:**
+
+1. een builder `sessionTokenLookupKey(tokenHash)` in `redis-keys.js`;
+2. dezelfde regel in `DATA-MODEL.md` §Redis-sleutels;
+3. een uitspraak over de TTL van die index;
+4. **een rotatie-uitspraak.** Deze ontbreekt in het voorstel en is de reden dat
+   ik dit als eigen item opschrijf in plaats van als detail: krijgt een sessie een
+   nieuw token, dan blijft de oude tokenhash naar diezelfde sessie wijzen. Dat is
+   letterlijk **INTB-5** nog een keer, nu voor sessietokens — een tweede geldige
+   capability naast de nieuwe. De fake heeft dat gat vandaag ook.
+
+Punt 4 is de reden om dit niet stilzwijgend op te lossen: we hebben dit patroon
+vandaag al twee keer gezien (roomlocators, en nu sessies), en het is elke keer
+een intrekking die niet intrekt.
 
 ---
 
