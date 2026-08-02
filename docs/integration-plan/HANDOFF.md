@@ -21,6 +21,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INT-13 | DM + AR | 🔵 open | `inviteHash` mist een versieprefix, anders dan sessietokens |
 | INT-14 | DM + PR + **INT-B** | 🔴 **hoog, tijdkritisch** | Poort moet `{ replay: boolean }` teruggeven — beslissen vóór INT-B's Lua-script |
 | INT-11 | PR | 🔵 open | `preset`-waarde loopt drie kanten op; het is een wire-veld |
+| INT-15 | DM + **INT-B** | 🔴 **hoog, nu beslissen** | `(roomId, tokenHash)` zou de socket-handshake onbouwbaar maken — input voor INTB-9/10 |
 | INT-12 | PD | 🔵 open | `shared/product/quick-start-preset.mjs` is stale naast een nieuwere variant |
 
 ---
@@ -453,3 +454,41 @@ script in plaats van een veldje erbij. Daarom nu.
 
 Er is bewust geen tweede vangnet in de compositie teruggezet: het gat hoort bij de
 poort, niet bij de aanroeper.
+
+---
+
+## INT-15 — waarschuwing bij INTB-9/10: `(roomId, tokenHash)` breekt de socket-handshake
+
+**Voor:** DM + INT-B. **Urgentie:** dit besluit wordt nu genomen; deze input moet
+erin mee. **Ernst:** hoog — een van de kandidaat-signaturen maakt de socketlaag
+onbouwbaar.
+
+`loadSessionByTokenHash(tokenHash)` staat sinds DM14 in de poort en de socketlaag
+draait erop. INTB-9/10 heroverweegt de signatuur omdat er in `redis-keys.js` nog
+geen sleutel voor bestaat.
+
+**Wordt de signatuur `(roomId, tokenHash)`, dan breekt de handshake volledig.**
+Bij een socketverbinding heeft de server op dat moment uitsluitend het token uit
+`{ auth: { sessionToken, protocolVersion } }`. Er is geen `roomId` — die staat
+juist ín de sessie die nog opgezocht moet worden. Hetzelfde geldt voor elk
+REST-verzoek dat alleen een `Authorization: Bearer`-header draagt, want
+`client/flow/session-store.mjs` bewaart lokaal geen `sessionId` en geen `roomId`
+naast het token.
+
+Een room-gescoopte lookup vereist dus dat de client zijn `roomId` meestuurt bij de
+handshake. Dat is een `PROTOCOL.md`-wijziging én een wijziging in wat de client
+lokaal bewaart, en het maakt de room-parameter tot iets wat een aanvaller kan
+kiezen. Dat lijkt me de verkeerde kant op.
+
+**Tweede punt voor hetzelfde besluit:** een index op tokenhash staat op gespannen
+voet met pepper-rotatie (besluit 26). De socketlaag probeert nu alle pepperversies
+uit `config.tokenPeppers.peppers`, dus O(#versies) lookups per handshake. Dat werkt,
+maar het is dezelfde structurele scheefheid als INT-13 bij `inviteHash`: de
+opgeslagen hash draagt geen versie, dus je moet raden welke pepper erbij hoort.
+Eén oplossing dekt beide: sla de index op onder `${versie}:${hash}` zoals
+`auth-session.mjs` dat voor de tokenhash zelf al doet.
+
+**Wat INT-A vraagt:** houd de lookup key-only (`tokenHash` als enige argument).
+De socketlaag heeft die aanroep achter één functie geïsoleerd, dus een andere
+uitkomst kost mij weinig — maar een room-gescoopte variant kost een
+protocolwijziging en is niet los op te lossen.
