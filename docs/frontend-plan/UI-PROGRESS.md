@@ -16,7 +16,34 @@ Bijgewerkt: 2026-08-02. Legenda (vast, uit `UI1-multiplayer-ui.md`):
 | UI5 — Hostbalk | 🔵 | prompt klaar, wacht op UI3/UI4 |
 | Live end-to-end, 2 browsertabs | ⛔ | vereist INT-A's stap 2 (echte transportlaag) |
 | Live end-to-end, 2 telefoons LAN | ⛔ | idem, ná de tabs-test |
-| UI1b (foutmeldingen, pauze, verlaten, EN/ES, landscape) | ⏸️ | bewust uitgesteld tot UI1a end-to-end speelt |
+| UI1b (foutmeldingen, pauze, verlaten, EN/ES, landscape) | 🟡 | EN/ES vervroegd gedeeltelijk gedaan (zie hieronder) — foutmeldingen/pauze/verlaten/landscape blijven uitgesteld |
+
+## Hamburgermenu — taal (app-UI) + licht/donker-thema
+
+Op verzoek zichtbaar vanaf de indexpagina, niet pas vanaf UI5. Gebouwd:
+
+- `frontend/js/app-menu.mjs`: hamburgerknop + paneel, gemount in `#app-header`
+  (buiten `#app-root`, overleeft dus elke routewissel — `index.html` heeft
+  hiervoor een apart containerelement gekregen).
+- `frontend/js/preferences.mjs` (+ tests, 11/11): laadt/valideert/bewaart de
+  taal- en themakeuze in `localStorage`, los van elke spelsessie.
+- `locales/en.mjs` + `locales/es.mjs` toegevoegd naast `nl.mjs`, met complete
+  vertalingen voor élke sleutel die nu al bestaat (incl. de UI3/UI4-sleutels
+  die nog op hun DOM-scherm wachten) — dit is dus geen volledige invulling
+  van UI1b (dat blijft ook fouten/pauze/verlaten/landscape bevatten), maar wél
+  een echt werkende taalkeuze voor alles wat vandaag al bestaat.
+- Startthema: opgeslagen voorkeur, anders `prefers-color-scheme`, anders
+  donker. Licht thema is een nieuwe kleurenset in `base.css`
+  (`:root[data-theme="light"]`) — de singleplayer-app heeft zelf geen licht
+  thema, hier dus vrij ontworpen binnen dezelfde tokens.
+- **Let op, dit is nadrukkelijk de taal van de app-UI zelf** (menu's, knoppen,
+  foutmeldingen) — niet de taal waarin vragen gesteld worden, dat blijft een
+  aparte game-instelling in `host-setup-state`'s `config.language`.
+- Geverifieerd in headless Chromium: taalwissel (NL/EN/ES) ververst alle
+  zichtbare tekst zonder de lopende reducerstate te resetten (typte naam/code
+  blijft staan); themawissel past direct `data-theme` toe; geen consolefouten.
+  Regressiecheck van de bestaande Snel-starten/code-invoer/invite-flow gedaan
+  ná de DOM-herstructurering (`.screen`-wrapper) — nog steeds groen.
 
 ## Openstaande actiepunten
 
