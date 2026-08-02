@@ -753,17 +753,32 @@ if (!probe.ok) {
           const victimId = await victim.getClient().sendCommand(['CLIENT', 'ID']);
           const dood = () => killer.getClient().sendCommand(['CLIENT', 'KILL', 'ID', String(victimId)]);
 
-          // Bij `bij-eval` schuift de kill mee met het script in plaats van met
-          // de klok: de doorgeefclient hieronder vuurt hem af zodra de EVAL de
-          // deur uit is. Alleen `get` en `eval` worden gebruikt, dus meer hoeft
-          // hij niet door te geven.
+          // Bij `bij-eval` schuift de kill mee met de operatie in plaats van
+          // met de klok: de doorgeefclient hieronder vuurt hem af zodra het
+          // EERSTE schrijvende commando de deur uit is. Bewust niet alleen
+          // `eval`: een implementatie die de twee documenten in losse
+          // opdrachten wegschrijft, moet hier juist de kill tússen die twee
+          // opdrachten krijgen — anders test dit alleen de implementatie die
+          // er toevallig staat.
+          let gedood = false;
+          const doodNaEersteSchrijf = () => {
+            if (moment !== 'bij-eval' || gedood) return;
+            gedood = true;
+            dood().catch(() => {});
+          };
           const victimStore = createRedisDataStore({
             connection: {
               getClient: () => ({
                 get: (key) => victim.getClient().get(key),
+                expire: (key, seconds) => victim.getClient().expire(key, seconds),
+                set: (key, value, options) => {
+                  const pending = victim.getClient().set(key, value, options);
+                  doodNaEersteSchrijf();
+                  return pending;
+                },
                 eval: (script, options) => {
                   const pending = victim.getClient().eval(script, options);
-                  if (moment === 'bij-eval') dood();
+                  doodNaEersteSchrijf();
                   return pending;
                 },
               }),
