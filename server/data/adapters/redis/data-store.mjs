@@ -1,12 +1,13 @@
 // De Redis-adapter van de DataStore-poort (server/data/repository.js) —
-// INTB2b, uitgebreid met de atomaire fasewissel in INTB2d.
+// INTB2b, uitgebreid met de atomaire fasewissel in INTB2d en de atomaire
+// antwoordverwerking in INTB2c.
 //
-// Eenentwintig van de drieëntwintig poortmethoden draaien hier tegen echte
-// Redis. De twee die ontbreken zijn geen vergeten werk maar apart belegd:
+// Tweeëntwintig van de drieëntwintig poortmethoden draaien hier tegen echte
+// Redis. De ene die ontbreekt is geen vergeten werk maar geblokkeerd:
 //
-// (De poort is tijdens dit werk twee keer uitgebreid: DM14/§10
+// (De poort is tijdens INTB2b twee keer uitgebreid: DM14/§10
 // `loadSessionByTokenHash` en DM16/§9 `rotateRoomLocators`. De tweede is
-// gebouwd — het is een locator-lifecyclemethode en die horen bij dit item; de
+// gebouwd — het is een locator-lifecyclemethode en die horen bij dat item; de
 // eerste kán niet, zie hieronder.)
 //
 //   * `loadSessionByTokenHash` -> GEBLOKKEERD op de sleutelcatalogus. DM14/§10
@@ -15,26 +16,21 @@
 //     de signatuur geen `roomId` draagt. Zie de uitgebreide noot bij de functie
 //     zelf voor wat er precies nodig is; het is dezelfde klasse blokkade als
 //     INTB-1 was.
-//   * `saveAcceptedAnswerAtomically` -> INTB2c. Bij aanvang van dit item
-//     geblokkeerd: het gebundelde poortvoorstel van INT-A zou deze methode een
-//     expliciete returnwaarde geven, en een Lua-script schrijven tegen een
-//     contract dat nog beweegt levert een tweede mening over idempotentie op.
-//     TIJDENS DIT WERK IS DIE BLOKKADE OPGEHEVEN: DM15 (reactie op INT-14) legt
-//     in `repository.js` `{ replay: boolean }` vast, inclusief het foutcontract.
-//     INTB2c kan dus gebouwd worden; het valt alleen buiten de scope die deze
-//     opdracht meekreeg.
 //
 // `setRoomAndMatchPhaseAtomically` stond hier ook; die is in INTB2d gebouwd
 // (zie `SET_PHASE_LUA` en de functie zelf, inclusief wat er bij een onderbroken
-// uitvoering wél en niet gegarandeerd is).
+// uitvoering wél en niet gegarandeerd is). `saveAcceptedAnswerAtomically` stond
+// hier ook, geblokkeerd op een bewegend contract; DM15 (reactie op INT-14) legt
+// dat contract inmiddels vast in `repository.js` (§FOUTCONTRACT) en INTB2c heeft
+// hem gebouwd — zie `SAVE_ANSWER_LUA` en de functie zelf.
 //
-// Beide werpen `NotImplementedError` met de verwijzing erin, en staan ook in
-// `UNIMPLEMENTED_METHODS` hieronder. Dat laatste is er met opzet: de INTB2b-
-// prompt waarschuwt dat placeholderfuncties `assertImplementsDataStore` laten
-// slagen terwijl de adapter niet af is. Die shapecheck kan dat niet zien — een
-// werpende functie is nog steeds een functie — dus is er een tweede, expliciete
-// manier om het wél te zien, in plaats van te vertrouwen op wie het commentaar
-// leest.
+// De ene resterende methode werpt `NotImplementedError` met de verwijzing erin,
+// en staat ook in `UNIMPLEMENTED_METHODS` hieronder. Dat laatste is er met
+// opzet: de INTB2b-prompt waarschuwt dat placeholderfuncties
+// `assertImplementsDataStore` laten slagen terwijl de adapter niet af is. Die
+// shapecheck kan dat niet zien — een werpende functie is nog steeds een functie
+// — dus is er een tweede, expliciete manier om het wél te zien, in plaats van te
+// vertrouwen op wie het commentaar leest.
 //
 // WAT DEZE ADAPTER NIET ZELF VERZINT:
 //   * sleutels komen uit `server/data/redis-keys.js` — hier wordt geen enkele
@@ -67,6 +63,8 @@
 //
 // DECISIONS #28: ESM, `.mjs`.
 
+import { createHash } from 'node:crypto';
+
 import { documentCodec } from './documents.mjs';
 
 // `server/data/*.js` is CommonJS; de named imports hieronder werken ongewijzigd
@@ -91,6 +89,7 @@ import { assertSessionShape } from '../../types/session.js';
 import { assertPlayerShape } from '../../types/player.js';
 import { assertMatchShape } from '../../types/match.js';
 import { assertRoundShape } from '../../types/round.js';
+import { assertAnswerShape } from '../../types/answer.js';
 
 /**
  * De poortmethoden die deze adapter BEWUST niet implementeert, met het item dat
@@ -99,11 +98,10 @@ import { assertRoundShape } from '../../types/round.js';
  * `assertImplementsDataStore` groen geeft op functies die alleen maar werpen.
  */
 export const UNIMPLEMENTED_METHODS = Object.freeze({
-  saveAcceptedAnswerAtomically: 'INTB2c',
   loadSessionByTokenHash: 'GEBLOKKEERD — geen sleutel in redis-keys.js (zie hieronder)',
 });
 
-/** Foutklasse van de twee nog niet gebouwde methoden. Stabiel om op te matchen. */
+/** Foutklasse van de nog niet gebouwde methode(n). Stabiel om op te matchen. */
 export class NotImplementedError extends Error {
   /**
    * @param {string} methodName
@@ -279,6 +277,100 @@ return 'ok'
 `;
 
 /**
+ * DE ATOMAIRE ANTWOORDVERWERKING (DECISIONS #23, DATA-MODEL.md §Atomische
+ * antwoordverwerking stappen 4, 5 en 7–10, foutcontract in `repository.js`
+ * §FOUTCONTRACT). Hier wordt score toegekend; dit is het script waar "half
+ * uitgevoerd" het duurst is.
+ *
+ * KEYS:
+ *   [1] action-cache   `room:{roomId}:action-cache`            (hash)
+ *   [2] players        `room:{roomId}:players`                 (hash)
+ *   [3] answers        `room:{roomId}:match:{matchId}:answers:{roundId}` (hash)
+ *   [4] scoreboard     `room:{roomId}:match:{matchId}:scoreboard`        (zset)
+ *   [5..] de sleutels waarvan de TTL mee moet (refreshmatrix bovenaan dit
+ *         bestand). Duplicaten van [1]–[4] mogen daar gewoon in staan; een
+ *         `EXPIRE` twee keer is een `EXPIRE`.
+ * ARGV:
+ *   [1] actionId                    [2] ack-document (envelop)
+ *   [3] updatedPlayer.id            [4] VERWACHT spelerdocument (compare-and-set)
+ *   [5] NIEUW spelerdocument        [6] answer.playerId
+ *   [7] answer-document (envelop)   [8] nieuwe score, als scoreboardgetal
+ *   [9] ttlSeconds
+ * Retourneert 'ok' | 'replay' | 'no-player' | 'stale' | 'already-answered'.
+ *
+ * DE VOLGORDE VAN DE DRIE CONTROLES IS CONTRACT, geen implementatiedetail:
+ *
+ *   1. IDEMPOTENTIE (`HEXISTS` op de action-cache) staat vooraan, precies zoals
+ *      DM13 het in de fake heeft gezet. Dezelfde `actionId` opnieuw is een
+ *      REPLAY: het script keert onmiddellijk terug en raakt niets aan — ook geen
+ *      `EXPIRE`. Zonder deze regel vooraan zou een dubbel afgeleverde
+ *      socketboodschap op de volgende controle stuklopen als 'al beantwoord',
+ *      en dan is een retry niet te onderscheiden van een tweede inzending.
+ *   2. DE SPELER moet bestaan (`HGET` levert `false` als het veld er niet is).
+ *      Onbekende speler -> de aanroeper werpt `RangeError`. Deze staat vóór de
+ *      antwoordcontrole omdat de fake dat ook doet; alleen als beide misgaan
+ *      verschilt de foutmelding, en dan is "die speler bestaat niet" de nuttigere.
+ *   3. AL BEANTWOORD (`HEXISTS` op de answers-hash van deze ronde): een ándere
+ *      `actionId` van dezelfde speler in dezelfde ronde -> de aanroeper werpt
+ *      `RangeError` met `code === 'ALREADY_ANSWERED'`. Nooit stilzwijgend
+ *      overschrijven.
+ *
+ * REPLAY EN 'AL BEANTWOORD' ZIJN TWEE VERSCHILLENDE UITKOMSTEN, en dat is het
+ * hele punt van deze operatie: de eerste is een geldige, herhaalde actie die
+ * dezelfde ack verdient, de tweede is een afgewezen tweede antwoord. Het script
+ * geeft daarom twee verschillende strings terug, en de aanroeper vertaalt ze
+ * naar twee verschillende kanalen (returnwaarde tegenover getypeerde throw) —
+ * zie de wrapper. Één gedeelde uitkomst zou de protocol-adapter dwingen te raden
+ * of hij een ack mag versturen.
+ *
+ * COMPARE-AND-SET OP HET SPELERDOCUMENT, om exact dezelfde reden als in
+ * `SET_PHASE_LUA`: `cjson` pompt een domeindocument niet verliesvrij rond (een
+ * leeg array komt er als `{}` uit) en de getalprecisie is niet gegarandeerd, dus
+ * het JSON-werk gebeurt client-side met dezelfde codec als elke andere
+ * schrijfactie. Daardoor zit er per definitie een lees vóór de schrijf, en dat
+ * venster wordt hier gedicht: is het spelerdocument tussen de lees en dit script
+ * veranderd (een tweede inzending, een `savePlayer` van een naamswijziging), dan
+ * schrijft het script NIETS en leest de aanroeper opnieuw. Zonder deze
+ * vergelijking zou de operatie andermans schrijfactie overschrijven met een
+ * verouderd document — een verloren update, midden in de score.
+ *
+ * WAT DIT SCRIPT NIET DOET, en niet mag doen: rekenen. Er wordt hier niets
+ * beslist over correctheid, tijdbonus of punten. `ARGV[5]` en `ARGV[8]` dragen
+ * ABSOLUTE waarden die de aanroeper (`answer-flow.js` met `server/rules/
+ * scoring.js`) al heeft uitgerekend. Een optelling in Lua zou domeinlogica uit
+ * GR naar de opslaglaag verplaatsen, en dan staat de scoreregel op twee plekken.
+ * Er staat om dezelfde reden ook geen `TIME` in: tijd komt overal in deze
+ * codebase als argument binnen, anders is het gedrag niet deterministisch
+ * testbaar. Deadline en grace (DECISIONS #13) horen bij de aanroeper.
+ *
+ * De vier writes staan bewust ACHTER alle drie de controles en in één script.
+ * `HEXISTS` gevolgd door `HSET` over losse netwerkbeurten is precies het venster
+ * waarin twee inzendingen allebei "nog geen antwoord" zien, en dan staat er een
+ * antwoord met een scoreboardregel van de ander.
+ */
+const SAVE_ANSWER_LUA = `
+if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then return 'replay' end
+local storedPlayer = redis.call('HGET', KEYS[2], ARGV[3])
+if not storedPlayer then return 'no-player' end
+if storedPlayer ~= ARGV[4] then return 'stale' end
+if redis.call('HEXISTS', KEYS[3], ARGV[6]) == 1 then return 'already-answered' end
+redis.call('HSET', KEYS[3], ARGV[6], ARGV[7])
+redis.call('HSET', KEYS[2], ARGV[3], ARGV[5])
+redis.call('ZADD', KEYS[4], ARGV[8], ARGV[3])
+redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
+for i = 5, #KEYS do redis.call('EXPIRE', KEYS[i], ARGV[9]) end
+return 'ok'
+`;
+
+/**
+ * De SHA1 van `SAVE_ANSWER_LUA`, hier berekend en niet uit Redis opgehaald: het
+ * is dezelfde hash die `SCRIPT LOAD` zou opleveren, en zo is er geen extra
+ * netwerkbeurt en geen tweede bron van waarheid. Zie `evalSaveAnswer` voor hoe
+ * hij gebruikt wordt en wat er na een Redis-herstart gebeurt.
+ */
+const SAVE_ANSWER_LUA_SHA = createHash('sha1').update(SAVE_ANSWER_LUA).digest('hex');
+
+/**
  * Hoe vaak `setRoomAndMatchPhaseAtomically` het opnieuw probeert als een ander
  * schrijfpad tussen de lees en de compare-and-set door kwam. Eindig, want een
  * oneindige lus onder aanhoudende drukte is een hangende request; ruim genoeg,
@@ -286,6 +378,28 @@ return 'ok'
  * die `Room`/`Match` in een strakke lus bewerkt.
  */
 const PHASE_SWAP_ATTEMPTS = 5;
+
+/**
+ * Idem voor `saveAcceptedAnswerAtomically`. Hier is de tweede schrijver wél
+ * reëel — twintig spelers die in dezelfde seconde antwoorden — maar ze botsen
+ * alleen op HETZELFDE spelerdocument, en dat is per speler hoogstens één
+ * inzending per ronde plus een eventuele `savePlayer`. Vijf pogingen is dus ruim;
+ * op is op, want een oneindige lus onder drukte is een hangende request en geen
+ * herstel.
+ */
+const ANSWER_WRITE_ATTEMPTS = 5;
+
+/**
+ * Herkent het antwoord van Redis op een `EVALSHA` waarvan het script niet (meer)
+ * in de scriptcache staat. Op de melding matchen en niet op een foutklasse: de
+ * client levert hier een generieke `SimpleError`, en `NOSCRIPT` is de stabiele,
+ * gedocumenteerde voorvoegsel uit het Redis-protocol.
+ * @param {unknown} error
+ */
+function isNoScriptError(error) {
+  return typeof (/** @type {{message?: unknown}} */ (error)?.message) === 'string'
+    && /** @type {{message: string}} */ (error).message.startsWith('NOSCRIPT');
+}
 
 /**
  * @param {unknown} value
@@ -631,10 +745,10 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
   // ----------------------------------------------------------------------
   // Answer / action-cache / scoreboard — leeskant
   //
-  // De schrijfkant van alle drie loopt via saveAcceptedAnswerAtomically en is
-  // dus INTB2c. Deze drie lezers zijn wél af: ze hebben geen enkele
-  // afhankelijkheid van hoe dat script er straks uitziet, want de sleutels en
-  // de envelop liggen al vast.
+  // De schrijfkant van alle drie loopt via saveAcceptedAnswerAtomically (INTB2c,
+  // onderaan dit bestand). Deze drie lezers hangen niet van dat script af: ze
+  // lezen de sleutels uit redis-keys.js en de envelop uit documents.mjs, en die
+  // lagen al vast voordat het script er was.
   // ----------------------------------------------------------------------
 
   /**
@@ -774,16 +888,200 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
   }
 
   // ----------------------------------------------------------------------
-  // De methode die hier niet thuishoort
+  // Atomaire antwoordverwerking (DECISIONS #23) — INTB2c
   // ----------------------------------------------------------------------
 
-  async function saveAcceptedAnswerAtomically() {
-    throw new NotImplementedError(
-      'saveAcceptedAnswerAtomically',
-      UNIMPLEMENTED_METHODS.saveAcceptedAnswerAtomically,
-      'Deze adapter is gebouwd terwijl het contract nog openstond (het gebundelde poortvoorstel van INT-A). ' +
-        'Dat voorstel is inmiddels geland — DM15 (reactie op INT-14) legt in repository.js { replay: boolean } ' +
-        'vast — dus de blokkade is weg en INTB2c kan gebouwd worden.'
+  /**
+   * Weet Redis het script nog? Start op `false`: de eerste aanroep gebruikt
+   * `EVAL` (dat laadt het script meteen) in plaats van een `EVALSHA` die
+   * gegarandeerd `NOSCRIPT` oplevert. Daarna gaat het via de hash.
+   */
+  let scriptKnownToRedis = false;
+
+  /**
+   * Voert `SAVE_ANSWER_LUA` uit VIA ZIJN HASH, met terugval op volledig laden.
+   *
+   * Waarom via de hash: het script gaat bij elke inzending over de lijn, en dat
+   * zijn er in een potje van twintig spelers en tien rondes tweehonderd. Een
+   * `EVALSHA` stuurt veertig bytes in plaats van het hele script.
+   *
+   * WAT ER NA EEN REDIS-HERSTART GEBEURT — dit is de reden dat de terugval
+   * bestaat en niet een `SCRIPT LOAD` bij het opstarten van de adapter: de
+   * scriptcache van Redis is niet persistent en overleeft geen herstart, geen
+   * `SCRIPT FLUSH` en geen failover naar een replica. Eén keer laden bij het
+   * opstarten zou dus werken tot de eerste herstart en daarna elke inzending
+   * laten falen. In plaats daarvan: `EVALSHA`, en zodra Redis `NOSCRIPT`
+   * antwoordt (precies dan, niet bij elke fout) gaat dezelfde aanroep alsnog via
+   * `EVAL`, wat het script opnieuw in de cache zet. De aanroeper merkt niets;
+   * het kost één extra netwerkbeurt, één keer per herstart.
+   *
+   * `EVAL` is bovendien niet minder atomair dan `EVALSHA` — het is dezelfde
+   * server-side uitvoering — dus de terugval verzwakt geen enkele garantie.
+   * @param {{ keys: string[], arguments: string[] }} options
+   */
+  async function evalSaveAnswer(options) {
+    if (scriptKnownToRedis) {
+      try {
+        return await client().evalSha(SAVE_ANSWER_LUA_SHA, options);
+      } catch (error) {
+        if (!isNoScriptError(error)) throw error;
+        scriptKnownToRedis = false;
+      }
+    }
+    const outcome = await client().eval(SAVE_ANSWER_LUA, options);
+    scriptKnownToRedis = true;
+    return outcome;
+  }
+
+  /**
+   * Schrijft een geaccepteerd antwoord, de bijgewerkte speler, het scoreboard en
+   * de ack in ÉÉN ondeelbare stap — of niets van dat alles.
+   *
+   * HET FOUTCONTRACT STAAT IN `repository.js` (§FOUTCONTRACT bij
+   * `AcceptedAnswerWrite`) en wordt hier niet opnieuw uitgevonden:
+   *   * `actionId` staat al in de action-cache van deze room -> `{ replay: true }`,
+   *     GEEN mutatie en geen ack in de returnwaarde (de aanroeper haalt die
+   *     desgewenst met `loadActionCacheEntry`);
+   *   * anders, en er bestaat al een `Answer` voor deze `roundId` + `playerId`
+   *     -> `RangeError` met `.code === 'ALREADY_ANSWERED'`;
+   *   * anders, geslaagde nieuwe write -> `{ replay: false }`;
+   *   * onbekende `updatedPlayer.id` -> `RangeError`.
+   *
+   * TWEE KANALEN, BEWUST: een replay komt terug als RETURNWAARDE, een afgewezen
+   * duplicaat als THROW. Ze plat slaan tot één uitkomst zou de protocol-adapter
+   * dwingen te raden of hij een ack mag versturen — en een replay ná de deadline
+   * is juist het geval waarvoor INT-14 dit contract heeft vastgelegd.
+   *
+   * WAT ER GEBEURT ALS DE UITVOERING WORDT ONDERBROKEN: hetzelfde als bij
+   * `setRoomAndMatchPhaseAtomically`, en het is geen rollback. Een Lua-script
+   * draait server-side tot het einde door; valt de clientsocket weg terwijl het
+   * loopt, dan landen alle vier de writes gewoon en verdwijnt alleen het
+   * antwoord. De garantie is "alle vier of geen van vier", niet "bij een
+   * netwerkfout is er niets gebeurd". De aanroeper die een verbindingsfout krijgt
+   * weet niet welke van die twee het werd — en hoeft dat ook niet te weten: hij
+   * probeert het opnieuw met DEZELFDE `actionId`, en dan is het antwoord een
+   * replay als de eerste poging geland was, en een gewone write als dat niet zo
+   * was. Dat is precies waar de idempotentiecontrole voor bestaat.
+   *
+   * DE VORMCONTROLES STAAN VOORAAN, vóór de atomaire operatie, net als bij
+   * `saveRoom` en familie: een `Answer` of `Player` die `server/data/types/`
+   * afkeurt hoort niet als half document in Redis te belanden. Gevolg, expliciet
+   * genoemd omdat het een verschil met de fake is: een REPLAY met een
+   * onhoudbare payload werpt hier `TypeError`/`RangeError` waar de fake
+   * `{ replay: true }` zou teruggeven. Beide zijn een programmeerfout van de
+   * aanroeper, en de vormcontrole vroeg laten afgaan is de nuttigere melding.
+   *
+   * @param {string} roomId
+   * @param {string} matchId
+   * @param {import('../../repository').AcceptedAnswerWrite} write
+   * @returns {Promise<{ replay: boolean }>}
+   */
+  async function saveAcceptedAnswerAtomically(roomId, matchId, write) {
+    if (typeof write !== 'object' || write === null) {
+      throw new TypeError(`saveAcceptedAnswerAtomically verwacht een AcceptedAnswerWrite, kreeg: ${typeof write}`);
+    }
+    const { answer, updatedPlayer, actionCacheEntry } = write;
+    assertAnswerShape(answer);
+    if (typeof actionCacheEntry?.actionId !== 'string' || actionCacheEntry.actionId.length === 0) {
+      throw new TypeError(
+        `saveAcceptedAnswerAtomically: actionCacheEntry.actionId moet een niet-lege string zijn, kreeg: ${JSON.stringify(actionCacheEntry?.actionId)}`
+      );
+    }
+    if (typeof updatedPlayer?.id !== 'string' || updatedPlayer.id.length === 0) {
+      throw new TypeError(
+        `saveAcceptedAnswerAtomically: updatedPlayer.id moet een niet-lege string zijn, kreeg: ${JSON.stringify(updatedPlayer?.id)}`
+      );
+    }
+
+    const players = roomPlayersKey(roomId);
+    const answers = answersKey(roomId, matchId, answer.roundId);
+    const scoreboard = scoreboardKey(roomId, matchId);
+    const actionCache = actionCacheKey(roomId);
+    const encodedAnswer = codec.encode('answer', answer);
+    const encodedAck = codec.encode('action-cache-entry', actionCacheEntry);
+
+    for (let attempt = 1; attempt <= ANSWER_WRITE_ATTEMPTS; attempt += 1) {
+      // De lees die het compare-and-set-venster opent (zie SAVE_ANSWER_LUA voor
+      // waarom het lezen niet in het script kan). De ONBEWERKTE string gaat mee
+      // terug naar Redis als verwachtingswaarde — vergelijken op de gedecodeerde
+      // vorm zou een herserialisatie vergen en dan vergelijk je de codec met
+      // zichzelf in plaats van de opslag met wat je gelezen hebt.
+      const storedPlayer = (await client().hGet(players, updatedPlayer.id)) ?? null;
+      // Bestaat de speler niet, dan gaan we tóch het script in met een lege
+      // verwachting: de idempotentiecontrole staat vóór de spelercontrole, dus
+      // een replay hoort óók een replay te zijn als de speler intussen weg is.
+      // Een leesuitslag vooraf omzetten in een RangeError zou dat geval
+      // stilzwijgend tot een fout maken.
+      let newPlayer = '';
+      if (storedPlayer !== null) {
+        // ABSOLUTE waarden, geen delta: de aanroeper heeft `player.score +
+        // points` al uitgerekend (repository.js §AcceptedAnswerWrite). Alleen
+        // deze drie velden gaan mee; naam, team, verbindingsstatus en
+        // eligibleFromRound van het opgeslagen document blijven staan.
+        const merged = {
+          .../** @type {object} */ (codec.decode('player', storedPlayer)),
+          score: updatedPlayer.score,
+          correctCount: updatedPlayer.correctCount,
+          correctResponseTimeMsTotal: updatedPlayer.correctResponseTimeMsTotal,
+        };
+        assertPlayerShape(merged);
+        newPlayer = codec.encode('player', merged);
+      }
+
+      const outcome = await evalSaveAnswer({
+        keys: [
+          actionCache,
+          players,
+          answers,
+          scoreboard,
+          // Vanaf hier: de TTL-refresh. De room-scope (elke schrijfactie is
+          // activiteit) plus de match-gescopeerde sleutels die deze operatie
+          // zelf aanraakt. `players` en `actionCache` zitten al in de room-scope.
+          ...roomScopeKeys(roomId),
+          matchKey(roomId, matchId),
+          scoreboard,
+          answers,
+        ],
+        arguments: [
+          actionCacheEntry.actionId,
+          encodedAck,
+          updatedPlayer.id,
+          storedPlayer ?? '',
+          newPlayer,
+          answer.playerId,
+          encodedAnswer,
+          String(updatedPlayer.score),
+          ttl,
+        ],
+      });
+
+      if (outcome === 'ok') return { replay: false };
+      if (outcome === 'replay') return { replay: true };
+      if (outcome === 'no-player') {
+        throw new RangeError(
+          `saveAcceptedAnswerAtomically: unknown playerId ${JSON.stringify(updatedPlayer.id)} for roomId ${JSON.stringify(roomId)}`
+        );
+      }
+      if (outcome === 'already-answered') {
+        throw Object.assign(
+          new RangeError(
+            `saveAcceptedAnswerAtomically: player ${JSON.stringify(answer.playerId)} already has an answer for round ${JSON.stringify(answer.roundId)}`
+          ),
+          { code: 'ALREADY_ANSWERED' }
+        );
+      }
+      if (outcome !== 'stale') {
+        throw new Error(`saveAcceptedAnswerAtomically: onverwacht scriptresultaat ${JSON.stringify(outcome)}`);
+      }
+      // 'stale': het spelerdocument is tussen de lees en het script veranderd.
+      // Er is NIETS geschreven — opnieuw lezen en opnieuw proberen, zodat de
+      // absolute waarden van deze inzending bovenop de nieuwste versie landen in
+      // plaats van die versie weg te schrijven.
+    }
+
+    throw new Error(
+      `saveAcceptedAnswerAtomically: speler ${JSON.stringify(updatedPlayer.id)} in room ${JSON.stringify(roomId)} werd ` +
+        `${ANSWER_WRITE_ATTEMPTS} pogingen achter elkaar onder de operatie vandaan geschreven; er is niets gewijzigd.`
     );
   }
 

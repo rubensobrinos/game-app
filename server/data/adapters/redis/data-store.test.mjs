@@ -10,36 +10,33 @@
 //    conformance-suite: hem aanpassen tot hij groen wordt is hetzelfde als hem
 //    weggooien.
 //
-// 2. NEGENTIEN VAN DE CONFORMANCE-TESTS ZIJN ROOD, en dat is geen adapterfout.
-//    `saveAcceptedAnswerAtomically` (INTB2c) is bewust niet gebouwd — zie de
-//    kop van `data-store.mjs`. De suite gebruikt die methode bovendien als
-//    ARRANGEMENT voor het scoreboard, het Answer en de action-cache: die
-//    hebben op deze poort geen andere schrijfweg (de suite zegt dat zelf, bij
-//    `scoreOne`). Rood dus:
+// 2. DE SUITE IS NU VOLLEDIG GROEN tegen deze adapter. Dat was ze niet: bij
+//    INTB2b stonden negentien tests rood omdat `saveAcceptedAnswerAtomically`
+//    (INTB2c) nog niet gebouwd was, en de suite die methode óók als ARRANGEMENT
+//    gebruikt voor het scoreboard, het Answer en de action-cache — die hebben op
+//    deze poort geen andere schrijfweg (de suite zegt dat zelf, bij `scoreOne`).
+//    Rood waren:
 //      * describe 'saveAcceptedAnswerAtomically'                    8 tests
 //      * describe 'saveAcceptedAnswerAtomically — INTB-4'           3 tests
 //      * describe 'getScoreboardTop'                6 van de 7 tests
 //      * describe 'INTB-1 …'                        2 van de 5 tests
-//    Elke faalregel wijst terug naar `NotImplementedError` met `INTB2c` in de
-//    melding; komt er ooit een ANDERE fout uit deze blokken, dan is dat wél een
-//    adapterfout.
+//    INTB2c heeft ze alle negentien groen gemaakt; de adapter-eigen tests
+//    daarvoor staan in sectie 6c hieronder. Het blok
+//    `setRoomAndMatchPhaseAtomically` (8 tests) stond hier om dezelfde reden en
+//    is met INTB2d groen geworden (sectie 6b).
 //
-//    HET BLOK `setRoomAndMatchPhaseAtomically` (8 tests) STOND HIER OOK, en is
-//    met INTB2d groen geworden. De adapter-eigen tests daarvoor staan in
-//    sectie 6b hieronder.
+//    Sectie 5 test het leesgedrag van `getScoreboardTop`, `loadAnswer` en
+//    `loadActionCacheEntry` met een arrangement dat rechtstreeks in Redis
+//    schrijft. Dat blok stamt uit de tijd dat de schrijfweg ontbrak en blijft
+//    staan: het bewijst dat de lezers op de sleutels uit `redis-keys.js` kijken,
+//    onafhankelijk van wat het Lua-script daar neerzet.
 //
-//    Het leesgedrag dat daardoor onbewezen zou blijven — `getScoreboardTop`,
-//    `loadAnswer`, `loadActionCacheEntry` — staat hieronder alsnog getest, met
-//    een arrangement dat rechtstreeks in Redis schrijft. Dat is geen omweg om
-//    de blokkade heen: het bouwt niets van INTB2c na, het zet alleen de
-//    sleutels klaar die daar al vastliggen.
-//
-//    `loadSessionByTokenHash` (DM14/§10) is tijdens dit werk aan de poort
-//    toegevoegd en is een DERDE, andersoortige blokkade: er bestaat geen
-//    Redis-sleutel voor een tokenHash. De conformance-suite kent die methode
-//    nog niet, dus hij veroorzaakt daar geen rood — alleen
-//    `assertImplementsDataStore` ziet hem, en die slaagt omdat de stub een
-//    functie is. Zie het blok "bewust niet geïmplementeerd" onderaan.
+//    `loadSessionByTokenHash` (DM14/§10) is tijdens INTB2b aan de poort
+//    toegevoegd en is een andersoortige blokkade: er bestaat geen Redis-sleutel
+//    voor een tokenHash. De conformance-suite kent die methode nog niet, dus hij
+//    veroorzaakt daar geen rood — alleen `assertImplementsDataStore` ziet hem, en
+//    die slaagt omdat de stub een functie is. Zie het blok "bewust niet
+//    geïmplementeerd" onderaan.
 //
 // TESTINSTANTIE: uitsluitend `redis://127.0.0.1:6380` via `test-redis.mjs`.
 // Anders dan bij INTB2a SCHRIJVEN deze tests wél, dus draait alles in de
@@ -872,19 +869,488 @@ if (!probe.ok) {
   });
 
   // ------------------------------------------------------------------
-  // 7. De twee methoden die hier NIET horen.
+  // 6c. saveAcceptedAnswerAtomically (INTB2c, DECISIONS #23).
+  //
+  // Het contract staat volledig in de conformance-suite (blok
+  // `saveAcceptedAnswerAtomically` en blok INTB-4). Hier staat wat die suite
+  // per definitie niet kan zien:
+  //   * dat de vier writes op de sleutels uit redis-keys.js landen, als
+  //     envelop, en dat er geen vijfde sleutel bijkomt;
+  //   * dat een replay écht NIETS aanraakt, ook geen TTL;
+  //   * dat het script via zijn hash gaat en na een lege scriptcache (een
+  //     Redis-herstart) zichzelf herlaadt;
+  //   * dat de compare-and-set op het spelerdocument een gelijktijdige
+  //     savePlayer niet wegschrijft;
+  //   * en het geval waar de fake structureel blind voor is: ECHTE
+  //     gelijktijdigheid, over losse verbindingen, met meer inzendingen dan de
+  //     fake ooit heeft gezien.
+  // ------------------------------------------------------------------
+  describe('Redis-adapter — saveAcceptedAnswerAtomically (INTB2c)', () => {
+    /** De vier sleutels die de operatie aanraakt, plus de match-TTL-sleutel. */
+    const ANSWERS = answersKey('room_a', 'match_1', 'round_1');
+    const CACHE = actionCacheKey('room_a');
+    const PLAYERS = roomPlayersKey('room_a');
+    const BOARD = scoreboardKey('room_a', 'match_1');
+
+    function makeWrite(overrides = {}) {
+      const {
+        roundId = 'round_1', playerId = 'player_1', actionId = 'action_1', points = 120,
+        score = 120, correctCount = 1, correctResponseTimeMsTotal = 2000, ack = { roundId },
+      } = overrides;
+      return {
+        answer: makeAnswer({ roundId, playerId, actionId, points }),
+        updatedPlayer: { id: playerId, score, correctCount, correctResponseTimeMsTotal },
+        actionCacheEntry: { actionId, ack },
+      };
+    }
+
+    async function arrangePlayer(overrides = {}) {
+      await fresh();
+      await store.savePlayer(makePlayer(overrides));
+    }
+
+    async function expireSoon(...keys) {
+      for (const key of keys) {
+        assert.ok(await client().expire(key, 5), `sleutel ${key} bestaat niet`);
+      }
+    }
+
+    it('de vier writes landen op precies de sleutels uit redis-keys.js, in de versie-envelop', async () => {
+      await arrangePlayer();
+
+      assert.deepStrictEqual(await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite()), { replay: false });
+
+      const answerEnvelope = JSON.parse(await client().hGet(ANSWERS, 'player_1'));
+      assert.deepStrictEqual(Object.keys(answerEnvelope).sort(), ['documentType', 'payload', 'schemaVersion']);
+      assert.strictEqual(answerEnvelope.documentType, 'answer');
+      assert.strictEqual(answerEnvelope.schemaVersion, 1);
+      assert.deepStrictEqual(answerEnvelope.payload, makeAnswer());
+      // De geneste vorm blijft intact: dit is de reden dat het script het
+      // JSON-werk NIET zelf doet (cjson maakt van een lege tabel een `{}`).
+      assert.deepStrictEqual(answerEnvelope.payload.answer, { optionId: 'nl' });
+      assert.strictEqual(answerEnvelope.payload.correct, true);
+
+      const ackEnvelope = JSON.parse(await client().hGet(CACHE, 'action_1'));
+      assert.strictEqual(ackEnvelope.documentType, 'action-cache-entry');
+      assert.deepStrictEqual(ackEnvelope.payload, { actionId: 'action_1', ack: { roundId: 'round_1' } });
+
+      const playerEnvelope = JSON.parse(await client().hGet(PLAYERS, 'player_1'));
+      assert.strictEqual(playerEnvelope.documentType, 'player');
+      assert.strictEqual(playerEnvelope.payload.score, 120);
+      assert.strictEqual(playerEnvelope.payload.effectiveName, 'Blauwe Vos', 'niet-genoemde velden blijven staan');
+
+      // Het scoreboard is een sorted set met een KAAL getal, geen envelop.
+      assert.strictEqual(await client().zScore(BOARD, 'player_1'), 120);
+    });
+
+    it('de operatie maakt geen enkele andere sleutel aan dan de vier die ze schrijft', async () => {
+      // De sleutelnamen komen allemaal als KEYS[i] binnen; een script dat er zelf
+      // eentje samenstelt (of een verkeerde room raakt) valt hier op.
+      await arrangePlayer();
+      await store.saveRoom(makeRoom());
+      await store.saveMatch(makeMatch());
+      const before = new Set(await client().keys('*'));
+
+      await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite());
+
+      const after = (await client().keys('*')).filter((key) => !before.has(key)).sort();
+      assert.deepStrictEqual(after, [ANSWERS, BOARD, CACHE].sort(), 'alleen de sleutels die nog niet bestonden');
+    });
+
+    it('ververst de room-scope, de matchkey, het scoreboard en de answers-hash — een antwoord is activiteit', async () => {
+      await arrangePlayer();
+      await store.savePlayer(makePlayer({ id: 'player_2', sessionId: 'session_2' }));
+      await store.saveRoom(makeRoom());
+      await store.saveMatch(makeMatch());
+      await store.saveSession(makeSession());
+      await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite());
+      const refreshed = [
+        roomKey('room_a'), roomSessionsKey('room_a'), PLAYERS, CACHE,
+        matchKey('room_a', 'match_1'), BOARD, ANSWERS,
+      ];
+      await expireSoon(...refreshed);
+
+      // Een afgewezen inzending (zelfde speler, zelfde ronde) mag NIETS
+      // verversen — er is immers ook niets geschreven.
+      await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite({
+        actionId: 'action_2', score: 220,
+      })).catch(() => {});
+      for (const key of refreshed) {
+        assert.ok((await client().ttl(key)) <= 5, `een afgewezen inzending mag ${key} niet verversen`);
+      }
+
+      // Een geldige inzending in DEZELFDE ronde (andere speler) ververst alles,
+      // inclusief de answers-hash van die ronde.
+      await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite({
+        playerId: 'player_2', actionId: 'action_3', points: 80, score: 80, correctResponseTimeMsTotal: 6000,
+      }));
+
+      for (const key of refreshed) {
+        assert.strictEqual(await client().ttl(key), ROOM_TTL_SECONDS, `TTL van ${key} na een geldige inzending`);
+      }
+    });
+
+    it('een replay raakt niets aan: geen document, geen scoreboard, geen TTL', async () => {
+      // "Geen mutatie" is hier letterlijk bedoeld. Een implementatie die op een
+      // replay alsnog de TTL-refresh doet, is niet ernstig fout maar wél iets
+      // anders dan het contract zegt — en dan is een replay van buitenaf niet
+      // meer te onderscheiden van een write.
+      await arrangePlayer();
+      await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite());
+      const snapshotVoor = {
+        answer: await client().hGet(ANSWERS, 'player_1'),
+        ack: await client().hGet(CACHE, 'action_1'),
+        player: await client().hGet(PLAYERS, 'player_1'),
+        score: await client().zScore(BOARD, 'player_1'),
+      };
+      await expireSoon(ANSWERS, CACHE, PLAYERS, BOARD);
+
+      // Dezelfde actionId, hogere score, ander antwoord — zoals een dubbel
+      // afgeleverde socketboodschap eruitziet.
+      const uitkomst = await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite({
+        actionId: 'action_1', points: 200, score: 320, correctCount: 2, correctResponseTimeMsTotal: 5000,
+        ack: { roundId: 'round_1', bijgewerkt: true },
+      }));
+
+      assert.deepStrictEqual(uitkomst, { replay: true }, 'een replay komt terug als returnwaarde, niet als throw');
+      assert.strictEqual(await client().hGet(ANSWERS, 'player_1'), snapshotVoor.answer);
+      assert.strictEqual(await client().hGet(CACHE, 'action_1'), snapshotVoor.ack, 'de bewaarde ack blijft de eerste');
+      assert.strictEqual(await client().hGet(PLAYERS, 'player_1'), snapshotVoor.player);
+      assert.strictEqual(await client().zScore(BOARD, 'player_1'), snapshotVoor.score);
+      for (const key of [ANSWERS, CACHE, PLAYERS, BOARD]) {
+        assert.ok((await client().ttl(key)) <= 5, `een replay mag de TTL van ${key} niet verversen`);
+      }
+    });
+
+    it('een tweede actionId in dezelfde ronde werpt RangeError met code ALREADY_ANSWERED', async () => {
+      // De protocol-adapter moet een geldige ack kunnen onderscheiden van een
+      // afgewezen duplicaat. Replay = returnwaarde, duplicaat = getypeerde
+      // throw; deze test pint de code vast waarop dat onderscheid rust.
+      await arrangePlayer();
+      await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite());
+
+      await assert.rejects(
+        () => store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite({
+          actionId: 'action_2', points: 200, score: 320, correctCount: 2, correctResponseTimeMsTotal: 5000,
+        })),
+        (error) => {
+          assert.ok(error instanceof RangeError, `verwachtte RangeError, kreeg ${error?.name}`);
+          assert.strictEqual(error.code, 'ALREADY_ANSWERED', 'dezelfde codestring als resolveAnswer');
+          return true;
+        }
+      );
+
+      assert.strictEqual(await client().hExists(CACHE, 'action_2'), 0, 'de ack van de afgewezen inzending');
+      assert.strictEqual((await store.loadAnswer('room_a', 'match_1', 'round_1', 'player_1')).points, 120);
+      assert.strictEqual((await store.loadPlayer('room_a', 'player_1')).score, 120);
+      assert.strictEqual(await client().zScore(BOARD, 'player_1'), 120);
+      assert.strictEqual(await client().hLen(CACHE), 1, 'precies één ack in de room');
+    });
+
+    it('een onbekende speler werpt RangeError over de SPELER en laat de vier sleutels ongemoeid', async () => {
+      await arrangePlayer();
+      await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite());
+
+      await assert.rejects(
+        () => store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite({
+          playerId: 'player_spook', roundId: 'round_2', actionId: 'action_2',
+        })),
+        (error) => {
+          assert.ok(error instanceof RangeError);
+          assert.match(error.message, /unknown playerId/);
+          assert.strictEqual(error.code, undefined, 'dit is géén ALREADY_ANSWERED');
+          return true;
+        }
+      );
+
+      assert.strictEqual(await client().exists(answersKey('room_a', 'match_1', 'round_2')), 0);
+      assert.strictEqual(await client().hExists(CACHE, 'action_2'), 0);
+      assert.strictEqual(await client().hExists(PLAYERS, 'player_spook'), 0, 'er mag geen speler uit het niets ontstaan');
+      assert.strictEqual(await client().zScore(BOARD, 'player_spook'), null);
+    });
+
+    it('een replay wint van een verdwenen speler — de idempotentiecontrole staat vooraan', async () => {
+      // De volgorde uit het foutcontract, in zijn scherpste vorm: een retry van
+      // een actie die al geland is, terwijl de speler intussen uit de room is
+      // verwijderd. Dat blijft een replay; er valt niets meer te muteren, dus er
+      // is ook niets om over te struikelen.
+      await arrangePlayer();
+      await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite());
+      await client().hDel(PLAYERS, 'player_1');
+
+      assert.deepStrictEqual(
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite()),
+        { replay: true },
+        'een replay hoort geen RangeError over de speler te worden'
+      );
+    });
+
+    it('slaat de aangeleverde absolute waarden op zonder ze te herberekenen', async () => {
+      // Het script rekent NIET. Krijgt het een score die niet uit `points` volgt,
+      // dan slaat het die gewoon op — de aanroeper heeft gerekend (GR-terrein).
+      // Een implementatie die in Lua `score + points` doet, valt hier om.
+      await arrangePlayer({ score: 500, correctCount: 4, correctResponseTimeMsTotal: 9000 });
+
+      await store.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite({
+        points: 200, score: 7, correctCount: 1, correctResponseTimeMsTotal: 1,
+      }));
+
+      const player = await store.loadPlayer('room_a', 'player_1');
+      assert.strictEqual(player.score, 7, 'absolute waarde, geen optelling');
+      assert.strictEqual(player.correctCount, 1);
+      assert.strictEqual(player.correctResponseTimeMsTotal, 1);
+      assert.strictEqual(await client().zScore(BOARD, 'player_1'), 7);
+    });
+
+    it('gaat via EVALSHA en herlaadt zichzelf nadat Redis het script niet meer kent', async () => {
+      // SCRIPT FLUSH is wat een Redis-herstart met de scriptcache doet: die is
+      // niet persistent. Een adapter die het script één keer bij het opstarten
+      // laadt, werkt tot de eerste herstart en faalt daarna op elke inzending.
+      await arrangePlayer();
+      const gebruikt = [];
+      const spiedStore = createRedisDataStore({
+        connection: {
+          getClient: () => ({
+            hGet: (key, field) => client().hGet(key, field),
+            eval: (script, options) => { gebruikt.push('eval'); return client().eval(script, options); },
+            evalSha: (sha, options) => { gebruikt.push('evalSha'); return client().evalSha(sha, options); },
+          }),
+        },
+      });
+
+      // 1. De eerste aanroep laadt het script (EVAL), de tweede gaat via de hash.
+      await spiedStore.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite());
+      await spiedStore.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite({
+        roundId: 'round_2', actionId: 'action_2', score: 220, correctCount: 2, correctResponseTimeMsTotal: 5000,
+      }));
+      assert.deepStrictEqual(gebruikt, ['eval', 'evalSha'], 'na de eerste keer laden gaat het via de hash');
+
+      // 2. Redis vergeet het script (herstart / SCRIPT FLUSH / failover).
+      await client().scriptFlush();
+      gebruikt.length = 0;
+
+      const uitkomst = await spiedStore.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite({
+        roundId: 'round_3', actionId: 'action_3', score: 320, correctCount: 3, correctResponseTimeMsTotal: 8000,
+      }));
+
+      assert.deepStrictEqual(uitkomst, { replay: false }, 'een lege scriptcache mag geen inzending kosten');
+      assert.deepStrictEqual(gebruikt, ['evalSha', 'eval'], 'NOSCRIPT -> dezelfde aanroep gaat alsnog via EVAL');
+      assert.strictEqual((await store.loadPlayer('room_a', 'player_1')).score, 320);
+
+      // 3. En daarna weer via de hash, want EVAL heeft hem opnieuw geladen.
+      gebruikt.length = 0;
+      await spiedStore.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite({
+        roundId: 'round_4', actionId: 'action_4', score: 420, correctCount: 4, correctResponseTimeMsTotal: 9000,
+      }));
+      assert.deepStrictEqual(gebruikt, ['evalSha']);
+    });
+
+    it('een gelijktijdige savePlayer tussen de lees en het script wordt niet overschreven', async () => {
+      // Het spelerdocument wordt buiten Redis samengevoegd (zie SAVE_ANSWER_LUA),
+      // dus er zit per definitie een lees vóór de schrijf. Zonder compare-and-set
+      // zou deze operatie de naamswijziging hieronder wegschrijven met een
+      // verouderd document — een verloren update midden in de score.
+      await arrangePlayer();
+
+      let ingegrepen = false;
+      const raced = createRedisDataStore({
+        connection: {
+          getClient: () => ({
+            async hGet(key, field) {
+              const value = await client().hGet(key, field);
+              if (!ingegrepen && key === PLAYERS) {
+                ingegrepen = true;
+                await store.savePlayer(makePlayer({ displayName: 'Ruben', effectiveName: 'Ruben', nameSource: 'custom' }));
+              }
+              return value;
+            },
+            eval: (script, options) => client().eval(script, options),
+            evalSha: (sha, options) => client().evalSha(sha, options),
+          }),
+        },
+      });
+
+      await raced.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite());
+
+      assert.strictEqual(ingegrepen, true, 'het venster is echt geraakt, anders bewijst deze test niets');
+      const player = await store.loadPlayer('room_a', 'player_1');
+      assert.strictEqual(player.effectiveName, 'Ruben', 'de gelijktijdige schrijfactie mag niet zijn weggevallen');
+      assert.strictEqual(player.score, 120, 'en de score van deze inzending staat er wél');
+    });
+
+    it('een spelerdocument dat blijft bewegen levert een fout op waarin NIETS is geschreven', async () => {
+      // De bovengrens van de herpogingen. Een oneindige lus onder aanhoudende
+      // drukte is een hangende request; op is op, en dan hoort er niets te staan.
+      await arrangePlayer();
+      const altijdStale = createRedisDataStore({
+        connection: {
+          getClient: () => ({
+            // Levert een geldig, maar NOOIT actueel spelerdocument: de
+            // compare-and-set in het script kan dus per definitie niet slagen.
+            hGet: async () => encodeDocument('player', makePlayer({ score: 999 })),
+            eval: (script, options) => client().eval(script, options),
+            evalSha: (sha, options) => client().evalSha(sha, options),
+          }),
+        },
+      });
+
+      await assert.rejects(
+        () => altijdStale.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite()),
+        (error) => {
+          assert.ok(!(error instanceof RangeError), 'dit is geen contractfout maar een opgegeven herpoging');
+          assert.match(error.message, /pogingen achter elkaar/);
+          return true;
+        }
+      );
+
+      assert.strictEqual(await client().exists(ANSWERS), 0, 'er mag niets geschreven zijn');
+      assert.strictEqual(await client().exists(CACHE), 0);
+      assert.strictEqual(await client().exists(BOARD), 0);
+      assert.strictEqual((await store.loadPlayer('room_a', 'player_1')).score, 0);
+    });
+
+    // ----------------------------------------------------------------
+    // ECHTE GELIJKTIJDIGHEID, over losse verbindingen.
+    //
+    // Dit is het blok dat tegen de in-memory fake niet te schrijven is. Die is
+    // single-threaded en voert elke aanroep volledig synchroon uit; twee
+    // aanroepen kunnen elkaar er niet eens kruisen. Hier praten meerdere
+    // Redis-CLIENTS tegelijk tegen dezelfde sleutels, elk over een eigen
+    // socket, en zit er tussen elke lees en elke schrijf een netwerkbeurt.
+    //
+    // Elke deelnemer biedt een EIGEN absolute score aan (100 + index). Daardoor
+    // is aan de eindstand af te lezen wélke inzending gewonnen heeft, en is
+    // "de score is precies één keer toegekend" een echte assertie in plaats van
+    // een tautologie op een gedeeld getal.
+    // ----------------------------------------------------------------
+    const DEELNEMERS = 24;
+    const VERBINDINGEN = 6;
+
+    /**
+     * Zet `VERBINDINGEN` losse verbindingen op, elk met een eigen store, en
+     * levert `DEELNEMERS` stores in ronde-robin. Losse verbindingen, want twee
+     * aanroepen over dezelfde socket worden door de client achter elkaar gezet
+     * en dat is precies de gelijktijdigheid die we willen uitsluiten.
+     */
+    async function withConcurrentStores(body) {
+      const connections = await Promise.all(
+        Array.from({ length: VERBINDINGEN }, async () => {
+          const extra = createRedisConnection(testConnectionConfig());
+          await extra.connect();
+          return extra;
+        })
+      );
+      try {
+        const stores = connections.map((extra) => createRedisDataStore({ connection: extra }));
+        await body(Array.from({ length: DEELNEMERS }, (_, index) => stores[index % stores.length]));
+      } finally {
+        await Promise.all(connections.map((extra) => extra.close()));
+      }
+    }
+
+    it(`${DEELNEMERS} gelijktijdige inzendingen met DEZELFDE actionId: één schrijft, de rest is replay`, async () => {
+      await arrangePlayer();
+
+      await withConcurrentStores(async (stores) => {
+        const uitkomsten = await Promise.all(stores.map((each, index) => each.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite({
+          actionId: 'action_1', points: 100 + index, score: 100 + index, correctCount: 1, correctResponseTimeMsTotal: 2000 + index,
+        }))));
+
+        const geschreven = uitkomsten.filter((uitkomst) => uitkomst.replay === false);
+        assert.strictEqual(geschreven.length, 1, `precies één schrijver, kreeg ${geschreven.length} van ${DEELNEMERS}`);
+        assert.strictEqual(uitkomsten.filter((uitkomst) => uitkomst.replay === true).length, DEELNEMERS - 1);
+      });
+
+      // De score is precies één keer toegekend, en overal dezelfde: het antwoord,
+      // het spelerdocument en het scoreboard wijzen naar dezelfde inzending.
+      const answer = await store.loadAnswer('room_a', 'match_1', 'round_1', 'player_1');
+      const player = await store.loadPlayer('room_a', 'player_1');
+      assert.strictEqual(await client().hLen(ANSWERS), 1, 'één antwoord in deze ronde');
+      assert.strictEqual(await client().hLen(CACHE), 1, 'één ack in deze room');
+      assert.strictEqual(await client().zCard(BOARD), 1, 'één scoreboardregel');
+      assert.strictEqual(player.score, answer.points, 'speler en antwoord komen uit dezelfde inzending');
+      assert.strictEqual(player.correctResponseTimeMsTotal, 2000 + (answer.points - 100));
+      assert.strictEqual(await client().zScore(BOARD, 'player_1'), player.score, 'scoreboard en speler lopen niet uiteen');
+      assert.ok(answer.points >= 100 && answer.points < 100 + DEELNEMERS, `de winnende waarde is echt aangeboden: ${answer.points}`);
+    });
+
+    it(`${DEELNEMERS} gelijktijdige inzendingen met VERSCHILLENDE actionIds in dezelfde ronde: één wint, de rest wordt afgewezen`, async () => {
+      await arrangePlayer();
+
+      await withConcurrentStores(async (stores) => {
+        const uitkomsten = await Promise.all(stores.map((each, index) => each
+          .saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite({
+            actionId: `action_${index}`, points: 100 + index, score: 100 + index,
+            correctCount: 1, correctResponseTimeMsTotal: 2000 + index,
+          }))
+          .then((uitkomst) => ({ ok: true, index, uitkomst }), (error) => ({ ok: false, index, error }))));
+
+        const gewonnen = uitkomsten.filter((each) => each.ok);
+        const afgewezen = uitkomsten.filter((each) => !each.ok);
+        assert.strictEqual(gewonnen.length, 1, `precies één winnaar, kreeg ${gewonnen.length} van ${DEELNEMERS}`);
+        assert.deepStrictEqual(gewonnen[0].uitkomst, { replay: false });
+        for (const verloren of afgewezen) {
+          assert.ok(verloren.error instanceof RangeError, `deelnemer ${verloren.index}: ${verloren.error?.name}`);
+          assert.strictEqual(
+            verloren.error.code, 'ALREADY_ANSWERED',
+            `deelnemer ${verloren.index} hoort ALREADY_ANSWERED te krijgen, kreeg: ${verloren.error?.message}`
+          );
+        }
+
+        // De ack van een afgewezen inzending mag nergens staan.
+        const winnaar = gewonnen[0].index;
+        assert.strictEqual(await client().hLen(CACHE), 1);
+        assert.strictEqual(await client().hExists(CACHE, `action_${winnaar}`), 1);
+
+        const player = await store.loadPlayer('room_a', 'player_1');
+        assert.strictEqual(player.score, 100 + winnaar, 'de score is precies één keer toegekend, en wel die van de winnaar');
+        assert.strictEqual(player.correctCount, 1, 'nooit twee keer opgeteld');
+        assert.strictEqual(await client().zScore(BOARD, 'player_1'), 100 + winnaar);
+        assert.strictEqual(await client().hLen(ANSWERS), 1);
+        assert.strictEqual((await store.loadAnswer('room_a', 'match_1', 'round_1', 'player_1')).actionId, `action_${winnaar}`);
+      });
+    });
+
+    it(`${DEELNEMERS} spelers die tegelijk antwoorden leveren ${DEELNEMERS} scoreboardregels op, elk met een aangeboden waarde`, async () => {
+      // De interleaving-test uit de conformance-suite, maar met zes keer zoveel
+      // deelnemers als de fake ooit kreeg (vier) en over losse verbindingen.
+      await fresh();
+      const ids = Array.from({ length: DEELNEMERS }, (_, index) => `player_${String(index + 1).padStart(2, '0')}`);
+      for (const [index, id] of ids.entries()) {
+        await store.savePlayer(makePlayer({ id, sessionId: `session_${id}`, score: 0 }));
+      }
+
+      await withConcurrentStores(async (stores) => {
+        await Promise.all(stores.map((each, index) => each.saveAcceptedAnswerAtomically('room_a', 'match_1', makeWrite({
+          playerId: ids[index], actionId: `action_${ids[index]}`, points: 100 + index, score: 100 + index,
+        }))));
+      });
+
+      const board = await store.getScoreboardTop('room_a', 'match_1', DEELNEMERS * 2);
+      assert.strictEqual(board.length, DEELNEMERS, 'één regel per speler, geen dubbele en geen verdwenen regel');
+      assert.deepStrictEqual(board.map((entry) => entry.playerId).sort(), [...ids].sort());
+      for (const entry of board) {
+        const index = ids.indexOf(entry.playerId);
+        assert.strictEqual(entry.score, 100 + index, `${entry.playerId} draagt zijn eigen aangeboden score`);
+        assert.strictEqual((await store.loadPlayer('room_a', entry.playerId)).score, entry.score, `${entry.playerId}: speler en scoreboard lopen niet uiteen`);
+        assert.strictEqual((await store.loadAnswer('room_a', 'match_1', 'round_1', entry.playerId)).points, 100 + index);
+      }
+      assert.strictEqual(await client().hLen(CACHE), DEELNEMERS, 'elke inzending heeft precies één ack');
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // 7. De methode die hier NIET hoort.
   // ------------------------------------------------------------------
   describe('Redis-adapter — bewust niet geïmplementeerd', () => {
-    it('UNIMPLEMENTED_METHODS noemt exact de twee resterende methoden en hun blokkade', () => {
-      assert.deepStrictEqual(Object.keys(UNIMPLEMENTED_METHODS).sort(), [
-        'loadSessionByTokenHash',
-        'saveAcceptedAnswerAtomically',
-      ]);
-      assert.strictEqual(UNIMPLEMENTED_METHODS.saveAcceptedAnswerAtomically, 'INTB2c');
-      // INTB2d heeft `setRoomAndMatchPhaseAtomically` gebouwd; de lijst hoort
-      // met de adapter mee te krimpen, anders is hij een verouderd briefje in
-      // plaats van een machineleesbare stand van zaken.
+    it('UNIMPLEMENTED_METHODS noemt exact de ene resterende methode en haar blokkade', () => {
+      assert.deepStrictEqual(Object.keys(UNIMPLEMENTED_METHODS).sort(), ['loadSessionByTokenHash']);
+      // INTB2d heeft `setRoomAndMatchPhaseAtomically` gebouwd en INTB2c
+      // `saveAcceptedAnswerAtomically`; de lijst hoort met de adapter mee te
+      // krimpen, anders is hij een verouderd briefje in plaats van een
+      // machineleesbare stand van zaken.
       assert.strictEqual(UNIMPLEMENTED_METHODS.setRoomAndMatchPhaseAtomically, undefined);
+      assert.strictEqual(UNIMPLEMENTED_METHODS.saveAcceptedAnswerAtomically, undefined);
     });
 
     it('loadSessionByTokenHash werpt en noemt de ontbrekende sleutel, in plaats van een globale SCAN te doen', async () => {
@@ -918,28 +1384,28 @@ if (!probe.ok) {
       assert.doesNotThrow(() => assertImplementsDataStore(createRedisDataStore({ connection })));
     });
 
-    it('saveAcceptedAnswerAtomically werpt met een verwijzing naar INTB2c en schrijft niets', async () => {
+    it('saveAcceptedAnswerAtomically werpt NIET meer — INTB2c heeft hem gebouwd', async () => {
+      // De tegenhanger van de test hierboven: dit blok legt de stand van zaken
+      // van de adapter vast, en "deze methode is er nu wél" hoort daar net zo
+      // goed in als "deze methode is er nog niet".
       await fresh();
       await store.savePlayer(makePlayer());
 
-      await assert.rejects(
-        () => store.saveAcceptedAnswerAtomically('room_a', 'match_1', {
+      assert.deepStrictEqual(
+        await store.saveAcceptedAnswerAtomically('room_a', 'match_1', {
           answer: makeAnswer(),
           updatedPlayer: { id: 'player_1', score: 120, correctCount: 1, correctResponseTimeMsTotal: 2000 },
           actionCacheEntry: { actionId: 'action_1', ack: { roundId: 'round_1' } },
         }),
-        (error) => {
-          assert.ok(error instanceof NotImplementedError);
-          assert.match(error.message, /INTB2c/);
-          assert.strictEqual(error.code, 'NOT_IMPLEMENTED');
-          return true;
-        }
+        { replay: false }
       );
 
-      assert.strictEqual(await store.loadAnswer('room_a', 'match_1', 'round_1', 'player_1'), null);
-      assert.strictEqual(await store.loadActionCacheEntry('room_a', 'action_1'), null);
-      assert.deepStrictEqual(await store.getScoreboardTop('room_a', 'match_1', 10), []);
-      assert.strictEqual((await store.loadPlayer('room_a', 'player_1')).score, 0);
+      assert.deepStrictEqual(await store.loadAnswer('room_a', 'match_1', 'round_1', 'player_1'), makeAnswer());
+      assert.deepStrictEqual(await store.loadActionCacheEntry('room_a', 'action_1'), {
+        actionId: 'action_1', ack: { roundId: 'round_1' },
+      });
+      assert.deepStrictEqual(await store.getScoreboardTop('room_a', 'match_1', 10), [{ playerId: 'player_1', score: 120 }]);
+      assert.strictEqual((await store.loadPlayer('room_a', 'player_1')).score, 120);
     });
 
     it('setRoomAndMatchPhaseAtomically werpt NIET meer — INTB2d heeft hem gebouwd', async () => {
