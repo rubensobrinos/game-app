@@ -74,9 +74,25 @@ daadwerkelijke connectiecode is een aparte, latere fase (`deps`/`prod`).
 
 **Poort bevroren vanaf DM13.** Elke volgende wijziging aan `repository.js`'s
 `DataStore`-contract gaat eerst als HANDOFF-voorstel naar INT-A én INT-B, met
-hun akkoord, vóór implementatie — zie `HANDOFF.md` §7b voor de volledige,
-actuele inventaris van wat er aan DM gericht staat maar (bewust) nog niet
-gebouwd is, waaronder één 🔴-item (INTB-5, security).
+hun akkoord, vóór implementatie.
+
+**Audit uitgevoerd (`HANDOFF.md` §8):** de volledige DM-inventaris uit beide
+integratie-HANDOFFs geverifieerd tegen de daadwerkelijke code, niet tegen
+statustabellen. Belangrijkste vondst: **INTB-5 (🔴 security, geroteerde
+uitnodiging blijft geldig) staat bij INT-B ten onrechte als "opgelost" —
+zelf gereproduceerd, nog echt open.** Ook: INT-6/INTB-7 (invite-hash) is
+inhoudelijk al opgelost, maar beide statustabellen zijn stale. Drie
+voorstellen geschreven, geen enkele geïmplementeerd (poort-bevroren):
+
+- [ ] `HANDOFF.md` §9 — `rotateRoomLocators` voor INTB-5, wacht op akkoord
+  INT-A + INT-B
+- [ ] `HANDOFF.md` §10 — `loadSessionByTokenHash` voor INT-3 (blokkeert
+  INT-A stap 2), wacht op akkoord
+- [ ] `HANDOFF.md` §11 — eenregelig voorstel aan spec-redactie voor INT-9
+  (`deadlineGraceMs`-documentatie, geen poortwijziging)
+
+INTB-8 ligt al bij de DT-agent, geen actie hier. INTB-6 (tiebreak) blijft
+terecht open, wacht op GR.
 
 ## Cijfers
 

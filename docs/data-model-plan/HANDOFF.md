@@ -304,6 +304,187 @@ Al deze items volgen vanaf nu het nieuwe proces (HANDOFF-voorstel eerst,
 akkoord van INT-A én INT-B, dan pas implementatie) — ook INT-3 en INTB-5,
 ondanks hun urgentie/severity-markering.
 
+## 8. Audit — volledige DM-inventaris na de poort-bevriezing, afgestempeld
+
+Op instructie: elk aan DM gericht item uit `HANDOFF.md` (INT-A) en
+`HANDOFF-INTB.md` (INT-B) hieronder geverifieerd tegen de daadwerkelijke
+huidige code — niet tegen wat een statustabel beweert. **INTB-5 en
+INT-6/INTB-7 eerst**, want daar spraken de twee HANDOFF-bestanden elkaar
+aantoonbaar tegen.
+
+### INTB-5 🔴 — geverifieerd: nog steeds ECHT OPEN, INT-B's eigen tabel is fout
+
+INT-B's `HANDOFF-INTB.md`-tabel zegt "✅ `releaseRoomLocators`, nu
+contracttest". Dat klopt niet: `releaseRoomLocators` **bestaat**, maar niets
+roept hem aan wanneer een room van code/invite wisselt — `saveRoom` doet dat
+zeker niet, die schrijft alleen bij, nooit weg. Zelf gereproduceerd tegen de
+huidige `in-memory-store.js`:
+
+```
+saveRoom({ id: room_1, code: 111111, inviteId: INV-AAA })
+saveRoom({ id: room_1, code: 222222, inviteId: INV-BBB })   // "rotatie"
+
+loadRoomByCode('111111') -> room met code 222222   -- BUG, nog steeds zo
+loadRoomByCode('222222') -> room met code 222222
+```
+
+De precieze karakterisatietest die dit al vastlegt in
+`data-store-conformance.mjs` ("na een hercodering... blijft de OUDE
+join-code... wijzen") staat dus nog terecht zoals hij is — die zou pas moeten
+omdraaien ná een echte fix, niet ervoor. INT-B's statustabel loopt hier voor
+op de werkelijkheid. **Voorstel voor de fix staat in §9 hieronder.**
+
+### INT-6 (INT-A)/INTB-7 (INT-B) — hetzelfde punt vanuit twee kanten, status uit elkaar
+
+- **INTB-7 (INT-B):** tabel zegt "✅ poort neemt de hash" — dat **klopt** met
+  de werkelijkheid (`loadRoomByInviteHash(inviteHash)`, DM10). Maar de
+  gedetailleerde tekst ónder die kop in hetzelfde bestand is stale: die stelt
+  nog voor dat de poort het RUWE `inviteId` aanneemt en de adapter intern
+  hasht — het omgekeerde van wat gebouwd is. Wie alleen die sectie leest
+  zonder de tabel erboven, krijgt het verkeerde beeld. **INT-B: overweeg die
+  detailtekst te vervangen door een korte "zie tabel, opgelost via
+  `loadRoomByInviteHash`"-notitie, anders spreekt het bestand zichzelf tegen.**
+- **INT-6 (INT-A):** tabel zegt nog "🔵 open — krijgt de rauwe `inviteId` in
+  plaats van de hash". Dat is stale: sinds DM10 is dat niet meer zo. **INT-A:
+  dit mag naar ✅ — `loadRoomByInviteHash(inviteHash)` bestaat, de poort ziet
+  nooit de rauwe capability, hashen gebeurt vóór de aanroep met
+  `hashInviteId()`.**
+
+Conclusie: **inhoudelijk opgelost aan mijn kant, twee statustabellen moeten nog
+worden bijgewerkt** — geen actie van mij nodig behalve deze melding.
+
+### Rest van de inventaris, kort afgestempeld
+
+| Item | Aan | Status hier geverifieerd |
+| --- | --- | --- |
+| INTB-1 | DM | ✅ opgelost (DM11) — tabel klopt |
+| INTB-2 | DM+AR | ✅ opgelost (DM10) — tabel klopt |
+| INTB-3 | DM | ✅ opgelost (DM12) — tabel klopt |
+| INTB-4 | DM | ✅ opgelost (DM13) — **INT-B's tabel is stale** (zegt nog "🔵 open, 3 tests rood"); geverifieerd 80/80 groen, inclusief die drie |
+| INTB-5 | DM | 🔴 **echt open** — zie hierboven, voorstel in §9 |
+| INTB-6 | DM+GR | 🔵 open, terecht — tiebreak-eigenaarschap is een echte GR-vraag, niet iets ik alleen kan beslissen |
+| INTB-7 | DM | ✅ inhoudelijk opgelost, detailtekst stale — zie hierboven |
+| INTB-8 | DM+fixtures-eigenaar | 🔵 open, terecht, **ligt al bij de DT-agent** (bevestigd) — geen actie hier |
+| INT-3 | DM | 🔵 open, terecht, blokkeert INT-A stap 2 — voorstel in §10 |
+| INT-6 | DM | ✅ inhoudelijk opgelost, **INT-A's tabel is stale** — zie hierboven |
+| INT-7 | DM | 🔵 open, terecht — geen conditionele/partiële write op de poort. Nog niet als voorstel uitgewerkt (niet in de prioriteitsvolgorde van dit antwoord); INT-A's eigen stopgap (`touchRoom()`/`setRoomLocked()` geïsoleerd) houdt het risico binnen één proces intussen klein |
+| INT-9 | DM | 🔵 open, terecht — geen poortwijziging, een documentatie-eenduidigheid. Voorstel aan spec-redactie in §11 |
+| INT-4 | cc DM | 🔵 open, primair CT — geen actie hier |
+
+## 9. VOORSTEL (wacht op akkoord INT-A + INT-B, NIET geïmplementeerd) — INTB-5: `rotateRoomLocators`
+
+Security gaat voor tempo, dus dit eerst. Aan: INT-A, INT-B — akkoord nodig
+vóór implementatie (poort-bevroren, §7b).
+
+### Wat er moet kunnen
+
+Een room die van join-code en/of invite wisselt (`ARCHITECTURE.md`
+§inviteId: "direct intrekbaar of roteerbaar") moet de OUDE locators meteen
+laten stoppen met werken, niet pas bij TTL-verval. Vandaag kan dat niet:
+`saveRoom` overschrijft alleen het documentveld, de lookup-indexen
+(`roomIdByCode`, `roomIdByInviteHash`) houden de oude waarde vast.
+
+### Waarom niet gewoon `releaseRoomLocators` + `claimRoomLocatorsAtomically` na elkaar
+
+Dat zou het bestaande gat alleen versmallen, niet dichten: als de release
+lukt maar de claim van de nieuwe locators faalt (of andersom), is de room
+tijdelijk óf via geen enkele code bereikbaar, óf blijft de oude code toch
+geldig — bij "direct intrekbaar" is dat laatste zelfs de ergere uitkomst.
+Twee losse aanroepen zijn hier niet goed genoeg; dit moet net zo atomair als
+de oorspronkelijke claim uit INT-1.
+
+### Voorstel
+
+```js
+rotateRoomLocators({ roomId, oldCode, oldInviteHash, newCode, newInviteHash, ttlSeconds })
+  → { ok: true }
+  | { ok: false, conflict: 'code' | 'inviteHash' }
+```
+
+1. **Atomair.** Oude locators vrijgeven én nieuwe claimen gebeurt in één stap,
+   of geen van beide gebeurt.
+2. **Eigendomscontrole eerst.** `oldCode`/`oldInviteHash` moeten op dit moment
+   door `roomId` bezet zijn — zo niet, werpt de operatie (programmeerfout van
+   de aanroeper, geen normale uitkomst; zelfde stijl als
+   `refreshRoomLocators`).
+3. **Conflict is een veilige no-op, geen halve overgang.** Is `newCode` of
+   `newInviteHash` al door een ANDERE `roomId` bezet, dan gebeurt er niets:
+   `{ ok: false, conflict }`, de OUDE locators blijven gewoon geldig. Dat is
+   bewust de veilige kant kiezen — een room die tijdelijk via geen enkele code
+   bereikbaar is, is erger dan een rotatie die nog niet gelukt is.
+4. **`saveRoom` blijft ongewijzigd.** Volgorde: eerst `rotateRoomLocators`
+   (atomaire indexwissel), dan pas `saveRoom` met het bijgewerkte
+   `code`/`inviteId` op het document — zelfde patroon als de bestaande
+   creatieflow (eerst claimen, dan pas opslaan).
+5. **Bekende, geaccepteerde restrisico** (zelfde klasse als de oorspronkelijke
+   "claim slaagt, roomcreatie faalt"-situatie uit INT-1/DM10): als
+   `rotateRoomLocators` slaagt maar de daaropvolgende `saveRoom` crasht vóór
+   hij landt, wijst de index al naar de nieuwe locators terwijl het
+   Room-document nog de oude `code`/`inviteId` draagt. Dit is een crash-only
+   venster, geen normale foutafhandeling — net als het bestaande, geaccepteerde
+   gat tussen claim en `saveRoom` bij roomcreatie. Niet hier opgelost, wel
+   benoemd.
+
+**Open vraag voor INT-A/INT-B:** is er al een productfunctie ("nieuwe
+uitnodigingslink genereren") die dit daadwerkelijk gaat aanroepen, of is dit
+puur het dichten van het contractgat dat `ARCHITECTURE.md` eist zonder dat er
+nu al een aanroeper is? Dat bepaalt of dit voorstel meteen bruikbaar is of
+voorlopig alleen het contract vastlegt (zoals `refreshRoomLocators` dat nu
+ook al doet voor TTL).
+
+## 10. VOORSTEL (wacht op akkoord INT-A + INT-B, NIET geïmplementeerd) — INT-3: `loadSessionByTokenHash`
+
+Aan: INT-A. Blokkeert INT-A stap 2 (echt transport), dus na INTB-5 het
+duurste openstaande item.
+
+### Wat er moet kunnen
+
+`PROTOCOL.md` stuurt alleen `Authorization: Bearer <sessionToken>`. Zodra er
+echt transport is, komt er dus een request binnen met alleen een token, geen
+`roomId`/`sessionId`. De poort heeft alleen `loadSession(roomId, sessionId)`
+— geen weg van token naar sessie.
+
+### Voorstel
+
+```js
+loadSessionByTokenHash(tokenHash) → Promise<Session | null>
+```
+
+- **Index op de hash, nooit op het rauwe token** — conform besluit 26, zelfde
+  discipline als `loadRoomByInviteHash`. Deze poort ziet het rauwe
+  `sessionToken` nooit; de aanroeper hasht vóór de aanroep.
+- **Geen aparte claim/atomiciteit nodig, in tegenstelling tot INTB-5.**
+  `Session.tokenHash` staat al ÓP het Session-document (`types/session.js`,
+  DM2a) — geen chicken-and-egg-probleem zoals bij `inviteHash` (die niet op
+  `Room` staat). `saveSession` kan de index dus gewoon rechtstreeks vullen,
+  net zoals `saveRoom` dat al voor `roomIdByCode` doet. Geen nieuwe
+  atomaire operatie, alleen een nieuwe leesindex.
+- **Herroepen sessies blijven vindbaar.** De index wordt niet leeggemaakt bij
+  `session.revoked = true` — de aanroeper laadt de sessie en controleert
+  `.revoked` zelf, exact zoals `loadSession(roomId, sessionId)` dat vandaag al
+  laat doen (zie `answer-flow.js`'s `SESSION_REVOKED`-pad). Zonder dit zou de
+  aanroeper "token onbekend" en "token bekend maar herroepen" niet meer uit
+  elkaar kunnen houden.
+- **Botsingen:** tokens zijn 32 random bytes (besluit 26); een botsende hash
+  tussen twee sessies is geen praktisch scenario, geen speciale afhandeling
+  nodig.
+
+## 11. Aan spec-redactie (SR) — INT-9: `deadlineGraceMs` eenduidig maken
+
+Eén regel, geen poortwijziging, dus buiten de bevriezing van §7b: `DATA-MODEL.md`'s
+`GameConfiguration`-voorbeeld toont `"deadlineGraceMs": 150`, terwijl
+`DECISIONS.md` besluit 13 bindend 250 ms als MAXIMUM vastlegt.
+`QUICK_START_CONFIG` gebruikt daarom al 250 — `DECISIONS.md` wint, dat is niet
+in het geding. Het enige dat ontbreekt is dat `DATA-MODEL.md`'s voorbeeld dat
+niet weerspiegelt.
+
+**Voorstel voor SR, letterlijk over te nemen:** vervang in `DATA-MODEL.md`'s
+`GameConfiguration`-voorbeeld `"deadlineGraceMs": 150` door een waarde ≤ 250
+(bijv. `150` blijft geldig als voorbeeld van een lagere configwaarde, of
+`250` als voorbeeld van het maximum) mét een korte toelichting dat 250 ms het
+bindende maximum is (besluit 13) en dat elke waarde eronder een geldige
+configuratiekeuze is — niet dat 150 zelf de norm is.
+
 ## 7. Klein, buiten scope van DM10/11/12 — genoteerd, niet opgepakt
 
 `sessionsByKey`/`playersByKey` in `in-memory-store.js` gebruiken nog steeds
