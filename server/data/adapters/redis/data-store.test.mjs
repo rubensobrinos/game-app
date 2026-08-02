@@ -723,19 +723,25 @@ if (!probe.ok) {
       //
       // De onderbreking is een echte: een tweede verbinding doet CLIENT KILL op
       // het id van de eerste, alleen op onze eigen verbinding en op niemand
-      // anders. De vertraging loopt op, zodat de kill zowel vóór als ná het
-      // script kan landen en beide uitkomsten aan bod komen.
+      // anders. Twee soorten timing, want ze bewijzen niet hetzelfde:
+      //   * `tijdens` — de kill gaat de deur uit terwijl de operatie nog aan
+      //     het lezen is. Dat levert de vertrouwde uitkomst op: niets geland.
+      //   * `bij-eval` — de kill vertrekt op het moment dat het script zelf
+      //     onderweg is. Dat levert óók de uitkomst op waar deze test om
+      //     begonnen is: de wissel LANDT en de aanroeper hoort het nooit.
       const victim = createRedisConnection(testConnectionConfig());
       const killer = createRedisConnection(testConnectionConfig());
       await victim.connect();
       await killer.connect();
-      const victimStore = createRedisDataStore({ connection: victim });
 
       /** @type {Set<string>} */
       const uitkomsten = new Set();
       let onderbroken = 0;
       try {
-        for (const vertragingMs of [0, 0, 0, 0, 1, 1, 2, 3, 5, 8]) {
+        for (const [moment, vertragingMs] of [
+          ['tijdens', 0], ['tijdens', 0], ['tijdens', 1], ['tijdens', 3], ['tijdens', 8],
+          ['bij-eval', 0], ['bij-eval', 0], ['bij-eval', 0], ['bij-eval', 0], ['bij-eval', 0],
+        ]) {
           // Hier BEGINNEN room en match op dezelfde fase, anders dan in de
           // andere tests: de invariant die bewezen moet worden is "de twee
           // dragen dezelfde waarde", en dat is alleen een uitspraak over de
@@ -745,12 +751,32 @@ if (!probe.ok) {
           await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
           await store.saveMatch(makeMatch({ phase: 'LOBBY' }));
           const victimId = await victim.getClient().sendCommand(['CLIENT', 'ID']);
+          const dood = () => killer.getClient().sendCommand(['CLIENT', 'KILL', 'ID', String(victimId)]);
+
+          // Bij `bij-eval` schuift de kill mee met het script in plaats van met
+          // de klok: de doorgeefclient hieronder vuurt hem af zodra de EVAL de
+          // deur uit is. Alleen `get` en `eval` worden gebruikt, dus meer hoeft
+          // hij niet door te geven.
+          const victimStore = createRedisDataStore({
+            connection: {
+              getClient: () => ({
+                get: (key) => victim.getClient().get(key),
+                eval: (script, options) => {
+                  const pending = victim.getClient().eval(script, options);
+                  if (moment === 'bij-eval') dood();
+                  return pending;
+                },
+              }),
+            },
+          });
 
           const bezig = victimStore
             .setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED')
             .then(() => 'geland', () => 'onbekend');
-          if (vertragingMs > 0) await new Promise((resolve) => setTimeout(resolve, vertragingMs));
-          await killer.getClient().sendCommand(['CLIENT', 'KILL', 'ID', String(victimId)]);
+          if (moment === 'tijdens') {
+            if (vertragingMs > 0) await new Promise((resolve) => setTimeout(resolve, vertragingMs));
+            await dood();
+          }
 
           const gemeld = await bezig;
           if (gemeld === 'onbekend') onderbroken += 1;
@@ -767,7 +793,7 @@ if (!probe.ok) {
             room.phase === 'LOBBY' || room.phase === 'FINISHED',
             `alleen de oude of de nieuwe fase is een geldige uitkomst, kreeg ${room.phase}`
           );
-          uitkomsten.add(`${gemeld}/${room.phase}`);
+          uitkomsten.add(`${moment}:${gemeld}/${room.phase}`);
 
           // Wachten tot de gedode verbinding zichzelf heeft hersteld, anders
           // meet de volgende ronde de herverbinding in plaats van het gedrag.
