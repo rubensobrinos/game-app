@@ -650,6 +650,33 @@ test('sessie-lookup overleeft een pepperrotatie: een oude hash blijft vindbaar',
   assert.equal(response.statusCode, 200, response.body);
 });
 
+test('sessie-lookup vertrouwt de tokenindex niet blind (INTB-10 punt 4)', async (t) => {
+  const store = createInMemoryStore();
+  const context = makeContext({ store });
+  const created = await createRoom(context, { hostParticipates: true, displayName: 'Host' });
+
+  // Een index die ALTIJD een sessie teruggeeft, ook voor een token dat er niet
+  // bij hoort — precies het rotatiegat uit INTB-10. De constant-time
+  // verificatie tegen `session.tokenHash` moet dat alsnog afwijzen.
+  const lyingStore = {
+    ...store,
+    async loadSessionByTokenHash() {
+      return store.loadSession(created.value.roomId, created.value.sessionId);
+    },
+  };
+  const fastify = await makeRestOnlyServer({ ...context, store: lyingStore });
+  t.after(() => fastify.close());
+
+  const response = await fastify.inject({
+    method: 'GET',
+    url: `/api/v1/games/${created.value.gameCode}/state`,
+    headers: bearer('een-token-dat-nergens-bij-hoort'),
+  });
+
+  assert.equal(response.statusCode, 401);
+  assert.equal(response.json().code, 'TOKEN_INVALID');
+});
+
 // ─── Entrypoint: healthz, readyz, statisch ───────────────────────────────────
 
 test('/healthz blijft 200 zolang het proces leeft', async (t) => {
