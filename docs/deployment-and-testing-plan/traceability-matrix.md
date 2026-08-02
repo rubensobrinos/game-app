@@ -1,14 +1,15 @@
-# Traceability-matrix — PROTOCOL.md (T1a)
+# Traceability-matrix — PROTOCOL.md (DT1a)
 
-**Status: voorstel, geen bindend contract.** Fase T1a van [`README.md`](README.md),
+**Status: voorstel, geen bindend contract.** Fase DT1a van [`README.md`](README.md),
 uitgevoerd volgens
-[`prompts/T1a-traceability-matrix.md`](prompts/T1a-traceability-matrix.md). Aanleiding:
+[`prompts/DT1a-traceability-matrix.md`](prompts/DT1a-traceability-matrix.md). Aanleiding:
 [`prompts/REVIEW.md`](prompts/REVIEW.md) #5 — een zelf afgeleid schema kan ongemerkt het
 feitelijke protocolcontract worden. Deze matrix koppelt daarom eerst elk gedocumenteerd
 payloadveld/regel uit [`docs/multiplayer/PROTOCOL.md`](../multiplayer/PROTOCOL.md) aan
 zijn brontekst en, waar de tekst dat echt toelaat, aan een open beslispunt. Er wordt hier
-niets geïmplementeerd, gevalideerd of geactiveerd — dat is T1b, en alleen ná de
-bevestiging waar dit document mee eindigt.
+niets geïmplementeerd, gevalideerd of geactiveerd — de contracttestlaag zelf wordt
+inmiddels door de `PROTOCOL.md`-eigenaar gebouwd (PR7, zie [`README.md`](README.md),
+bijwerking 2026-08-02), niet door dit plan.
 
 ## Legenda
 
@@ -292,8 +293,10 @@ client→server-eventtabel dat met `?` doet (zie §2a) — dit raakt meerdere ri
 
 ## Keuze schemavorm
 
-Twee opties, hier voorgesteld — geen van beide wordt in deze fase gekozen of
-geactiveerd. De keuze hoort bij T1b, na bevestiging van deze matrix.
+Twee opties, hier voorgesteld — geen van beide wordt hier gekozen of geactiveerd.
+**DT1b is vervallen** (zie [`README.md`](README.md), bijwerking 2026-08-02): de
+`PROTOCOL.md`-eigenaar bouwt de contracttestlaag zelf (PR7) en maakt deze keuze dus
+zelfstandig voor die eigen implementatie, niet ik namens hen.
 
 **Optie A — echt JSON Schema + validator-library (bijvoorbeeld Ajv).**
 Voordeel: standaardformaat met native ondersteuning voor `required`/optionele
@@ -301,7 +304,7 @@ eigenschappen, `oneOf`/`anyOf` voor discriminated unions (relevant voor de vijf
 `round:answer`-varianten, OQ-14, en voor eventuele `question.image.kind`-varianten,
 OQ-19), `additionalProperties: false` om onverwachte velden te weigeren, en
 versiebeheer via `$id`. Nadeel: introduceert een nieuwe runtime-dependency — dat is een
-eigen `deps`-checkpoint (`always_ask`), niet iets wat deze fase of T1b zelfstandig mag
+eigen `deps`-checkpoint (`always_ask`), niet iets wat deze fase of DT1b zelfstandig mag
 activeren (zie CLAUDE.md §Beslisbevoegdheid).
 
 **Optie B — klein, dependency-vrij handmatig validatorcontract.**
@@ -312,26 +315,76 @@ beginnen"), direct uitvoerbaar zonder `deps`-checkpoint. Nadeel: geen standaardf
 met de hand geschreven worden, en blijven daardoor makkelijker impliciet dan bij een
 echt schema — precies het risico dat REVIEW.md #5 benoemt.
 
-Beide opties zijn hier bewust naast elkaar gezet. Een mix (bijvoorbeeld: Optie B nu voor
-het kleinere, al volledig gespecificeerde oppervlak zoals de envelope en de
-foutenvelope; Optie A later zodra ook de nog open server→client-kernpayloads
-(OQ-16/OQ-17) zijn dichtgeschreven) is ook mogelijk, maar eveneens een beslissing voor
-T1b, niet voor dit document.
+Beide opties zijn hier bewust naast elkaar gezet, als input voor de
+`PROTOCOL.md`-eigenaar bij hun eigen PR7-fasering — geen beslissing voor dit
+document.
 
 ## Verzoek om bevestiging
 
-Dit document is een **voorstel**, geen vastgesteld contract. Concreet verzoek aan de
-(toekomstige) `PROTOCOL.md`-eigenaar, vóórdat T1b hier contract-afdwingende code op
-bouwt:
+Dit document is een **voorstel**, geen vastgesteld contract, en blijft dat ook nu
+`DT1b` is vervallen: deze matrix bouwt geen eigen contract-afdwingende testcode meer
+(zie [`README.md`](README.md)), maar blijft waardevol als onafhankelijke audit naast
+PR7. Concreet verzoek aan de `PROTOCOL.md`-eigenaar:
 
 1. Bevestig of corrigeer de 26 open beslispunten in
    [Overzicht open beslispunten](#overzicht-open-beslispunten) — met prioriteit voor
    OQ-7 (`room.phase`-enumeratie inclusief "wachtfase"), OQ-14 (koppeling `gameType` ↔
-   `answer`-variant) en OQ-16 (ontbrekende veldnamen voor het merendeel van de
-   server→client-kernpayloads), omdat die drie de grootste oppervlakte van elke
-   afgeleide schemavorm raken.
+   `answer`-variant, uniek aan deze matrix — zie addendum) en OQ-16 (ontbrekende
+   veldnamen voor het merendeel van de server→client-kernpayloads).
 2. Geef aan of deze matrix velden, events of regels uit `PROTOCOL.md` heeft gemist.
-3. Neem hier nog geen standpunt in over §Keuze schemavorm — dat volgt in T1b, apart.
+3. Zie het [addendum](#addendum-2026-08-02--kruisverwijzing-met-protocol-plans-eigen-open-vragen)
+   hieronder voor hoe deze 26 punten zich verhouden tot protocol-plan's eigen 15
+   "Open vragen" — één gecombineerde blik in plaats van twee losse verzoeken.
 
-Tot deze bevestiging binnen is, geldt geen enkele rij in deze matrix als bindend en
-wordt er geen contract-afdwingende testcode op gebouwd.
+Geen enkele rij in deze matrix geldt als bindend; ze is en blijft input voor de
+`PROTOCOL.md`-eigenaar, niet een contract dat ik zelf afdwing.
+
+## Addendum (2026-08-02) — kruisverwijzing met protocol-plan's eigen "Open vragen"
+
+De `PROTOCOL.md`-eigenaar heeft inmiddels een eigen plan
+([`docs/protocol-plan/README.md`](../protocol-plan/README.md)) met een eigen,
+onafhankelijk opgestelde lijst van 15 open vragen, en bouwt de contracttestlaag zelf
+(zie [`README.md`](README.md), bijwerking DT1b). Deze twee lijsten zijn onafhankelijk
+tot stand gekomen — geen van beide citeert de ander. Om te voorkomen dat de
+`PROTOCOL.md`-eigenaar twee losse, deels overlappende verzoeken om bevestiging
+krijgt, hieronder een korte reconciliatie. Dit vervangt geen van beide documenten;
+het is uitsluitend een leeswijzer.
+
+**Hetzelfde gat, andere invalshoek** (beide lijsten kunnen met één antwoord dicht):
+
+| Hier | Daar (protocol-plan, Open vragen) | Gat |
+| --- | --- | --- |
+| OQ-6 | #4 | `POST /leave` vs. `player:leave`: relatie tussen de twee, en of `leave` de token intrekt / een "verlaten"-status oplevert. |
+| OQ-7 | #2 | `room.phase`/`game:paused.reason`: geen uitputtende fase-enum, geen onderscheid tussen de vier situaties die `reason` delen (incl. serverherstart). |
+| OQ-13 | #3 | Wat maakt een speler "speelgerechtigd" — hier vanuit `round:answer`/`round:progress`, daar vanuit het ontbreken van een proactief `eligible`-veld. |
+| OQ-16 (deels) | #11 | `round:ended`'s "verdeling" heeft geen veldnamen (hier) resp. geen genoemde eigenaar-module (daar). |
+| OQ-18 | #7 | `session:kicked`/`session:revoked`: hier de vorm van "reden", daar het ontbrekende triggerscenario voor `session:revoked` zelf. |
+| OQ-19 | #10 | `question`-payloadvorm alleen voor (in essentie) multiple-choice/`generated_flag` uitgewerkt; de andere spelvormen ontbreken. |
+
+**Alleen hier gevonden** (protocol-plan's lijst raakt dit niet — blijft dus alleen
+via deze matrix onder de aandacht):
+
+- **OQ-14** — scherpste bevinding van deze matrix: de `round:started`-voorbeeldpayload
+  gebruikt `gameType: "real_or_fake_flag"` met een `options`-array die qua vorm bij de
+  "Meerkeuze"-variant hoort (`answer.optionId`), niet bij de apart gedocumenteerde
+  "Binair"-variant (`answer.choice`) die de naam juist doet verwachten. Geen tabel
+  koppelt `gameType`-waarden aan een antwoordvariant.
+- OQ-1, OQ-2, OQ-3, OQ-8, OQ-9, OQ-10, OQ-11, OQ-12, OQ-15, OQ-17, OQ-20, OQ-21,
+  OQ-22, OQ-23, OQ-24, OQ-25, OQ-26 — envelopedetails, foutafhandelingsdetails en
+  vormgrenzen die buiten protocol-plan's onderzoeksrichting vielen.
+
+**Alleen daar gevonden** (niet in deze matrix — vaak net buiten "gedocumenteerde
+tekst is ambigu" en meer "protocoloppervlak ontbreekt" of cross-plan, dus buiten het
+bereik dat deze matrix beoogde):
+
+- protocol-plan #1 (room-TTL geen eigen foutcode), #5 (`joinUrl`-constructie
+  ongespecificeerd), #6 (`joinSource` kent 4 waarden, `share:opened.method` maar 3 —
+  scherpe cross-check), #8 (geen team-protocoloppervlak), #9 (spectatorroute geen
+  auth-mechanisme), #12 (deadline-grace vs. `DEADLINE_PASSED`-grens), #13
+  (`roundNumber`/`countdownEndsAt` geen bronveld in `DATA-MODEL.md`), #14
+  (`game:rematch`-scorereset, Player is room- niet match-scoped), #15
+  (content-module niet importeerbaar — implementatiegat, geen tekstambiguïteit).
+
+**Samengevat voor wie dit oppakt:** prioriteer bij bevestiging eerst OQ-7/#2,
+OQ-14 (uniek hier) en protocol-plan #6 (uniek daar, scherpe cross-check) — die drie
+raken de grootste oppervlakte van elke afgeleide schemavorm aan beide kanten.

@@ -1,7 +1,7 @@
-# Prompt — T1a: Traceability-matrix voor PROTOCOL.md
+# Prompt — DT1a: Traceability-matrix voor PROTOCOL.md
 
 Onderdeel van [`docs/deployment-and-testing-plan/README.md`](../README.md), fase
-T1a. Doel: elk gedocumenteerd payloadveld/regel uit `PROTOCOL.md` koppelen aan zijn
+DT1a. Doel: elk gedocumenteerd payloadveld/regel uit `PROTOCOL.md` koppelen aan zijn
 bron en aan een open beslispunt — als basis voor latere contracttests, nog niet als
 bindend contract.
 
@@ -9,7 +9,7 @@ bindend contract.
 
 - [`REVIEW.md`](REVIEW.md) #5: afgeleide schema's kunnen zonder review ongemerkt
   het feitelijke protocolcontract worden. Deze matrix is het middel om dat te
-  voorkomen: eerst traceren en open vragen expliciet maken, pas daarna (T1b, na
+  voorkomen: eerst traceren en open vragen expliciet maken, pas daarna (DT1b, na
   bevestiging door de `PROTOCOL.md`-eigenaar) contracttests schrijven.
 - Bron: [`docs/multiplayer/PROTOCOL.md`](../../multiplayer/PROTOCOL.md) — de
   REST-endpoints (`/api/v1/games`, `/api/v1/games/join`,
@@ -38,7 +38,7 @@ bindend contract.
 
 - Eén nieuw bestand: `docs/deployment-and-testing-plan/traceability-matrix.md`.
   Geen bestanden in `tests/` — dit is documentatie, geen code.
-- Geen schemavorm activeren of implementeren — dat is T1b, na bevestiging.
+- Geen schemavorm activeren of implementeren — dat is DT1b, na bevestiging.
 
 ## Definition of done
 

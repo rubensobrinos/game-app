@@ -1,7 +1,7 @@
-# Prompt — T3a: Testmatrix integratielaag
+# Prompt — DT3a: Testmatrix integratielaag
 
 Onderdeel van [`docs/deployment-and-testing-plan/README.md`](../README.md), fase
-T3a. Doel: een genummerde matrix van integratiescenario's uit
+DT3a. Doel: een genummerde matrix van integratiescenario's uit
 `DEPLOYMENT-AND-TESTING.md` §Testlagen → Integratie, mét eigenaar-afhankelijkheid
 en activatiecriterium — nog geen uitvoerbare code.
 
@@ -10,9 +10,9 @@ en activatiecriterium — nog geen uitvoerbare code.
 - [`REVIEW.md`](REVIEW.md) #6: onbeperkte `test.skip`-specs kunnen permanent groen
   blijven zonder ooit echt te draaien. Deze matrix is de stap ervoor: eerst
   vastleggen wát er moet gebeuren en wannéér het geactiveerd mag worden, pas
-  daarna (T3b) code met verval-/eigenaarmetadata.
+  daarna (DT3b) code met verval-/eigenaarmetadata.
 - Bron: [`docs/multiplayer/DEPLOYMENT-AND-TESTING.md`](../../multiplayer/DEPLOYMENT-AND-TESTING.md)
-  §Testlagen → Integratie, plus de temporele/idempotente checks die in T1b bewust
+  §Testlagen → Integratie, plus de temporele/idempotente checks die in DT1b bewust
   zijn weggelaten uit de contractlaag (`round:progress` max. 2×/seconde,
   `actionId`-idempotentie, snapshot bevat nooit `correctAnswer` van een actieve
   ronde).

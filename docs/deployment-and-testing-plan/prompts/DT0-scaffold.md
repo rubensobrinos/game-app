@@ -1,6 +1,6 @@
-# Prompt — T0: Mapstructuur
+# Prompt — DT0: Mapstructuur
 
-Onderdeel van [`docs/deployment-and-testing-plan/README.md`](../README.md), fase T0.
+Onderdeel van [`docs/deployment-and-testing-plan/README.md`](../README.md), fase DT0.
 Doel: uitsluitend de lege testmapstructuur neerzetten — geen tests, geen
 documentatie-update in dezelfde actie.
 
@@ -39,7 +39,7 @@ bestaanscontrole in plaats van een testrun.
    Ga pas door naar stap 2 na een go.
 2. Maak na bevestiging **exact vijf bestanden**: één `.gitkeep` per map. Geen
    testbestanden, geen wijziging aan `docs/deployment-and-testing-plan/README.md` in
-   deze actie — dat is T0b, een aparte, volgende actie.
+   deze actie — dat is DT0b, een aparte, volgende actie.
 3. Verifieer met een bestaanscontrole, niet met `node --test`:
    ```
    find tests -type f
@@ -64,5 +64,5 @@ bestaanscontrole in plaats van een testrun.
   `.gitkeep` — vijf bestanden in totaal, verder niets.
 - Een bestaanscontrole (niet een testrun) toont de structuur.
 - Geen enkel bestand buiten `docs/` en de bevestigde map is aangeraakt.
-- De documentatie-update (canoniek testcommando + CI-kloof, "T0 is afgerond") volgt
-  in T0b, expliciet niet in deze actie.
+- De documentatie-update (canoniek testcommando + CI-kloof, "DT0 is afgerond") volgt
+  in DT0b, expliciet niet in deze actie.

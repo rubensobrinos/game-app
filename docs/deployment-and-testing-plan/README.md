@@ -7,7 +7,7 @@ specificatie omzet in geteste testinfrastructuur, in welke volgorde, en waar ik 
 stoppen om goedkeuring te vragen.
 
 **Herzien op 2026-08-02 na [`prompts/REVIEW.md`](prompts/REVIEW.md).** De review vond
-T0 niet uitvoerbaar zoals geschreven (bestandslimiet overschreden, ongeldig
+DT0 niet uitvoerbaar zoals geschreven (bestandslimiet overschreden, ongeldig
 verificatiecommando, misleidende groene placeholders) en wees op vermenging van
 testsoorten en overclaims verderop in de fasering. Dit document verwerkt die
 bevindingen. Er was nog niets uitgevoerd, dus er valt niets terug te draaien — alleen
@@ -16,10 +16,26 @@ het plan zelf is aangepast.
 Zie ook [`docs/multiplayer/README.md`](../multiplayer/README.md) voor de rolverdeling
 per document, en de zusterplannen van
 [`GAME-RULES.md`](../game-rules-plan/README.md),
-[`ARCHITECTURE.md`](../architecture-plan/README.md) en
-[`GAME-FLOW.md`](../game-flow-plan/README.md). Voor `PROTOCOL.md` en `DATA-MODEL.md`
-bestaat op het moment van schrijven nog geen eigen plan; waar mijn testwerk hun vorm
-raakt, lever ik een voorstel dat hún bevestiging nodig heeft, geen bindende keuze.
+[`ARCHITECTURE.md`](../architecture-plan/README.md),
+[`GAME-FLOW.md`](../game-flow-plan/README.md),
+[`PROTOCOL.md`](../protocol-plan/README.md) en
+[`DATA-MODEL.md`](../data-model-plan/README.md). Waar mijn testwerk de vorm van
+`PROTOCOL.md`/`DATA-MODEL.md` raakt, lever ik een voorstel dat hún bevestiging nodig
+heeft, geen bindende keuze — zie de **Bijwerking 2026-08-02** hieronder voor hoe dat
+voor `PROTOCOL.md`'s contracttestlaag in de praktijk is opgelost.
+
+**Bijwerking (2026-08-02): DT1b vervalt, verslagen door PR7.** De
+`PROTOCOL.md`-eigenaar heeft de contracttestlaag zelf geclaimd én al deels gebouwd
+(`docs/protocol-plan/README.md`, fase PR7 — "Dit is de daadwerkelijke invulling van
+de 'Contracttests'-laag uit DEPLOYMENT-AND-TESTING.md"; bewijs op schijf:
+`server/protocol/error-codes.contract.test.mjs` bestaat al). Dat is precies het
+scenario waar DT1a's bevestigingscheckpoint op wachtte, alleen via een andere route
+dan voorzien: niet doordat de eigenaar mijn matrix bevestigt, maar doordat die
+eigenaar de echte implementatie zelf bouwt — een sterker bewijs dan een bevestiging
+op papier. Ik bouw daarom geen aparte DT1b-testsuite; DT1a blijft staan als
+onafhankelijke auditmatrix (26 open beslispunten) naast PR7's eigen 15 "Open
+vragen". Een kruisverwijzing tussen beide lijsten staat als addendum onderaan
+[`traceability-matrix.md`](traceability-matrix.md).
 
 ## Uitgangspunten
 
@@ -58,11 +74,11 @@ raakt, lever ik een voorstel dat hún bevestiging nodig heeft, geen bindende keu
    het niet.** De bestaande, devkit-managed CI (`.github/workflows/ci.yml`) draait
    `npm ci` + ESLint + Jest en dekt geen `node:test`-bestanden; deze repo heeft geen
    `package.json`. Zolang er geen goedgekeurd CI-wiringvoorstel is, staat dat gat
-   letterlijk in dit document (zie T0b) in plaats van dat groen lokaal lijkt op
+   letterlijk in dit document (zie DT0b) in plaats van dat groen lokaal lijkt op
    "geborgd in CI". Het devkit-managed blok wijzig ik nooit handmatig.
 8. **Autonomie-limieten blijven gelden, inclusief het bestandsaantal per actie.** Max
    5 bestanden en 400 regels per actie (CLAUDE.md). Een fase die dat dreigt te
-   overschrijden — zoals de oorspronkelijke T0 — wordt gesplitst, niet afgerond.
+   overschrijden — zoals de oorspronkelijke DT0 — wordt gesplitst, niet afgerond.
 9. **`infra/prod/**` en `.github/workflows/deploy.yml` raak ik nooit aan.**
 
 ## Testlagen → eigenaarschap
@@ -70,16 +86,16 @@ raakt, lever ik een voorstel dat hún bevestiging nodig heeft, geen bindende keu
 | Laag (uit DEPLOYMENT-AND-TESTING.md) | Wie schrijft de tests | Mijn rol |
 | --- | --- | --- |
 | Unit | eigenaar van de betreffende module | geen — niet dupliceren |
-| Contracttests | gezamenlijk met de `PROTOCOL.md`-eigenaar | **ik lever het voorstel**, zij bevestigen de vorm |
+| Contracttests | `PROTOCOL.md`-eigenaar (claimt en bouwt dit al zelf, zie DT1b hieronder) | **ik lever DT1a als onafhankelijke auditmatrix**, geen aparte DT1b-testsuite |
 | Integratie | niemand claimt dit | **ik**, matrix eerst, code pas bij concrete prerequisites |
-| Browser/E2E | `GAME-FLOW.md`-plan dekt een deel via gemockte transport | **ik** voor de rest, gesplitst in automatiseerbaar (T4a) en handmatig (T4b) |
+| Browser/E2E | `GAME-FLOW.md`-plan dekt een deel via gemockte transport | **ik** voor de rest, gesplitst in automatiseerbaar (DT4a) en handmatig (DT4b) |
 | Restart-/chaostests | niemand claimt dit | **ik**, als scripts + runbook, met aparte autorisatie per stap |
 | Loadtests | niemand claimt dit | **ik**, k6 alleen voor wat k6 daadwerkelijk bewijst |
 | Handmatige pilots, release, rollback, back-ups, hosting | — | **niet ik** — `prod`, always_ask |
 
 ## Fasering
 
-### T0 — Mapstructuur (alleen mappen, verder niets)
+### DT0 — Mapstructuur (alleen mappen, verder niets)
 - Voorstel: `tests/{contract,integration,e2e,load,chaos}/`, elk met precies één
   `.gitkeep` — vijf bestanden, exact op de grens van de autonomielimiet. Geen
   placeholder-`node:test`-bestanden en geen README-wijziging in dezelfde actie (dat
@@ -92,11 +108,11 @@ raakt, lever ik een voorstel dat hún bevestiging nodig heeft, geen bindende keu
 - **Status (2026-08-02): afgerond.** Alle vijf mappen bestaan, elk met precies één
   `.gitkeep`: `tests/{contract,integration,e2e,load,chaos}/`. Geverifieerd met
   `find tests -type f`. Er staan nog geen testbestanden in, dus er is nu nog geen
-  testrunner-commando om uit te voeren — zie T0b hieronder voor het canonieke
+  testrunner-commando om uit te voeren — zie DT0b hieronder voor het canonieke
   commando-sjabloon voor zodra dat wel zo is.
 
-### T0b — Documentatie: canoniek testcommando + CI-kloof (eigen, aparte actie)
-- Aanvulling in dit README, los van T0's bestandenbudget: het canonieke lokale
+### DT0b — Documentatie: canoniek testcommando + CI-kloof (eigen, aparte actie)
+- Aanvulling in dit README, los van DT0's bestandenbudget: het canonieke lokale
   commando per laag zodra die laag bestanden heeft (bijv.
   `node --test tests/contract/*.test.js`), plus expliciet benoemd dat de huidige
   managed CI dit niet draait. Geen wijziging aan `.github/workflows/ci.yml`.
@@ -113,12 +129,12 @@ raakt, lever ik een voorstel dat hún bevestiging nodig heeft, geen bindende keu
   `.github/workflows/ci.yml` draait `npm ci` + ESLint + Jest en dekt deze
   `node:test`-boom onder `tests/` niet; deze repo heeft ook geen `package.json`. Dat
   gat wordt niet stilzwijgend opgelost door lokaal groene tests. Het wordt pas
-  dichtgezet ná een goedgekeurd T7-voorstel (CI-volgordevoorstel, zie de fasering
+  dichtgezet ná een goedgekeurd DT7-voorstel (CI-volgordevoorstel, zie de fasering
   hieronder) — nooit door het devkit-managed blok handmatig te wijzigen. Tot een
-  T7-voorstel is goedgekeurd, draaien bovenstaande commando's uitsluitend lokaal, niet
+  DT7-voorstel is goedgekeurd, draaien bovenstaande commando's uitsluitend lokaal, niet
   in CI.
 
-### T1a — Traceability-matrix (markdown, geen code)
+### DT1a — Traceability-matrix (markdown, geen code)
 - Tabel: gedocumenteerd payloadveld/regel uit `PROTOCOL.md` → brontekst/paragraaf →
   open beslispunt (bijv. "is dit veld optioneel of altijd aanwezig?"). Dekt
   REST-bodies, socket-envelopes, foutcodes, de `round:started`-voorbeeldpayload.
@@ -129,34 +145,38 @@ raakt, lever ik een voorstel dat hún bevestiging nodig heeft, geen bindende keu
   contractcode op wordt gebouwd — anders wordt een afgeleid schema ongemerkt het
   feitelijke contract.
 
-### T1b — Contracttests: uitsluitend statische vorm (pas na T1a-bevestiging)
-- Beperkt tot structuur, enums, verplichte/verboden velden op fixtures én later op
-  echte produceroutput. Bijvoorbeeld: `correctAnswer` ontbreekt in de voorbeeld-
-  snapshotvorm; de foutcode-envelope heeft de gedocumenteerde velden.
-- **Expliciet niet hier, verplaatst naar T3 (integratie):** `round:progress` max.
-  2×/seconde is temporeel gedrag; `actionId`-idempotentie vereist verwerking en
-  opslagstate; dat een actieve snapshot nooit `correctAnswer` bevat moet uiteindelijk
-  tegen de échte snapshotproducer bewezen worden, niet tegen een eigen fixture.
+### DT1b — Vervallen (2026-08-02): overgenomen door PROTOCOL.md's PR7
+- Oorspronkelijk plan: contracttests beperkt tot structuur, enums, verplichte/
+  verboden velden op fixtures én later op echte produceroutput.
+- **Waarom vervallen:** de `PROTOCOL.md`-eigenaar bouwt deze laag al zelf, tegen de
+  échte modules (`server/protocol/*.mjs`) in plaats van tegen een door mij afgeleide
+  fixture — strikt sterker dan wat DT1b had kunnen leveren, en het voorkomt precies
+  het risico dat een zelf afgeleid schema ongemerkt het feitelijke contract wordt
+  (Uitgangspunt 5). Ik lever geen parallelle testsuite.
+- De temporele/idempotente checks die hier bewust niet in pasten (`round:progress`
+  max. 2×/seconde, `actionId`-idempotentie, snapshot bevat nooit `correctAnswer`
+  tegen de échte producer) staan al in DT3a (rijen 12–14) — die verplaatsing blijft
+  geldig, ongeacht wie de contractlaag zelf bouwt.
 
-### T2 — Gedeelde testfixtures (voorstel, geen ADR)
+### DT2 — Gedeelde testfixtures (voorstel, geen ADR)
 - Pure data-factories voor Room/Session/Player/Match/Round/Answer conform
   `DATA-MODEL.md`, zodat integratie- en E2E-tests niet ieder hun eigen fixtures
   verzinnen. Voorstel ter review bij de toekomstige `DATA-MODEL.md`-eigenaar, geen
   bindende vastlegging namens hen.
 
-### T3 — Integratie: eerst matrix, dan pas code
-- **T3a:** genummerde testmatrix (scenario, bron in DEPLOYMENT-AND-TESTING.md
+### DT3 — Integratie: eerst matrix, dan pas code
+- **DT3a:** genummerde testmatrix (scenario, bron in DEPLOYMENT-AND-TESTING.md
   §Integratie, eigenaar-afhankelijkheid, prerequisite, activatiecriterium) voor: create
   met/zonder hostdeelname, join via QR/inviteId/code, start→rondes→finish→rematch,
   lock/unlock, late join, kick + sessierevocation, room-isolatie, idempotente
-  `actionId`, plus de temporele/idempotente checks die uit T1b hierheen zijn
+  `actionId`, plus de temporele/idempotente checks die uit DT1b hierheen zijn
   verplaatst.
-- **T3b:** pas wanneer een scenario's prerequisites concreet zijn (interfaces van de
+- **DT3b:** pas wanneer een scenario's prerequisites concreet zijn (interfaces van de
   betrokken eigenaren liggen vast), omzetten naar uitvoerbare `test.skip`-code mét
   metadata (prerequisite-referentie, datum) en een aparte controle die overdatum/
   onverwachte skips rapporteert.
 
-### T4a — Browser-E2E met Playwright (automatiseerbare subset)
+### DT4a — Browser-E2E met Playwright (automatiseerbare subset)
 - Scope: routes/navigatie, refresh, responsive viewports, browser-API-fallbacks —
   dingen die Chromium/WebKit-emulatie daadwerkelijk kan bewijzen.
 - Vóór installatie: scenario's als leesbare beschrijving/pseudocode in markdown, niet
@@ -165,21 +185,21 @@ raakt, lever ik een voorstel dat hún bevestiging nodig heeft, geen bindende keu
   "geschreven maar niet-uitvoerbaar" zou een valse indruk van gereedheid geven.
 - **Checkpoint:** Playwright toevoegen — `deps`, always_ask.
 
-### T4b — Echte-device-/handmatige matrix (niet geautomatiseerd)
+### DT4b — Echte-device-/handmatige matrix (niet geautomatiseerd)
 - App-switch, schermlock, native share sheets, echte Safari/iPhone, trage 4G op een
   echt toestel: dit bewijst Playwright niet betrouwbaar. Vastgelegd als runbook/
   checklist voor een mens om uit te voeren, nooit als geautomatiseerde test die
   "groen" kan worden.
 
-### T5 — Loadtests: per criterium expliciet welk bewijs
+### DT5 — Loadtests: per criterium expliciet welk bewijs
 - Tabel per L0–L3-criterium uit de spec, met welke runner/omgeving het daadwerkelijk
   bewijst:
   - k6: alleen doorvoer, latency- en foutthresholds (bijv. p95 < 300 ms bij L1).
   - State-invarianten (geen dubbele antwoorden/scores, geen desync): integratietests
-    (T3), niet k6.
+    (DT3), niet k6.
   - Blijvende geheugengroei na room-TTL: observability/metrics, niet k6.
   - "Functioneel en visueel" (L0) en assetervaring op echte mobiele verbindingen:
-    E2E (T4) of handmatige pilot, niet k6.
+    E2E (DT4) of handmatige pilot, niet k6.
 - L0 vereist expliciet (virtuele) spelers én visuele beoordeling; geen k6-script
   bewijst L0 alleen. L2/L3 vereisen een expliciete omgeving-/providercheck vóór
   uitvoering.
@@ -187,7 +207,7 @@ raakt, lever ik een voorstel dat hún bevestiging nodig heeft, geen bindende keu
   tegen enige omgeving — beide always_ask, nooit als één gecombineerde stap
   behandeld.
 
-### T6 — Restart- en chaostestprocedures
+### DT6 — Restart- en chaostestprocedures
 - Eén script/runbook per scenario (game-server-restart midden in ronde,
   Redis-restart met AOF, PostgreSQL tijdelijk weg, tunnel-reconnect, host offline,
   10% spelers-disconnect/reconnect).
@@ -197,10 +217,10 @@ raakt, lever ik een voorstel dat hún bevestiging nodig heeft, geen bindende keu
   uitvoeren — elk met eigen bevestiging, en met een dedicated compose-projectnaam/
   netwerk zodat testdata nooit een bestaande omgeving kan raken.
 
-### T7 — CI-volgordevoorstel
+### DT7 — CI-volgordevoorstel
 - Voorstel (geen besluit) voor een eventueel nieuw, apart testworkflow-bestand —
   nooit het devkit-managed blok in `.github/workflows/ci.yml` en nooit
-  `deploy.yml`. Lost de kloof uit T0b pas op ná akkoord; tot die tijd draait alles
+  `deploy.yml`. Lost de kloof uit DT0b pas op ná akkoord; tot die tijd draait alles
   lokaal, expliciet gedocumenteerd, niet stilzwijgend aangenomen als geborgd.
 
 ## Wat hier expliciet buiten valt
@@ -212,8 +232,8 @@ raakt, lever ik een voorstel dat hún bevestiging nodig heeft, geen bindende keu
 - Handmatige pilots met echte mensen (Pilot A/B).
 - Bindende schema's namens `PROTOCOL.md`/`DATA-MODEL.md` vaststellen.
 - Unittests van andere modules overschrijven of dupliceren.
-- Groene tests voor gedrag dat de gekozen runner niet daadwerkelijk bewijst (zie T4b,
-  T5).
+- Groene tests voor gedrag dat de gekozen runner niet daadwerkelijk bewijst (zie DT4b,
+  DT5).
 
 ## Checkpoints die ik niet zelfstandig neem
 
@@ -221,32 +241,31 @@ raakt, lever ik een voorstel dat hún bevestiging nodig heeft, geen bindende keu
 - k6 (of vergelijkbare tool) **uitvoeren** tegen enige omgeving — apart van
   installatie, `prod`-gebonden zodra het een gedeelde/publieke omgeving raakt.
 - Een lokale Compose-stack **installeren/opstarten**, **resetten**, of een
-  restart-/chaos-scenario **uitvoeren** (T6) — drie losse momenten, geen
+  restart-/chaos-scenario **uitvoeren** (DT6) — drie losse momenten, geen
   gecombineerde stap.
-- Contractvormen (T1a/T1b) activeren zonder bevestiging van de `PROTOCOL.md`-eigenaar.
-- Fixtures (T2) bindend maken namens de `DATA-MODEL.md`-eigenaar.
-- Een nieuw GitHub Actions-workflowbestand toevoegen (T7) — en sowieso nooit het
+- Fixtures (DT2) bindend maken namens de `DATA-MODEL.md`-eigenaar.
+- Een nieuw GitHub Actions-workflowbestand toevoegen (DT7) — en sowieso nooit het
   devkit-managed blok of `deploy.yml` handmatig wijzigen.
 
 Ik werk dus zelfstandig door tot en met het opstellen van matrices, mapstructuur en
-voorstellen (T0, T0b, T1a, T2, T3a); alles wat zo'n matrix omzet in bindende code of
-echte uitvoering (T1b, T3b, T4, T5, T6, T7) wacht op het bijbehorende, hierboven
-genoemde checkpoint.
+voorstellen (DT0, DT0b, DT1a, DT2, DT3a); alles wat zo'n matrix omzet in bindende code of
+echte uitvoering (DT3b, DT4, DT5, DT6, DT7) wacht op het bijbehorende, hierboven
+genoemde checkpoint. DT1b is vervallen (zie hierboven), geen checkpoint meer nodig.
 
 ## Prompts per fase
 
 Uitvoerbare, zelfstandige taakbeschrijvingen per fase staan in
 [`prompts/`](prompts/), zodat ze los te reviewen en los te starten zijn:
 
-- [`prompts/T0-scaffold.md`](prompts/T0-scaffold.md) — herzien na
+- [`prompts/DT0-scaffold.md`](prompts/DT0-scaffold.md) — herzien na
   [`prompts/REVIEW.md`](prompts/REVIEW.md); wordt momenteel uitgevoerd.
-- [`prompts/T0b-status-en-ci-gap.md`](prompts/T0b-status-en-ci-gap.md)
-- [`prompts/T1a-traceability-matrix.md`](prompts/T1a-traceability-matrix.md)
-- [`prompts/T2-fixtures-voorstel.md`](prompts/T2-fixtures-voorstel.md)
-- [`prompts/T3a-integratie-matrix.md`](prompts/T3a-integratie-matrix.md)
+- [`prompts/DT0b-status-en-ci-gap.md`](prompts/DT0b-status-en-ci-gap.md)
+- [`prompts/DT1a-traceability-matrix.md`](prompts/DT1a-traceability-matrix.md)
+- [`prompts/DT2-fixtures-voorstel.md`](prompts/DT2-fixtures-voorstel.md)
+- [`prompts/DT3a-integratie-matrix.md`](prompts/DT3a-integratie-matrix.md)
 
 Deze vijf dekken alles wat ik zelfstandig kan doorlopen (matrix, voorstel of
-mapstructuur, geen bindende code of echte uitvoering). T1b, T3b, T4, T5, T6 en T7
+mapstructuur, geen bindende code of echte uitvoering). DT1b, DT3b, DT4, DT5, DT6 en DT7
 krijgen hun prompt pas vlak voordat ze starten, niet vooraf in bulk — zo blijft elke
 prompt actueel ten opzichte van wat de vorige fase echt opleverde en van wat de
 `PROTOCOL.md`-/`DATA-MODEL.md`-eigenaren inmiddels hebben vastgelegd.

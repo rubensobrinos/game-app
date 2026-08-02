@@ -12,15 +12,17 @@ voor onszelf, niet voor de uitvoerder.
 
 | Bestand | Fase | Dekt |
 | --- | --- | --- |
-| [`T0-scaffold.md`](T0-scaffold.md) | T0 | Alleen mapstructuur (5 `.gitkeep`-bestanden) — herzien na [`REVIEW.md`](REVIEW.md) — **in uitvoering** |
-| [`T0b-status-en-ci-gap.md`](T0b-status-en-ci-gap.md) | T0b | Statusregel + canoniek testcommando + CI-kloof in README |
-| [`T1a-traceability-matrix.md`](T1a-traceability-matrix.md) | T1a | Traceability-matrix PROTOCOL.md → open beslispunten |
-| [`T2-fixtures-voorstel.md`](T2-fixtures-voorstel.md) | T2 | Pure data-factories conform DATA-MODEL.md (voorstel) |
-| [`T3a-integratie-matrix.md`](T3a-integratie-matrix.md) | T3a | Genummerde integratiescenario-matrix met activatiecriteria |
+| [`DT0-scaffold.md`](DT0-scaffold.md) | DT0 | Alleen mapstructuur (5 `.gitkeep`-bestanden) — herzien na [`REVIEW.md`](REVIEW.md) — **afgerond** |
+| [`DT0b-status-en-ci-gap.md`](DT0b-status-en-ci-gap.md) | DT0b | Statusregel + canoniek testcommando + CI-kloof in README — **afgerond** |
+| [`DT1a-traceability-matrix.md`](DT1a-traceability-matrix.md) | DT1a | Traceability-matrix PROTOCOL.md → open beslispunten — **afgerond**, incl. addendum-kruisverwijzing met protocol-plan |
+| [`DT2-fixtures-voorstel.md`](DT2-fixtures-voorstel.md) | DT2 | Pure data-factories conform DATA-MODEL.md (voorstel) — **afgerond** |
+| [`DT3a-integratie-matrix.md`](DT3a-integratie-matrix.md) | DT3a | Genummerde integratiescenario-matrix met activatiecriteria — **afgerond** |
 
-Deze vijf zijn de fases die ik zelfstandig kan doorlopen tot en met een matrix,
-voorstel of mapstructuur (zie README.md "Ik werk dus zelfstandig door tot..."). T1b,
-T3b, T4, T5, T6 en T7 krijgen hun prompt pas vlak voordat ze starten, omdat die
-allemaal wachten op een expliciet checkpoint (bevestiging door een andere
-document-eigenaar, of een `deps`/`prod`-goedkeuring) — geen zin om ze nu al te
+Deze vijf zijn de fases die ik zelfstandig kon doorlopen tot en met een matrix,
+voorstel of mapstructuur (zie README.md "Ik werk dus zelfstandig door tot...") — alle
+vijf zijn nu afgerond en gecommit. **DT1b is vervallen** (de `PROTOCOL.md`-eigenaar
+bouwt die laag zelf, zie README.md's bijwerking 2026-08-02) en krijgt dus geen
+prompt meer. DT3b, DT4, DT5, DT6 en DT7 krijgen hun prompt pas vlak voordat ze
+starten, omdat die allemaal wachten op een expliciet checkpoint (concrete
+prerequisites uit DT3a, of een `deps`/`prod`-goedkeuring) — geen zin om ze nu al te
 schrijven voor werk dat nog kan schuiven.

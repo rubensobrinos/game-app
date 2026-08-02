@@ -1,7 +1,7 @@
-# Prompt — T2: Voorstel gedeelde testfixtures
+# Prompt — DT2: Voorstel gedeelde testfixtures
 
 Onderdeel van [`docs/deployment-and-testing-plan/README.md`](../README.md), fase
-T2. Doel: pure data-factories voor Room/Session/Player/Match/Round/Answer conform
+DT2. Doel: pure data-factories voor Room/Session/Player/Match/Round/Answer conform
 `DATA-MODEL.md`, als voorstel voor iedereen die integratie- of E2E-tests schrijft.
 
 ## Context
