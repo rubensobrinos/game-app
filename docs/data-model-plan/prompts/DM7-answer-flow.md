@@ -261,4 +261,11 @@ test bevestigt dat, in plaats van het stilzwijgend aan te nemen.
   `scoreAnswer`/`validateAnswer` zelf teruggeven.
 - `node --test 'server/data/**/*.test.js'` slaagt.
 
-**Status: prompt klaar, nog niet uitgevoerd.**
+**Status: uitgevoerd.** `server/data/answer-flow.js` (`resolveAnswer`,
+`buildRoundContext`) + `answer-flow.test.js` staan er. 28/28 tests groen,
+inclusief expliciete regressietests voor bevindingen 1 (idempotentie-volgorde,
+ook ná deadline/faseovergang), 2 (geen scorelek in de ack), 3 (`valid: false`
+→ `INVALID_ANSWER_FORMAT`, geen write) en 6 (`roundContext` uit
+`Round.validOptionIds`/`publicQuestionPayload.cards.length`, niet uit
+`options[].optionId`). `points`/`correct` zijn end-to-end cross-getest tegen
+de echte `scoreAnswer()`/`validateAnswer()`.

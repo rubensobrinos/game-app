@@ -81,4 +81,7 @@ function toStandingPlayerView(player) {
 - Geen nieuwe projectie voor GR5/GR6/GR4 totdat die fases zelf bestaan.
 - `node --test 'server/data/**/*.test.js'` slaagt.
 
-**Status: prompt klaar, nog niet uitgevoerd.**
+**Status: uitgevoerd.** `toStandingPlayerView()` staat in `server/data/types/player.js`,
+3 nieuwe tests in `player.test.js` (34/34 totaal), inclusief de end-to-end-test
+tegen de echte `rankPlayers()` uit `server/rules/standings.js`.
+`docs/data-model-plan/HANDOFF.md` is bijgewerkt met de voorgeschreven regel.

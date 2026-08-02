@@ -163,4 +163,14 @@ action-cache-entry landen samen, of geen van vieren.
   scope-beperkingsopmerking (geen concurrency-bewijs).
 - `node --test 'server/data/**/*.test.js'` slaagt.
 
-**Status: prompt klaar, nog niet uitgevoerd.**
+**Status: uitgevoerd.** `server/data/repository.js` (`DataStore`-JSDoc-poort +
+`assertImplementsDataStore`-contractcheck) en `server/data/in-memory-store.js`
+(`createInMemoryStore()`) + `repository.test.js` staan er. 23/23 tests groen,
+inclusief alles-of-niets-tests voor beide atomaire operaties. Eén kleine,
+additieve toevoeging t.o.v. de representatieve lijst uit deze prompt:
+`loadAnswer(roundId, playerId)`, nodig om `saveAcceptedAnswerAtomically`'s
+resultaat te kunnen verifiëren en voor DM7's `existingAnswerForRound`-context.
+
+**Nabericht na `docs/multiplayer/DECISIONS.md` #21/DM2b's rename:** alle
+`RoomCore`-verwijzingen in `repository.js` (JSDoc-imports, typenaam) zijn
+bijgewerkt naar `Room` — zelfde reden als in `DM2b-room.md`. Gedrag ongewijzigd.

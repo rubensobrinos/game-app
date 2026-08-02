@@ -13,15 +13,24 @@ vaak als reeds bindend schema behandelde. Zie sectie 9 voor de volledige
 bevinding-naar-wijziging-tabel.
 
 **Tweede revisie na [`prompts/REVIEW-DM2-DM9.md`](prompts/REVIEW-DM2-DM9.md).**
-Alle negen DM2–DM9-prompts zijn inmiddels uitgeschreven (`prompts/DM2a-*.md` t/m
+Alle negen DM2–DM9-prompts zijn eerst uitgeschreven (`prompts/DM2a-*.md` t/m
 `prompts/DM9-*.md`) en na die tweede, onafhankelijke review herzien: 3 blockers
 (idempotentie-volgorde en scorelek in DM7, een niet-implementeerbare
 invite-hash-lookup in DM6), 8 hoge en 3 middelhoge bevindingen — o.a. `Room` →
 `RoomCore` hernoemd, `server/architecture`-import vervangen door lokale
 transcriptie (+ voorstel voor een neutrale module in `HANDOFF.md` §5), en `Round`
 uitgebreid na reconciliatie met de inmiddels herziene `GR4-question-selection.md`.
-Zie [`DM-PROGRESS.md`](DM-PROGRESS.md) §Cijfers voor de volledige lijst. Geen van
-de negen fases is uitgevoerd — ze wachten op akkoord.
+Zie [`DM-PROGRESS.md`](DM-PROGRESS.md) §Cijfers voor de volledige lijst.
+
+**Uitgevoerd. Alle negen fases (DM2–DM9) staan in `server/data/`, 456/456 tests
+groen** (`node --test 'server/data/**/*.test.js'`). Tijdens de uitvoering kwam
+[`docs/multiplayer/DECISIONS.md`](../multiplayer/DECISIONS.md) binnen (2 augustus
+2026, bevestigd door de producteigenaar) en loste daarmee checkpoint 4 op:
+`contentVersion`/`rendererVersion` zijn canoniek op `Match`, niet Room —
+`Match` is bijgewerkt, en `RoomCore` is teruggedoopt naar het volwaardige
+`Room` nu de tussenvorm niet langer nodig is
+(`prompts/DM-RESUME-AFTER-DECISIONS.md`). Zie [`DM-PROGRESS.md`](DM-PROGRESS.md)
+voor de volledige, actuele status per sectie.
 
 **Cross-plan vragen beantwoord in [`HANDOFF.md`](HANDOFF.md).** `game-rules-plan` en
 `protocol-plan` hadden elk een vraag liggen die `DATA-MODEL.md`-eigenaarschap raakt
@@ -105,20 +114,23 @@ gevolgen daarvan.
 | --- | --- | --- |
 | DM0 | Scaffold `server/data/` | **Uitgevoerd** — [`prompts/DM0-scaffold.md`](prompts/DM0-scaffold.md) |
 | DM1 | Key-builders + `ROOM_TTL_SECONDS` | **Uitgevoerd** — [`prompts/DM1-keys-and-ttl.md`](prompts/DM1-keys-and-ttl.md), 66/66 tests groen |
-| DM2a | GameConfiguration, Session | **Prompt klaar** — [`prompts/DM2a-game-configuration-and-session.md`](prompts/DM2a-game-configuration-and-session.md), nog niet uitgevoerd |
-| DM2b | Room, min `contentVersion`/`rendererVersion` | **Prompt klaar** — [`prompts/DM2b-room.md`](prompts/DM2b-room.md), nog niet uitgevoerd; die twee velden blijven achter checkpoint 4 |
-| DM3 | Player, Match, Round, Answer, RoomPresentation, `toActiveRoundSnapshot()` | **Prompt klaar** — [`prompts/DM3-player-match-round-answer-presentation.md`](prompts/DM3-player-match-round-answer-presentation.md), nog niet uitgevoerd; de drie interpretatievragen zijn al beantwoord in `HANDOFF.md` |
-| DM4 | Naamverwerking | **Prompt klaar** — [`prompts/DM4-name-processing.md`](prompts/DM4-name-processing.md), nog niet uitgevoerd |
-| DM5 | Privacy-guard | **Prompt klaar** — [`prompts/DM5-privacy-guard.md`](prompts/DM5-privacy-guard.md), nog niet uitgevoerd |
-| DM6 | Repository-domeinpoort + fake | **Prompt klaar** — [`prompts/DM6-repository-port.md`](prompts/DM6-repository-port.md), nog niet uitgevoerd |
-| DM7 | Answer-flow resolutielogica | **Prompt klaar** — [`prompts/DM7-answer-flow.md`](prompts/DM7-answer-flow.md), nog niet uitgevoerd; `GAME-RULES.md`'s `scoreAnswer()`/`validateAnswer()` bestaan al en zijn getest |
-| DM8 | Analytics-voorstel | **Prompt klaar** — [`prompts/DM8-analytics-proposal.md`](prompts/DM8-analytics-proposal.md), nog niet uitgevoerd |
-| DM9 | Interfacereconciliatie met `GAME-RULES.md` | **Prompt klaar** — [`prompts/DM9-game-rules-reconciliation.md`](prompts/DM9-game-rules-reconciliation.md), nog niet uitgevoerd. **Correctie:** de echte consument is `rankPlayers()` in `standings.js` (GR2, bestaat/getest), niet GR3 zoals eerder in dit bestand stond — GR3 is de `correctAnswer`-validator (Round), niet de Player-projectie |
+| DM2a | GameConfiguration, Session | **Uitgevoerd** — [`prompts/DM2a-game-configuration-and-session.md`](prompts/DM2a-game-configuration-and-session.md), 44/44 tests groen |
+| DM2b | Room (incl. `contentVersion`/`rendererVersion`-uitzondering) | **Uitgevoerd** — [`prompts/DM2b-room.md`](prompts/DM2b-room.md), 24/24 tests groen; hernoemd van `RoomCore` naar `Room` na `DECISIONS.md` #21 (checkpoint 4 opgelost) |
+| DM3 | Player, Match (incl. `contentVersion`/`rendererVersion`), Round (incl. `validOptionIds`/`resultDetails`), Answer, RoomPresentation, `toActiveRoundSnapshot(round, match)` | **Uitgevoerd** — [`prompts/DM3-player-match-round-answer-presentation.md`](prompts/DM3-player-match-round-answer-presentation.md), bijgewerkt na `DECISIONS.md` #21 |
+| DM4 | Naamverwerking | **Uitgevoerd** — [`prompts/DM4-name-processing.md`](prompts/DM4-name-processing.md), 34/34 tests groen |
+| DM5 | Privacy-guard | **Uitgevoerd** — [`prompts/DM5-privacy-guard.md`](prompts/DM5-privacy-guard.md), 109/109 tests groen |
+| DM6 | Repository-domeinpoort + fake | **Uitgevoerd** — [`prompts/DM6-repository-port.md`](prompts/DM6-repository-port.md), 23/23 tests groen |
+| DM7 | Answer-flow resolutielogica | **Uitgevoerd** — [`prompts/DM7-answer-flow.md`](prompts/DM7-answer-flow.md), 28/28 tests groen |
+| DM8 | Analytics-voorstel | **Uitgevoerd** — [`prompts/DM8-analytics-proposal.md`](prompts/DM8-analytics-proposal.md), `docs/data-model-plan/proposals/` (bewust geen `server/`-code) |
+| DM9 | Interfacereconciliatie met `GAME-RULES.md` | **Uitgevoerd** — [`prompts/DM9-game-rules-reconciliation.md`](prompts/DM9-game-rules-reconciliation.md); `toStandingPlayerView()` end-to-end getest tegen de echte `rankPlayers()` (GR2) |
 
-Enige echte externe wachttijden die overblijven: checkpoint 4 (2 velden van
-`Room`) en de (b)-ADR-items die alleen de latere Redis/Postgres/token-adapterlaag
-raken — nooit de types of de domeinlogica zelf. Zie sectie 10 voor de
-uitvoeringsvolgorde.
+**DM0–DM9 zijn allemaal uitgevoerd — 456/456 tests groen**
+(`node --test 'server/data/**/*.test.js'`). Checkpoint 4 is tijdens de
+uitvoering opgelost door `docs/multiplayer/DECISIONS.md` #21. Resterende
+externe wachtpunten: de (b)-ADR-items die de latere Redis/Postgres/token-
+adapterlaag raken (checkpoints 2, 3, 5, 6, 7, 10) — nooit de types of de
+domeinlogica hier. Zie [`DM-PROGRESS.md`](DM-PROGRESS.md) voor de volledige
+status en `DECISIONS.md`-verwerking per sectie.
 
 ## 4. Testplan (ongewijzigd waar niet expliciet genoemd)
 
@@ -166,14 +178,20 @@ Gekoppeld aan [`DEPLOYMENT-AND-TESTING.md`](../multiplayer/DEPLOYMENT-AND-TESTIN
 
 ## 6. Checkpoints die ik niet zelfstandig neem
 
+> **Besluitupdate 2 augustus 2026:** checkpoints 2–5, 7–8, 10–12 zijn inhoudelijk
+> of qua uitvoeringsbevoegdheid beantwoord in
+> [`../multiplayer/DECISIONS.md`](../multiplayer/DECISIONS.md). Checkpoint 6 blijft
+> deels open: JSON-opslag is bevestigd, maar de autoriteit tussen `Room.phase` en
+> `Match.phase` nog niet. Technische prerequisites blijven gelden.
+
 1. **Locatie `server/data/`.** `architecture`, `always_ask`. Precedent (`server/rules/`,
    `server/architecture/`) is sterk maar geen vervanging voor bevestiging.
 2. **Redis-clientlibrary.** `deps` + `database_schema`.
 3. **Hash- vs. JSON-serialisatie voor Room/Match/Round.** `database_schema`.
-4. **`contentVersion`/`rendererVersion`-locatie en -semantiek.** Cross-doc
-   reconciliatie tussen `DATA-MODEL.md`, `ARCHITECTURE.md`, `PROTOCOL.md`,
-   `GAME-RULES.md` — geen van de vier eigenaren kan dit alleen beslissen; moet via
-   de "Wijzigingsdiscipline" in `docs/multiplayer/README.md`. **Blokkeert DM2/DM6.**
+4. **`contentVersion`/`rendererVersion`-locatie en -semantiek. — OPGELOST**
+   (`DECISIONS.md` #21, 2 augustus 2026): canoniek en onveranderlijk op
+   `Match`; roundpayloads dragen ze mee. Verwerkt in `types/match.js` en
+   `toActiveRoundSnapshot(round, match)`. Blokkeert DM2/DM3/DM6 niet meer.
 5. **Lua-script vs. MULTI/EXEC** voor answer-flow. `database_schema` + `architecture`.
 6. **Atomair dual-write-mechanisme** voor `Room.phase`/`Match.phase`. `database_schema`.
 7. **Hash-mechanisme voor `inviteHash`/`room_id_hash`.** `database_schema`/`auth`.

@@ -220,4 +220,11 @@ coderingsprompt.
 - `makeUniqueInRoom` reproduceert het `GAME-FLOW.md`-voorbeeld exact.
 - `node --test 'server/data/**/*.test.js'` slaagt.
 
-**Status: prompt klaar, nog niet uitgevoerd.**
+**Status: uitgevoerd.** `server/data/name-processing.js` (zeven vaste stappen +
+generator, elk gemarkeerd als (a) VAST of (c) OPEN DEFAULT in commentaar;
+`isProfane`/`generateName` nemen woordenlijsten uitsluitend als parameter, geen
+enkel woord hardgecodeerd) en `server/data/name-processing.test.js`
+(`PLACEHOLDER_WORD_LISTS_FOR_TESTS_ONLY` / `PLACEHOLDER_PROFANITY_WORDS_FOR_TESTS_ONLY`
+als gelabelde testfixtures) staan er.
+`node --test server/data/name-processing.test.js` → 34/34 groen (8 suites, 0
+fail). Geen `package.json`, lockfile of dependency toegevoegd.

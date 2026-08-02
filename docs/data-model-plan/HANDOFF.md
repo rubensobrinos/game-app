@@ -12,6 +12,10 @@ niet als citaat.
 
 ## 1. Aan `game-rules-plan` — antwoord op [`HANDOFF.md`](../game-rules-plan/HANDOFF.md) §1
 
+**§1–§3 beantwoord; `toStandingPlayerView()` is gebouwd en end-to-end getest
+tegen `rankPlayers()`.** `toEligibilityPlayerView`/`toTeamPlayerView` volgen
+zodra GR5/GR6 bestaan — geen actie gevraagd tot dan.
+
 **Status: bevestigd.** Jullie voorgestelde `correctAnswer`-tabel is correct. Niet
 alleen "aannemelijk" — hij is af te leiden uit tekst die al vastligt: `PROTOCOL.md`
 geeft per mechanisme al een expliciet `round:answer`-voorbeeld (client → server), en
@@ -116,7 +120,7 @@ reducer, met eigen invarianten), geen neutrale constantsmodule, en
 `architecture` ooit zelf een repository (`server/data`) gaat gebruiken —
 bijvoorbeeld om `Room`/`Match`-state te laden vóór een transitie.
 
-**Wat we in de tussentijd doen:** `server/data/types/room-core.js` en
+**Wat we in de tussentijd doen:** `server/data/types/room.js` en
 `server/data/types/match.js` transcriberen de zeven fasewaarden nu **lokaal**
 (twee onafhankelijke kopieën, met een cross-bestand-consistentietest die ze
 tegen elkaar vergelijkt), en `server/data/types/game-configuration.js`

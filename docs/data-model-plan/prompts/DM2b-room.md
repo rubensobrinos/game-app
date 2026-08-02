@@ -127,4 +127,18 @@ JSDoc-`@typedef RoomCore` met de **tien** niet-omstreden velden, plus
 - Typenaam is overal `RoomCore`, nooit kaal `Room`.
 - `node --test 'server/data/**/*.test.js'` slaagt, inclusief DM1- en DM2a-tests.
 
-**Status: prompt klaar, nog niet uitgevoerd.**
+**Status: uitgevoerd.** `server/data/types/room-core.js` + `room-core.test.js`
+staan er. 24/24 tests groen (`node --test server/data/types/room-core.test.js`),
+inclusief de regressietest dat `contentVersion`/`rendererVersion` genegeerd
+worden. De cross-bestand-consistentietest tegen `Match.phase` (DM3) landt in
+`match.test.js` zodra DM3 is uitgevoerd — `match.js` bestaat op het moment van
+dit commit nog niet.
+
+**Nabericht na `docs/multiplayer/DECISIONS.md` #21** (producteigenaar,
+ná deze fase): checkpoint 4 is definitief opgelost —
+`contentVersion`/`rendererVersion` horen op `Match`, niet Room. Omdat de
+onvolledigheid nu geen tijdelijk gat meer is maar een bevestigd, correct
+ontwerp, zijn `room-core.js`/`room-core.test.js` hernoemd naar `room.js`/
+`room.test.js` en `RoomCore`/`assertRoomCoreShape` naar `Room`/
+`assertRoomShape` (`docs/data-model-plan/prompts/DM-RESUME-AFTER-DECISIONS.md`,
+opdracht 1). Gedrag en tests zijn ongewijzigd, alleen de naam.

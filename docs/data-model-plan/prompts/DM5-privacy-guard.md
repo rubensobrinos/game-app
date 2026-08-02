@@ -121,4 +121,8 @@ op).
   "playerId" of "token") wordt aantoonbaar geweigerd.
 - `node --test 'server/data/**/*.test.js'` slaagt.
 
-**Status: prompt klaar, nog niet uitgevoerd.**
+**Status: uitgevoerd.** `server/data/privacy-guard.js` (`ALLOWED_COLUMNS`,
+`NULLABLE_COLUMNS` en `assertAllowedAnalyticsRecord`) en
+`server/data/privacy-guard.test.js` staan er.
+`node --test server/data/privacy-guard.test.js` → 109/109 groen (6 suites, 0
+fail). Geen `package.json`, lockfile of dependency toegevoegd.

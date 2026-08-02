@@ -174,4 +174,9 @@ spec).
   een test bewijst expliciet dat de overige open velden dat niet hebben.
 - `node --test 'server/data/**/*.test.js'` slaagt, inclusief de bestaande DM1-tests.
 
-**Status: prompt klaar, nog niet uitgevoerd.**
+**Status: uitgevoerd.** `server/data/types/game-configuration.js` en
+`server/data/types/session.js` + bijbehorende testbestanden staan er. 44/44
+tests groen (`node --test server/data/types/game-configuration.test.js
+server/data/types/session.test.js`). `gameTypes` is een echte gesloten enum
+(Golf 1-only), `pacing` lokaal getranscribeerd, `tokenHash` zonder prefixcheck —
+alle drie zoals gecorrigeerd na `REVIEW-DM2-DM9.md`.

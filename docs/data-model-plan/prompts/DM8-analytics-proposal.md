@@ -189,4 +189,6 @@ zelf, uit te voeren als review vóór dit voorstel als "klaar" geldt:
   `docs/data-model-plan/proposals/schema.sql` bestaan; er is geen
   `server/data/analytics/`-module en geen bijbehorend testbestand in deze fase.
 
-**Status: prompt klaar, nog niet uitgevoerd.**
+**Status: uitgevoerd.** De twee deliverables staan onder
+`docs/data-model-plan/proposals/`: `analytics-event-contract.md` en
+`schema.sql`.

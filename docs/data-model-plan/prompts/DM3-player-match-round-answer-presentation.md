@@ -305,4 +305,20 @@ niet van elkaar.
   `resultDetails`, `validOptionIds`, `questionKey`).
 - `node --test 'server/data/**/*.test.js'` slaagt, inclusief alle eerdere DM-tests.
 
-**Status: prompt klaar, nog niet uitgevoerd.**
+**Status: uitgevoerd.** `server/data/types/game-types.js` (gedeeld),
+`player.js`, `match.js`, `round.js` (incl. `toActiveRoundSnapshot`),
+`answer.js`, `room-presentation.js` + bijbehorende tests staan er, plus een
+kleine, additieve wijziging aan DM2a's `game-configuration.js` (importeert nu
+`GOLF_1_GAME_TYPES` uit `game-types.js` i.p.v. een eigen kopie). Volledige
+`server/data/`-testsuite: 397/397 groen (`node --test
+'server/data/**/*.test.js'`). De cross-bestand-consistentietest tussen
+`MATCH_PHASE_VALUES` en DM2b's `ROOM_PHASE_VALUES` staat in `match.test.js` en
+slaagt.
+
+**Bijgewerkt na `docs/multiplayer/DECISIONS.md` #21** (bevestigd door de
+producteigenaar, ná deze fase geschreven): `contentVersion`/`rendererVersion`
+zijn canoniek op `Match`, niet Room — dit lost checkpoint 4 op. `match.js`
+heeft die twee velden nu; `toActiveRoundSnapshot(round, match)` neemt sinds
+deze correctie ook `match` aan en neemt de twee velden mee in de output
+("roundpayloads dragen ze mee voor clients"), met een guard dat `match.id`
+overeenkomt met `round.matchId`. 402/402 tests groen na deze wijziging.
