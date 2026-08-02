@@ -75,7 +75,15 @@
     if (typeof FLAG_INFO === 'undefined') addScript('data/flag-info.js', function () { addScript('flaginfo.js'); });
     else addScript('flaginfo.js');
     addScript('geo.js');        // Geo Quiz — self-contained (no app.js edits)
-    addScript('provinces.js');  // Provinces & States — self-contained; data lazy-loads on open
+    // Provinces & States valt buiten de lanceerscope (public-mode.js,
+    // LAUNCH_GAME_BUTTON_IDS) en wordt daarom niet geladen. Bewust hier en
+    // niet daar: provinces.js injecteert zijn menukaart via een eigen
+    // MutationObserver die 'm terugzet zodra hij verdwijnt. Wie de kaart
+    // achteraf weghaalt, belandt dus in een livelock met die observer. Het
+    // script niet laden is de enige plek waar dat spel echt uit gaat.
+    // Terug online: deze regel herstellen én het id aan LAUNCH_GAME_BUTTON_IDS
+    // toevoegen.
+    // addScript('provinces.js');
     addScript('data/geo-facts.js'); // record facts (may 404 until generated — harmless)
     addScript('geo-facts.js');  // Higher/Lower info panel — self-contained
   })();

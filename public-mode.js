@@ -26,6 +26,29 @@
   var isPublicHost = PUBLIC_HOSTNAMES.indexOf(window.location.hostname) !== -1;
 
   /**
+   * LANCEERSCOPE (besluit producteigenaar, 2 aug 2026): alleen deze drie
+   * spellen gaan nu live. De rest is niet af genoeg om te tonen en volgt
+   * later — dat is een productbesluit, geen juridisch (dat is de flag
+   * hierboven, met een eigen levensduur: als deze lijst straks groeit, blijft
+   * de merkenrechtflag alsnog gelden).
+   *
+   * Terug online zetten = een id aan deze lijst toevoegen. De spellen zelf
+   * blijven volledig intact in app.js; er is niets verwijderd of uitgezet.
+   *
+   *   btn-flags         Vlaggen Quiz
+   *   btn-real-or-fake  Echt of Nep? (vlaggen)
+   *   btn-geo           Geo Quiz
+   */
+  var LAUNCH_GAME_BUTTON_IDS = ['btn-flags', 'btn-real-or-fake', 'btn-geo'];
+
+  /**
+   * De multiplayer-ingang is geen quizspel en valt buiten de lanceerscope
+   * hierboven; die heeft zijn eigen vlag (SHOW_MULTIPLAYER). Expliciet
+   * uitgezonderd zodat de volgorde van init() er niet toe doet.
+   */
+  var SCOPE_EXEMPT_BUTTON_IDS = ['btn-multiplayer'];
+
+  /**
    * Multiplayer-ingang. Op false tot de multiplayer live is (keten-test groen
    * + tegencontrole + Caddy-routering actief) — dan is dit ÉÉN regel omzetten.
    * Route: /samen → multiplayer-home (HANDOFF-UI-6).
@@ -52,6 +75,39 @@
       window.location.href = '/samen';
     });
     grid.insertBefore(card, grid.firstChild);
+  }
+
+  /**
+   * Verwijdert elke menukaart die buiten de lanceerscope valt uit het DOM —
+   * bewust `remove()` en niet `display:none`: een verborgen kaart is nog
+   * steeds vindbaar in de paginabron, en de vraag was om ze echt niet te
+   * tonen.
+   *
+   * Veilig omdat app.js zijn kliklisteners op `DOMContentLoaded` bindt en
+   * eerder wordt geladen dan dit bestand; die binding is dus al gebeurd
+   * voordat hier iets verdwijnt. app.js blijft onaangeraakt — het houdt
+   * listeners over op losgekoppelde knoppen, wat niets doet.
+   */
+  function pruneGrid(grid) {
+    Array.prototype.forEach.call(grid.querySelectorAll('.game-card'), function (card) {
+      if (SCOPE_EXEMPT_BUTTON_IDS.indexOf(card.id) !== -1) return;
+      if (LAUNCH_GAME_BUTTON_IDS.indexOf(card.id) !== -1) return;
+      card.remove();
+    });
+  }
+
+  /**
+   * Eén pas, bewust geen MutationObserver. Een add-on die zijn kaart zelf
+   * injecteert, doet dat namelijk vaak mét een eigen observer die 'm terugzet
+   * zodra hij verdwijnt (`provinces.js` doet precies dat). Twee observers op
+   * hetzelfde rooster die elkaars wijziging ongedaan maken lopen elkaar
+   * eindeloos achterna en zetten de main thread vast — dat is hier gebeurd en
+   * getest. Zo'n spel gaat daarom uit bij zijn eigen laadpunt (`hint.js`),
+   * niet achteraf hier.
+   */
+  function applyLaunchScope() {
+    var grid = document.querySelector('#screen-menu .game-grid');
+    if (grid) pruneGrid(grid);
   }
 
   function hideBrandGames() {
@@ -99,8 +155,34 @@
     grid.parentNode.insertBefore(btn, grid.nextSibling);
   }
 
+  /**
+   * Naam: Play Aseso (besluit producteigenaar, 2 aug 2026). De titel zit in
+   * app.js's i18n-tabel T (top-level const = globale binding, dus hier
+   * bereikbaar); we overschrijven de waarde per taal zodat ook een
+   * taalwissel de nieuwe naam toont. app.js zelf blijft onaangeraakt.
+   */
+  function applyBrandName() {
+    document.title = 'Play Aseso — Vlaggenquiz';
+    try {
+      ['nl', 'en', 'es'].forEach(function (lang) {
+        if (typeof T === 'object' && T[lang] && T[lang].appTitle) {
+          T[lang].appTitle = 'Play Aseso';
+        }
+      });
+      var titleEl = document.querySelector('.app-title');
+      if (titleEl) titleEl.textContent = 'Play Aseso';
+    } catch (e) {
+      /* T niet beschikbaar — titel-tag is dan alsnog gezet */
+    }
+  }
+
   function init() {
+    // Eerst de scope, dan de rest: hideBrandGames() vindt daarna niets meer
+    // (de drie merkspellen vallen sowieso buiten de lanceerscope) en dat is
+    // precies goed — de flag blijft staan voor als de scope later groeit.
+    applyLaunchScope();
     hideBrandGames();
+    applyBrandName();
     addMultiplayerCard();
     addShareButton();
   }
