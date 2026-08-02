@@ -1,9 +1,9 @@
-# Prompt — M3: REST-schema's, input-safety, auth-shape
+# Prompt — PR3: REST-schema's, input-safety, auth-shape
 
-Dekt fase **M3** uit [`../README.md`](../README.md#fasering). Vereist dat
-**M2** (foutcode-enum) is afgerond: elke afwijzing hieronder retourneert een
+Dekt fase **PR3** uit [`../README.md`](../README.md#fasering). Vereist dat
+**PR2** (foutcode-enum) is afgerond: elke afwijzing hieronder retourneert een
 code uit `ALL_ERROR_CODES`, nooit een vrije string — zie
-[`M2-error-codes.md`](M2-error-codes.md) voor die module. Dit promptbestand is
+[`PR2-error-codes.md`](PR2-error-codes.md) voor die module. Dit promptbestand is
 zelfstandig leesbaar — geen kennis van een eerder gesprek nodig.
 
 ## Brondocument
@@ -133,47 +133,47 @@ Socket-auth:
 
 ### `../README.md` — relevante citaten
 
-Fase M3: "`auth-shape`-validator (losstaand van het M8-tokenvoorstel): een
+Fase PR3: "`auth-shape`-validator (losstaand van het PR8-tokenvoorstel): een
 pure vorm-check voor de REST `Authorization: Bearer <token>`-header (correct
 prefix, niet-lege tokenstring) en voor de socket-handshake-payload
 `{sessionToken, protocolVersion}`, inclusief de `protocolVersion === 'v1'`-
-check die bij afwijking `PROTOCOL_VERSION_UNSUPPORTED` (M2) oplevert. Dit is
+check die bij afwijking `PROTOCOL_VERSION_UNSUPPORTED` (PR2) oplevert. Dit is
 letterlijk coderen van een reeds vastgelegde vorm (Uitgangspunt 1a) — geen
 tokenbeslissing — en dus zelfstandig uit te voeren, onafhankelijk van en vóór
-het M8-voorstel voor generatie/hashing."
+het PR8-voorstel voor generatie/hashing."
 
-Fase M3, vervolg: "Waar `GET /{code}/state` en `POST /{code}/leave` 'vereist
+Fase PR3, vervolg: "Waar `GET /{code}/state` en `POST /{code}/leave` 'vereist
 geldige sessietoken' schrijven, leunt dat hier op deze vorm-check; de
 daadwerkelijke geldigheidscontrole tegen een echte sessiestore hoort bij het
 latere serverproces, niet bij dit plan."
 
-Fase M3, vervolg: "`joinSource`/`joinUrl` worden gevalideerd en doorgegeven
+Fase PR3, vervolg: "`joinSource`/`joinUrl` worden gevalideerd en doorgegeven
 als opake velden; de constructie van `joinUrl` (basis-URL + `inviteId`) en de
 opslag van `joinSource` richting analytics zijn niet hier belegd — zie Open
 vragen §5–6."
 
 Open vragen §5: "`joinUrl`-constructie (basis-URL + `inviteId`) staat nergens
 gespecificeerd — waar komt de basis-URL vandaan (config/env)? Relevant voor
-M3."
+PR3."
 
 Open vragen §6: "`joinSource`/`share:opened.method` (incl. `\"native\"`)
 hebben geen gedocumenteerd pad naar de Postgres-analytics-aggregaten. Niet
-blokkerend voor schema-validatie in M3, wel voor een latere analytics-fase
-buiten dit plan. [...] M3/M4 valideren `method` vooralsnog ongewijzigd (3
+blokkerend voor schema-validatie in PR3, wel voor een latere analytics-fase
+buiten dit plan. [...] PR3/PR4 valideren `method` vooralsnog ongewijzigd (3
 waarden); of `method` een vierde waarde krijgt die `joinSource` spiegelt, is
 aan de `PROTOCOL.md`-eigenaar om te beslissen."
 
 ## Te bouwen functies
 
 Voorgestelde locatie: `server/protocol/` (of de bij protocol-plan's eigen
-M0-checkpoint bevestigde map — `../README.md`, fase M0), verdeeld over de drie
+PR0-checkpoint bevestigde map — `../README.md`, fase PR0), verdeeld over de drie
 modules uit de modulestabel: `rest-games`, `input-safety`, `auth-shape`. Native
 ESM, platte JavaScript met JSDoc-typering, geen TypeScript
 (`../README.md`, Uitgangspunt 2). Test met `node:test` + `node:assert`. Dit is
 meer dan 5 bestanden aan validators + fixtures + tests bij elkaar — groepeer
 per module (`input-safety` los, `auth-shape` los, `rest-games`-requests en
 -responses eventueel gesplitst) en verdeel over meerdere commits binnen de
-autonomie-limiet (`CLAUDE.md`: max 5 bestanden/400 regels per actie).
+autonomie-limiet (`CLAUDE.md`: max 15 bestanden/5.000 regels per actie).
 
 Alle validators delen dit resultaattype:
 
@@ -220,8 +220,8 @@ tekens.
 > `PROTOCOL.md` §Authenticatie en tijdelijke sessies al vastlegt (Bearer-
 > header-prefix, `{sessionToken, protocolVersion}`-handshake-vorm) — **geen**
 > tokenbeslissing. Het kiezen van een generatie-/hashingalgoritme voor
-> `sessionToken` zelf is `auth`, `always_ask`, en hoort bij het M8a/M8b-
-> voorstel (`../README.md`, Uitgangspunt 1 en fase M8). Deze functies nemen
+> `sessionToken` zelf is `auth`, `always_ask`, en hoort bij het PR8a/PR8b-
+> voorstel (`../README.md`, Uitgangspunt 1 en fase PR8). Deze functies nemen
 > geen enkele beslissing over hoe een token wordt gemaakt of gevalideerd tegen
 > een echte sessiestore — ze controleren alleen of de aangeleverde vorm klopt.
 
@@ -230,7 +230,7 @@ tekens.
  * Pure vorm-check voor de REST-header `Authorization: Bearer <sessionToken>`
  * (PROTOCOL.md §REST-auth). Beoordeelt uitsluitend de vorm — niet of het
  * token bestaat, geldig is, of bij een sessie hoort (dat vereist een echte
- * sessiestore en hoort bij het latere serverproces, niet bij M8a/b zelf).
+ * sessiestore en hoort bij het latere serverproces, niet bij PR8a/b zelf).
  *
  * Vergelijkt het `Bearer`-prefix hoofdlettergevoelig — `PROTOCOL.md` schrijft
  * exact `Bearer` (hoofdletter B); deze validator voegt geen eigen RFC 7235-
@@ -246,7 +246,7 @@ export function parseBearerAuthHeader(headerValue) {}
  * Pure vorm-check voor de socket-handshake-payload
  * `{ sessionToken, protocolVersion }` (PROTOCOL.md §Socket-auth). Wordt
  * ongewijzigd hergebruikt bij reconnect (PROTOCOL.md §Reconnect, stap 4:
- * "Socketauth gebruikt dezelfde sessietoken") — zie M6, geen apart
+ * "Socketauth gebruikt dezelfde sessietoken") — zie PR6, geen apart
  * reconnect-schema.
  *
  * Controlevolgorde (vastgelegd voor deterministische tests, geen citaat):
@@ -267,7 +267,7 @@ export function parseSocketAuthPayload(auth) {}
 ### 3. `rest-games` — request/response-validators
 
 Path-parameter `{code}`: exact zes ASCII-cijfers (`/^[0-9]{6}$/`) — dezelfde
-syntactische regel als `architecture-plan`'s A2 (room-codes) en
+syntactische regel als `architecture-plan`'s AR2 (room-codes) en
 `game-flow-plan`'s route-resolver hanteren. Deze validator dupliceert die
 regex niet als eigen bron van waarheid maar past 'm toe; een niet-matchende
 `code` levert `GAME_NOT_FOUND` op (dichtstbijzijnde bestaande code uit de
@@ -341,7 +341,7 @@ export function validateJoinGameResponse(body) {}
  * Vorm-check voor `GET /api/v1/games/{code}/state`: alleen het path-
  * parameter en de auth-header. De responsebody ís de state-snapshot
  * ("Volledige actuele snapshot") — de vorm daarvan hoort bij de `snapshot`-
- * module (M5d), en wordt hier bewust niet gedupliceerd, alleen aangeroepen.
+ * module (PR5d), en wordt hier bewust niet gedupliceerd, alleen aangeroepen.
  *
  * @param {{ code: string, authorizationHeader: string | undefined | null }} input
  * @returns {ValidationResult<{ code: string, token: string }>}
@@ -374,7 +374,7 @@ export function validateTimeResponse(body) {}
 
 `../README.md`, Open vragen §5: "`joinUrl`-constructie (basis-URL +
 `inviteId`) staat nergens gespecificeerd — waar komt de basis-URL vandaan
-(config/env)? Relevant voor M3."
+(config/env)? Relevant voor PR3."
 
 Concreet voor `validateCreateGameResponse`: `joinUrl` wordt gevalideerd als
 een syntactisch geldige absolute URL-string (bijvoorbeeld met een `new
@@ -452,14 +452,14 @@ Reken de meervoudige varianten in rijen 3, 13, 22, 26 en 28 door tot losse
   deze pure schemavalidatie.
 - De geldigheidscontrole van een `sessionToken` tegen een echte sessiestore
   (bestaat het token nog, is het niet verlopen/`SESSION_REVOKED`) — dat is
-  `auth`/M8, niet deze vorm-check. Zie de gemarkeerde sectie hierboven.
+  `auth`/PR8, niet deze vorm-check. Zie de gemarkeerde sectie hierboven.
   Idem: welke rollen (`host`/`player`) bij een token horen, en dus of "vereist
   spelerrol" (`POST /leave`) daadwerkelijk klopt — autorisatie, geen vorm.
 - De daadwerkelijke `generateSessionToken()`/`hashToken()`-implementatie —
-  `auth`, `always_ask`, M8a/M8b, expliciet niet hier.
+  `auth`, `always_ask`, PR8a/PR8b, expliciet niet hier.
 - De vorm van de `state`-snapshot zelf (`GET /{code}/state`-response,
   `state`-veld in de create/join-responses) — dat is de `snapshot`-module
-  (M5d); deze prompt valideert alleen dat het een object is, niet de inhoud.
+  (PR5d); deze prompt valideert alleen dat het een object is, niet de inhoud.
 - Het oplossen van Open vragen §5 en §6 door zelf een basis-URL-bron te kiezen
   of `share:opened.method` een vierde waarde te geven — dat is een
   `public_api`/`prod`-besluit over `PROTOCOL.md`, `always_ask`.
@@ -469,7 +469,7 @@ Reken de meervoudige varianten in rijen 3, 13, 22, 26 en 28 door tot losse
 - Rate-limiting zelf (`CODE_RATE_LIMITED`, `RATE_LIMITED`) — dat is
   statelijk/tijdgebonden servergedrag, geen pure requestvalidatie.
 - Nieuwe dependencies; test uitsluitend met `node:test` + `node:assert`.
-- Meer dan 5 bestanden of 400 regels in één actie (CLAUDE.md-autonomiegrens);
+- Meer dan 15 bestanden of 5.000 regels in één actie (CLAUDE.md-autonomiegrens);
   splits per module (`input-safety`, `auth-shape`, `rest-games`) en zo nodig
   verder over meerdere commits.
 

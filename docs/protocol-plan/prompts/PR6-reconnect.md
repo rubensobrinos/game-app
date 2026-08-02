@@ -1,7 +1,7 @@
-# Prompt — M6: Reconnect-acceptatieregels
+# Prompt — PR6: Reconnect-acceptatieregels
 
-Dekt fase **M6** uit [`../README.md`](../README.md#fasering). Vereist dat M1
-(`envelope`/`idempotency`, al aanwezig in `server/protocol/`) is afgerond, en dat M3
+Dekt fase **PR6** uit [`../README.md`](../README.md#fasering). Vereist dat PR1
+(`envelope`/`idempotency`, al aanwezig in `server/protocol/`) is afgerond, en dat PR3
 (`auth-shape`) bestaat vóórdat de socketauth-hergebruikfunctie hieronder echt
 geïmplementeerd wordt — zie de aparte notitie daarover verderop. Kopieer alles onder
 **Prompt** naar een nieuwe sessie/agent-aanroep. Dit bestand is zelfstandig leesbaar,
@@ -18,9 +18,9 @@ Je werkt in de repo `game-app`. Lees, voordat je iets bouwt:
 - [`docs/multiplayer/ARCHITECTURE.md`](../../multiplayer/ARCHITECTURE.md), §2
   ("Eén timeline per room") en §3 ("Snapshot boven event replay").
 - [`docs/architecture-plan/README.md`](../../architecture-plan/README.md), de
-  modulestabel-rijen `server-time`/`snapshot-precedence` en fasen **A3**/**A4**.
-- [`../README.md`](../README.md), modulestabel-rij `reconnect` en fase **M6**.
-- `server/protocol/envelope.mjs` en `server/protocol/idempotency.mjs` (bestaande M1-code
+  modulestabel-rijen `server-time`/`snapshot-precedence` en fasen **AR3**/**AR4**.
+- [`../README.md`](../README.md), modulestabel-rij `reconnect` en fase **PR6**.
+- `server/protocol/envelope.mjs` en `server/protocol/idempotency.mjs` (bestaande PR1-code
   — geeft de stijl/conventie: platte `.mjs`, JSDoc, functies die nooit gooien, altijd
   `{ ok: true, ... } | { ok: false, reason }`).
 
@@ -50,10 +50,10 @@ Je werkt in de repo `game-app`. Lees, voordat je iets bouwt:
 }
 ```
 
-`../README.md`, fase M6, letterlijk:
+`../README.md`, fase PR6, letterlijk:
 
-> Dit dupliceert bewust **niet** `architecture-plan`'s A3 (`snapshot-precedence`) of
-> A4 (`server-time`) — die bouwstenen worden hier alleen aangeroepen/gerefereerd. Wat
+> Dit dupliceert bewust **niet** `architecture-plan`'s AR3 (`snapshot-precedence`) of
+> AR4 (`server-time`) — die bouwstenen worden hier alleen aangeroepen/gerefereerd. Wat
 > hier wél nieuw is: de PROTOCOL-specifieke regel dat een reeds geaccepteerd antwoord
 > niet opnieuw wordt verzonden, tenzij de client geen ack ontving en dezelfde
 > `actionId` herhaalt. Socketauth bij reconnect hergebruikt exact hetzelfde
@@ -61,28 +61,28 @@ Je werkt in de repo `game-app`. Lees, voordat je iets bouwt:
 > (PROTOCOL.md, Reconnect-stap 4: "Socketauth gebruikt dezelfde sessietoken.") — geen
 > apart reconnect-specifiek authschema, alleen een expliciete verwijzing hierheen.
 
-`architecture-plan/README.md`, fasen A3/A4, letterlijk:
+`architecture-plan/README.md`, fasen AR3/AR4, letterlijk:
 
-> ### A3 — Snapshot-precedence
+> ### AR3 — Snapshot-precedence
 > Pure functie die bepaalt of een binnenkomende snapshot lokale/eventgebaseerde state
 > moet overschrijven. Dekt zowel `ARCHITECTURE.md` §3 als de PROTOCOL.md-regel
 > "Snapshots zijn leidend boven eerder ontvangen events" — gedeeld hulpmiddel, geen
 > ADR namens `PROTOCOL.md`.
 >
-> ### A4 — Server-time
+> ### AR4 — Server-time
 > Midpoint-berekening uit meerdere round-trip-samples, exact zoals `PROTOCOL.md`
 > `/api/v1/time` beschrijft, als pure functie met samples in, offset-schatting uit.
 
 **Wat dit betekent voor deze module:** dit bestand implementeert géén eigen versie van
 snapshot-precedence of server-time-offsetberekening. Reconnect-stappen 5–6 (snapshot
 opvragen, snapshot laat lokale fase/score/antwoordstatus overschrijven) worden door de
-aanroepende laag afgehandeld via `architecture-plan`'s A3- en A4-functies — deze module
+aanroepende laag afgehandeld via `architecture-plan`'s AR3- en AR4-functies — deze module
 levert alleen de drie stukken die daar niet al bestaan: de backoff-reeks, de
 niet-herverzenden-regel, en de socketauth-hergebruikwrapper.
 
 ### Locatie en moduleformaat
 
-Zelfde plek/stijl als M1: `server/protocol/reconnect.mjs` +
+Zelfde plek/stijl als PR1: `server/protocol/reconnect.mjs` +
 `server/protocol/reconnect.test.mjs`. Platte JavaScript, JSDoc, `node --test` tegen een
 expliciet bestand, geen nieuwe dependency.
 
@@ -154,9 +154,9 @@ export function resolveReconnectResend(pendingAnswer) {
 
 /**
  * Bouwt en valideert de socket-handshake-payload bij reconnect. Dit is
- * bewust een dunne wrapper: de vormvalidatie zelf leeft in M3's
+ * bewust een dunne wrapper: de vormvalidatie zelf leeft in PR3's
  * `auth-shape`-module (`server/protocol/auth-shape.mjs`, zodra die bestaat —
- * zie `../README.md` fase M3) en wordt hier via dependency injection
+ * zie `../README.md` fase PR3) en wordt hier via dependency injection
  * aangeroepen, nooit lokaal opnieuw geïmplementeerd. PROTOCOL.md
  * §Reconnect stap 4 ("Socketauth gebruikt dezelfde sessietoken.") vraagt
  * expliciet om hetzelfde schema als de eerste handshake — dus geen
@@ -164,15 +164,15 @@ export function resolveReconnectResend(pendingAnswer) {
  * aanroep hier.
  *
  * Als `server/protocol/auth-shape.mjs` nog niet bestaat op het moment dat
- * je dit uitvoert: bouw eerst M3 (zie `../README.md`) en importeer de
+ * je dit uitvoert: bouw eerst PR3 (zie `../README.md`) en importeer de
  * daadwerkelijke functienaam die dat oplevert. Schrijf in dit bestand geen
  * eigen `protocolVersion === 'v1'`-check of bearer-tokenvorm-validatie als
- * vervanging — dat zou de duplicatie zijn die `../README.md` fase M6
+ * vervanging — dat zou de duplicatie zijn die `../README.md` fase PR6
  * expliciet uitsluit.
  *
  * @param {string} sessionToken
  * @param {(payload: unknown) => { ok: true, payload: SocketAuthPayload }
- *   | { ok: false, reason: string }} validateSocketAuthPayload - M3's
+ *   | { ok: false, reason: string }} validateSocketAuthPayload - PR3's
  *   auth-shape-validator, geïnjecteerd zodat dit bestand 'm aanroept in
  *   plaats van herbouwt
  * @returns {{ ok: true, payload: SocketAuthPayload } | { ok: false, reason: string }}
@@ -201,23 +201,23 @@ export function buildReconnectSocketAuth(sessionToken, validateSocketAuthPayload
 
 Reken de varianten in rij 8 en 9 door op minstens 15 losse `node:test`-cases.
 
-### Niet in scope voor M6
+### Niet in scope voor PR6
 
-- Herbouwen van `architecture-plan`'s A3 (`snapshot-precedence`) of A4
+- Herbouwen van `architecture-plan`'s AR3 (`snapshot-precedence`) of AR4
   (`server-time`) — deze module roept ze aan via de aanroepende laag, ze worden hier
   niet opnieuw gedefinieerd.
-- Herbouwen van M3's `auth-shape`-vormvalidatie — alleen importeren/injecteren, nooit
+- Herbouwen van PR3's `auth-shape`-vormvalidatie — alleen importeren/injecteren, nooit
   lokaal een eigen `protocolVersion`- of tokenprefix-check toevoegen.
 - Echte Socket.IO-reconnectlogica, echte `setTimeout`/timers, en de
   niet-blokkerende reconnect-UI (PROTOCOL.md §Reconnect stap 2) — dat hoort bij het
   latere serverproces resp. `game-flow-plan`, niet bij deze pure module.
 - Tokenvernieuwing of de betekenis van `TOKEN_EXPIRED`/`SESSION_REVOKED` bij reconnect
-  — foutcode-afhandeling zit al bij `error-codes` (M2); deze module oordeelt niet over
+  — foutcode-afhandeling zit al bij `error-codes` (PR2); deze module oordeelt niet over
   tokengeldigheid, ze bouwt alleen de handshake-payload en roept de validator aan.
-- M8's sessie/tokengeneratie — reconnect hergebruikt een bestaande `sessionToken`,
+- PR8's sessie/tokengeneratie — reconnect hergebruikt een bestaande `sessionToken`,
   genereert er nooit één.
 - Het daadwerkelijk opvragen van de snapshot na reconnect (stap 5) en het toepassen
-  ervan (stap 6) — dat is de aanroepende laag die A3 aanroept, niet deze module.
+  ervan (stap 6) — dat is de aanroepende laag die AR3 aanroept, niet deze module.
 
 ### Definition of done
 
@@ -227,8 +227,8 @@ Reken de varianten in rij 8 en 9 door op minstens 15 losse `node:test`-cases.
   puur: geen `Date.now()`, `Math.random()`, module-brede mutable state, I/O, of
   afhankelijkheid van een echte `auth-shape`-implementatie (die wordt altijd
   geïnjecteerd/geïmporteerd, nooit gedupliceerd).
-- Code review toont aantoonbaar geen herimplementatie van A3/A4 of van M3's
+- Code review toont aantoonbaar geen herimplementatie van AR3/AR4 of van PR3's
   vormvalidatie binnen dit bestand — alleen aanroepen/verwijzingen.
 - Getest met een expliciet bestand: `node --test server/protocol/reconnect.test.mjs`.
-- Past binnen de autonomiegrens uit `CLAUDE.md` (≤5 bestanden, ≤400 regels per actie);
+- Past binnen de autonomiegrens uit `CLAUDE.md` (≤15 bestanden, ≤5.000 regels per actie);
   dit is één ongesplitste fase, dus één actie moet volstaan.

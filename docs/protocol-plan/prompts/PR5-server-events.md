@@ -1,10 +1,10 @@
-# Prompt — M5: Server→client event-schema's & snapshot
+# Prompt — PR5: Server→client event-schema's & snapshot
 
-Dekt fase **M5** uit [`../README.md`](../README.md) (§Fasering), gesplitst in
-de sub-batches **M5a**, **M5b**, **M5c**, **M5d** en **M5e** zoals daar
-beschreven. Vereist dat **M0** (locatie bevestigd), **M1**
-(envelope/idempotentie), **M2** (foutcode-enum) en **M3** (REST-schema's,
-`auth-shape`) al zijn afgerond, en bij voorkeur ook **M4** (client-events) —
+Dekt fase **PR5** uit [`../README.md`](../README.md) (§Fasering), gesplitst in
+de sub-batches **PR5a**, **PR5b**, **PR5c**, **PR5d** en **PR5e** zoals daar
+beschreven. Vereist dat **PR0** (locatie bevestigd), **PR1**
+(envelope/idempotentie), **PR2** (foutcode-enum) en **PR3** (REST-schema's,
+`auth-shape`) al zijn afgerond, en bij voorkeur ook **PR4** (client-events) —
 dit plan bouwt voort op de daar opgeleverde modules en herhaalt ze niet. Dit
 promptbestand is zelfstandig leesbaar: geen kennis van een eerder gesprek is
 nodig.
@@ -18,7 +18,7 @@ Je werkt in de repo `game-app`. Lees voor je begint:
   (autonomie-limieten), Uitgangspunt 4 (server is autoritair → validators
   weigeren actief), Uitgangspunt 5 ("ik bepaal geen inhoud, alleen vorm"), de
   beschrijving van de modules `snapshot` en `server-events` in de tabel
-  **Modules en endpoints**, en de volledige fasering van **M5** inclusief de
+  **Modules en endpoints**, en de volledige fasering van **PR5** inclusief de
   vijf sub-batches en de ingebedde open vragen.
 
 Er bestaat nog geen `package.json` in deze repo (zie README, Uitgangspunt 2).
@@ -133,21 +133,21 @@ Uit §Foutcodes, clientresponse (letterlijk — het enige `error`-voorbeeld):
 }
 ```
 
-Uit `docs/protocol-plan/README.md` §Fasering, M5:
+Uit `docs/protocol-plan/README.md` §Fasering, PR5:
 
 > Eén validator per event (`room:state` … `error`), plus de losse
 > snapshot-shape-validator voor `GET /state` en `room:state`.
 
-> - **M5a** — eerste batch server-events (te beginnen bij `room:state`) +
+> - **PR5a** — eerste batch server-events (te beginnen bij `room:state`) +
 >   ontvangersregel-tests.
-> - **M5b** — tweede batch server-events + ontvangersregel-tests.
-> - **M5c** — derde batch server-events + ontvangersregel-tests.
-> - **M5d** — resterende server-events tot en met `error`, plus de
+> - **PR5b** — tweede batch server-events + ontvangersregel-tests.
+> - **PR5c** — derde batch server-events + ontvangersregel-tests.
+> - **PR5d** — resterende server-events tot en met `error`, plus de
 >   snapshot-shape-validator en de expliciete invariant-test "een snapshot
 >   bevat nooit het correcte antwoord van een actieve ronde" als testbare
 >   pure functie (fake-snapshot in, boolean/assert uit) — dit is letterlijk
 >   een genoemd contracttest-punt in `DEPLOYMENT-AND-TESTING.md`.
-> - **M5e** — `throttleRoundProgress(store, roundId, now)`: pure
+> - **PR5e** — `throttleRoundProgress(store, roundId, now)`: pure
 >   beslisfunctie die bepaalt of een volgende `round:progress`-broadcast is
 >   toegestaan, met een test die aantoont dat bij een reeks aanroepen binnen
 >   één seconde voor dezelfde ronde nooit meer dan 2 emissies worden
@@ -170,14 +170,14 @@ toevoegen van een enum-waarde, veld of eigenaarschap zou een
   en later automatisch hervat worden met een korte nieuwe countdown. De
   client kan geen van deze vier onderscheiden, en of het vierde geval als
   live `game:paused`-broadcast reist of uitsluitend zichtbaar wordt via
-  `room.phase` in de post-reconnect snapshot is evenmin vastgelegd. De M5b-
+  `room.phase` in de post-reconnect snapshot is evenmin vastgelegd. De PR5b-
   validator voor `game:paused` hieronder toetst daarom alleen dat `reason`
   een string is (geen enum-afwijzing van onbekende waarden) — een striktere
   toets zou een van de vier scenario's stilzwijgend bevoordelen.
 - **§10** — `question`-payloadvorm is alleen voor multiple-choice uitgewerkt
   (zie het `round:started`-voorbeeld hierboven); de andere vier spelvormen
   (binair, hoger/lager, buitenbeentje, typen) hebben geen gespecificeerde
-  vraag-payload. De M5b-validator voor `round:started` hieronder valideert
+  vraag-payload. De PR5b-validator voor `round:started` hieronder valideert
   daarom de envelopevelden (`matchId`, `roundId`, `roundNumber`,
   `totalRounds`, `gameType`, `contentVersion`, `startsAt`, `endsAt`) altijd,
   en de `question`-vorm strikt volgens het voorbeeld alleen wanneer die
@@ -188,7 +188,7 @@ toevoegen van een enum-waarde, veld of eigenaarschap zou een
   verzinnen.
 - **§11** — "Verdeling" (antwoordverdeling) in `round:ended` heeft geen
   genoemde eigenaar: protocol-aggregatie over ruwe antwoorden, of een
-  GAME-RULES-outputveld? De M5c-validator voor `round:ended` hieronder
+  GAME-RULES-outputveld? De PR5c-validator voor `round:ended` hieronder
   toetst daarom alleen de velden waarover geen twijfel bestaat (`roundId`,
   `correctAnswer` als ondoorzichtig object, `ownPoints` als getal) en laat de
   exacte vorm van een eventueel `distribution`/"verdeling"-veld ongevalideerd
@@ -218,10 +218,10 @@ toevoegen van een enum-waarde, veld of eigenaarschap zou een
    (`single_session` | `room` | `room_with_personal_fields`), niet hoe een
    echte Socket.IO-room dat daadwerkelijk verzendt.
 
-## Sub-batch M5a — `room:state`, `room:player-changed`, `room:lock-changed`, `game:started`
+## Sub-batch PR5a — `room:state`, `room:player-changed`, `room:lock-changed`, `game:started`
 
 Bestanden (voorstel binnen `server/protocol/server-events/`, te bevestigen
-tegen M0's locatiekeuze): `room-and-lifecycle-a.mjs`,
+tegen PR0's locatiekeuze): `room-and-lifecycle-a.mjs`,
 `room-and-lifecycle-a.fixtures.mjs`, `room-and-lifecycle-a.test.mjs`.
 
 ```js
@@ -239,9 +239,9 @@ function resolveRecipientRule(eventName) {}
 /**
  * Valideert de payload van `room:state`. Dit is voorlopig een ondiepe
  * plaatshoudercontrole (niet-leeg object); de volledige snapshot-vorm wordt
- * pas in M5d opgeleverd via `validateSnapshotShape`, waar `room:state`'s
+ * pas in PR5d opgeleverd via `validateSnapshotShape`, waar `room:state`'s
  * payload exact dezelfde vorm als de snapshot heeft en dus dezelfde
- * validator hergebruikt — zelfde gelaagde aanpak als M4c/M4d voor
+ * validator hergebruikt — zelfde gelaagde aanpak als PR4c/PR4d voor
  * `round:answer`.
  * @param {unknown} payload
  * @returns {ValidationResult}
@@ -279,7 +279,7 @@ function validateGameStartedPayload(payload) {}
 
 Ontvangers: `room:state` → `single_session`; de overige drie → `room`.
 
-## Sub-batch M5b — `game:paused`, `game:resumed`, `round:started`, `round:answer-accepted`
+## Sub-batch PR5b — `game:paused`, `game:resumed`, `round:started`, `round:answer-accepted`
 
 Bestanden (voorstel): `round-lifecycle-b.mjs`, `round-lifecycle-b.fixtures.mjs`,
 `round-lifecycle-b.test.mjs`.
@@ -335,7 +335,7 @@ function validateRoundAnswerAcceptedPayload(payload) {}
 Ontvangers: `round:answer-accepted` → `single_session`; de overige drie →
 `room`.
 
-## Sub-batch M5c — `round:progress`, `round:ended`, `scoreboard:updated`, `game:finished`
+## Sub-batch PR5c — `round:progress`, `round:ended`, `scoreboard:updated`, `game:finished`
 
 Bestanden (voorstel): `scoring-c.mjs`, `scoring-c.fixtures.mjs`,
 `scoring-c.test.mjs`.
@@ -385,13 +385,13 @@ function validateGameFinishedPayload(payload) {}
 Ontvangers: alle vier `room_with_personal_fields` (§Server → client events:
 "room + persoonlijke velden").
 
-## Sub-batch M5d — `game:rematch-started`, `session:kicked`, `session:revoked`, `error`, snapshot-shape-validator en de snapshot-invariant
+## Sub-batch PR5d — `game:rematch-started`, `session:kicked`, `session:revoked`, `error`, snapshot-shape-validator en de snapshot-invariant
 
 Bestanden (voorstel): `session-and-error-d.mjs`,
 `session-and-error-d.fixtures.mjs`, `session-and-error-d.test.mjs`,
-`snapshot-shape.mjs`, `snapshot-shape.test.mjs` — 5 bestanden, exact op het
+`snapshot-shape.mjs`, `snapshot-shape.test.mjs` — 5 bestanden, ruim binnen het
 budget; splits in twee acties (event-validators eerst, snapshot-module
-apart) als 400 regels anders wordt overschreden.
+apart) als 5.000 regels anders wordt overschreden.
 
 ```js
 /**
@@ -424,8 +424,8 @@ function validateSessionRevokedPayload(payload) {}
  * Valideert de payload van `error`, tegen het letterlijke voorbeeld uit
  * §Foutcodes. Toetst alleen de VORM (`actionId`: string, `code`: string,
  * `meta`: object); toetst niet of `code` een van de 23 bekende waarden is
- * (dat is een M2-contracttest) en niet of `meta` verboden velden bevat (dat
- * is M2's `buildErrorPayload`, al elders getest).
+ * (dat is een PR2-contracttest) en niet of `meta` verboden velden bevat (dat
+ * is PR2's `buildErrorPayload`, al elders getest).
  * @param {unknown} payload
  * @returns {ValidationResult}
  */
@@ -462,7 +462,7 @@ Ontvangers: `game:rematch-started` → `room`; `session:kicked` en
 `session:revoked` → `single_session`; `error` → `single_session` ("relevante
 sessie").
 
-## Sub-batch M5e — `throttleRoundProgress`
+## Sub-batch PR5e — `throttleRoundProgress`
 
 Bestanden (voorstel): `throttle-round-progress.mjs`,
 `throttle-round-progress.test.mjs`.
@@ -488,7 +488,7 @@ function throttleRoundProgress(store, roundId, now) {}
 
 ## Verplichte testgevallen
 
-#### M5a
+#### PR5a
 
 | # | Event/payload | Verwacht |
 | --- | --- | --- |
@@ -503,7 +503,7 @@ function throttleRoundProgress(store, roundId, now) {}
 | 9 | `{ matchId: "match_01J...", totalRounds: 10, countdownEndsAt: 1785623412000 }` | ok |
 | 10 | ontbrekend `matchId`, `totalRounds: 0`, `totalRounds: -1`, `countdownEndsAt: "straks"` | stuk voor stuk afgewezen |
 
-#### M5b
+#### PR5b
 
 | # | Event/payload | Verwacht |
 | --- | --- | --- |
@@ -517,7 +517,7 @@ function throttleRoundProgress(store, roundId, now) {}
 | 18 | `{ roundId: "round_07" }` | ok |
 | 19 | `{}`, `{ roundId: "" }`, `{ roundId: 7 }` | stuk voor stuk afgewezen |
 
-#### M5c
+#### PR5c
 
 | # | Event/payload | Verwacht |
 | --- | --- | --- |
@@ -531,7 +531,7 @@ function throttleRoundProgress(store, roundId, now) {}
 | 27 | `{ podium: [{ playerId: "p_1" }], self: { score: 900 } }` | ok |
 | 28 | `podium` als string, `self` ontbrekend | stuk voor stuk afgewezen |
 
-#### M5d
+#### PR5d
 
 | # | Event/payload | Verwacht |
 | --- | --- | --- |
@@ -547,7 +547,7 @@ function throttleRoundProgress(store, roundId, now) {}
 | 38 | zelfde, maar met een extra sleutel `correctOptionId: "opt_2"` in `currentRound` | afgewezen — invariant geschonden |
 | 39 | zelfde, maar met `room.phase: "SCOREBOARD"` (geen actieve ronde) en `currentRound: {}` | ok — invariant is alleen van toepassing tijdens `ROUND_ACTIVE` |
 
-#### M5e
+#### PR5e
 
 | # | Scenario | Verwacht |
 | --- | --- | --- |
@@ -580,27 +580,27 @@ Reken de meervoudige varianten in de tabellen hierboven door tot ruim 50 losse
   `throttleRoundProgress` is een pure teller/klok-beslissing, geen timer of
   scheduler.
 - **Of `error.payload.code` een van de 23 bekende foutcodes is** — dat is een
-  M2-contracttest (de enum zelf), niet een taak van `validateErrorPayload`
-  hier. Evenmin of `meta` verboden velden bevat — dat is al M2's
+  PR2-contracttest (de enum zelf), niet een taak van `validateErrorPayload`
+  hier. Evenmin of `meta` verboden velden bevat — dat is al PR2's
   `buildErrorPayload`.
 - Nieuwe dependencies, TypeScript, een echt draaiend serverproces,
   Redis/Postgres — buiten dit plan (zie `../README.md` §Wat hier expliciet
   buiten valt).
-- Meer dan 5 bestanden of 400 regels in één actie — splits per sub-batch
-  (M5a–M5e) zoals hierboven, niet als één commit.
+- Meer dan 15 bestanden of 5.000 regels in één actie — splits per sub-batch
+  (PR5a–PR5e) zoals hierboven, niet als één commit.
 
 ## Definition of done
 
 - Voor elk van de 16 events uit §Server → client events bestaat een
   payloadvalidator en een ontvangersregel, gegroepeerd exact in de
-  sub-batches M5a/M5b/M5c/M5d hierboven.
+  sub-batches PR5a/PR5b/PR5c/PR5d hierboven.
 - `validateSnapshotShape` en `assertNoActiveRoundAnswerLeak` bestaan als losse
-  functies (M5d), met minstens één slagende en één falende invariant-fixture.
+  functies (PR5d), met minstens één slagende en één falende invariant-fixture.
 - `throttleRoundProgress` staat nooit meer dan 2 emissies per rollend venster
-  van 1 seconde per `roundId` toe (M5e), aangetoond met een reeks aanroepen
+  van 1 seconde per `roundId` toe (PR5e), aangetoond met een reeks aanroepen
   binnen dat venster.
 - Alle rijen uit de tabel "Verplichte testgevallen" slagen, per sub-batch.
-- Geen enkel sub-batch-commit overschrijdt 5 bestanden of 400 regels
-  (CLAUDE.md-autonomiegrens); M5d wordt zo nodig in twee acties gesplitst.
+- Geen enkel sub-batch-commit overschrijdt 15 bestanden of 5.000 regels
+  (CLAUDE.md-autonomiegrens); PR5d wordt zo nodig in twee acties gesplitst.
 - Open vragen §2, §10 en §11 zijn benoemd in het opleververslag als bewust
   niet opgelost, niet stilzwijgend dichtgetimmerd.

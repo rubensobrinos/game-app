@@ -1,14 +1,14 @@
-# Prompt — M8: Voorstel sessie/tokenmodule
+# Prompt — PR8: Voorstel sessie/tokenmodule
 
-Dekt fase **M8** uit [`../README.md`](../README.md#fasering) (`auth`, niet-bindend,
+Dekt fase **PR8** uit [`../README.md`](../README.md#fasering) (`auth`, niet-bindend,
 checkpoint vóór code). Kopieer alles onder **Prompt** naar een nieuwe sessie/agent-
 aanroep. Dit bestand is zelfstandig leesbaar, zonder kennis van enig eerder gesprek.
 
 > **Waarschuwing vooraf, geldig voor de hele rest van dit bestand:** dit is de enige
 > fase in `protocol-plan` die een `auth`-beslissing raakt. Dit promptbestand voert je
-> **nooit** automatisch door naar codeschrijven. Stap 1 hieronder (M8a) levert
+> **nooit** automatisch door naar codeschrijven. Stap 1 hieronder (PR8a) levert
 > uitsluitend een schriftelijk voorstel — geen enkele functie-body. Pas ná de
-> expliciete bevestiging in de Checkpoint-sectie mag Stap 3 (M8b) beginnen. Voer geen
+> expliciete bevestiging in de Checkpoint-sectie mag Stap 3 (PR8b) beginnen. Voer geen
 > stap uit door de vorige over te slaan, ook niet "om vast te testen" of "als
 > voorlopige versie".
 
@@ -23,9 +23,9 @@ Je werkt in de repo `game-app`. Lees, voordat je begint:
 - [`docs/multiplayer/ARCHITECTURE.md`](../../multiplayer/ARCHITECTURE.md), §4
   ("Tijdelijke sessies, geen accounts").
 - [`../README.md`](../README.md), Uitgangspunt 1, de modulestabel-rij
-  `auth-session`, fase **M8**, en de sectie **Wat hier expliciet buiten valt**
+  `auth-session`, fase **PR8**, en de sectie **Wat hier expliciet buiten valt**
   (het `TOKEN_PEPPER`/`.env`-punt).
-- `server/protocol/envelope.mjs`/`idempotency.mjs` (bestaande M1-code — stijl:
+- `server/protocol/envelope.mjs`/`idempotency.mjs` (bestaande PR1-code — stijl:
   platte `.mjs`, JSDoc, functies die nooit gooien).
 
 ### Brondocument
@@ -65,10 +65,10 @@ Je werkt in de repo `game-app`. Lees, voordat je begint:
 > peppering) — expliciet géén vorm-validatie, die zit in `auth-shape` |
 > §Authenticatie en tijdelijke sessies
 
-`../README.md`, fase M8, letterlijk (volledig, dit ís de fasering die je hieronder
+`../README.md`, fase PR8, letterlijk (volledig, dit ís de fasering die je hieronder
 uitvoert):
 
-> - **M8a — Schriftelijk voorstel, geen code:** algoritme-keuze (bv. `node:crypto`
+> - **PR8a — Schriftelijk voorstel, geen code:** algoritme-keuze (bv. `node:crypto`
 >   `randomBytes`-lengte/entropie-doel), hashingschema en peppering-strategie als
 >   proza/pseudocode, met een afweging tussen alternatieven. Dit voorstel bevat
 >   uitdrukkelijk **geen** `generateSessionToken()`/`hashToken()`-implementatie — het
@@ -77,9 +77,9 @@ uitvoert):
 > - **Checkpoint:** ik vraag expliciet akkoord op dit voorstel vóórdat ik ook maar één
 >   regel `generateSessionToken()`/`hashToken()`-code schrijf. Zonder akkoord stopt dit
 >   plan hier.
-> - **M8b — Pas na akkoord:** `generateSessionToken()` en `hashToken()` als pure
+> - **PR8b — Pas na akkoord:** `generateSessionToken()` en `hashToken()` als pure
 >   functies, getest op formaat, entropie en hash-consistentie (zelfde patroon als
->   `architecture-plan`'s `room-codes`/A2) — nog steeds **niet** op echte opslag of
+>   `architecture-plan`'s `room-codes`/AR2) — nog steeds **niet** op echte opslag of
 >   revocation-levenscyclus; dat blijft een aparte, latere `auth`-stap.
 
 `../README.md`, sectie **Wat hier expliciet buiten valt**, letterlijk (relevant
@@ -87,9 +87,9 @@ fragment):
 
 > Alles wat `TOKEN_PEPPER`, `.env` of productie-secrets raakt.
 
-### Stap 1 — M8a: schriftelijk voorstel (geen code)
+### Stap 1 — PR8a: schriftelijk voorstel (geen code)
 
-Lever een los reviewdocument op: `docs/protocol-plan/M8a-auth-session-voorstel.md`.
+Lever een los reviewdocument op: `docs/protocol-plan/PR8a-auth-session-voorstel.md`.
 Dit document bevat proza/pseudocode — **geen enkele werkende functie-body, geen
 `.mjs`-bestand**. Behandel minimaal:
 
@@ -131,22 +131,22 @@ voor de koppeling aan Redis-opslag, sessiebeheer of revocation. Zonder dit akkoo
 stop je hier: geen `.mjs`-bestand, geen "even snel de pseudocode omzetten in echte
 code om te kijken of het werkt", geen voorlopige implementatie "die we later toch
 herzien". Als de bevestiging uitblijft of afwijkend is (bijv. een andere
-algoritmekeuze dan voorgesteld), verwerk je dat als een wijziging op het M8a-voorstel
+algoritmekeuze dan voorgesteld), verwerk je dat als een wijziging op het PR8a-voorstel
 en leg je het opnieuw voor — je schrijft niet alvast code op de aanname dat het wel
 goedgekeurd zal worden.
 
-### Stap 3 — M8b: pure functies (uitsluitend na de Checkpoint hierboven)
+### Stap 3 — PR8b: pure functies (uitsluitend na de Checkpoint hierboven)
 
-Bouw, exact volgens de in M8a goedgekeurde aanpak, twee pure functies in
+Bouw, exact volgens de in PR8a goedgekeurde aanpak, twee pure functies in
 `server/protocol/auth-session.mjs`. De signaturen hieronder zijn het doelcontract voor
 ná de Checkpoint — schrijf de function-bodies niet eerder.
 
 ```js
 /**
  * @file Sessietoken-generatie en -hashing — realiseert PROTOCOL.md
- * §Authenticatie en tijdelijke sessies, volgens het M8a-voorstel na
- * bevestiging (zie ../README.md fase M8, ../M8-session-token-proposal.md).
- * @see docs/protocol-plan/M8a-auth-session-voorstel.md — de geaccordeerde
+ * §Authenticatie en tijdelijke sessies, volgens het PR8a-voorstel na
+ * bevestiging (zie ../README.md fase PR8, ../PR8-session-token-proposal.md).
+ * @see docs/protocol-plan/PR8a-auth-session-voorstel.md — de geaccordeerde
  *   algoritme-/hashing-/peppering-keuze die deze module implementeert.
  *
  * Pure functies: geen Redis, geen sessiebeheer, geen revocation. `crypto` en
@@ -157,13 +157,13 @@ ná de Checkpoint — schrijf de function-bodies niet eerder.
  */
 
 /**
- * Genereert een cryptografisch willekeurige sessietoken volgens het in M8a
+ * Genereert een cryptografisch willekeurige sessietoken volgens het in PR8a
  * gekozen entropie-doel en encoderingsformaat.
  *
  * @param {{ randomBytes: (size: number) => Buffer }} cryptoSource -
  *   geïnjecteerde `randomBytes`-achtige functie (bijv. `node:crypto`), zodat
  *   de functie testbaar is zonder de systeem-CSPRNG te monkeypatchen
- * @returns {string} de sessietoken in het M8a-gekozen formaat (bijv.
+ * @returns {string} de sessietoken in het PR8a-gekozen formaat (bijv.
  *   base64url)
  */
 export function generateSessionToken(cryptoSource) {
@@ -171,7 +171,7 @@ export function generateSessionToken(cryptoSource) {
 }
 
 /**
- * Hasht een sessietoken voor opslag, volgens het in M8a gekozen algoritme en
+ * Hasht een sessietoken voor opslag, volgens het in PR8a gekozen algoritme en
  * peppering-schema.
  *
  * @param {string} token
@@ -185,52 +185,52 @@ export function hashToken(token, pepper) {
 }
 ```
 
-### Verplichte testgevallen (uitsluitend voor M8b, na de Checkpoint)
+### Verplichte testgevallen (uitsluitend voor PR8b, na de Checkpoint)
 
 | # | Functie | Scenario | Verwacht |
 | --- | --- | --- | --- |
 | 1 | `generateSessionToken` | injecteer een deterministische fake `randomBytes` (vaste bytes) | deterministieke, reproduceerbare outputstring — bewijst dat er geen verborgen globale randomness gebruikt wordt |
-| 2 | `generateSessionToken` | output-vorm | string voldoet aan het in M8a gekozen encoderingsformaat/lengte (bijv. exacte base64url-lengte voor N bytes) |
+| 2 | `generateSessionToken` | output-vorm | string voldoet aan het in PR8a gekozen encoderingsformaat/lengte (bijv. exacte base64url-lengte voor N bytes) |
 | 3 | `generateSessionToken` | 1000 aanroepen met een échte `randomBytes` | geen enkele botsing binnen deze steekproef (smoke test, geen entropiebewijs) |
 | 4 | `hashToken` | zelfde `token` + zelfde `pepper`, twee aanroepen | identieke hash (determinisme) |
 | 5 | `hashToken` | zelfde `token`, verschillende `pepper` | verschillende hash |
 | 6 | `hashToken` | verschillende `token`, zelfde `pepper` | verschillende hash |
-| 7 | `hashToken` | output-vorm | lengte/encodering komt exact overeen met het in M8a gekozen hash-algoritme (bijv. hex-lengte van een SHA-256-digest) |
-| 8 | `hashToken` | lege string als `token` of als `pepper` | expliciet gedefinieerd gedrag uit M8a (afwijzen met een duidelijke fout, of expliciet toegestaan) — niet stilzwijgend een verrassende hash |
+| 7 | `hashToken` | output-vorm | lengte/encodering komt exact overeen met het in PR8a gekozen hash-algoritme (bijv. hex-lengte van een SHA-256-digest) |
+| 8 | `hashToken` | lege string als `token` of als `pepper` | expliciet gedefinieerd gedrag uit PR8a (afwijzen met een duidelijke fout, of expliciet toegestaan) — niet stilzwijgend een verrassende hash |
 | 9 | integratie | `hashToken(generateSessionToken(realRandomBytes), pepper)` | slaagt zonder foutieve type-aannames tussen beide functies (bijv. Buffer- vs. string-verwarring) |
 
 ### Niet in scope
 
-**Voor M8a:**
+**Voor PR8a:**
 - Elke vorm van functie-body, `.mjs`-bestand of "voorlopige implementatie" — dit is
   uitsluitend een schriftelijk voorstel.
 - Een concrete `TOKEN_PEPPER`-waarde, `.env`-variabele of secrets-manager-keuze —
   alleen het conceptuele combinatieschema (proza/pseudocode).
 - Redis-opslagvorm en TTL-koppeling — `architecture-plan`/`data-model-plan`.
 
-**Voor M8b (en alleen relevant ná de Checkpoint):**
+**Voor PR8b (en alleen relevant ná de Checkpoint):**
 - Echte Redis-opslag van de hash, sessie-TTL, of de koppeling aan `Room`/`Session` uit
   `DATA-MODEL.md`.
 - Revocation-levenscyclus (`session:revoked`, kick-koppeling uit `game:kick`).
 - De daadwerkelijke bron/provisionering van de pepper-waarde in productie.
 - Elke aanpassing aan de `sessionToken`/`roles`-vórm zelf uit `PROTOCOL.md` — die vorm
-  ligt al vast en hoort bij `auth-shape` (M3), niet bij dit voorstel.
+  ligt al vast en hoort bij `auth-shape` (PR3), niet bij dit voorstel.
 - Doorgaan naar Stap 3 zonder de Checkpoint-bevestiging — dat is geen "niet in
   scope"-detail maar een harde stop, zie hierboven.
 
 ### Definition of done
 
-- **M8a:** `docs/protocol-plan/M8a-auth-session-voorstel.md` bestaat, bevat geen
+- **PR8a:** `docs/protocol-plan/PR8a-auth-session-voorstel.md` bestaat, bevat geen
   enkele functie-body, en bevat voor zowel de entropie-/algoritmekeuze als de
   hashingkeuze een afweging tussen minstens twee alternatieven plus een expliciete
   aanbeveling.
 - **Checkpoint:** een expliciete bevestiging van de gebruiker/mens die `PROTOCOL.md`
   accordeert is ontvangen en aantoonbaar (bijv. aangehaald of verwezen) vóórdat Stap 3
   begint. Zonder die bevestiging eindigt de uitvoering van dit prompt bij Stap 1.
-- **M8b (alleen na akkoord):** `generateSessionToken` en `hashToken` bestaan in
+- **PR8b (alleen na akkoord):** `generateSessionToken` en `hashToken` bestaan in
   `server/protocol/auth-session.mjs`, geïmplementeerd exact volgens de goedgekeurde
-  M8a-keuze, met alle 9 testgevallen groen via
+  PR8a-keuze, met alle 9 testgevallen groen via
   `node --test server/protocol/auth-session.test.mjs`. Geen Redis-, opslag- of
   revocation-code in dit bestand.
-- Past binnen de autonomiegrens uit `CLAUDE.md` (≤5 bestanden, ≤400 regels per actie);
-  M8a en M8b zijn hoe dan ook al gesplitst door de Checkpoint, dus dit past ruim.
+- Past binnen de autonomiegrens uit `CLAUDE.md` (≤15 bestanden, ≤5.000 regels per actie);
+  PR8a en PR8b zijn hoe dan ook al gesplitst door de Checkpoint, dus dit past ruim.
