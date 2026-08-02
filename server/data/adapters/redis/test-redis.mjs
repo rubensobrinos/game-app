@@ -21,6 +21,19 @@
 // database-index hieronder is verdediging in de diepte: mocht er ooit tóch
 // geschreven worden, dan gebeurt dat in een hoge, per proces gekozen index en
 // niet in db 0.
+//
+// NOOT (INTB2e): die belofte gaat over de INTB2a-tests die dit bestand als
+// eerste gebruikten. `data-store.test.mjs` en `aof-restart.test.mjs` schrijven
+// wél — in hun eigen database-index, nooit in db 0 — en `aof-restart.test.mjs`
+// herstart de instantie zelfs. Dat is precies waarom `acquireRedisTestLock()`
+// hieronder bestaat. DIT BESTAND zelf schrijft nog steeds niets naar Redis; het
+// slot is een map in de tijdelijke directory van het OS.
+
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { createRedisConnection } from './connection.mjs';
 
@@ -84,6 +97,108 @@ export function testConnectionConfig(overrides = {}) {
     closeGracePeriodMs: 500,
     ...overrides,
   };
+}
+
+// ----------------------------------------------------------------------
+// Wederzijdse uitsluiting tussen Redis-schrijvende testbestanden.
+//
+// `node --test` draait TESTBESTANDEN PARALLEL (één proces per bestand). Twee
+// bestanden die dezelfde testinstantie schrijven kunnen daardoor:
+//   * in dezelfde database-index landen (8 + pid % 8 botst zodra twee pids
+//     dezelfde rest hebben) en elkaars fixtures wegflushen;
+//   * en sinds `aof-restart.test.mjs` erger: dat bestand KILT de server
+//     midden in de run van de ander.
+//
+// Vandaar deze slotmechaniek. Hij zit hier en niet in één van de testbestanden
+// omdat beide kanten hem moeten nemen — een slot dat maar één partij neemt is
+// geen slot. Het is een ADVISORY lock: hij beschermt tegen de testbestanden in
+// deze repo, niet tegen iemand die handmatig redis-cli openzet.
+//
+// Waarom een map en geen bestand: `mkdir` is atomair op elk relevant
+// bestandssysteem — hij slaagt bij precies één proces en werpt EEXIST bij de
+// rest. Een Redis-sleutel als slot kan hier per definitie niet: het slot moet
+// juist een SIGKILL van Redis overleven.
+// ----------------------------------------------------------------------
+
+/** Het slot zelf. Buiten de repo, want dit is looptijdstatus en geen broncode. */
+const LOCK_PATH = join(tmpdir(), 'aseso-game-test-redis.lock');
+
+/** Een slot van een proces dat niet meer bestaat, of ouder dan dit, is puin. */
+const LOCK_STALE_MS = 10 * 60 * 1000;
+
+/**
+ * Kijkt of het huidige slot van een dood of veel te oud proces is en ruimt het
+ * in dat geval op. Zonder dit blijft één gecrashte testrun de rest van de dag
+ * blokkeren.
+ * @returns {Promise<boolean>} true als er iets is opgeruimd
+ */
+async function clearStaleLock() {
+  let owner;
+  try {
+    owner = JSON.parse(await readFile(join(LOCK_PATH, 'owner.json'), 'utf8'));
+  } catch {
+    // Geen (leesbaar) eigenaarsbestand: het slot is half aangemaakt of half
+    // opgeruimd. Niet stelen — de eigenaar kan er nog een milliseconde vanaf
+    // zijn — behalve als de map zelf al oud is.
+    return false;
+  }
+  const tooOld = Date.now() - Number(owner?.acquiredAt ?? 0) > LOCK_STALE_MS;
+  let alive = true;
+  try {
+    process.kill(Number(owner?.pid), 0);
+  } catch (error) {
+    alive = /** @type {{code?: string}} */ (error)?.code === 'EPERM';
+  }
+  if (alive && !tooOld) return false;
+  await rm(LOCK_PATH, { recursive: true, force: true });
+  return true;
+}
+
+/**
+ * Neemt het slot en levert de vrijgave op. Elk testbestand dat naar de
+ * testinstantie SCHRIJFT neemt hem, vóór de eerste verbinding.
+ *
+ * @param {{ timeoutMs?: number, pollMs?: number, label?: string }} [options]
+ * @returns {Promise<() => Promise<void>>} vrijgave, idempotent
+ */
+export async function acquireRedisTestLock({ timeoutMs = 300_000, pollMs = 50, label = 'onbekend' } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      await mkdir(LOCK_PATH);
+      await writeFile(join(LOCK_PATH, 'owner.json'), JSON.stringify({ pid: process.pid, label, acquiredAt: Date.now() }));
+
+      let released = false;
+      // Vangnet voor een testproces dat eruit klapt zonder zijn `after` te
+      // draaien: zonder dit blijft het slot tien minuten staan.
+      const onExit = () => {
+        if (released) return;
+        try {
+          rmSync(LOCK_PATH, { recursive: true, force: true });
+        } catch {
+          /* opruimen bij het afsluiten mag nooit de exitcode veranderen */
+        }
+      };
+      process.once('exit', onExit);
+
+      return async () => {
+        if (released) return;
+        released = true;
+        process.removeListener('exit', onExit);
+        await rm(LOCK_PATH, { recursive: true, force: true });
+      };
+    } catch (error) {
+      if (/** @type {{code?: string}} */ (error)?.code !== 'EEXIST') throw error;
+      if (await clearStaleLock()) continue;
+      if (Date.now() > deadline) {
+        throw new Error(
+          `Kreeg het testredis-slot (${LOCK_PATH}) niet binnen ${timeoutMs} ms. ` +
+            'Een ander Redis-schrijvend testbestand houdt hem vast, of er staat een slot van een gecrashte run.'
+        );
+      }
+      await delay(pollMs);
+    }
+  }
 }
 
 /**

@@ -20,7 +20,7 @@
 //     stilzwijgend groen.
 
 import { EventEmitter } from 'node:events';
-import { describe, it } from 'node:test';
+import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
@@ -32,6 +32,7 @@ import {
 import {
   TEST_REDIS_DATABASE,
   TEST_REDIS_URL,
+  acquireRedisTestLock,
   assertTestInstance,
   probeTestRedis,
   testConnectionConfig,
@@ -534,6 +535,17 @@ describe('connection — een onbereikbare Redis faalt luid en snel', () => {
 // --------------------------------------------------------------------------
 
 assertTestInstance(TEST_REDIS_URL);
+
+// Het gedeelde testredis-slot (INTB2e). Deze tests schrijven niets, maar
+// `aof-restart.test.mjs` SIGKILLt de instantie en `node --test` draait
+// testbestanden parallel — een herstart midden in een reconnect-assertie hier
+// zou onterecht rood geven. Het slot kost ~niets: dit bestand is in een kwart
+// seconde klaar.
+const releaseLock = await acquireRedisTestLock({ label: 'connection.test.mjs' });
+after(async () => {
+  await releaseLock();
+});
+
 const availability = await probeTestRedis();
 if (!availability.ok) {
   // Zichtbaar, niet stilzwijgend: node:test meldt de skip mét reden, en deze

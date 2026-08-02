@@ -41,9 +41,17 @@
 // TESTINSTANTIE: uitsluitend `redis://127.0.0.1:6380` via `test-redis.mjs`.
 // Anders dan bij INTB2a SCHRIJVEN deze tests wél, dus draait alles in de
 // per-proces gekozen database-index (8..15, nooit 0) en ruimt elke test na
-// zichzelf op. Er staat daarom precies één Redis-schrijvend testbestand in deze
-// map: twee bestanden zouden in twee processen kunnen landen die dezelfde
-// index kiezen, en dan flusht de een de fixtures van de ander weg.
+// zichzelf op.
+//
+// EN ER IS EEN SLOT (INTB2e). Dit was ooit het enige Redis-schrijvende
+// testbestand in deze map, want twee bestanden kunnen in twee processen landen
+// die dezelfde database-index kiezen en dan flusht de een de fixtures van de
+// ander weg. `aof-restart.test.mjs` is het tweede geworden, en dat doet iets
+// ergers dan flushen: het SIGKILLt de instantie. `node --test` draait
+// testbestanden parallel, dus beide kanten nemen nu
+// `acquireRedisTestLock()` uit test-redis.mjs voordat ze een verbinding
+// opzetten. Wie hier een derde Redis-schrijvend bestand bij zet: neem dat slot
+// ook, anders is het weer loterij.
 
 import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -68,13 +76,16 @@ import { runDataStoreConformance } from '../data-store-conformance.mjs';
 import { createRedisConnection } from './connection.mjs';
 import { encodeDocument } from './documents.mjs';
 import { createRedisDataStore, NotImplementedError, UNIMPLEMENTED_METHODS } from './data-store.mjs';
-import { TEST_REDIS_DATABASE, probeTestRedis, testConnectionConfig } from './test-redis.mjs';
+import { TEST_REDIS_DATABASE, acquireRedisTestLock, probeTestRedis, testConnectionConfig } from './test-redis.mjs';
 
+// Het slot vóór de eerste verbinding: zie de noot in de kop.
+const releaseLock = await acquireRedisTestLock({ label: 'data-store.test.mjs' });
 const probe = await probeTestRedis();
 
 if (!probe.ok) {
   // Nooit stilzwijgend groen: als de testinstantie er niet is, staat de reden
   // in de skipmelding.
+  await releaseLock();
   describe('Redis-adapter (data-store.mjs)', { skip: probe.reason }, () => {});
 } else {
   // Verdediging in de diepte bovenop `assertTestInstance` in testConnectionConfig():
@@ -86,6 +97,7 @@ if (!probe.ok) {
   after(async () => {
     await connection.getClient().flushDb();
     await connection.close();
+    await releaseLock();
   });
 
   const client = () => connection.getClient();
