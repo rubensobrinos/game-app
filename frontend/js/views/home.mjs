@@ -20,26 +20,34 @@ const CODE_FORMAT = /^[0-9]{6}$/;
 export function createHomeView({ root, t, transport, storage, onNavigate, onCodeLocator }) {
   root.textContent = '';
 
+  const screen = el('div', 'screen home-screen');
+  const logo = el('div', 'app-logo');
+  logo.textContent = '🌍';
   const title = el('h1', 'home-title');
   const quickStartButton = document.createElement('button');
   quickStartButton.type = 'button';
-  quickStartButton.className = 'home-quick-start';
+  quickStartButton.className = 'home-quick-start btn-primary';
+  const quickStartError = el('p', 'home-quick-start-error field-error');
 
-  const codeLabel = el('label', 'home-code-label');
+  const divider = el('p', 'home-divider');
+  divider.textContent = t('home.divider');
+
+  const codeLabel = el('label', 'home-code-label field-label');
+  const codeLabelText = el('span', 'field-label-text');
   const codeInput = document.createElement('input');
   codeInput.type = 'text';
   codeInput.inputMode = 'numeric';
   codeInput.maxLength = 6;
-  codeInput.className = 'home-code-input';
-  codeLabel.appendChild(codeInput);
+  codeInput.placeholder = t('home.codePlaceholder');
+  codeInput.className = 'home-code-input field-input';
+  codeLabel.append(codeLabelText, codeInput);
+  const codeError = el('p', 'home-code-error field-error');
   const codeSubmitButton = document.createElement('button');
   codeSubmitButton.type = 'button';
-  codeSubmitButton.className = 'home-code-submit';
-  const codeError = el('p', 'home-code-error');
+  codeSubmitButton.className = 'home-code-submit btn-secondary';
 
-  const quickStartError = el('p', 'home-quick-start-error');
-
-  root.append(title, quickStartButton, quickStartError, codeLabel, codeSubmitButton, codeError);
+  screen.append(logo, title, quickStartButton, quickStartError, divider, codeLabel, codeError, codeSubmitButton);
+  root.append(screen);
 
   let state = initialHostSetupState();
 
@@ -91,8 +99,10 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
 
   function render() {
     title.textContent = t('home.title');
+    codeLabelText.textContent = t('home.codeLabel');
     quickStartButton.textContent = t('home.quickStart');
     quickStartButton.disabled = state.status === 'creating';
+    divider.hidden = state.status === 'creating';
     codeLabel.hidden = state.status === 'creating';
     codeSubmitButton.hidden = state.status === 'creating';
     codeSubmitButton.textContent = t('home.codeSubmit');

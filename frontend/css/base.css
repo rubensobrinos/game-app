@@ -1,6 +1,47 @@
-/* base.css — UI0. Mobile-first basis: portret telefoonscherm is het
-   primaire doelwit. Geen scherm-specifieke stijl hier — die landt per
-   view-module in UI1–UI5. */
+/* base.css — UI0/UI1. Mobile-first basis + tokens. Portret telefoonscherm is
+   het primaire doelwit. Kleurvariabelen zijn bewust gelijk aan de root-app se
+   `style.css` (zelfde --accent/--surface/--r enz.) — dit is dezelfde
+   productfamilie, geen eigen visuele taal.
+
+   Componentstijl (btn-primary/secondary, field-input, gameplay-*,
+   scoreboard-*, podium-*) zit in `components.css` (CT/regie, HANDOFF-UI
+   UI-5) — dat hergebruikt uitsluitend de tokens hieronder. Dit bestand houdt
+   zich aan reset + layout + de dingen die components.css niet dekt (schermen,
+   formulierlabels, het hamburgermenu). Geen duplicaten hier van wat
+   components.css al stylet — dat raakt anders stilzwijgend uit sync. */
+
+:root {
+  --bg: #0d0d1a;
+  --surface: #16162a;
+  --surface2: #1e1e38;
+  --border: #2a2a4a;
+  --accent: #7c3aed;
+  --accent-light: #a855f7;
+  --accent-glow: rgba(168, 85, 247, 0.25);
+  --success: #22c55e;
+  --success-bg: rgba(34, 197, 94, 0.12);
+  --error: #ef4444;
+  --error-bg: rgba(239, 68, 68, 0.12);
+  --text: #f1f5f9;
+  --text-muted: #8b92b0;
+  --r: 14px;
+  --r-sm: 10px;
+}
+
+/* Lichte variant (UI-vraag: thema-instelling naast de taalkeuze). Bewust geen
+   ander accent/contrast-concept, alleen het donkere palet omgekeerd — zelfde
+   productgevoel, andere helderheid. Toegepast via
+   `document.documentElement.dataset.theme` (`app-menu.mjs`). */
+:root[data-theme='light'] {
+  --bg: #f4f4fa;
+  --surface: #ffffff;
+  --surface2: #ececf6;
+  --border: #dcdce8;
+  --text: #14141f;
+  --text-muted: #5b5b70;
+  --success-bg: rgba(34, 197, 94, 0.14);
+  --error-bg: rgba(239, 68, 68, 0.1);
+}
 
 *,
 *::before,
@@ -16,16 +57,17 @@ html {
 
 body {
   margin: 0;
-  min-height: 100%;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  min-height: 100dvh;
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
   font-size: 1rem;
   line-height: 1.4;
-  background: #101418;
-  color: #f2f2f2;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
 }
 
 #app-root {
-  padding: 1rem;
+  min-height: 100dvh;
   max-width: 480px;
   margin: 0 auto;
 }
@@ -33,6 +75,13 @@ body {
 img {
   max-width: 100%;
   display: block;
+}
+
+/* Auteursregels zoals `.field-label { display: flex }` winnen anders van de
+   UA-stylesheet se `[hidden] { display: none }` (gelijke specificiteit, maar
+   auteur-CSS verslaat altijd UA-CSS) — dus expliciet hier afdwingen. */
+[hidden] {
+  display: none !important;
 }
 
 button,
@@ -45,4 +94,172 @@ textarea {
 button {
   min-height: 44px;
   min-width: 44px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Appheader (hamburgermenu) — zichtbaar op élk scherm, buiten #app-root ── */
+#app-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem 1rem 0;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.btn-icon {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  width: 2.75rem;
+  height: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  transition: border-color 0.2s;
+}
+
+.btn-icon:hover {
+  border-color: var(--accent-light);
+}
+
+.app-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 1rem;
+  z-index: 61;
+  width: min(260px, calc(100vw - 2rem));
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.app-menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.app-menu-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.btn-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-opt {
+  flex: 1;
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  padding: 0.5rem 0.4rem;
+  min-height: 40px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+
+.btn-opt:hover {
+  border-color: var(--accent-light);
+  color: var(--text);
+}
+
+.btn-opt.active {
+  border-color: var(--accent-light);
+  background: var(--accent-glow);
+  color: var(--accent-light);
+}
+
+/* ── Scherm-layout ─────────────────────────────────────────────────────── */
+.screen {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  gap: 1rem;
+  padding: 2rem 1.5rem;
+}
+
+.app-logo {
+  font-size: 3rem;
+  text-align: center;
+}
+
+/* Titel-gradient/kleur komt van components.css se generieke `h1`-regel (zelfde
+   gradient overal, UI-5's harde eis) — hier alleen grootte/marge per scherm. */
+.home-title {
+  font-size: clamp(2rem, 8vw, 2.75rem);
+  text-align: center;
+  margin: 0 0 0.5rem;
+}
+
+.join-title {
+  font-size: 1.35rem;
+  text-align: center;
+  margin: 0;
+}
+
+.join-status {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  min-height: 1.2em;
+}
+
+.home-divider {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0.25rem 0;
+}
+
+/* ── Formulierlabels (components.css stylet `.field-input` zelf, niet de
+   wrapper/labeltekst eromheen) ────────────────────────────────────────── */
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field-label-text {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.field-error {
+  color: var(--error);
+  background: var(--error-bg);
+  border-radius: var(--r-sm);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 0;
+  margin: 0;
+  min-height: 0;
+}
+
+.field-error:not(:empty) {
+  padding: 0.5rem 0.75rem;
 }

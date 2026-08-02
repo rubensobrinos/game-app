@@ -3,7 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Vlaggenquiz</title>
+    <title>Play Aseso — Samen spelen</title>
+    <meta name="description" content="Speel de vlaggenquiz samen: één host, QR scannen en meedoen. Geen account nodig." />
+    <meta name="theme-color" content="#0d0d1a" />
+    <meta property="og:title" content="Play Aseso — Samen spelen" />
+    <meta property="og:description" content="Scan de QR en speel direct mee. Geen account nodig." />
+    <meta property="og:image" content="https://play.aseso.nl/og-image.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- UI-3 beantwoord (docs/integration-plan/transport-contract-response.md):
          INT-A serveert frontend/ als eigen root en voegt twee statische
          mappings toe (/client/* -> client/, /shared/* -> shared/). Met
@@ -14,9 +21,12 @@
     <link rel="stylesheet" href="/css/components.css" />
   </head>
   <body>
-    <!-- Lege root-container: UI1-UI5 monteren hier hun schermen. UI0 vult
-         dit alleen tijdelijk via js/app.mjs om te bewijzen dat de
-         module-graf laadt. -->
+    <!-- Buiten #app-root: overleeft elke routewissel (die maakt alleen
+         #app-root leeg). Hamburgermenu (taal van de app-UI + licht/donker-
+         thema) wordt hier door app-menu.mjs in gemount, zichtbaar op elk
+         scherm vanaf de indexpagina. -->
+    <div id="app-header"></div>
+    <!-- Lege root-container: UI1-UI5 monteren hier hun schermen. -->
     <div id="app-root"></div>
     <script type="module" src="/js/app.mjs"></script>
   </body>

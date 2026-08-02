@@ -5,17 +5,30 @@
 // `data-i18n`) aan te tonen in `js/app.mjs`.
 
 export const nl = Object.freeze({
-  'app.title': 'Vlaggenquiz',
+  'app.title': 'Play Aseso',
   'scaffold.ready': 'Frontend-scaffold gereed — schermen volgen in UI1–UI5.',
 
+  // — Hamburgermenu (taal van de app zelf, niet de vraagtaal — die zit in
+  // host-setup-state's config.language) + licht/donker-thema —
+  'menu.open': 'Menu',
+  'menu.language': 'Taal',
+  'menu.theme': 'Thema',
+  'menu.themeDark': 'Donker',
+  'menu.themeLight': 'Licht',
+
   // — UI1-sleutels (Home + Preview/join) —
-  'home.title': 'Vlaggenquiz',
+  'home.title': 'Play Aseso',
   'home.quickStart': 'Snel starten',
+  'home.divider': 'of',
+  'home.codeLabel': 'Heb je een code?',
+  'home.codePlaceholder': '123456',
   'home.codeSubmit': 'Meedoen met code',
   'home.codeInvalid': 'Vul een code van 6 cijfers in',
   'join.title': 'Meedoen',
   'join.previewing': 'Bezig met ophalen…',
   'join.submitting': 'Bezig met meedoen…',
+  'join.nameLabel': 'Jouw naam (optioneel)',
+  'join.namePlaceholder': 'bv. Tom',
   'join.submit': 'Meedoen',
   'join.retry': 'Opnieuw proberen',
   'join.joined': 'Meegedaan!',

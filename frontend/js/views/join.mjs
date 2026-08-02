@@ -23,23 +23,27 @@ import { messageForErrorCode } from '../../../client/flow/edge-case-messaging.mj
 export function createJoinView({ root, t, transport, storage, onJoined }) {
   root.textContent = '';
 
+  const screen = el('div', 'screen join-screen');
   const title = el('h1', 'join-title');
   const status = el('p', 'join-status');
-  const nameLabel = el('label', 'join-name-label');
+  const nameLabel = el('label', 'join-name-label field-label');
+  const nameLabelText = el('span', 'field-label-text');
   const nameInput = document.createElement('input');
   nameInput.type = 'text';
-  nameInput.className = 'join-name-input';
+  nameInput.className = 'join-name-input field-input';
   nameInput.maxLength = 60; // grapheme-afkap gebeurt in join-state, dit is alleen een ruime UI-grens
-  nameLabel.appendChild(nameInput);
-  const errorMessage = el('p', 'join-error');
+  nameInput.placeholder = t('join.namePlaceholder');
+  nameLabel.append(nameLabelText, nameInput);
+  const errorMessage = el('p', 'join-error field-error');
   const submitButton = document.createElement('button');
   submitButton.type = 'button';
-  submitButton.className = 'join-submit';
+  submitButton.className = 'join-submit btn-primary';
   const retryButton = document.createElement('button');
   retryButton.type = 'button';
-  retryButton.className = 'join-retry';
+  retryButton.className = 'join-retry btn-secondary';
 
-  root.append(title, status, nameLabel, errorMessage, submitButton, retryButton);
+  screen.append(title, status, nameLabel, errorMessage, submitButton, retryButton);
+  root.append(screen);
 
   let state = initialJoinState();
 
@@ -115,6 +119,7 @@ export function createJoinView({ root, t, transport, storage, onJoined }) {
     if (state.status === 'name-entry' || state.status === 'submitting') {
       status.textContent = state.status === 'submitting' ? t('join.submitting') : '';
       nameLabel.hidden = false;
+      nameLabelText.textContent = t('join.nameLabel');
       // Voorinvullen, niet als placeholder (harde regel 2: één tik moet
       // volstaan zonder te typen) — alleen bij het eerste render van dit
       // status, anders overschrijft elke render de eigen typeactie.
@@ -149,6 +154,9 @@ export function createJoinView({ root, t, transport, storage, onJoined }) {
         runPreview();
       }
     },
+    // Ná een taalwissel (app-menu.mjs) — ververst labels/knoppen zonder de
+    // reducerstate (typed naam, locator) te resetten.
+    render,
   };
 }
 
