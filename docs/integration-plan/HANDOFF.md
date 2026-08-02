@@ -11,7 +11,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INT-1 | DM + AR | ✅ **opgelost** | Atomaire claim toegevoegd: `claimRoomLocatorsAtomically`, `releaseRoomLocators`, `refreshRoomLocators` (variant A) |
 | INT-2 | PR | 🔵 open | `Match.sequence` ontbreekt in het snapshot-`room`-object |
 | INT-3 | DM | 🔵 open | **Poort mist een token→sessie-lookup — blokkeert stap 2** |
-| INT-4 | CT + DM | 🔵 open | Contentcontract mist `validOptionIds` / `resultDetails` |
+| INT-4 | CT + DM | ✅ **ingetrokken** | Verkeerd geadresseerd: die velden komen uit GR's `buildMatchQuestionPlan()`, niet uit de pool |
 | INT-5 | GR + PR | 🔵 open | `correctAnswer` is afleidbaar uit de publieke payload van `flags_mc` |
 | INT-6 | DM | 🔵 open | `loadRoomByInviteId` krijgt de rauwe `inviteId` in plaats van de hash |
 | INT-7 | DM | 🔵 open | Poort heeft geen conditionele/partiële write; heel-document-writes kunnen `Room.phase` overschrijven |
@@ -19,6 +19,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INT-9 | DM | 🔵 open | `deadlineGraceMs`: `DATA-MODEL.md` zegt 150, besluit 13 zegt 250 |
 | INT-10 | GR + GF + AR | ✅ **opgelost** | Deadlock weg; `HOST_NEXT` vanuit `ROUND_RESULT` verwijderd, regressietest geplaatst |
 | INT-13 | DM + AR | 🔵 open | `inviteHash` mist een versieprefix, anders dan sessietokens |
+| INT-14 | DM + PR + **INT-B** | 🔴 **hoog, tijdkritisch** | Poort moet `{ replay: boolean }` teruggeven — beslissen vóór INT-B's Lua-script |
 | INT-11 | PR | 🔵 open | `preset`-waarde loopt drie kanten op; het is een wire-veld |
 | INT-12 | PD | 🔵 open | `shared/product/quick-start-preset.mjs` is stale naast een nieuwere variant |
 
@@ -151,6 +152,21 @@ publicQuestionPayload, correctAnswer }`, maar `assertRoundShape()` in
 Mijn eigen verzoekdocument is hier dus incompleet. Het moet worden aangevuld
 vóór CT zijn interface vastlegt, anders bouwt CT naar een contract dat DM's
 validatie niet haalt.
+
+### ✅ Ingetrokken — verkeerd geadresseerd
+
+Nagekeken in `server/rules/question-selection.js`: die velden komen niet uit de
+pool maar uit de output van `buildMatchQuestionPlan()` — `validOptionIds` op
+regel 138 (`flags_mc`) en 162 (`capitals_mc`), `resultDetails` op regel 222
+(`higher_lower`) en 268 (`odd_one_out`). `assertRoundShape()` is daarmee gewoon
+tevreden.
+
+Er was dus nooit een gat in CT's contract; mijn verzoekdocument vroeg om het
+verkeerde ding. CT levert de pool, GR bouwt de vraag — een betere arbeidsverdeling
+dan wat ik voorstelde, want afleiderkeuze is spelregelkennis en geen
+contentkennis. Correctie vastgelegd in
+[`content-interface-request.md`](content-interface-request.md), met één
+bevestigingsvraag aan GR over de returnvorm.
 
 ---
 
@@ -375,3 +391,65 @@ de configuratie te blijven staan zolang er invites leven.
 Dit raakt `room-codes.js` (de hashvorm), de indexsleutel in `redis-keys.js`, en
 de opgeslagen `inviteHash` op het Room-document. Daarom bij DM en AR samen, niet
 bij één van beide.
+
+---
+
+## INT-14 — een replay ná de deadline krijgt een fout in plaats van de gecachete ack
+
+**Voor:** DM (poort), cc PR. **Ernst:** hoog voor het reconnectpad.
+**Aanleiding:** ontstaan bij het verplaatsen van de idempotentie naar de poort,
+bewust niet omzeild.
+
+`PROTOCOL.md` §Idempotentie zegt: "zelfde `actionId`: zelfde ack". §Reconnect
+stap 7 beschrijft precies wanneer dat gebeurt — een client die géén ack heeft
+ontvangen herhaalt dezelfde `actionId`. Na een reconnect duurt dat seconden, dus
+de herhaling komt regelmatig ná `endsAt + grace` of nadat de ronde niet meer
+`ACTIVE` is.
+
+De compositie wijst dan af met `DEADLINE_PASSED` of `ROUND_NOT_ACTIVE`, terwijl
+het antwoord wél geaccepteerd is. De speler ziet zijn geaccepteerde antwoord als
+geweigerd.
+
+Gereproduceerd: eerste inzending `{ ok: true, ack: { roundId } }`; exact dezelfde
+inzending na `endsAt + 5000` → `{ ok: false, code: 'DEADLINE_PASSED' }`.
+
+**Waarom het nu pas zichtbaar is.** De oude voorcontrole in de compositie ving
+dit geval af. Die is verwijderd omdat hij geen gelijktijdigheid dekte en de poort
+sinds DM13 de enige waarheid hoort te zijn. De poort dekt de deadline-tak echter
+niet: `resolveAnswer()` wijst af vóórdat `saveAcceptedAnswerAtomically` wordt
+bereikt. Het gat zat er dus altijd al onder een vangnet.
+
+### Het voorstel — één wijziging die twee problemen oplost
+
+**Laat `saveAcceptedAnswerAtomically` een expliciet resultaat teruggeven**, bijvoorbeeld:
+
+```js
+saveAcceptedAnswerAtomically(roomId, matchId, write) → { replay: boolean }
+```
+
+Dat lost in één beweging twee dingen op:
+
+1. **Het replay-signaal.** De poort geeft nu in beide takken `undefined` terug en
+   laat identieke store-inhoud achter, waardoor "was dit een replay?" achteraf
+   niet af te leiden is. De compositie doet daarom één lezing vóór de write,
+   uitsluitend om het `replay`-veld een naam te geven. Die lezing beslist niets,
+   kort niets af en kan geen write tegenhouden — hij staat als
+   `LABEL, GEEN CONTROLE` in de code. Met een retourwaarde kan hij helemaal weg.
+2. **De deadlinevolgorde.** Met een expliciet replay-signaal kan de compositie een
+   bekende `actionId` herkennen **vóór** de deadlinecontrole en de gecachete ack
+   teruggeven. Daarmee geldt "zelfde `actionId` = zelfde ack" ook ná de grace,
+   conform `PROTOCOL.md`.
+
+### Urgentie — dit moet beslist zijn vóórdat INT-B zijn Lua-script afrondt
+
+**INT-B moet mede-akkoord geven**, want besluit 23 legt de atomaire
+antwoordverwerking in één Redis Lua-script. Dat script moet **dezelfde
+retourwaarde** leveren als de in-memory fake, anders draait de conformance-suite
+groen tegen twee implementaties met verschillend gedrag — precies de schijnzekerheid
+die de suite hoort te voorkomen.
+
+Wordt dit ná het Lua-script beslist, dan is het een herschrijving van een atomair
+script in plaats van een veldje erbij. Daarom nu.
+
+Er is bewust geen tweede vangnet in de compositie teruggezet: het gat hoort bij de
+poort, niet bij de aanroeper.
