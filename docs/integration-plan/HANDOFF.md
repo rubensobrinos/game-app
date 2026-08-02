@@ -8,7 +8,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 
 | # | Voor | Status | Onderwerp |
 | --- | --- | --- | --- |
-| INT-1 | DM + AR | 🔵 open | Repository-poort mist een atomaire claim voor de join-code |
+| INT-1 | DM + AR | ✅ **opgelost** | Atomaire claim toegevoegd: `claimRoomLocatorsAtomically`, `releaseRoomLocators`, `refreshRoomLocators` (variant A) |
 | INT-2 | PR | 🔵 open | `Match.sequence` ontbreekt in het snapshot-`room`-object |
 | INT-3 | DM | 🔵 open | **Poort mist een token→sessie-lookup — blokkeert stap 2** |
 | INT-4 | CT + DM | 🔵 open | Contentcontract mist `validOptionIds` / `resultDetails` |
