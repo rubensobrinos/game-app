@@ -1,9 +1,27 @@
 # Prompt — GF6: Share-actions
 
+**Aangevuld na `docs/multiplayer/DECISIONS.md` #18** (2 aug 2026, regie-sessie,
+bindend): "`share:opened.method` wordt gelijkgetrokken met de vier herkomsten: `qr |
+link | native | code`." Deze module krijgt er daarom één extra, kleine functie bij —
+`shareOpenedMethodFor` — die een deelactie naar die exacte waarde vertaalt. Geen van
+de rest van dit document verandert.
+
 Onderdeel van [`../README.md`](../README.md), fase GF6. Doel: welke deelactie
 beschikbaar is en in welke volgorde, plus de URL-vorm die QR en kopieerlink uit
 elkaar houdt — geen echte QR-rendering, geen echte `navigator.share()`/clipboard-
 aanroep, geen DOM.
+
+## Toegevoegd: `shareOpenedMethodFor`
+
+```js
+/** @param {'show-qr'|'native-share'|'copy-link'|'show-code'} action @returns {'qr'|'link'|'native'|'code'|null} */
+export function shareOpenedMethodFor(action) {}
+```
+
+Mapping: `show-qr → 'qr'`, `copy-link → 'link'`, `native-share → 'native'`,
+`show-code → 'code'`. Een onbekende actie geeft `null`, geen throw. Puur een
+vertaaltabel voor het `share:opened`-analyticsevent uit `PROTOCOL.md` — deze functie
+roept dat event zelf niet aan.
 
 ## Brondocument
 

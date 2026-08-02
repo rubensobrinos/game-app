@@ -42,15 +42,17 @@ client ononderscheidbaar — beide leveren `GAME_NOT_FOUND`/`INVITE_INVALID` op.
 module verzint dus geen apart "verlopen"-bericht voor #13; dat zou een precisie
 suggereren die het wire-contract niet biedt.
 
-## Open spec-vraag — niet door mij op te lossen
+## Open spec-vraag — beantwoord
 
-`PROTOCOL.md` noemt voor `game:paused` alleen "reden, vorige fase" als kernpayload,
-zonder de mogelijke waarden van `reason` op te sommen. `DATA-MODEL.md`'s
-`pausedState`-voorbeeld toont `"reason": "host"` maar dat is één voorbeeld, geen
-uitputtende enum. Ik gok op de waarden `host_disconnected` en `no_answers` als
-redelijke namen voor randgevallen 1 en 6, maar dat is een `public_api`-detail dat de
-`PROTOCOL.md`-eigenaar moet vastleggen. Vandaar de expliciete fallback hieronder voor
-elke onbekende/toekomstige reason-waarde.
+`docs/multiplayer/DECISIONS.md` #11 (2 aug 2026, regie-sessie, bindend) legt de
+volledige MVP-reason-enum vast: **`host`, `host_disconnected`, `no_answers`,
+`server_recovery`**. Mijn eerdere gok (`host_disconnected`/`no_answers`) miste `host`
+en `server_recovery` — `messageForPauseReason` is bijgewerkt om alle vier expliciet
+te herkennen. De generieke fallback (`pause.unknown`) blijft staan voor forward-
+compat met een eventuele toekomstige vijfde waarde, ook al is de huidige lijst nu
+gesloten. `DECISIONS.md` #12 bevestigt daarnaast dat `INVALID_PAUSE_STATE` intern
+blijft en geen nieuwe wire-foutcode wordt — dat was al zo in `KNOWN_ERROR_CODES`,
+geen wijziging nodig.
 
 ## Te bouwen module
 
@@ -89,11 +91,10 @@ export function messageForSessionTermination(kind, reason) {}
   onbekende toekomstige code, `null`, een niet-string — geeft de vaste fallback
   `'UNKNOWN_ERROR'`, nooit een throw en nooit de rauwe onbekende waarde
   doorgegeven (die kan een halve JSON-fout of iets onverwachts zijn).
-- `messageForPauseReason`: bekende waarden `'host_disconnected'` en `'no_answers'`
-  geven `'pause.host_disconnected'` resp. `'pause.no_answers'`. Alles anders
-  (`null`, `undefined`, onbekende toekomstige reden) geeft `'pause.unknown'` — nooit
-  een throw, nooit een verzonnen specifieke tekst voor een reden die niet bevestigd
-  is.
+- `messageForPauseReason`: de vier bevestigde waarden (`DECISIONS.md` #11) —
+  `'host'`, `'host_disconnected'`, `'no_answers'`, `'server_recovery'` — geven elk hun
+  eigen `'pause.*'`-sleutel. Alles anders (`null`, `undefined`, een niet-bevestigde
+  toekomstige reden) geeft `'pause.unknown'` — nooit een throw.
 - `messageForConnectionStatus('connected')` geeft `null` (niets te tonen — "niet-
   blokkerend" betekent ook: geen ruis als alles goed gaat). `'disconnected'` en
   `'reconnecting'` geven elk hun eigen sleutel.
@@ -110,7 +111,7 @@ export function messageForSessionTermination(kind, reason) {}
 | 1 | `messageForErrorCode` voor elk van de 22 bekende codes | elk exact ongewijzigd terug |
 | 2 | `messageForErrorCode('ROOM_EXPIRED')` (bestaat niet in de spec) | `'UNKNOWN_ERROR'` — bewijst dat er geen verzonnen code voor randgeval 13 bestaat |
 | 3 | `messageForErrorCode(null)`, `messageForErrorCode(undefined)`, `messageForErrorCode(42)` | elk `'UNKNOWN_ERROR'`, geen throw |
-| 4 | `messageForPauseReason('host_disconnected')` en `messageForPauseReason('no_answers')` | `'pause.host_disconnected'`, `'pause.no_answers'` |
+| 4 | `messageForPauseReason` voor elk van de vier bevestigde redenen | elk zijn eigen `'pause.*'`-sleutel |
 | 5 | `messageForPauseReason(null)`, `messageForPauseReason('some_future_reason')` | beide `'pause.unknown'` |
 | 6 | `messageForConnectionStatus('connected')` | `null` |
 | 7 | `messageForConnectionStatus('disconnected')` en `('reconnecting')` | elk een eigen, niet-lege sleutel, en de twee onderling verschillend |

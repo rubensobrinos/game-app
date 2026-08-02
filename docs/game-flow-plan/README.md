@@ -123,29 +123,24 @@ joinflow niet de reconnect-logica raakt.
   een eigen `src`-queryparameter, zodat `join-state` alsnog `qr` van `shared_link`
   kan onderscheiden ondanks dat beide dezelfde route (`/j/{inviteId}`) raken.
 
-### GF7 — Teams & spectatorroute (na Golf 1, niet launch-blocking)
+### GF7 — Teams & spectatorroute (vervallen voor deze MVP)
 - Teamkeuze-stap tussen naamkeuze en lobby (§Teams — latere MVP-uitbreiding).
-- `/screen/{code}` zonder hostbediening en zonder antwoordknoppen (§Spectatorroute) —
-  de reducers (`route-resolver`, `match-phase-state`, `edge-case-messaging`) zijn
-  herbruikbaar, maar spectator-auth/subscription/veilige projectie ontbreken nog in
-  `PROTOCOL.md`.
-- **Blokkade:** niet alleen het ontbrekende teamkeuze-event, maar ook onduidelijk
-  wáár teamkeuze in de joinvolgorde past (`POST /api/v1/games/join` maakt nu al in
-  één stap een sessie aan). Een onafhankelijke review
-  (`prompts/REVIEW-GF7-GF8.md`) vond dit plus vier verdere open punten
-  (teamidentifier, serverbevestiging/idempotentie, spectator-auth, en een te vage
-  koppeling van `pausedState` aan de verkeerde bronvorm).
-- **Status: ⏸️ on hold.** Prompt staat klaar als ontwerpschets, maar wordt pas
-  uitgevoerd ná antwoord op het bijgestelde GF8-voorstel. Zie
+- `/screen/{code}` zonder hostbediening en zonder antwoordknoppen (§Spectatorroute).
+- **Status: ❌ vervallen.** `docs/multiplayer/DECISIONS.md` #8/#9/#33 (2 aug 2026,
+  regie-sessie, bindend): teams en spectators worden nu niet gebouwd. GF7 is niet
+  uitgevoerd en blijft alleen een historisch ontwerpvoorstel — inclusief de blokkade
+  die de onafhankelijke review (`prompts/REVIEW-GF7-GF8.md`) vond (onduidelijke
+  joinvolgorde, teamidentifier, serverbevestiging, spectator-auth). Zie
   `prompts/GF7-teams-and-spectator.md` en `GF-PROGRESS.md`.
 
 ### GF8 — Interfacevoorstel voor PROTOCOL.md
-- Geen ADR, wel een voorstel: bundelt de vijf openstaande aannames uit GF2a, GF3
-  (×2), GF5 en GF7 in één leesdocument voor de PROTOCOL-eigenaar, plus de
-  functiesignaturen van alle zeven gebouwde modules als concreet reviewmateriaal.
-  Zelfde patroon als de vergelijkbare fase in het GAME-RULES-plan.
-- **Status: uitgevoerd.** [`protocol-interface-proposal.md`](protocol-interface-proposal.md)
-  staat er, wacht op antwoord van de PROTOCOL-eigenaar.
+- Geen ADR, wel een voorstel: bundelde de openstaande aannames uit GF2a, GF3, GF5 en
+  GF7 in één leesdocument voor de PROTOCOL-eigenaar, plus de functiesignaturen van
+  alle zeven op dat moment gebouwde modules als concreet reviewmateriaal.
+- **Status: ✅ beantwoord.** [`protocol-interface-proposal.md`](protocol-interface-proposal.md)
+  is beantwoord door de producteigenaar; de bindende keuzes staan in
+  `docs/multiplayer/DECISIONS.md`. Verwerkt in `client/flow/` via
+  `prompts/GF-RESUME-AFTER-DECISIONS.md`.
 
 ### GF9 — Session-store
 - Stond al in de moduletabel bovenaan dit document, maar kreeg bij het schrijven van

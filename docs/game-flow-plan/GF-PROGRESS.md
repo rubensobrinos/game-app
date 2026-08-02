@@ -10,7 +10,7 @@ checklist — bijwerken bij elke fase-afronding, niet alleen aan het eind.
 | --- | --- | --- |
 | Routes | ✅ Klaar | GF1 — 33 tests |
 | Hostflow (Snel starten / instellen) | ✅ Klaar | GF2b |
-| Joinflow + Naamgedrag | ✅ Klaar* | GF2a — *1 open vraag (bron naamsuggestie vóór join) zit in GF8 |
+| Joinflow + Naamgedrag | ✅ Klaar | GF2a, herzien met een echte pre-join-previewstap (DECISIONS.md #7) |
 | QR- en deelgedrag | ✅ Klaar | GF6 |
 | Randgeval 1 — host disconnect | ✅ Klaar | GF4 + GF5 |
 | Randgeval 2 — speler reconnect | ✅ Klaar | reconnect-logica (GF4) + lokaal bewaren van het sessietoken (GF9) |
@@ -28,10 +28,11 @@ checklist — bijwerken bij elke fase-afronding, niet alleen aan het eind.
 | Spelscherm (wat een speler ziet) | 🟡 Deels | data aanwezig; UI-samenstelling bewust buiten dit plan |
 | Hostbediening (pauze/volgende/vergrendel/kick/beëindig/rematch) | ✅ Klaar | GF10 |
 | `session-store` | ✅ Klaar | GF9 |
-| Teams | ⏸️ On hold | GF7 geschreven, **niet uitvoeren** vóór GF8 is beantwoord — zie `prompts/REVIEW-GF7-GF8.md` |
-| Spectatorroute | 🟡 Deels | reducers herbruikbaar (GF7 §Deel 2), maar auth/subscription/veilige projectie ontbreken — nu ook via GF8 |
+| Teams | ⚪ Vervallen voor deze MVP | DECISIONS.md #8/#33 — GF7 niet uitgevoerd, blijft ontwerpschets |
+| Spectatorroute | ⚪ Vervallen voor deze MVP | DECISIONS.md #9/#33 — GF7 niet uitgevoerd, blijft ontwerpschets |
 | Groepsvlag/badge | ⚪ Bewust buiten scope | PRODUCT.md: expliciete latere uitbreiding |
-| Interfacevoorstel naar PROTOCOL.md | ✅ Klaar, wacht op antwoord | GF8 uitgevoerd → [`protocol-interface-proposal.md`](protocol-interface-proposal.md), 10 secties, geen enkele vraag zelf beantwoord |
+| Groepsbattle-preset / mixed games | ⚪ Vervallen voor deze MVP | DECISIONS.md #31/#32 — host-setup-state default is nu enkelvoudig (`flags_mc`) |
+| Interfacevoorstel naar PROTOCOL.md | ✅ Beantwoord | GF8 → [`protocol-interface-proposal.md`](protocol-interface-proposal.md); antwoorden vastgelegd in `docs/multiplayer/DECISIONS.md` |
 
 ## Openstaande actiepunten
 
@@ -47,13 +48,37 @@ checklist — bijwerken bij elke fase-afronding, niet alleen aan het eind.
       `docs/multiplayer/DECISIONS.md`.
 - [x] GF7 gesloten zonder uitvoering: teams en spectators vallen buiten de huidige
       bouwscope. De prompt blijft alleen historisch ontwerpvoorstel.
+- [x] `GF-RESUME-AFTER-DECISIONS.md` uitgevoerd (2 aug 2026):
+      - `join-state` herzien met een echte `previewing`-fase (DECISIONS.md #7).
+      - `edge-case-messaging` uitgebreid met de vier bevestigde pauzeredenen
+        (`host`, `host_disconnected`, `no_answers`, `server_recovery`).
+      - `host-controls-state` teruggebracht naar één hostactie per ronde
+        (`'next'` alleen nog vanuit `SCOREBOARD`).
+      - `host-setup-state`'s default losgekoppeld van de vervallen
+        Groepsbattle-preset (nu enkelvoudig `flags_mc`, per DECISIONS.md #35).
+      - `share-actions` uitgebreid met `shareOpenedMethodFor` (DECISIONS.md #18).
+      - `leave-state`/`session-store`/rematchgedrag gecontroleerd tegen
+        DECISIONS.md #4/#5 — geen wijziging nodig, al consistent.
+      - Alle 10 prompt-bestanden bijgewerkt zodat ze de gebouwde code weer
+        weerspiegelen.
+- [ ] Handoff naar INT-A voor UI-aansluiting (stap 2) — zie
+      `GF-HANDOFF-TO-INT-A.md`.
+
+## Bekende, niet-zelf-op-te-lossen gaten
+
+- `shared/product/quick-start-preset.mjs`'s `GROUP_BATTLE_DEFAULT_GAME_TYPES` (4
+  spelvormen) is stale per DECISIONS.md #31 — niet meer geïmporteerd door
+  `host-setup-state.mjs`, maar het bestand zelf is niet aangepast (eigendom van
+  product-plan, niet van dit plan). Zie `GF-HANDOFF-TO-INT-A.md`.
+- `preset: 'default'` in `host-setup-state.mjs` is een placeholder-waarde —
+  DECISIONS.md #31 schrapt de oude preset-id maar noemt geen vervanger.
 
 ## Cijfers
 
-- **GF0–GF6 + GF9–GF11:** gebouwd en geverifieerd, **217/217 tests groen** in
+- **GF0–GF6 + GF9–GF11:** gebouwd en geverifieerd, **231/231 tests groen** in
   `client/flow/` (10 modules).
 - **GF7:** vervallen voor de huidige MVP — teams en spectators worden niet gebouwd.
 - **GF8:** beantwoord; de bindende keuzes staan in
   `docs/multiplayer/DECISIONS.md`.
-- De 3 nieuw gevonden gaten (session-store, hostbediening, verlaat-room) zijn
-  inmiddels gedicht; GF7 is bewust uit de huidige scope gehaald.
+- Alle opdrachten uit `prompts/GF-RESUME-AFTER-DECISIONS.md` zijn verwerkt. Geen
+  bekende blockers meer binnen `client/flow/` — klaar voor INT-A's UI-aansluiting.

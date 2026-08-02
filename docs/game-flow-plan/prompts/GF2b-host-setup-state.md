@@ -17,8 +17,9 @@ testtabel hieronder.
 ## Brondocument
 
 `GAME-FLOW.md` §Hostflow (Snel starten, Game instellen).
-`PRODUCT.md` §Standaard quick-start preset (`Groepsbattle`).
 `PROTOCOL.md` `POST /api/v1/games` voor de exacte requestvorm.
+`docs/multiplayer/DECISIONS.md` #31/#32/#35 voor de bindende default-configuratie
+(supersedeert `PRODUCT.md` §Standaard quick-start preset, "Groepsbattle").
 
 ## Gedekte instellingen (bewust beperkt)
 
@@ -34,17 +35,24 @@ geen UI-veld voor. Ik neem aan dat deze in de MVP-UI niet blootgesteld worden en
 serverdefaults gebruiken, en vraag dit expliciet na in plaats van zelf een UI-veld te
 verzinnen dat nergens in de bronnen staat.
 
-## Gevonden tegenstrijdigheid tussen bronnen — niet door mij op te lossen
+## Gevonden tegenstrijdigheid tussen bronnen — inmiddels opgelost
 
-`PRODUCT.md`'s Groepsbattle-preset noemt vier spelvormen: "vlaggen, echt/nep, hoger/
-lager en buitenbeentje" (`flags_mc`, `real_or_fake_flag`, `higher_lower`,
-`odd_one_out`). `DATA-MODEL.md`'s voorbeeld-`GameConfiguration` voor exact dezelfde
-`"preset": "group_battle"` bevat daarnaast ook `capitals_mc` (vijf spelvormen). De
-implementatie volgt `PRODUCT.md` (vier spelvormen), conform de expliciete
-bronvolgorde in `docs/multiplayer/README.md` §Bronvolgorde bij tegenstrijdigheden:
-productregels in `PRODUCT.md` gaan vóór het state-contract in `DATA-MODEL.md`. Dit is
-dus geen gok — maar de twee bronnen spreken elkaar wel tegen, en dat hoort gemeld te
-worden bij de `DATA-MODEL.md`-eigenaar in plaats van stilzwijgend gecorrigeerd.
+`PRODUCT.md`'s Groepsbattle-preset noemde vier spelvormen; `DATA-MODEL.md`'s
+voorbeeld-`GameConfiguration` voor dezelfde preset noemde er vijf (extra
+`capitals_mc`). Deze tegenstrijdigheid is niet meer relevant: `DECISIONS.md` #31/#32
+(2 aug 2026, regie-sessie, bindend) schrapt de Groepsbattle-preset zelf én mixed
+games volledig — "eerdere vier-versus-vijf-presetbesluiten zijn daardoor geen huidige
+implementatieopdracht." `DECISIONS.md` #35 legt in plaats daarvan een nieuwe,
+enkelvoudige default vast: **`flags_mc`, 10 rondes, moeilijkheid normaal, individueel,
+auto-tempo, snelheidspunten aan, late join aan.** De kernflow quick-start blijft
+bestaan, alleen zonder Groepsbattle-branding of meerdere spelvormen. `preset:
+'default'` is hierin een placeholder-waarde — `DECISIONS.md` benoemt geen vervangende
+preset-id, dus dat blijft een open vraag voor wie het wire-formaat vaststelt.
+
+De inmiddels overbodige `shared/product/quick-start-preset.mjs` (met de oude
+`GROUP_BATTLE_DEFAULT_GAME_TYPES`, vier spelvormen) is met opzet niet meer
+geïmporteerd door deze module — dat bestand is stale volgens `DECISIONS.md` en hoort
+door zijn eigenaar (product-plan) bijgewerkt of ingetrokken te worden.
 
 ## Te bouwen module
 
@@ -74,7 +82,7 @@ Bestand: `client/flow/host-setup-state.mjs`.
  * }} HostSetupState
  */
 
-/** Start altijd met de Groepsbattle-preset (PRODUCT.md). @returns {HostSetupState} */
+/** Start altijd met de bevestigde quick-start default (DECISIONS.md #35). @returns {HostSetupState} */
 export function initialHostSetupState() {}
 
 /** @param {HostSetupState} state @param {object} event @returns {HostSetupState} */
@@ -105,14 +113,14 @@ hierboven — een onbekende `key` wordt genegeerd, niet stilzwijgend toegevoegd 
 - Dezelfde 20-zichtbare-tekens-regel en grafeem-telling als `join-state` (GF2a) als de
   host wél meespeelt — hergebruik dezelfde telmethode, niet een tweede implementatie.
 - `SUBMIT` zonder eerdere `SET_FIELD`-aanroepen moet nog steeds een geldig verzoek
-  opleveren, gevuld met de Groepsbattle-defaults — "de host kan alle standaardwaarden
+  opleveren, gevuld met de bevestigde defaults — "de host kan alle standaardwaarden
   accepteren zonder ieder veld te openen."
 
 ## Verplichte testgevallen
 
 | # | Scenario | Verwacht |
 | --- | --- | --- |
-| 1 | `initialHostSetupState()` | `config` gelijk aan de Groepsbattle-preset, `hostParticipates: true` |
+| 1 | `initialHostSetupState()` | `config` gelijk aan `{ preset: 'default', gameTypes: ['flags_mc'], language: 'nl', difficulty: 'normal', totalRounds: 10, pacing: 'auto', speedBonus: true, allowLateJoin: true, mode: 'individual' }`, `hostParticipates: true` |
 | 2 | `SUBMIT` direct na init (geen `SET_FIELD`), dan `createRequestFor` | levert een geldig verzoek met de defaults |
 | 3 | `SET_FIELD('difficulty', 'hard')` gevolgd door `SUBMIT`, dan `createRequestFor` | verzoek bevat `difficulty: 'hard'`, overige velden ongewijzigd |
 | 4 | `SET_FIELD('notARealField', 'x')` | genegeerd; `config` ongewijzigd |
@@ -125,8 +133,9 @@ hierboven — een onbekende `key` wordt genegeerd, niet stilzwijgend toegevoegd 
 ## Niet in scope voor GF2b
 
 - `questionSeconds`/`resultSeconds`/`scoreboardSeconds`-UI (zie hierboven).
-- Teams-configuratie (`mode: 'team'`) — fase 1.5, `PRODUCT.md`.
-- Preset-definities zelf anders dan Groepsbattle — er is er in de MVP maar één.
+- Teams-configuratie (`mode: 'team'`) — vervallen voor deze MVP, `DECISIONS.md` #8/#33.
+- Mixed-game-UI (meerdere `gameTypes` tegelijk kiezen) — vervallen, `DECISIONS.md` #32.
+- Elke preset behalve de ene bevestigde default — er is er in de MVP maar één.
 - De daadwerkelijke `fetch`-aanroep — alleen `createRequestFor` levert de vorm.
 
 ## Definition of done

@@ -1,5 +1,13 @@
 # Prompt — GF10: Host-controls-state
 
+**Bijgesteld na `docs/multiplayer/DECISIONS.md` #1** (2 aug 2026, regie-sessie,
+bindend): "Host-tempo gebruikt één hostactie per ronde. `ROUND_RESULT` loopt op timer
+door naar `SCOREBOARD`; de host kiest daarna 'Volgende'." De oorspronkelijke versie
+liet `'next'` beschikbaar zijn bij zowel `ROUND_RESULT` als `SCOREBOARD` onder
+host-tempo (twee mogelijke hostmomenten per ronde) — dat is nu teruggebracht tot
+uitsluitend `SCOREBOARD`. `ROUND_RESULT → SCOREBOARD` is altijd timer-gedreven, ook
+onder host-tempo.
+
 Onderdeel van [`../README.md`](../README.md), fase GF10 (nieuw — gevonden gat, stond
 niet eens in de oorspronkelijke moduletabel, zie `GF-PROGRESS.md`). Doel: welke
 hostknop nu zinvol te tonen is, en de bijbehorende event-payload — geen fetch, geen
@@ -24,8 +32,9 @@ verzonnen):
 | `game:finish` | niet reeds `FINISHED` |
 | `game:rematch` | fase `FINISHED` |
 
-`GAME-RULES.md`: bij host-tempo wacht de game ná de ronde-uitslag of tussenstand op
-`Volgende` — "wachtfase" = `ROUND_RESULT` of `SCOREBOARD`.
+`GAME-RULES.md`: bij host-tempo wacht de game op `Volgende`. **Bijgesteld
+(DECISIONS.md #1): "wachtfase" is uitsluitend `SCOREBOARD`** — `ROUND_RESULT →
+SCOREBOARD` verloopt altijd via timer, één hostactie per ronde.
 
 ## Ontwerpkeuze: geen strenger dan het wire-contract
 
@@ -87,8 +96,8 @@ geen tweede definitie ervan.
 - `'pause'`: alleen bij een actieve fase — `COUNTDOWN`, `ROUND_ACTIVE`,
   `ROUND_RESULT`, `SCOREBOARD`.
 - `'resume'`: alleen bij `phase === 'PAUSED'`.
-- `'next'`: alleen bij `pacing === 'host'` én `phase` in `{ROUND_RESULT,
-  SCOREBOARD}`.
+- `'next'`: alleen bij `pacing === 'host'` én `phase === 'SCOREBOARD'` (niet
+  `ROUND_RESULT` — DECISIONS.md #1, één hostactie per ronde).
 - `'lock'` / `'unlock'`: wederzijds exclusief, gebaseerd op `context.locked` — nooit
   allebei tegelijk in de lijst.
 - `'kick'`: beschikbaar zodra `playerCount >= 1`, ongeacht fase. Welke specifieke
@@ -109,7 +118,7 @@ geen tweede definitie ervan.
 | 2 | `phase: 'LOBBY'`, `playerCount: 0` | bevat geen `'start'` |
 | 3 | Elk van `COUNTDOWN`/`ROUND_ACTIVE`/`ROUND_RESULT`/`SCOREBOARD` | bevat `'pause'`, niet `'resume'` |
 | 4 | `phase: 'PAUSED'` | bevat `'resume'`, niet `'pause'` |
-| 5 | `pacing: 'host'`, `phase: 'ROUND_RESULT'` en `phase: 'SCOREBOARD'` | beide bevatten `'next'` |
+| 5 | `pacing: 'host'`, `phase: 'SCOREBOARD'` | bevat `'next'`; `phase: 'ROUND_RESULT'` bevat het niet (DECISIONS.md #1) |
 | 6 | `pacing: 'auto'`, `phase: 'ROUND_RESULT'` | bevat geen `'next'` |
 | 7 | `pacing: 'host'`, `phase: 'ROUND_ACTIVE'` (geen wachtfase) | bevat geen `'next'` |
 | 8 | `locked: true` vs. `locked: false` | respectievelijk `'unlock'` en `'lock'`, nooit beide tegelijk |

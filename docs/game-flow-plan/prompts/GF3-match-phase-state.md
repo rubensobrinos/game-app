@@ -47,15 +47,12 @@ voor een client die start met een snapshot vóórdat er ooit een `game:started`/
 override" (de kern van dit ontwerp) moet dus ook `matchId` omvatten. Zie de
 bijgewerkte tabel hieronder en de implementatie.
 
-## Open spec-vraag — niet door mij op te lossen
+## Open spec-vraag — beantwoord
 
-`PROTOCOL.md`'s voorbeeld-snapshot toont `room.phase`, maar geen `pausedState`-veld,
-terwijl `DATA-MODEL.md`'s `Match`-object wél een `pausedState` kent
-(`previousPhase`, `remainingMs`, `reason`, `pausedAt`). Ik neem aan dat een snapshot
-tijdens een pauze `payload.room.pausedState` in diezelfde vorm meestuurt, maar dat
-is een `public_api`-detail dat de `PROTOCOL.md`-eigenaar moet bevestigen — de
-snapshot in `PROTOCOL.md` heet zelf expliciet "minimale structuur", dus afwezigheid
-in het voorbeeld is geen bewijs van afwezigheid in het echte contract.
+`docs/multiplayer/DECISIONS.md` #10 (2 aug 2026, regie-sessie, bindend): "Snapshot en
+live `game:paused` gebruiken dezelfde volledige `pausedState`-vorm: `previousPhase`,
+`remainingMs`, `reason`, `pausedAt`." Dat is exact de aanname die hieronder al werd
+toegepast — geen codewijziging nodig, alleen deze bevestiging.
 
 ## Te bouwen module
 

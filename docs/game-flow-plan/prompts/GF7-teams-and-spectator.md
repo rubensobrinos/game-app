@@ -1,6 +1,20 @@
 # Prompt — GF7: Teams-keuze & spectatorroute
 
-**⏸️ ON HOLD — niet uitvoeren.** Een onafhankelijke review
+**❌ VERVALLEN — niet uitvoeren.** `docs/multiplayer/DECISIONS.md` #8, #9 en #33
+(2 aug 2026, regie-sessie, bindend) besluiten: "Teams worden nu niet gebouwd" en
+"Spectators worden nu niet gebouwd." Vraag 1 uit
+[`GF8-protocol-interface-proposal.md`](GF8-protocol-interface-proposal.md) (waar
+teamkeuze in de joinvolgorde past) is daarmee niet beantwoord maar **vervallen** —
+er komt geen teamkeuzecontract, teammodel of spectatorrol aan deze MVP. Dit bestand
+blijft alleen staan als historisch ontwerpvoorstel voor een latere uitbreiding; niets
+hieronder wordt gebouwd. Zie `GF-RESUME-AFTER-DECISIONS.md` en `../GF-PROGRESS.md`.
+
+---
+
+De onderstaande tekst is de oorspronkelijke, niet-uitgevoerde prompt — ongewijzigd
+gelaten voor als teams/spectators ooit alsnog worden opgepakt.
+
+**Eerdere status (vóór DECISIONS.md), ter historie:** een onafhankelijke review
 ([`REVIEW-GF7-GF8.md`](REVIEW-GF7-GF8.md)) vond een echte blocker: het is niet
 gezegd wáár teamkeuze in de joinvolgorde past (`POST /api/v1/games/join` maakt nu al
 in één stap een sessie aan, terwijl `GAME-FLOW.md` teamkeuze vóór de lobby plaatst —

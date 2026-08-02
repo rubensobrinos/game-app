@@ -1,5 +1,15 @@
 # Prompt — GF8: Interfacevoorstel voor PROTOCOL.md
 
+**✅ BEANTWOORD.** De producteigenaar heeft alle onderstaande vragen beantwoord in
+`docs/multiplayer/DECISIONS.md` (2 aug 2026, regie-sessie, bindend) — zie vooral
+#7 (pre-join-preview), #10–#12 (pausedState + redenen), #1 (host-tempo), en #8/#9
+(teams/spectators nu niet gebouwd, waarmee vragen 1–4 hieronder over teams/
+spectators zijn komen te vervallen in plaats van beantwoord). Dit bestand blijft
+staan als het oorspronkelijke, volledige vragenoverzicht; `GF-RESUME-AFTER-DECISIONS.md`
+bevat de concrete vertaalslag naar `client/flow/`-wijzigingen.
+
+---
+
 Onderdeel van [`../README.md`](../README.md), fase GF8. Dit is **geen ADR en geen
 codewijziging** — het is één samenhangend leesdocument voor de `PROTOCOL.md`-
 eigenaar, dat alle aannames bundelt die de gebouwde `client/flow/`-modules (GF0–GF6)
