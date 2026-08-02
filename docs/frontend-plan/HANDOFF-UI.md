@@ -8,6 +8,8 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | # | Voor | Status | Onderwerp |
 | --- | --- | --- | --- |
 | UI-1 | INT-A | 🔵 open | Bevestig het transport-interfacecontract vóórdat UI verder bouwt |
+| UI-2 | UI (zelf) | 🔵 open | Pauze-overlay met reden bouwen, uiterlijk bij UI5 |
+| UI-3 | INT-A / ARCHITECTURE | 🔵 open | Hoe worden `client/flow/` en `shared/` aan de browser geserveerd? |
 
 ---
 
@@ -86,3 +88,64 @@ Eén van drie antwoorden, geen van alle drie door mij te kiezen:
 Tot een van deze drie is bevestigd, blijft elk UI-scherm op 🔵/🟡 in
 `UI-PROGRESS.md` — nooit ✅, want dat vereist sowieso een echte server, niet
 alleen een bevestigd contract.
+
+---
+
+## UI-2 — pauze-overlay met reden bouwen
+
+**Voor:** UI zelf. **Uiterlijk bij:** UI5 (hostbalk, die de pauzeknop krijgt).
+
+Een review van UI0 signaleerde terecht dat `view-switcher.mjs` elke `PAUSED`-
+fase liet verdwijnen naar `'unknown'`. Dat routeringsgat is inmiddels gefixed:
+`viewFor()` leest nu `pausedState.previousPhase` en blijft de onderliggende
+view (lobby/gameplay/scoreboard) tonen tijdens een pauze, met een defensieve
+`'unknown'`-fallback alleen als `pausedState`/`previousPhase` echt ontbreekt
+(zou niet moeten gebeuren — `match-phase-state` zet 'm altijd bij `PAUSED`).
+
+**Wat nog niet bestaat:** de daadwerkelijke pauze-overlay zelf — een zichtbare
+banner/melding met de reden, via `edge-case-messaging.messageForPauseReason()`
+(DECISIONS.md #11: `host`, `host_disconnected`, `no_answers`,
+`server_recovery`, met generieke fallback). Dat hoort inhoudelijk bij UI5,
+maar wordt hier expliciet vastgelegd zodat het niet als terloopse code-comment
+wegzakt.
+
+---
+
+## UI-3 — hoe worden `client/flow/` en `shared/` aan de browser geserveerd?
+
+**Voor:** INT-A (serving-configuratie) en/of ARCHITECTURE (routingtabel).
+**Blokkeert:** geen enkel UI1a-scherm nu al hard (de mock/tests draaien lokaal
+prima), maar wél de eerste échte deploy — dit is dus dringender dan het lijkt.
+
+### Het probleem
+
+`frontend/js/*.mjs` importeert `client/flow/*.mjs` en `shared/**/*.mjs` via
+relatieve paden (`../../client/flow/route-resolver.mjs` enz.), wat lokaal
+werkt zolang de repo-root wordt geserveerd. Maar:
+
+- `ARCHITECTURE.md` §Routing wijst `/`, `/j/*`, `/game/*`, `/host/*`,
+  `/screen/*` en `/assets/*` allemaal naar de `frontend`-container, die naar
+  verwachting **uitsluitend `frontend/` (of straks `frontend/dist`) als eigen
+  root serveert** — niet de repo-root. Een statische server die zo is
+  ingericht, staat `../../`-paden die boven zijn eigen root uitkomen normaal
+  niet toe (path-traversal-bescherming), dus `client/flow/` en `shared/` zijn
+  vanuit die root simpelweg niet bereikbaar.
+- Los daarvan: deze pagina wordt op meerdere paden geserveerd
+  (`/j/{inviteId}`, `/game/{code}`, `/host/{code}`, niet alleen `/`). Zonder
+  `<base>`-tag of absolute paden lossen relatieve assetverwijzingen vanaf zo'n
+  deep link verkeerd op (bijv. `/j/css/base.css` in plaats van `/css/base.css`).
+  Bewust nog niet gefixed met `<base href="/">` in `index.html`, omdat dat
+  alleen zin heeft ná een antwoord op het punt hierboven.
+
+### Mogelijke routes, geen van beide door mij te kiezen
+
+1. De reverse proxy krijgt twee extra statische mappings (`/client/*` →
+   `client/`, `/shared/*` → `shared/`) naast de bestaande `frontend`-regel —
+   geen build-stap, twee regels config.
+2. Er komt alsnog een lichte kopieer-/symlinkstap die `client/flow/` en
+   `shared/` in `frontend/` plaatst vóór deploy — geen bundelaar, maar wel een
+   nieuwe stap in het releaseproces (`DEPLOYMENT-AND-TESTING.md`).
+3. Iets anders dat ik niet zie vanuit alleen `frontend/`.
+
+Zodra dit is bevestigd, kan `index.html` de bijbehorende `<base>`-tag of
+absolute paden krijgen — nu zou dat alleen een aanname vastklikken.
