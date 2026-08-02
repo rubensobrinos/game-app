@@ -43,6 +43,7 @@ import {
 } from '../protocol/rest-games-session.mjs';
 import { validatePreviewRequest, validatePreviewResponse } from '../protocol/preview-endpoint.mjs';
 import { assertNoActiveRoundAnswerLeak, validateSnapshotShape } from '../protocol/snapshot-shape.mjs';
+import { verifySessionToken } from '../composition/context.mjs';
 import { createRoom, joinRoom, previewInvite } from '../composition/room-lifecycle.mjs';
 import { buildSnapshot } from '../composition/match-lifecycle.mjs';
 import { assertPlayerShape } from '../data/types/player.js';
@@ -181,6 +182,12 @@ export function httpStatusForErrorCode(code) {
  * hetzelfde patroon dat `findRoomByInviteId()` in `room-lifecycle.mjs` voor de
  * invite-index gebruikt. Zonder dit zou een pepperrotatie iedereen uitloggen.
  *
+ * De gevonden sessie wordt daarna nóg een keer constant-time geverifieerd tegen
+ * zijn eigen `tokenHash` (`verifySessionToken`, besluit 26). Dat is geen
+ * dubbelop: INTB-10 punt 4 beschrijft precies het geval waarin de tokenindex
+ * naar een sessie blijft wijzen waarvan het token inmiddels is vervangen. Een
+ * index-hit is dus geen bewijs; de opgeslagen hash is dat wel.
+ *
  * @param {Context} context
  * @param {string} token - het kale bearer token uit de `Authorization`-header.
  * @returns {Promise<import('../data/types/session.js').Session | null>}
@@ -191,7 +198,7 @@ async function loadSessionByBearerToken(context, token) {
   for (const pepperVersion of versions) {
     const tokenHash = hashToken(token, { version: pepperVersion, pepper: peppers[pepperVersion] });
     const session = await context.store.loadSessionByTokenHash(tokenHash);
-    if (session !== null) {
+    if (session !== null && session !== undefined && verifySessionToken(context, token, session.tokenHash)) {
       return session;
     }
   }
