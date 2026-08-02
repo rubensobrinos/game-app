@@ -8,8 +8,9 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | # | Voor | Status | Onderwerp |
 | --- | --- | --- | --- |
 | UI-1 | INT-A | ✅ opgelost | Bevestig het transport-interfacecontract vóórdat UI verder bouwt |
-| UI-2 | UI (zelf) | 🔵 open | Pauze-overlay met reden bouwen, uiterlijk bij UI5 |
+| UI-2 | UI (zelf) | ✅ opgelost | Pauze-overlay met reden bouwen |
 | UI-3 | INT-A / ARCHITECTURE | ✅ opgelost | Hoe worden `client/flow/` en `shared/` aan de browser geserveerd? |
+| UI-8 | INT-A / PR | 🔵 open | `room:state` bevat geen deelnemerslijst — een joiner ziet geen namen van al aanwezige spelers |
 
 ---
 
@@ -136,6 +137,23 @@ banner/melding met de reden, via `edge-case-messaging.messageForPauseReason()`
 maar wordt hier expliciet vastgelegd zodat het niet als terloopse code-comment
 wegzakt.
 
+### ✅ Opgelost — gebouwd, vooruitlopend op UI5
+
+Op verzoek van de producteigenaar (pilotwaardige UI1b-kern) nu al gebouwd in
+`session-shell.mjs`, niet pas bij UI5: een overlay over de onderliggende
+fase-view met `t(messageForPauseReason(pausedState.reason))`. Omdat er zonder
+een manier om te pauzeren geen weg was om deze overlay ooit te bereiken, is
+er ook een **minimale** hosttoggle (Pauzeer/Hervat) bijgekomen — nadrukkelijk
+niet de volledige UI5-hostbalk, alleen deze ene actie. Lock/kick/finish/next
+en de rest van de hostinstellingen blijven UI5-werk.
+
+E2e geverifieerd (headless Chromium, Playwright `clock`-API): pauzeren tijdens
+SCOREBOARD toont de overlay met de juiste reden, de onderliggende view blijft
+zichtbaar (gedimd), hervatten sluit 'm weer. Een bug onderweg gefixt: de
+overlay (`position: fixed; inset: 0`) dekte de hosttoggle af omdat die er in
+de DOM vóór stond — de Hervat-knop staat daarom ín de overlay, niet op de knop
+erachter.
+
 ---
 
 ## UI-3 — hoe worden `client/flow/` en `shared/` aan de browser geserveerd?
@@ -235,6 +253,11 @@ neem `/samen` op in de deep-link-fallback van de statische serving (zelfde
 behandeling als `/j/*`/`/game/*`). Caddy routeert `/samen` al naar de
 game-server.
 
+**UI-kant gedaan:** `route-resolver.resolveRoute('/samen')` → `{route:'home'}`,
+identiek aan `/` (met tests). Geverifieerd via SPA-navigatie (`pushState` +
+`popstate`) in headless Chromium. INT-A's kant (deep-link-fallback in de
+serving) staat nog open.
+
 ---
 
 ## UI-7 — eigenaarsgrens rond `session-shell.mjs` (2 aug 2026)
@@ -271,3 +294,40 @@ eigen montage begint, bouwt een tweede mechanisme naast dat van een eigenaar
 Vragen die deze grens níét beslecht (voor wie het eerst raakt, als los item
 hier melden): wie de pauze-overlay stylet zodra ze inhoudelijk af is, en of
 `round-model` op termijn naar `client/flow/` verhuist — nu bewust lokaal.
+
+### Reactie — bevestiging, geen tweede bouwer
+
+Ik ben de auteur van `session-shell.mjs` (en van `views/lobby.mjs`, de
+foutmeldingsvertaling, `/samen`, en de CSS/i18n-toevoegingen in dit rondje) —
+de analyse hierboven klopt met wat er nu staat. Er is voor zover ik weet geen
+tweede, apart lopende UI-bouwer die hetzelfde probeerde; als deze grens is
+opgesteld naar aanleiding van iets dat zo léék, is dat bij mij niet
+uitgekomen in een dubbele montage.
+
+Eén van de twee openstaande vragen is inmiddels beantwoord: de pauze-overlay
+is gestyled (`base.css`, `.session-pause-card`/`.session-pause-resume`) —
+inclusief een echte bugfix onderweg (de overlay dekte de hosttoggle af,
+zie `UI-PROGRESS.md`). De andere vraag (`round-model` al dan niet naar
+`client/flow/`) laat ik open — geen aanleiding om 'm nu te verplaatsen.
+
+---
+
+## UI-8 — `room:state` bevat geen deelnemerslijst
+
+**Voor:** INT-A / PR. **Blokkeert:** niets hards — `views/lobby.mjs` werkt
+prima met wat er is, dit is een UX-gat, geen crash.
+
+`match-phase-state` bewaart bewust geen spelerslijst (GF-HANDOFF-TO-INT-A.md),
+dus de lobby houdt 'm zelf lokaal bij. `room:state`'s snapshot geeft alleen
+`room.playerCount` (betrouwbaar) en `self` (je eigen naam) — geen lijst van
+wie er al meedoet. Namen van andere spelers komen alleen binnen via
+`room:player-changed`-deltas, en dus alleen voor wie ná het moment van
+verbinden gebeurt. Concreet: een speler die een lobby met drie bestaande
+deelnemers binnenkomt ziet correct "4 spelers", maar drie van de vier namen
+niet — totdat er weer iets verandert (join/leave/rename).
+
+Geen giswerk hiervoor gebouwd (geen placeholder-namen, geen "3 onbekende
+spelers"-tekst) — gewoon het betrouwbare aantal getoond en de lijst laten
+groeien met wat er binnenkomt. Als `PROTOCOL.md`'s `room:state` op termijn een
+spelerslijst krijgt, is de fix in `session-shell.mjs`'s `applyRoomState()`
+lokaal (één plek, geen schermwijziging nodig).
