@@ -39,14 +39,27 @@ stoppen en te starten) en daarna controleert:
    ongewijzigd blijft. De action-cache moet de herstart dus ook overleven, of het
    moet expliciet gedocumenteerd zijn dat hij dat niet doet.
 
-### Aandachtspunt
+### Aandachtspunt — de test moet in twee fasen, anders wordt hij flaky
 
 `appendfsync everysec` betekent dat maximaal één seconde aan schrijfwerk verloren
-kan gaan. Dat is een bewuste keuze, geen bug. Schrijf de test zo dat hij dat
-tolereert zonder de eis te verwateren: het gaat erom dat de room bestaat en
-consistent is, niet dat élke laatste schrijfactie er is. Leg in een comment vast
-wat wél en niet gegarandeerd is, zodat een latere lezer de test niet aanscherpt
-tot iets wat AOF niet kan waarmaken.
+kan gaan. Een test die de room aanmaakt en meteen herstart kan dus **de hele
+testroom** kwijtraken, en dan wordt een correct geconfigureerde Redis willekeurig
+rood. Dat is de klassieke manier om een goede test onbruikbaar te maken.
+
+Bouw hem daarom zo:
+
+1. schrijf de baseline (room, match, spelers, scoreboard) en **wacht aantoonbaar
+   op persistentie** — forceer een AOF-flush of verifieer dat de write is
+   doorgeschreven; wachten op een klok is niet aantoonbaar;
+2. voer daarna eventueel één expliciet gemarkeerde laatste write uit, waarvan je
+   accepteert dat hij binnen het verliesvenster valt;
+3. herstart;
+4. eis dat de **baseline volledig en consistent** bestaat — geen tolerantie;
+5. accepteer verlies uitsluitend van die ene expliciete laatste write.
+
+Zo test je wat AOF belooft in plaats van te hopen dat de timing meezit. Leg in
+een comment vast welke van de twee categorieën elke assertie is, zodat een latere
+lezer de tolerantie niet per ongeluk over de baseline uitsmeert.
 
 ### Wat je NIET doet
 

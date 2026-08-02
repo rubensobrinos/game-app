@@ -1,6 +1,7 @@
 # INTB3a — Postgres-analytics: asynchrone, gebufferde schrijfweg
 
-**Domein:** INT-B. **Blokkade:** de `pg`-dependency (INT-A voegt hem toe).
+**Domein:** INT-B. **Blokkade:** geen — `pg@^8.22.0` staat al in `package.json`
+met lockfile sinds commit `376bd4e`.
 
 ---
 

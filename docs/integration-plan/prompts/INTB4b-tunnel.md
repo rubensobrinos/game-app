@@ -23,6 +23,25 @@ niet per ongeluk het thuisnetwerk openstaat.
 - `caddy/Caddyfile` — TLS, routing, WebSocket-upgrade, security headers.
 - De sectie **Reverse-proxy en browsersecurity** in dezelfde spec.
 
+### Vóór je iets activeert — dit maakt een route publiek bereikbaar
+
+Het uitvoeringsakkoord in `DECISIONS.md` dekt test- en deploymentwerk, maar houdt
+publieke routes, productiegegevens en secrets **afzonderlijk afgeschermd**. Een
+tunnel opzetten is geen testhandeling: hij stelt een draaiende stack open voor
+het internet. Vraag daarom expliciet bevestiging voordat je hem activeert, en
+leg vast:
+
+- **welke omgeving** is aangewezen als test-/tunnelomgeving;
+- **welke hostname** wordt gebruikt;
+- **dat er geen productiegegevens** in de aangesloten Redis of Postgres zitten —
+  controleer dat, neem het niet aan;
+- **dat HSTS uit blijft** tenzij daar apart om wordt gevraagd. HSTS is in
+  browsers die het al hebben opgeslagen nauwelijks terug te draaien.
+
+Krijg je die bevestiging niet, dan voer je deze prompt niet uit. Alles wat je
+zonder tunnel kunt voorbereiden (de override controleren, de poortmeting
+inrichten) mag wel.
+
 ### Wat je doet
 
 De tunnel-variant werkend krijgen, met de `ports`-mapping daadwerkelijk
@@ -36,6 +55,11 @@ poortscan of `lsof` vanaf de host. De spec waarschuwt hier expliciet voor, wat
 betekent dat het een keer is misgegaan of makkelijk misgaat. Een override die
 de mapping *lijkt* te verwijderen maar het niet doet, ziet er in YAML precies
 hetzelfde uit als een die het wel doet.
+
+Meet vanaf **twee kanten**: vanaf de host zelf, én vanaf een extern netwerkpunt.
+Een host-meting laat zien wat er luistert; alleen een externe meting laat zien
+wat er dóór de router heen bereikbaar is. Die twee kunnen verschillen, en het
+verschil is precies waar het risico zit.
 
 Controleer daarnaast:
 

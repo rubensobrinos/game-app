@@ -1,8 +1,8 @@
 # INTB2b — Redis-adapter: de zestien niet-atomaire poortmethoden
 
-**Domein:** INT-B. **Blokkade:** `redis`-dependency **én** HANDOFF-item
-**INTB-1** (drie methoden missen `roomId` en zijn zonder besluit niet
-implementeerbaar). **Bouwt op:** INTB2a.
+**Domein:** INT-B. **Blokkade:** HANDOFF-item **INTB-1** — drie methoden missen
+`roomId` en zijn zonder besluit niet implementeerbaar. De `redis`-dependency is
+er al. **Bouwt op:** INTB2a.
 
 ---
 
@@ -15,11 +15,25 @@ atomaire zijn INTB2c en INTB2d.
 
 Lees `docs/integration-plan/HANDOFF-INTB.md`, item **INTB-1**. Drie methoden —
 `saveRound`, `loadAnswer`, `loadActionCacheEntry` — krijgen geen `roomId` mee,
-terwijl `redis-keys.js` dat wél nodig heeft. Is dat item nog niet opgelost,
-**bouw er dan niet omheen**: implementeer de dertien methoden die wél kunnen,
-laat de drie andere expliciet ongeïmplementeerd met een duidelijke fout, en meld
-de stand. Een globale `SCAN` als noodoplossing is geen optie — die schaalt niet
-en verbergt het probleem.
+terwijl `redis-keys.js` dat wél nodig heeft.
+
+**Is INTB-1 nog niet opgelost, voer deze prompt dan niet volledig uit.** Bouw in
+plaats daarvan een expliciet gemarkeerde *partiële* adapter:
+
+- exporteer hem onder een naam die de onvolledigheid draagt, bijvoorbeeld
+  `createPartialRedisDataStore`;
+- laat hem **niet** door `assertImplementsDataStore` gaan en roep die functie
+  niet aan. Placeholderfuncties die altijd werpen zouden de shapecheck laten
+  slagen terwijl de adapter onbruikbaar is — dat is precies het soort groen dat
+  later iemand misleidt;
+- richt de conformance-suite op de dertien methoden die wél kunnen (INTB1a sluit
+  de drie andere al uit).
+
+Een globale `SCAN` als noodoplossing is geen optie: die schaalt niet en verbergt
+het probleem in plaats van het op te lossen.
+
+Zodra INTB-1 is opgelost wordt dit de volledige adapter en vervalt de
+`Partial`-naam.
 
 ### Lees verder
 
@@ -32,7 +46,8 @@ en verbergt het probleem.
 ### Wat je bouwt
 
 `server/data/adapters/redis/data-store.mjs` — een fabriek die een object
-teruggeeft dat `assertImplementsDataStore` doorstaat.
+teruggeeft. Pas ná INTB-1 doorstaat die `assertImplementsDataStore`; zolang het
+item open staat is het de partiële variant hierboven.
 
 Aandachtspunten die de fake verbergt:
 

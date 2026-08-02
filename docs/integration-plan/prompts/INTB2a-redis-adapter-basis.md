@@ -1,7 +1,7 @@
 # INTB2a — Redis-adapter: verbinding, lifecycle en documentserialisatie
 
-**Domein:** INT-B. **Blokkade:** de `redis`-dependency (wordt door INT-A in één
-commit toegevoegd). **Bouwt op:** INTB1a/INTB1b.
+**Domein:** INT-B. **Blokkade:** geen — `redis@^6.2.0` staat al in `package.json`
+met lockfile sinds commit `376bd4e`. **Bouwt op:** INTB1a/INTB1b.
 
 ---
 

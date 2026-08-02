@@ -11,17 +11,21 @@ uitgevoerd — ⛔ geblokkeerd — ⏸️ later.
 
 | Prompt | Inhoud | Status | Blokkade |
 | --- | --- | --- | --- |
-| [INTB1a](prompts/INTB1a-conformance-harness.md) | Conformance-harness + de 16 niet-atomaire methoden | 🔵 | geen |
-| [INTB1b](prompts/INTB1b-atomicity.md) | De 2 atomaire methoden: geen half werk, nooit dubbele punten | 🔵 | geen |
-| [INTB2a](prompts/INTB2a-redis-adapter-basis.md) | Verbinding, lifecycle, JSON-documenten met schemaversie | ⛔ | `redis`-dep (INT-A) |
-| [INTB2b](prompts/INTB2b-poortmethoden.md) | De 16 methoden tegen Redis + TTL-refresh | ⛔ | dep + **INTB-1** |
+| [INTB1a](prompts/INTB1a-conformance-harness.md) | Conformance-harness + 13 methoden (3 uitgesloten op INTB-1) | 🔵 | geen |
+| [INTB1b](prompts/INTB1b-atomicity.md) | De 2 atomaire methoden | 🔵 | **INTB-4** — levert bewust rode tests |
+| [INTB2a](prompts/INTB2a-redis-adapter-basis.md) | Verbinding, lifecycle, JSON-documenten met schemaversie | 🔵 | geen |
+| [INTB2b](prompts/INTB2b-poortmethoden.md) | De methoden tegen Redis + TTL-refresh | ⛔ | **INTB-1** |
 | [INTB2c](prompts/INTB2c-lua-atomair-antwoord.md) | Lua-script voor atomair antwoord (#23) | ⛔ | INTB2a |
 | [INTB2d](prompts/INTB2d-atomaire-fasewissel.md) | Atomaire fasewissel Room/Match (#30) | ⛔ | INTB2a |
 | [INTB2e](prompts/INTB2e-aof-herstart.md) | AOF-herstart: rooms overleven een restart | ⛔ | INTB2b–d |
-| [INTB3a](prompts/INTB3a-analytics-writer.md) | Asynchrone, gebufferde analytics-writer | ⛔ | `pg`-dep (INT-A) |
+| [INTB3a](prompts/INTB3a-analytics-writer.md) | Asynchrone, gebufferde analytics-writer | 🔵 | geen |
 | [INTB3b](prompts/INTB3b-privacy-en-restore.md) | Privacy-kanarietest + restore-bewijs | ⛔ | INTB3a |
 | [INTB4a](prompts/INTB4a-dockerfile-en-compose.md) | Dockerfile + `docker compose up` | ⛔ | INTB2/3 |
-| [INTB4b](prompts/INTB4b-tunnel.md) | Tunnel-variant + poortmeting | ⛔ | INTB4a |
+| [INTB4b](prompts/INTB4b-tunnel.md) | Tunnel-variant + poortmeting | ⛔ | INTB4a + bevestiging omgeving |
+
+**Correctie:** `fastify`, `socket.io`, `pg` en `redis` staan al in `package.json`
+met lockfile sinds commit `376bd4e`. Een eerdere versie van deze tabel meldde ten
+onrechte dat INTB2a en INTB3a op een dependency-commit wachtten. Ze zijn vrij.
 
 ## Status per poortmethode
 

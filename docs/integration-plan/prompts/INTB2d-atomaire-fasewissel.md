@@ -46,10 +46,24 @@ overtuig jezelf dat het hier ook echt nodig is en schrijf op waarom.
 ### Klaar wanneer
 
 De betreffende tests uit INTB1b draaien ongewijzigd groen tegen echte Redis.
-Voeg één Redis-specifieke test toe: een fasewissel die halverwege wordt
-onderbroken (bijvoorbeeld door de verbinding te verbreken) laat beide documenten
-in hun oude toestand achter — of, als je mechanisme dat niet kan garanderen, leg
-precies uit wat er dan wél gebeurt en meld het als HANDOFF-item.
+
+Voeg één Redis-specifieke test toe voor een onderbroken uitvoering — maar
+verwacht daarbij **niet** dat beide documenten oud blijven. Dat is de verkeerde
+garantie: een Lua-script draait server-side door terwijl de clientverbinding
+wegvalt, dus de client weet simpelweg niet of de operatie is geland. Een
+netwerkonderbreking is geen rollback.
+
+De garantie die je wél moet aantonen:
+
+```text
+beide documenten zijn oud óf beide documenten zijn nieuw
+nooit één oud en één nieuw
+```
+
+De aanroeper leest na een reconnect de autoritatieve state opnieuw; dat is de
+enige manier om te weten welke van de twee het werd. Leg dat expliciet vast in
+een comment, zodat niemand later een rollback-verwachting toevoegt die Redis
+niet kan waarmaken.
 
 ### Opleveren
 

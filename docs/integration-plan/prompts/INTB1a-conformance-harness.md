@@ -29,8 +29,27 @@ niemand vaststellen of een adapterswap veilig is.
   (`contentVersion`/`rendererVersion` onveranderlijk op `Match`), #22
   (Room/Match/Round als versieerbare JSON-documenten).
 - `docs/integration-plan/HANDOFF-INTB.md` — item **INTB-1** beschrijft drie
-  poortmethoden die `roomId` missen. Dat is bekend en je lost het niet op; je
-  legt het huidige gedrag vast.
+  poortmethoden die `roomId` missen en daardoor niet tegen Redis
+  implementeerbaar zijn.
+
+### Drie methoden worden UITGESLOTEN, niet vastgelegd
+
+`saveRound`, `loadAnswer` en `loadActionCacheEntry` horen **niet** in deze
+suite zolang HANDOFF-item **INTB-1** open staat.
+
+Dit is de belangrijkste instructie van deze prompt. Een conformance-suite is per
+definitie het contract dat elke productieadapter moet halen. Deze drie methoden
+zijn aantoonbaar niet tegen Redis te implementeren; hun huidige gedrag alsnog
+vastleggen promoveert een bekende fout tot norm, en maakt de latere correctie een
+testbreuk in plaats van een verbetering.
+
+Zet ze in een expliciet gemarkeerd, overgeslagen blok (`describe.skip` of
+gelijkwaardig) met een comment die naar **INTB-1** verwijst en zegt wat er moet
+gebeuren voordat ze meedoen: verbrede signaturen `saveRound(roomId, round)`,
+`loadAnswer(roomId, matchId, roundId, playerId)` en
+`loadActionCacheEntry(roomId, actionId)`.
+
+De overige **dertien** methoden dek je volledig.
 
 ### Wat je bouwt
 
@@ -58,8 +77,8 @@ triviale interop die je zelf mag oplossen — melden in `HANDOFF-INTB.md`.
 
 ### Te dekken per methode
 
-Voor **elk** van de zestien niet-atomaire methoden (de twee atomaire zitten in
-INTB1b):
+Voor **elk** van de dertien niet-atomaire methoden die niet door INTB-1 worden
+geraakt (de twee atomaire zitten in INTB1b; de drie uitgesloten staan hierboven):
 
 1. **Happy path** — wegschrijven en weer teruglezen levert een gelijkwaardig
    document op.
@@ -84,10 +103,6 @@ Specifiek per methode ook:
 - `listPlayers` — volgorde. Leg vast of die gegarandeerd is of niet; als niet,
   sorteer in de assertie en zet er een comment bij. Een adapter die op een Redis
   hash leunt heeft géén volgordegarantie.
-- `saveRound` — de fake werpt `RangeError` als de bijbehorende match nog niet is
-  opgeslagen (`in-memory-store.js:112-121`). Leg dat vast als contract, met een
-  comment die naar HANDOFF-item **INTB-1** verwijst, want dit is precies het
-  symptoom van het ontbrekende `roomId`.
 - `getScoreboardTop` — respecteert `limit`, sorteert aflopend op score, en geeft
   `[]` voor een onbekende match. Zie HANDOFF **INTB-3**: de fake keyt op alleen
   `matchId` en negeert `roomId`. Schrijf een test die dit blootlegt (twee rooms,

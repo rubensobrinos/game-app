@@ -1,7 +1,9 @@
 # INTB1b — conformance voor de twee atomaire poortmethoden
 
 **Domein:** INT-B (opslagadapters, achter de repository-poort).
-**Blokkade:** geen. Uitvoerbaar zonder dependencies. Bouwt voort op INTB1a.
+**Blokkade:** HANDOFF-item **INTB-4** — de fake dwingt idempotentie en "één
+antwoord per ronde" niet af. Uitvoerbaar, maar levert bewust falende tests op tot
+dat item is opgelost. Bouwt voort op INTB1a.
 **Levert op:** het bewijs dat geen enkele implementatie half werk of dubbele
 punten kan achterlaten.
 
@@ -63,8 +65,21 @@ Te dekken:
    falen zonder dat het antwoord, het scoreboard of de action-cache is
    aangeraakt. Controleer alle vier na afloop, niet alleen degene die je
    verwacht.
-3. **Nooit twee keer punten.** Dit is de scherpste eis. Bouw scenario's die dit
-   proberen te breken:
+3. **Nooit twee keer punten.** Dit is de scherpste eis — en de fake haalt hem
+   nu níét.
+
+   **Lees eerst HANDOFF-item INTB-4.** `saveAcceptedAnswerAtomically`
+   (`in-memory-store.js:148-172`) controleert geen bestaand antwoord en geen
+   bestaande action-cache-entry; hij overschrijft beide. De tests hieronder gaan
+   dus falen tegen de huidige fake, en dat is de bedoeling.
+
+   Schrijf ze als **karakterisatietests met een expliciete markering** in de
+   beschrijving, bijvoorbeeld `INTB-4 (verwacht rood tot DM de fake corrigeert):
+   …`. Pas de verwachting NIET aan naar wat de fake nu doet — dan verdwijnt
+   precies het gat dat we willen zien. Rapporteer hoeveel van deze tests rood
+   staan en waarom.
+
+   Scenario's:
    - dezelfde `actionId` twee keer aangeboden;
    - twee verschillende `actionId`'s voor dezelfde speler in dezelfde ronde;
    - dezelfde speler in twee verschillende rondes (moet wél twee keer scoren);
@@ -72,9 +87,14 @@ Te dekken:
    Leg per geval expliciet vast wat de eindscore is. Let op: de poort krijgt
    **absolute** nieuwe waarden mee, geen delta — de aanroeper rekent zelf. De
    store hoeft dus niet op te tellen, maar mag ook niet stilzwijgend een tweede
-   schrijving accepteren die de eerste ongedaan maakt zonder dat dat zichtbaar is.
-   Onderzoek wat de fake doet en leg dat vast; is het gedrag verdedigbaar maar
-   niet in de bron beschreven, markeer het als **vastgelegd gedrag**.
+   schrijving accepteren die de eerste ongedaan maakt.
+
+   Het correcte contract, dat je vastlegt ongeacht wat de fake nu doet:
+   dezelfde `actionId` opnieuw geeft de bewaarde ack terug zonder te muteren;
+   een andere `actionId` voor dezelfde speler in dezelfde ronde wordt afgewezen.
+   `DATA-MODEL.md` plaatst beide controles expliciet ín de atomaire operatie
+   (stappen 4 en 5), en niet ervoor — want een controle vooraf dekt concurrency
+   niet af.
 4. **Interleaving.** De fake is single-threaded, maar de suite moet scenario's
    bevatten die een echte adapter kunnen breken. Start meerdere aanroepen zonder
    ertussen te `await`en (`await Promise.all([...])`) en assert dat de eindstand
@@ -97,15 +117,17 @@ Te dekken:
 
 ### Wat je NIET doet
 
-- De poort of de fake wijzigen. Vind je een echt gat, dan is dat een
-  HANDOFF-item aan DM.
+- De poort (`repository.js`) of de fake (`in-memory-store.js`) wijzigen. Die zijn
+  van DM. De correctie van INTB-4 ligt bij hen; jij levert het falende bewijs.
+- Een verwachting afzwakken om groen te worden. Rood is hier het resultaat.
 - Het Lua-script bedenken of schrijven — dat is INTB2c.
 - Buiten `server/data/adapters/` schrijven.
 
 ### Opleveren
 
-Kort verslag: aantal tests, per bovenstaand punt wat je hebt vastgelegd, welke
-gedragingen je als "vastgelegd gedrag" hebt gemarkeerd in plaats van als broneis,
-en of je bij het interleaving-scenario iets bent tegengekomen dat de fake al niet
-aankan. Meld elke twijfel over het contract als aangeleverde tekst voor
+Kort verslag: aantal tests, hoeveel daarvan bewust rood staan op **INTB-4** en
+welke precies, per bovenstaand punt wat je hebt vastgelegd, welke gedragingen je
+als "vastgelegd gedrag" hebt gemarkeerd in plaats van als broneis, en of je bij
+het interleaving-scenario iets bent tegengekomen dat de fake al niet aankan.
+Meld elke twijfel over het contract als aangeleverde tekst voor
 `HANDOFF-INTB.md`; voeg het item niet zelf toe.

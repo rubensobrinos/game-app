@@ -46,6 +46,26 @@ de Definition of Done maakt dat expliciet. Bouw:
 Een back-up die nooit is teruggezet is geen back-up. Dit is de goedkoopste plek
 om daarachter te komen.
 
+#### Verplichte afscherming — deze test maakt databases leeg
+
+Een restore-test doet destructieve dingen. Zonder harde grenzen is het een kwestie
+van tijd voordat hij tegen de verkeerde database draait. Eisen:
+
+- **Alleen een zelf aangemaakte testdatabase met een unieke naam** (bijvoorbeeld
+  met een willekeurig suffix). Nooit een bestaande database hergebruiken.
+- **Weiger productiehosts en de gewone applicatiedatabase** expliciet. Een
+  connectiestring uit de algemene productieconfiguratie is nooit een geldig
+  doelwit; controleer dat vóór de eerste opdracht en breek af met een duidelijke
+  fout.
+- **Log host en databasenaam vóór uitvoering**, zodat achteraf vaststaat waar het
+  is gebeurd.
+- **Verwijder uitsluitend de unieke testdatabase**, ook als de test faalt.
+- Nooit `DROP` of restore tegen een doelwit dat je niet in diezelfde run zelf
+  hebt aangemaakt.
+
+Deze checks zijn onderdeel van de opdracht, niet optioneel. Een test die dit
+mist is niet af, ook al slaagt hij.
+
 ### Wat je NIET doet
 
 - Versleuteling of NAS-transport inrichten — dat is `prod` en valt buiten INT-B.
