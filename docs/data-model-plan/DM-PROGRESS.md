@@ -135,20 +135,21 @@ exact dat teken als scheidingsteken. Voorstel (nog niet gebouwd, wacht op AR +
 INT-B): key-builders worden twee segmenten (`roomInviteLookupKey(version,
 hash)`), poortmethoden blijven ongewijzigd. Zie `HANDOFF.md` §15.
 
-**INT-16 (crash-atomaire fasewissel) — akkoord gegeven, nog niet gebouwd.**
-`setRoomAndMatchPhaseAtomically` krijgt `expectedPhase` (compare-and-set) en
-`pausedState` in dezelfde operatie — dicht een niet-atomair dual-write-pad
-(besluit 30, uitgebreid naar `pausedState`) en een race tussen twee
-gelijktijdige fasewissels (dezelfde klasse als INT-7). Eén eigen
-verduidelijking toegevoegd: beide richtingen van de `pausedState`/`PAUSED`-
-invariant afdwingen met een throw, niet stil corrigeren. Blast radius: 3
-tests (#13-15). Zie `HANDOFF.md` §16 voor het volledige antwoord, inclusief
-de drie besluit-#37-toetsvragen.
+- [x] `DM19` (`HANDOFF.md` §16/§17) — reactie op INT-16, drievoudig akkoord
+  (INT-A's kern, INT-B's dubbele CAS, eigen beide-richtingen-invariant-als-
+  throw) vóór bouw. `setRoomAndMatchPhaseAtomically` krijgt `expectedPhase`
+  (compare-and-set op zowel `Room.phase` als `Match.phase` — niet alleen
+  `Match.phase`) en `pausedState` in dezelfde operatie — dicht een
+  niet-atomair dual-write-pad (besluit 30, uitgebreid naar `pausedState`) en
+  een race tussen twee gelijktijdige fasewissels (dezelfde klasse als
+  INT-7). 8 nieuwe tests (#66-73), 3 bestaande herschreven (#13-15).
+  Poort + fake gebouwd; `state-machine.js`-resume-splitsing (INT-A) en het
+  Lua-script (INT-B) volgen apart, zoals afgesproken.
 
 ## Cijfers
 
-- **DM0–DM18: alle negentien fases uitgevoerd.** `node --test
-  'server/data/**/*.test.js'` → **501/501 tests groen** (96 suites).
+- **DM0–DM19: alle twintig fases uitgevoerd.** `node --test
+  'server/data/**/*.test.js'` → **509/509 tests groen** (96 suites).
 - Twee reviewrondes volledig verwerkt: [`REVIEW.md`](REVIEW.md) (2 blockers, 10
   hoge bevindingen, vóór DM0/DM1) en
   [`prompts/REVIEW-DM2-DM9.md`](prompts/REVIEW-DM2-DM9.md) (3 blockers, 8 hoge,

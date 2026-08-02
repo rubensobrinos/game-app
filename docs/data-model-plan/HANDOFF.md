@@ -821,3 +821,38 @@ signatuur, worden herschreven naar de object-vorm zodra dit gebouwd wordt.
 
 **Nog niet gebouwd — akkoord vandaag, bouw in een volgende ronde**, zoals
 gevraagd.
+
+## 17. INT-16 — gebouwd (DM19)
+
+**Poort + fake gebouwd**, 509/509 tests groen (8 nieuw, #66-73).
+`state-machine.js`/de resume-splitsing en het Lua-script blijven bij INT-A
+resp. INT-B, zoals afgesproken.
+
+```js
+setRoomAndMatchPhaseAtomically(roomId, matchId, {
+  expectedPhase, newPhase, pausedState,
+}) → Promise<{ ok: true } | { ok: false, actualPhase: string }>
+```
+
+- **Dubbele CAS.** Zowel `Room.phase` als `Match.phase` moeten `expectedPhase`
+  dragen — niet alleen `Match.phase`, met de aanname dat `Room.phase` toch
+  wel volgt. `actualPhase` in het conflictresultaat is altijd `Match.phase`
+  (besluit 30: autoritair), ook als ándere kant de mismatch veroorzaakte —
+  getest met een bewust geconstrueerde drift (#67), die in een correcte flow
+  niet kan ontstaan maar de dubbele check moet hem zelf ook vangen.
+- **`pausedState` in dezelfde stap.** Geen aparte `saveMatch`-aanroep meer
+  nodig voor een pauze; getest dat een afgewezen pauzepoging (verouderde
+  `expectedPhase`) geen half `pausedState` achterlaat (#73).
+- **Beide richtingen van de invariant, als throw, vóór de CAS-check.**
+  `newPhase === 'PAUSED'` ⟺ `pausedState !== null`, met voorrang op het
+  conflictresultaat (#70: een ongeldige combinatie werpt zelfs als
+  `expectedPhase` toch al niet klopt) — een intern inconsistente aanvraag is
+  nooit geldig, ongeacht de store-toestand.
+
+**Voor INT-B:** de 6 tests in jullie conformance-suite die op de oude
+`(roomId, matchId, newPhase)`-vorm rekenen staan nu rood — verwacht, zelfde
+patroon als bij elke eerdere signatuurwijziging deze sessie.
+
+**Blast radius bij mij, zoals aangekondigd:** de 3 bestaande tests (#13-15)
+zijn herschreven naar de object-vorm; 8 nieuwe tests toegevoegd (#66-73),
+inclusief de dubbele-CAS- en invariant-scenario's.

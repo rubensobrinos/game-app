@@ -226,12 +226,15 @@ describe('saveRoom — raakt de lookup-indexen nooit aan (DM17, reactie op INTB-
   });
 });
 
-describe('setRoomAndMatchPhaseAtomically — alles-of-niets #13-15', () => {
+describe('setRoomAndMatchPhaseAtomically — dubbele CAS + pausedState in dezelfde stap (DM19, reactie op INT-16) #13-15, #66-73', () => {
   test('#13 geslaagde aanroep werkt Room.phase én Match.phase bij naar dezelfde waarde', async () => {
     const store = createInMemoryStore();
-    await store.saveRoom(makeRoom());
+    await store.saveRoom(makeRoom({ phase: 'ROUND_ACTIVE' }));
     await store.saveMatch(makeMatch());
-    await store.setRoomAndMatchPhaseAtomically('room_1', 'match_1', 'SCOREBOARD');
+    const result = await store.setRoomAndMatchPhaseAtomically('room_1', 'match_1', {
+      expectedPhase: 'ROUND_ACTIVE', newPhase: 'SCOREBOARD', pausedState: null,
+    });
+    assert.deepStrictEqual(result, { ok: true });
     assert.strictEqual((await store.loadRoom('room_1')).phase, 'SCOREBOARD');
     assert.strictEqual((await store.loadMatch('room_1', 'match_1')).phase, 'SCOREBOARD');
   });
@@ -239,13 +242,121 @@ describe('setRoomAndMatchPhaseAtomically — alles-of-niets #13-15', () => {
   test('#14 niet-bestaande matchId -> throw, Room.phase blijft ongewijzigd', async () => {
     const store = createInMemoryStore();
     await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
-    await assert.rejects(() => store.setRoomAndMatchPhaseAtomically('room_1', 'nope', 'SCOREBOARD'));
+    await assert.rejects(() => store.setRoomAndMatchPhaseAtomically('room_1', 'nope', {
+      expectedPhase: 'LOBBY', newPhase: 'SCOREBOARD', pausedState: null,
+    }));
     assert.strictEqual((await store.loadRoom('room_1')).phase, 'LOBBY');
   });
 
   test('#15 niet-bestaande roomId -> throw', async () => {
     const store = createInMemoryStore();
-    await assert.rejects(() => store.setRoomAndMatchPhaseAtomically('nope', 'match_1', 'SCOREBOARD'));
+    await assert.rejects(() => store.setRoomAndMatchPhaseAtomically('nope', 'match_1', {
+      expectedPhase: 'LOBBY', newPhase: 'SCOREBOARD', pausedState: null,
+    }));
+  });
+
+  test('#66 dubbele CAS: Match.phase wijkt af van expectedPhase -> { ok: false, actualPhase }, niets geschreven', async () => {
+    const store = createInMemoryStore();
+    await store.saveRoom(makeRoom({ phase: 'ROUND_ACTIVE' }));
+    await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+    const result = await store.setRoomAndMatchPhaseAtomically('room_1', 'match_1', {
+      expectedPhase: 'SCOREBOARD', newPhase: 'FINISHED', pausedState: null,
+    });
+    assert.deepStrictEqual(result, { ok: false, actualPhase: 'ROUND_ACTIVE' });
+    assert.strictEqual((await store.loadRoom('room_1')).phase, 'ROUND_ACTIVE');
+    assert.strictEqual((await store.loadMatch('room_1', 'match_1')).phase, 'ROUND_ACTIVE');
+  });
+
+  test('#67 dubbele CAS: Room.phase wijkt af terwijl Match.phase wél overeenkomt -> ook dan { ok: false }, want de check geldt voor BEIDE (niet alleen Match.phase)', async () => {
+    const store = createInMemoryStore();
+    // Bewust geconstrueerde drift tussen Room.phase en Match.phase — kan in een
+    // correcte flow niet ontstaan (deze operatie is de enige schrijver), maar de
+    // dubbele CAS moet hem zelf ook vangen, niet enkel op Match.phase vertrouwen.
+    await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
+    await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+    const result = await store.setRoomAndMatchPhaseAtomically('room_1', 'match_1', {
+      expectedPhase: 'ROUND_ACTIVE', newPhase: 'SCOREBOARD', pausedState: null,
+    });
+    assert.deepStrictEqual(result, { ok: false, actualPhase: 'ROUND_ACTIVE' }, 'actualPhase is altijd Match.phase (besluit 30: autoritair)');
+    assert.strictEqual((await store.loadRoom('room_1')).phase, 'LOBBY', 'niets geschreven bij een conflict');
+  });
+
+  test('#68 newPhase "PAUSED" met pausedState: null -> throw, geen mutatie', async () => {
+    const store = createInMemoryStore();
+    await store.saveRoom(makeRoom({ phase: 'ROUND_ACTIVE' }));
+    await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+    await assert.rejects(() => store.setRoomAndMatchPhaseAtomically('room_1', 'match_1', {
+      expectedPhase: 'ROUND_ACTIVE', newPhase: 'PAUSED', pausedState: null,
+    }), RangeError);
+    assert.strictEqual((await store.loadMatch('room_1', 'match_1')).phase, 'ROUND_ACTIVE');
+  });
+
+  test('#69 newPhase anders dan "PAUSED" mét een pausedState -> throw, geen mutatie (de andere richting van de invariant)', async () => {
+    const store = createInMemoryStore();
+    await store.saveRoom(makeRoom({ phase: 'ROUND_ACTIVE' }));
+    await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+    await assert.rejects(() => store.setRoomAndMatchPhaseAtomically('room_1', 'match_1', {
+      expectedPhase: 'ROUND_ACTIVE',
+      newPhase: 'SCOREBOARD',
+      pausedState: { previousPhase: 'ROUND_ACTIVE', remainingMs: 5000, reason: 'host_pause', pausedAt: 2000 },
+    }), RangeError);
+    assert.strictEqual((await store.loadMatch('room_1', 'match_1')).phase, 'ROUND_ACTIVE');
+  });
+
+  test('#70 de invariant-check gaat vóór de dubbele CAS: een ongeldige combinatie werpt ook als expectedPhase toch al niet klopt', async () => {
+    const store = createInMemoryStore();
+    await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
+    await store.saveMatch(makeMatch({ phase: 'LOBBY' }));
+    // expectedPhase klopt hier ook al niet (echte fase is LOBBY) — de test
+    // bewijst dat de throw voorrang heeft op het conflict-resultaatobject.
+    await assert.rejects(() => store.setRoomAndMatchPhaseAtomically('room_1', 'match_1', {
+      expectedPhase: 'ROUND_ACTIVE', newPhase: 'PAUSED', pausedState: null,
+    }), RangeError);
+  });
+
+  test('#71 geslaagde overgang NAAR PAUSED zet pausedState mee in dezelfde atomaire stap', async () => {
+    const store = createInMemoryStore();
+    await store.saveRoom(makeRoom({ phase: 'ROUND_ACTIVE' }));
+    await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+    const pausedState = { previousPhase: 'ROUND_ACTIVE', remainingMs: 7000, reason: 'host_pause', pausedAt: 3000 };
+    const result = await store.setRoomAndMatchPhaseAtomically('room_1', 'match_1', {
+      expectedPhase: 'ROUND_ACTIVE', newPhase: 'PAUSED', pausedState,
+    });
+    assert.deepStrictEqual(result, { ok: true });
+    assert.strictEqual((await store.loadRoom('room_1')).phase, 'PAUSED');
+    const match = await store.loadMatch('room_1', 'match_1');
+    assert.strictEqual(match.phase, 'PAUSED');
+    assert.deepStrictEqual(match.pausedState, pausedState);
+  });
+
+  test('#72 geslaagde overgang UIT PAUSED zet pausedState terug naar null', async () => {
+    const store = createInMemoryStore();
+    const pausedState = { previousPhase: 'ROUND_ACTIVE', remainingMs: 7000, reason: 'host_pause', pausedAt: 3000 };
+    await store.saveRoom(makeRoom({ phase: 'PAUSED' }));
+    await store.saveMatch(makeMatch({ phase: 'PAUSED', pausedState }));
+    const result = await store.setRoomAndMatchPhaseAtomically('room_1', 'match_1', {
+      expectedPhase: 'PAUSED', newPhase: 'ROUND_ACTIVE', pausedState: null,
+    });
+    assert.deepStrictEqual(result, { ok: true });
+    assert.strictEqual((await store.loadMatch('room_1', 'match_1')).pausedState, null);
+  });
+
+  test('#73 vóór DM19 vereiste een pauze twee schrijfacties (saveMatch + de fasewissel) — dat niet-atomaire pad bestaat nu niet meer: een conflict tijdens het pauzeren laat geen half pausedState achter', async () => {
+    const store = createInMemoryStore();
+    await store.saveRoom(makeRoom({ phase: 'ROUND_ACTIVE' }));
+    await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+    // Iemand anders heeft de fase ondertussen al gewijzigd — de pauzepoging
+    // met een verouderde expectedPhase mag geen spoor achterlaten.
+    await store.setRoomAndMatchPhaseAtomically('room_1', 'match_1', {
+      expectedPhase: 'ROUND_ACTIVE', newPhase: 'ROUND_RESULT', pausedState: null,
+    });
+    const result = await store.setRoomAndMatchPhaseAtomically('room_1', 'match_1', {
+      expectedPhase: 'ROUND_ACTIVE',
+      newPhase: 'PAUSED',
+      pausedState: { previousPhase: 'ROUND_ACTIVE', remainingMs: 1000, reason: 'host_pause', pausedAt: 4000 },
+    });
+    assert.deepStrictEqual(result, { ok: false, actualPhase: 'ROUND_RESULT' });
+    assert.strictEqual((await store.loadMatch('room_1', 'match_1')).pausedState, null, 'geen half pausedState na een afgewezen pauzepoging');
   });
 });
 

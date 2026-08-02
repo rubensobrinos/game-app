@@ -48,7 +48,7 @@
  * @property {(roomId: string, matchId: string, roundId: string) => Promise<import('./types/round').Round|null>} loadRound
  * @property {(roomId: string, round: import('./types/round').Round) => Promise<void>} saveRound
  * @property {(roomId: string, matchId: string, roundId: string, playerId: string) => Promise<import('./types/answer').Answer|null>} loadAnswer
- * @property {(roomId: string, matchId: string, newPhase: string) => Promise<void>} setRoomAndMatchPhaseAtomically
+ * @property {(roomId: string, matchId: string, transition: PhaseTransition) => Promise<{ ok: true } | { ok: false, actualPhase: string }>} setRoomAndMatchPhaseAtomically
  * @property {(roomId: string, matchId: string, write: AcceptedAnswerWrite) => Promise<{ replay: boolean }>} saveAcceptedAnswerAtomically
  * @property {(roomId: string, actionId: string) => Promise<{ actionId: string, ack: object } | null>} loadActionCacheEntry
  * @property {(roomId: string, matchId: string, limit: number) => Promise<Array<{playerId: string, score: number}>>} getScoreboardTop
@@ -89,6 +89,29 @@
  * nieuwe locators gebeurt daarom NIETS — de oude locators blijven geldig
  * (veilige no-op, geen halve rotatie).
  * @typedef {{ roomId: string, oldCode: string, oldInviteHash: string, newCode: string, newInviteHash: string, ttlSeconds: number }} RoomLocatorRotation
+ */
+
+/**
+ * DM19 (reactie op INT-16). Drie uitbreidingen op het DM6-ontwerp van
+ * `setRoomAndMatchPhaseAtomically`:
+ *   - **Dubbele compare-and-set.** Zowel `Room.phase` als `Match.phase`
+ *     moeten op het moment van aanroepen `expectedPhase` dragen — dit
+ *     vertrouwt niet stilzwijgend dat de twee al gelijk lopen. Een mismatch
+ *     aan één van beide kanten → `{ ok: false, actualPhase }` (normale
+ *     uitkomst, geen exception, net als bij de locatorclaim).
+ *     `actualPhase` is altijd `Match.phase` (besluit 30: dat veld is
+ *     autoritair), ook als het ándere veld de mismatch veroorzaakte.
+ *   - **`pausedState` in dezelfde atomaire stap.** Was vóór DM19 een aparte
+ *     `saveMatch`-aanroep van de aanroeper — een niet-atomair
+ *     dual-write-pad voor het veld dat besluit 30 niet met naam noemde maar
+ *     in de geest evident meeneemt.
+ *   - **`pausedState`/`PAUSED`-invariant, BEIDE richtingen, als throw.**
+ *     `newPhase === 'PAUSED'` vereist `pausedState !== null` en omgekeerd —
+ *     een contractschending van de aanroeper (nooit geldig, ongeacht de
+ *     store-toestand), dus een `RangeError`, geen `{ ok: false }`. Anders dan
+ *     de compare-and-set hierboven: dit is geen normale racefout maar een
+ *     intern inconsistente aanvraag.
+ * @typedef {{ expectedPhase: string, newPhase: string, pausedState: import('./types/match').MatchPausedState | null }} PhaseTransition
  */
 
 /**

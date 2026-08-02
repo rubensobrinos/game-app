@@ -280,11 +280,14 @@ function createInMemoryStore() {
     return answer === undefined ? null : deepCopy(answer);
   }
 
-  async function setRoomAndMatchPhaseAtomically(roomId, matchId, newPhase) {
+  async function setRoomAndMatchPhaseAtomically(roomId, matchId, { expectedPhase, newPhase, pausedState }) {
     // DECISIONS.md #30 (bevestigd 2 augustus 2026): Match.phase is autoritair;
     // Room.phase is een AFGELEIDE PROJECTIE, bijgewerkt in dezelfde atomaire
     // operatie. Geen niet-atomair dual-write-pad — deze functie zet daarom
     // altijd beide in één synchrone stap, nooit één zonder de ander.
+    //
+    // DM19 (reactie op INT-16): drie uitbreidingen op het oorspronkelijke
+    // DM6-ontwerp, hieronder in volgorde.
     const room = roomsById.get(roomId);
     const match = matchesByKey.get(roomId)?.get(matchId);
     if (room === undefined) {
@@ -293,13 +296,42 @@ function createInMemoryStore() {
     if (match === undefined) {
       throw new RangeError(`setRoomAndMatchPhaseAtomically: unknown matchId ${JSON.stringify(matchId)} for roomId ${JSON.stringify(roomId)}`);
     }
-    // Beide kandidaat-updates eerst volledig voorbereiden (geen enkele write
+
+    // 1. pausedState/PAUSED-invariant, BEIDE richtingen — een contractschending
+    // van de AANROEPER (niet een normale racefout), dus een throw, geen
+    // { ok: false }. Vóór de CAS-check: een intern inconsistente aanvraag is
+    // nooit geldig, ongeacht wat er in de store staat.
+    if (newPhase === 'PAUSED' && pausedState === null) {
+      throw new RangeError('setRoomAndMatchPhaseAtomically: newPhase "PAUSED" vereist een niet-lege pausedState');
+    }
+    if (newPhase !== 'PAUSED' && pausedState !== null) {
+      throw new RangeError(`setRoomAndMatchPhaseAtomically: pausedState moet null zijn buiten de fase "PAUSED" (newPhase was ${JSON.stringify(newPhase)})`);
+    }
+
+    // 2. Dubbele compare-and-set: zowel Room.phase als Match.phase moeten op
+    // dit moment de verwachte fase dragen. Dit vertrouwt niet stilzwijgend dat
+    // de twee al gelijk lopen (dat zou besluit 30 zelf oncontroleerd aannemen)
+    // — een mismatch aan ÉÉN van beide kanten is een normale, geen
+    // uitzonderlijke uitkomst (net als bij de locatorclaim), dus een
+    // resultaatobject, geen throw. Match.phase is het gerapporteerde
+    // `actualPhase`, want dat is het autoritaire veld (besluit 30).
+    if (room.phase !== expectedPhase || match.phase !== expectedPhase) {
+      return { ok: false, actualPhase: match.phase };
+    }
+
+    // 3. `pausedState` in dezelfde atomaire stap als de fasewissel (was vóór
+    // DM19 een aparte `saveMatch`-aanroep van de compositie — een
+    // niet-atomair dual-write-pad voor precies het veld dat besluit 30 niet
+    // met naam noemde maar in de geest evident meeneemt).
+    //
+    // Alle kandidaat-updates eerst volledig voorbereiden (geen enkele write
     // hierboven), dan pas allebei committen — zodat een fout vóór dit punt
-    // (bijv. hierboven een throw) gegarandeerd geen van beide raakt.
+    // gegarandeerd geen van beide raakt.
     const updatedRoom = { ...room, phase: newPhase };
-    const updatedMatch = { ...match, phase: newPhase };
+    const updatedMatch = { ...match, phase: newPhase, pausedState };
     roomsById.set(roomId, updatedRoom);
     matchesByKey.get(roomId).set(matchId, updatedMatch);
+    return { ok: true };
   }
 
   async function saveAcceptedAnswerAtomically(roomId, matchId, write) {

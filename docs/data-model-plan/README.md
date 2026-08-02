@@ -22,12 +22,12 @@ transcriptie (+ voorstel voor een neutrale module in `HANDOFF.md` §5), en `Roun
 uitgebreid na reconciliatie met de inmiddels herziene `GR4-question-selection.md`.
 Zie [`DM-PROGRESS.md`](DM-PROGRESS.md) §Cijfers voor de volledige lijst.
 
-**Uitgevoerd. Alle negentien fases (DM2–DM18) staan in `server/data/`, 501/501
-tests groen** (`node --test 'server/data/**/*.test.js'`). DM10–DM18
+**Uitgevoerd. Alle twintig fases (DM2–DM19) staan in `server/data/`, 509/509
+tests groen** (`node --test 'server/data/**/*.test.js'`). DM10–DM19
 (§3 hieronder) zijn een latere ronde, gebouwd als reactie op
 `docs/integration-plan/`'s HANDOFF-bevindingen. **De poort is sinds DM13
-bevroren, met een gevolgd voorstel-proces voor DM14–DM17** (DM18 is een
-interne, niet-poort-signatuur-wijzigende opruiming en viel dus buiten die
+bevroren, met een gevolgd voorstel-proces voor DM14–DM17 en DM19** (DM18 is
+een interne, niet-poort-signatuur-wijzigende opruiming en viel dus buiten die
 bevriezing) — zie `HANDOFF.md` §7b/§14/§15. Tijdens de uitvoering van
 DM2–DM9 kwam
 [`docs/multiplayer/DECISIONS.md`](../multiplayer/DECISIONS.md) binnen (2 augustus
@@ -138,6 +138,7 @@ gevolgen daarvan.
 | DM16 | `rotateRoomLocators` | **Uitgevoerd** — reactie op INTB-5 🔴 (`HANDOFF.md` §9, formeel voorstel + product-akkoord + gebouwd); atomaire wissel, faalt veilig (oude locators blijven geldig bij conflict) |
 | DM17 | `saveRoom` raakt lookup-indexen niet meer aan + sessietoken-rotatie | **Uitgevoerd** — reactie op INT-B's `BESLUIT-INTB-locators-en-sessieindex.md` (`HANDOFF.md` §14), Deel A (INTB-9) + Deel B (INTB-10-rotatie); capability-principe (besluit #37) toegepast en geaudit over alle drie de capabilities |
 | DM18 | `sessionsByKey`/`playersByKey` → geneste Maps | **Uitgevoerd** — §7-opvolging, geen poortsignatuur-wijziging dus buiten de bevriezing; `playerIdsByRoom` kwam te vervallen |
+| DM19 | `setRoomAndMatchPhaseAtomically`: dubbele CAS + `pausedState` in dezelfde stap | **Uitgevoerd** — reactie op INT-16 (`HANDOFF.md` §16/§17), akkoord (INT-A's kern + INT-B's dubbele CAS + eigen beide-richtingen-invariant-als-throw) vóór bouw; `expectedPhase`/`{ ok, actualPhase }` conform het compare-and-set-patroon dat deze sessie overal is aangehouden |
 
 **Ook een voorstel geschreven, nog niet gebouwd:** `HANDOFF.md` §15 —
 versieprefix op `inviteHash`/`tokenHash` (INT-13 + INT-15) raakt
@@ -156,7 +157,7 @@ stappen, nu ook expliciet getoetst aan het capability-principe (besluit #37,
 `HANDOFF.md` §14): elke capability heeft één atomair schrijfpad en één
 atomair intrekpad.
 
-**DM0–DM18 zijn allemaal uitgevoerd — 501/501 tests groen**
+**DM0–DM19 zijn allemaal uitgevoerd — 509/509 tests groen**
 (`node --test 'server/data/**/*.test.js'`). Checkpoint 4 is tijdens de
 uitvoering opgelost door `docs/multiplayer/DECISIONS.md` #21. DM10–DM12 zijn
 gebouwd na een eigen reviewronde die vóór uitvoering drie fundamentele
@@ -169,11 +170,13 @@ staan. Daarna DM14–DM16 (`loadSessionByTokenHash` voor INT-3,
 `{ replay: boolean }` voor INT-14, `rotateRoomLocators` voor INTB-5 🔴), DM17
 (`saveRoom` raakt de lookup-indexen niet meer aan + sessietoken-rotatie —
 reactie op INT-B's `BESLUIT-INTB-locators-en-sessieindex.md`, `HANDOFF.md`
-§14) en DM18 (`sessionsByKey`/`playersByKey` → geneste Maps, §7-opvolging,
-geen poortwijziging). DM14–DM17 gingen via het voorstel-proces uit §7b:
-voorstel, akkoord, dan bouwen; DM18 raakte geen poortsignatuur en viel dus
-buiten de bevriezing. **De poort blijft bevroren voor eenzijdige
-wijzigingen**, nu expliciet
+§14), DM18 (`sessionsByKey`/`playersByKey` → geneste Maps, §7-opvolging,
+geen poortwijziging) en DM19 (`setRoomAndMatchPhaseAtomically`: dubbele CAS +
+`pausedState` in dezelfde stap, reactie op INT-16, `HANDOFF.md` §16/§17).
+DM14–DM17 en DM19 gingen via het voorstel-proces uit §7b: voorstel, akkoord,
+dan bouwen; DM18 raakte geen poortsignatuur en viel dus buiten de
+bevriezing. **De poort blijft bevroren voor eenzijdige wijzigingen**, nu
+expliciet
 getoetst aan het capability-principe (besluit #37) —
 zie `HANDOFF.md` §7b/§8/§14 voor het volledige, actuele overzicht van wat er nog
 aan DM gericht staat maar bewust niet gebouwd is. Resterende

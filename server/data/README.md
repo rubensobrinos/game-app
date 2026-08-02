@@ -60,16 +60,16 @@ Legenda: ✅ gebouwd en getest.
 | `types/room-presentation.js` | DM3 | ✅ | 9 |
 | `name-processing.js` | DM4 | ✅ | 34 |
 | `privacy-guard.js` | DM5 | ✅ | 109 |
-| `repository.js` + `in-memory-store.js` | DM6, uitgebreid door DM10–DM18 | ✅ | 66 |
+| `repository.js` + `in-memory-store.js` | DM6, uitgebreid door DM10–DM19 | ✅ | 74 |
 | `answer-flow.js` | DM7, becommentarieerd door DM13/DM15 | ✅ | zie `docs/data-model-plan/DM-PROGRESS.md` |
 | `types/player.js`'s `toStandingPlayerView()` | DM9 | ✅ | zie `docs/data-model-plan/DM-PROGRESS.md` |
 
-**Totaal: 501 tests groen** (`node --test 'server/data/**/*.test.js'`) na
-DM0–DM18. Analytics (DM8) levert bewust geen `server/`-code — dat blijft een
+**Totaal: 509 tests groen** (`node --test 'server/data/**/*.test.js'`) na
+DM0–DM19. Analytics (DM8) levert bewust geen `server/`-code — dat blijft een
 voorstel onder `docs/data-model-plan/proposals/`, niet als runtimecode
 (`REVIEW-DM2-DM9.md` bevinding 11).
 
-**DM10–DM17** (`docs/data-model-plan/HANDOFF.md` §6/§7a/§9/§10/§12/§14)
+**DM10–DM19** (`docs/data-model-plan/HANDOFF.md` §6/§7a/§9/§10/§12/§14/§16/§17)
 breidden de repository-poort uit als reactie op `docs/integration-plan/`'s
 HANDOFF-bevindingen: `loadRoomByInviteId(inviteId)` →
 `loadRoomByInviteHash(inviteHash)`;
@@ -85,7 +85,11 @@ INT-A's stap 2); `saveRoom` raakt sinds DM17 geen enkele lookup-index meer
 aan (reactie op INTB-9 — voorheen kon een `saveRoom` zonder claim de
 join-code van de eigenaar "stelen"), en `saveSession` geeft sinds DM17 de
 vorige `tokenHash`-index-entry vrij bij een wijziging (reactie op
-INTB-10-rotatie — dezelfde klasse fout als INTB-5, nu voor sessies). De
+INTB-10-rotatie — dezelfde klasse fout als INTB-5, nu voor sessies);
+`setRoomAndMatchPhaseAtomically` doet sinds DM19 een dubbele compare-and-set
+(`Room.phase` én `Match.phase` moeten `expectedPhase` dragen) en neemt
+`pausedState` mee in dezelfde atomaire stap (reactie op INT-16), met een
+throw op beide richtingen van de `pausedState`/`PAUSED`-invariant. De
 in-memory fake gebruikt sindsdien geneste Maps in plaats van met een spatie
 samengestelde string-sleutels voor zijn interne, samengestelde identifiers —
 sinds DM18 ook voor `sessionsByKey`/`playersByKey` (`playerIdsByRoom` is
