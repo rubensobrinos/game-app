@@ -1,20 +1,124 @@
 # E2E/Load target-check — bestaat het bewijsdoel voor Playwright en k6?
 
-**Datum van controle:** 2 augustus 2026
 **Aanleiding:** [`prompts/DT-R4-playwright-k6-target-check.md`](prompts/DT-R4-playwright-k6-target-check.md),
 opdracht 3 uit [`DT-RESUME-AFTER-DECISIONS.md`](prompts/DT-RESUME-AFTER-DECISIONS.md)
 ("voeg Playwright- en loadtesttooling toe wanneer hun concrete targets bestaan").
 **Scope van deze controle:** alleen de vraag of de twee technische prerequisites nu
 bestaan — niet de toestemmingsvraag. Die is al gegeven in
-[`docs/multiplayer/DECISIONS.md`](../multiplayer/DECISIONS.md) §Uitvoeringsakkoord en
-wordt hier niet opnieuw gesteld.
+[`docs/multiplayer/DECISIONS.md`](../multiplayer/DECISIONS.md) §"Uitvoeringsakkoord
+test- en deploymentwerk" en wordt hier niet opnieuw gesteld.
 
 Dit bestand is het persistente overdrachtsartefact dat DT-R5 leest. Geen van de
 bevindingen hieronder is uitgevoerd als actie (geen `npm install`, geen
 `package.json`-wijziging, geen nieuw bestand onder `tests/e2e/` of `tests/load/`) —
-dat is expliciet buiten scope van deze controle.
+dat is expliciet buiten scope van deze controle. Deze prompt is herbruikbaar en is
+inmiddels twee keer gedraaid; onderstaand staan beide controles, nieuwste eerst.
 
 ---
+
+# Controle 2 augustus 2026 (avond) — herbevestiging
+
+**Aanleiding voor deze herhaalde run:** sinds de ochtendcontrole hieronder is commit
+`cd3a9c1` ("docs(ui): UI1-mandaat + frontend/-map — nieuw domein voor de
+multiplayer-schermen") geland, die een nieuwe `frontend/`-map en een UI-mandaat
+introduceert. Dat riep de vraag op of dit een Playwright-target oplevert. Op het
+moment van deze controle draaien er bovendien meerdere concurrente sessies direct
+tegen `main`; de working tree bevatte tijdens het onderzoek al verder-bijgewerkte,
+nog ongecommitte content (o.a. `docs/frontend-plan/UI-PROGRESS.md`,
+`docs/frontend-plan/prompts/UI0-scaffold.md`,
+`docs/frontend-plan/prompts/UI1-home-and-join.md` — de opvolgers van het
+`UI1-multiplayer-ui.md`-mandaat uit `cd3a9c1` zelf). Onderstaande bevindingen zijn
+op bestandsniveau geverifieerd op dat moment, niet aangenomen.
+
+## Verdict Playwright: target bestaat nog steeds niet
+
+`cd3a9c1` voegt alleen een **mandaat-document**
+(`docs/frontend-plan/prompts/UI1-multiplayer-ui.md`, inmiddels alweer opgesplitst
+in `UI0-scaffold.md`/`UI1-home-and-join.md` e.a.) en een lege map toe — geen
+gerenderde UI.
+
+**Bewijs:**
+
+- `frontend/` bevat op dit moment uitsluitend `frontend/.gitkeep`:
+  `find frontend -type f` levert precies één bestand op. `git log --oneline --all
+  -- frontend/` levert precies één commit op (`cd3a9c1`, dat exact dat
+  `.gitkeep`-bestand toevoegt) — geen enkele commit heeft ooit code in
+  `frontend/` gezet.
+- Geen van de vier HTML-bestanden in de repo-root
+  (`index.html`, `preview-shapes.html`, `provinces-preview.html`,
+  `preview-provinces.html`) bevat een `<script type="module">`-tag:
+  `grep -l 'type="module"' *.html` levert niets op.
+- `src/screens/` en `src/components/` bevatten nog steeds alleen `.gitkeep`.
+- Het (ongecommitte, door een andere sessie geschreven) eigen voortgangsdocument
+  `docs/frontend-plan/UI-PROGRESS.md` bevestigt dit onafhankelijk: alle schermen
+  UI0–UI5 staan op 🔵 ("nog te doen"), met expliciet: *"Geen enkel scherm kan dus
+  al ✅ (echte server) zijn; hoogstens 🟡 tegen de mock geverifieerd"* en de
+  blocker *"INT-A's stap 2 (draaiende server/transportlaag) bestaat nog niet"*.
+  Dit is corroborerend bewijs uit een andere, gelijktijdig actieve sessie — geen
+  vervanging van de eigen bestandscontrole hierboven, die onafhankelijk tot
+  dezelfde conclusie komt.
+
+**Conclusie:** `cd3a9c1` is een **mandaat/planningscommit**, geen
+implementatiecommit. De blokkade voor DT4a Deel 2 geldt onverkort: er is nog
+steeds geen HTML-entrypoint of route-koppeling die `client/flow/` aan de DOM
+knoopt.
+
+## Verdict k6: target bestaat nog steeds niet
+
+Los van de frontend-vraag opnieuw gecontroleerd of `server/composition/`
+(`match-lifecycle.mjs`, `room-lifecycle.mjs`, `context.mjs`) inmiddels aan een
+luisterende Fastify-/Socket.IO-server hangt.
+
+**Bewijs:**
+
+- `server/index.mjs` is ongewijzigd de `node:http`-placeholder: nog steeds
+  hetzelfde opschrift *"FASE 1-PLACEHOLDER, bewust dependency-vrij (node:http).
+  Dit is NIET de game-server uit ARCHITECTURE.md"*, en het enige `.listen(`-
+  aanroep in `server/**/*.mjs` (buiten tests) staat op regel 62 van dat bestand,
+  op de `http.createServer(...)`-instance uit regel 39 — geen Fastify, geen
+  Socket.IO.
+- Repo-brede zoekactie naar `createServer(`, `fastify(`, `new Server(` binnen
+  `server/**/*.mjs` (exclusief tests) levert nog steeds alleen `server/index.mjs`
+  zelf op.
+- `server/composition/context.mjs` (het naadpunt tussen room-lifecycle en
+  match-lifecycle) noemt zichzelf expliciet *"LIJM, GEEN DOMEINLOGICA"* en leest
+  bewust geen `process.env` — het is er nadrukkelijk niet op ingericht zelf een
+  server op te zetten. `grep -rl "composition/context"` vindt alleen
+  `server/composition/context.mjs` zelf en de testharness
+  `tests/integration/support/composition-harness.mjs` (in-process test-glue, geen
+  netwerklaag) als importeurs.
+- Er is sinds de vorige controle wél een nieuwe, nog **ongecommitte** map
+  `server/data/adapters/redis/` bijgekomen (`connection.mjs`, `documents.mjs`,
+  e.a.). Deze is uitdrukkelijk een opslagadapter, geen HTTP-/Socket.IO-laag: het
+  bestand documenteert zelf *"GEEN POORTMETHODEN"* en leest expliciet geen
+  `process.env` — dit verandert niets aan het k6-verdict.
+- `tests/load/` bevat nog steeds alleen `.gitkeep` en `README.md`;
+  `package.json` bevat nog geen `k6`- of `playwright`-vermelding
+  (`grep -iE "playwright|k6" package.json` levert niets op) en is niet gewijzigd
+  door deze controle.
+
+**Conclusie:** de blokkade voor DT5 Deel 2/3 geldt onverkort. `npm start`
+(`"start": "node server/index.mjs"`) start nog steeds alleen de placeholder.
+
+## Wat als de targets wél bestaan — vervolgstappen (ongewijzigd, niet nu uitgevoerd)
+
+Zie de sectie hieronder bij de vorige controle (2 augustus 2026, ochtend) — deze
+blijft ongewijzigd van toepassing zodra een van beide targets alsnog ontstaat:
+Playwright zodra `frontend/` een werkende, gerenderde multiplayer-UI bevat (zie
+`docs/frontend-plan/UI-PROGRESS.md` voor de actuele stand van UI0–UI5), k6 zodra
+`server/composition/` daadwerkelijk aan een luisterende Fastify-/Socket.IO-
+instance hangt.
+
+## Harde grenzen gerespecteerd in deze herhaalcontrole
+
+- Geen `npm install` uitgevoerd, geen wijziging aan `package.json`.
+- Geen nieuw bestand onder `tests/e2e/` of `tests/load/`.
+- Precies één bestand gewijzigd: dit bestand (uitbreiding, geschiedenis van de
+  vorige controle behouden).
+
+---
+
+# Controle 2 augustus 2026 (ochtend) — eerste run
 
 ## Verdict Playwright: target bestaat niet
 
