@@ -61,8 +61,16 @@ checklist — bijwerken bij elke fase-afronding, niet alleen aan het eind.
         DECISIONS.md #4/#5 — geen wijziging nodig, al consistent.
       - Alle 10 prompt-bestanden bijgewerkt zodat ze de gebouwde code weer
         weerspiegelen.
-- [ ] Handoff naar INT-A voor UI-aansluiting (stap 2) — zie
+- [x] Handoff naar INT-A voor UI-aansluiting (stap 2) — zie
       `GF-HANDOFF-TO-INT-A.md`.
+- [x] `join-state.mjs` gecorrigeerd: `GET /api/v1/games/preview` bleek in het
+      inmiddels uitgeschreven `PROTOCOL.md` invite-only (geen `gameCode`-
+      variant). Mijn eerdere aanname (symmetrische preview voor beide
+      locatortypes) was geschreven vóórdat die sectie bestond. Een
+      code-locator slaat `previewing` nu over en gaat direct naar
+      `name-entry`. Gevonden tijdens het opzetten van UI1 (frontend-plan),
+      vóórdat er tegen de oude aanname gebouwd werd. 231/231 tests blijven
+      groen. Zie `prompts/GF2a-join-state.md`.
 
 ## Bekende, niet-zelf-op-te-lossen gaten
 

@@ -7,6 +7,14 @@ oorspronkelijke open spec-vraag van dit bestand (zie onderaan, ter historie) en 
 al doorgevoerd in `client/flow/join-state.mjs` — dit document is bijgewerkt om
 daarmee in de pas te lopen, geen nieuw werk.
 
+**Tweede correctie, na het uitgeschreven `PROTOCOL.md`-contract:** `GET
+/api/v1/games/preview` is **uitsluitend `inviteId`** — geen `gameCode`-variant
+(`docs/protocol-plan/prompts/PR10-preview-endpoint.md`). Mijn eerste
+implementatie nam symmetrische preview-ondersteuning voor beide locatortypes
+aan, geschreven vóórdat die sectie van `PROTOCOL.md` bestond. Gecorrigeerd: een
+`code`-locator slaat `previewing` nu over en gaat direct van `idle` naar
+`name-entry` met `suggestedName: null`.
+
 Onderdeel van [`../README.md`](../README.md), fase GF2 (join-state helft). Vereist dat
 GF1 (route-resolver) klaar is. Doel: een pure statemachine voor de join-flow (QR/link
 primair, code als fallback) mét een echte preview-stap, die alleen state en te

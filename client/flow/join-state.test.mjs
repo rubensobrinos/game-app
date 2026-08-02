@@ -25,9 +25,17 @@ test('2. LOCATOR_OBTAINED with an invite locator moves idle to previewing', () =
   assert.deepStrictEqual(state, { status: 'previewing', locator: inviteLocator });
 });
 
-test('3. LOCATOR_OBTAINED with a code locator moves idle to previewing', () => {
+// PROTOCOL.md's preview endpoint is invite-only (GET /api/v1/games/preview
+// takes only inviteId) — a code locator has nothing to preview, so it skips
+// 'previewing' entirely and lands directly in name-entry with no suggestion.
+test('3. LOCATOR_OBTAINED with a code locator skips previewing, moves idle straight to name-entry', () => {
   const state = transition(initialJoinState(), { type: 'LOCATOR_OBTAINED', locator: codeLocator });
-  assert.deepStrictEqual(state, { status: 'previewing', locator: codeLocator });
+  assert.deepStrictEqual(state, {
+    status: 'name-entry',
+    locator: codeLocator,
+    suggestedName: null,
+    displayName: null,
+  });
 });
 
 test('4. LOCATOR_OBTAINED outside idle is ignored, no throw', () => {
@@ -44,11 +52,10 @@ test('5. previewRequestFor during previewing yields inviteId for an invite locat
   assert.strictEqual('gameCode' in request, false);
 });
 
-test('6. previewRequestFor during previewing yields gameCode for a code locator, never inviteId', () => {
-  const previewing = transition(initialJoinState(), { type: 'LOCATOR_OBTAINED', locator: codeLocator });
-  const request = previewRequestFor(previewing);
-  assert.deepStrictEqual(request, { gameCode: '482917' });
-  assert.strictEqual('inviteId' in request, false);
+test('6. previewRequestFor is null for a code locator — it never reaches previewing', () => {
+  const nameEntry = transition(initialJoinState(), { type: 'LOCATOR_OBTAINED', locator: codeLocator });
+  assert.strictEqual(nameEntry.status, 'name-entry');
+  assert.strictEqual(previewRequestFor(nameEntry), null);
 });
 
 test('7. previewRequestFor outside previewing is null (idle, name-entry, submitting, joined, error)', () => {
@@ -150,9 +157,9 @@ test('17. SUBMIT from name-entry moves to submitting, carrying the suggestion; j
   assert.deepStrictEqual(request, { inviteId: 'N4x7pQm2K8tW', displayName: 'Sanne', joinSource: 'qr' });
 });
 
-test('18. SUBMIT with a code locator yields gameCode and joinSource "code", never inviteId', () => {
-  const previewing = transition(initialJoinState(), { type: 'LOCATOR_OBTAINED', locator: codeLocator });
-  const named = transition(previewing, { type: 'PREVIEW_SUCCEEDED', suggestedName: null });
+test('18. SUBMIT with a code locator (no preview step) yields gameCode and joinSource "code", never inviteId', () => {
+  const named = transition(initialJoinState(), { type: 'LOCATOR_OBTAINED', locator: codeLocator });
+  assert.strictEqual(named.status, 'name-entry');
   const submitting = transition(named, { type: 'SUBMIT' });
 
   const request = joinRequestFor(submitting);

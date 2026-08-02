@@ -15,10 +15,12 @@
  */
 
 // DECISIONS.md #7 (2 aug 2026, regie-sessie): a pre-join preview endpoint now
-// validates the invite/code and returns a server-generated name suggestion
-// BEFORE `POST /api/v1/games/join`. This resolves what was previously an open
-// spec question (see the retired GF2a note) — the flow now has a real
-// 'previewing' stage between obtaining a locator and showing name-entry.
+// validates the invite and returns a server-generated name suggestion BEFORE
+// `POST /api/v1/games/join`. PROTOCOL.md's finalized contract (GET
+// /api/v1/games/preview) is invite-ONLY — no gameCode variant — so a code
+// locator skips 'previewing' entirely and goes straight to name-entry with no
+// suggestion. This corrects an earlier assumption (symmetric preview for both
+// locator types) made before PROTOCOL.md's preview section was written.
 
 const NAME_MAX_GRAPHEMES = 20;
 const JOIN_SOURCES = new Set(['qr', 'shared_link', 'unknown']);
@@ -100,16 +102,19 @@ export function transition(state, event) {
 }
 
 /**
- * Wat er nu naar het previewendpoint moet, of null. Non-null alleen tijdens
- * 'previewing' — zelfde in-flight-conventie als `joinRequestFor`.
+ * Wat er nu naar `GET /api/v1/games/preview` moet, of null. Non-null alleen
+ * tijdens 'previewing' — zelfde in-flight-conventie als `joinRequestFor`.
+ * Levert altijd `{ inviteId }`: een code-locator bereikt 'previewing' nooit
+ * (zie handleLocatorObtained), dus deze functie hoeft geen gameCode-vorm te
+ * kennen.
  * @param {JoinState} state
- * @returns {{ inviteId?: string, gameCode?: string } | null}
+ * @returns {{ inviteId: string } | null}
  */
 export function previewRequestFor(state) {
   if (!isJoinState(state) || state.status !== 'previewing') {
     return null;
   }
-  return locatorField(state.locator);
+  return { inviteId: state.locator.inviteId };
 }
 
 /**
@@ -137,7 +142,16 @@ function isJoinState(state) {
 
 function handleLocatorObtained(event) {
   const locator = normalizeLocator(event.locator);
-  return locator === null ? null : { status: 'previewing', locator };
+  if (locator === null) {
+    return null;
+  }
+  // PROTOCOL.md's preview endpoint is invite-only. A code locator has no
+  // suggestion to fetch, so it skips 'previewing' and lands directly in
+  // name-entry, same shape PREVIEW_SUCCEEDED would have produced.
+  if (locator.type === 'code') {
+    return { status: 'name-entry', locator, suggestedName: null, displayName: null };
+  }
+  return { status: 'previewing', locator };
 }
 
 function handleRetry(state) {
