@@ -25,13 +25,26 @@
 //    ontbrekende reden in vóór de aanroep — de reducer verzint geen
 //    protocol-defaults. Verandert die keuze, dan hoort hij in PROTOCOL.md thuis,
 //    niet hier.
-// 2. Host-tempo: bij `pacing: "host"` vereist deze module een HOST_NEXT ná
-//    ROUND_RESULT én ná SCOREBOARD, dus twee bevestigingen per ronde wanneer de
-//    tussenstand elke ronde wordt getoond. GAME-RULES.md ("wacht na de uitslag of
-//    de tussenstand") laat ook de lezing toe dat de uitslag op zijn timer
-//    doorloopt. OPEN VRAAG voor de GAME-RULES.md-eigenaar; de strenge lezing is
-//    hier gekozen omdat ze de andere niet uitsluit — één tik per ronde vereist
-//    alleen dat ROUND_RESULT bij host-tempo óók TIMER_ELAPSED gaat accepteren.
+// 2. Host-tempo: BESLIST — docs/multiplayer/DECISIONS.md, besluit 1. Host-tempo
+//    gebruikt ÉÉN hostactie per ronde: ROUND_RESULT loopt op zijn timer door naar
+//    SCOREBOARD, waarna de host "Volgende" kiest. Bij `pacing: "host"` accepteert
+//    ROUND_RESULT daarom TIMER_ELAPSED, maar uitsluitend naar SCOREBOARD. Dit
+//    vervangt de eerdere strenge lezing (twee bevestigingen per ronde).
+//
+//    INTERPRETATIE bij besluit 1 — het besluit maakt dit niet expliciet, deze
+//    module kiest het zo: HOST_NEXT vanuit ROUND_RESULT blijft bestaan.
+//    GameConfiguration.scoreboardFrequency kan `every_round`, periodiek of UIT
+//    zijn. Wordt de tussenstand overgeslagen en zou ROUND_RESULT bij host-tempo
+//    altijd timer-gedreven zijn, dan kent die ronde helemaal geen hostactie en
+//    loopt de game bij host-tempo volledig automatisch — dat maakt host-tempo
+//    betekenisloos. De regel die beide configuraties op precies één hostactie per
+//    ronde houdt:
+//      - tussenstand AAN → hostactie bij SCOREBOARD; ROUND_RESULT loopt op timer;
+//      - tussenstand UIT → hostactie bij ROUND_RESULT (HOST_NEXT naar de volgende
+//        ronde of naar FINISHED).
+//    Welke van de twee geldt, bepaalt de AANROEPER door de nextPhase die hij
+//    levert; de reducer valideert alleen. Daarom is SCOREBOARD géén HOST_NEXT-
+//    bestemming meer: dat pad is per besluit 1 timer-gedreven.
 
 /**
  * @typedef {{
@@ -103,8 +116,23 @@ const ERROR_CODES = Object.freeze({
 
 const PACING = Object.freeze({ AUTO: 'auto', HOST: 'host' });
 
-// Overgangstabel als data: bronfase → event → { pacing, targets }.
-// `pacing: null` betekent "geldig bij zowel auto als host" (COUNTDOWN en
+/** `pacing`-waarde van een bestemming die bij zowel auto als host geldig is. */
+const ANY_PACING = null;
+
+/**
+ * Eén toegestane bestemming binnen een tabelrij. De pacing hangt aan de
+ * BESTEMMING en niet aan de hele rij, omdat ROUND_RESULT + TIMER_ELAPSED bij
+ * host-tempo wél naar SCOREBOARD mag en niet naar de overige drie fasen.
+ * @param {string} phase
+ * @param {"auto" | "host" | null} pacing - ANY_PACING = geldig bij beide tempo's
+ * @returns {{ phase: string, pacing: (string|null) }}
+ */
+function target(phase, pacing) {
+  return Object.freeze({ phase, pacing });
+}
+
+// Overgangstabel als data: bronfase → event → { targets: [{ phase, pacing }] }.
+// `ANY_PACING` betekent "geldig bij zowel auto als host" (COUNTDOWN en
 // ROUND_ACTIVE zijn altijd timer-gedreven, ongeacht pacing). Alleen de
 // uitslag- en tussenstandfasen zijn host-tempo gevoelig.
 //
@@ -114,50 +142,55 @@ const PACING = Object.freeze({ AUTO: 'auto', HOST: 'host' });
 const TRANSITIONS = Object.freeze({
   [PHASES.LOBBY]: Object.freeze({
     [EVENT_TYPES.HOST_START]: Object.freeze({
-      pacing: null,
-      targets: Object.freeze([PHASES.COUNTDOWN]),
+      targets: Object.freeze([target(PHASES.COUNTDOWN, ANY_PACING)]),
     }),
   }),
   [PHASES.COUNTDOWN]: Object.freeze({
     [EVENT_TYPES.TIMER_ELAPSED]: Object.freeze({
-      pacing: null,
-      targets: Object.freeze([PHASES.ROUND_ACTIVE]),
+      targets: Object.freeze([target(PHASES.ROUND_ACTIVE, ANY_PACING)]),
     }),
   }),
   [PHASES.ROUND_ACTIVE]: Object.freeze({
     [EVENT_TYPES.TIMER_ELAPSED]: Object.freeze({
-      pacing: null,
-      targets: Object.freeze([PHASES.ROUND_RESULT]),
+      targets: Object.freeze([target(PHASES.ROUND_RESULT, ANY_PACING)]),
     }),
   }),
   [PHASES.ROUND_RESULT]: Object.freeze({
     [EVENT_TYPES.TIMER_ELAPSED]: Object.freeze({
-      pacing: PACING.AUTO,
       targets: Object.freeze([
-        PHASES.SCOREBOARD,
-        PHASES.COUNTDOWN,
-        PHASES.ROUND_ACTIVE,
-        PHASES.FINISHED,
+        // Besluit 1: bij host-tempo loopt de uitslag op zijn timer door naar de
+        // tussenstand — daar zit dan de enige hostactie van de ronde.
+        target(PHASES.SCOREBOARD, ANY_PACING),
+        target(PHASES.COUNTDOWN, PACING.AUTO),
+        target(PHASES.ROUND_ACTIVE, PACING.AUTO),
+        target(PHASES.FINISHED, PACING.AUTO),
       ]),
     }),
     [EVENT_TYPES.HOST_NEXT]: Object.freeze({
-      pacing: PACING.HOST,
       targets: Object.freeze([
-        PHASES.SCOREBOARD,
-        PHASES.COUNTDOWN,
-        PHASES.ROUND_ACTIVE,
-        PHASES.FINISHED,
+        // Alleen voor de configuraties zonder tussenstand in deze ronde: dan is
+        // dit de enige hostactie. SCOREBOARD ontbreekt bewust — dat pad is
+        // timer-gedreven (zie aanname 2 in de modulekop).
+        target(PHASES.COUNTDOWN, PACING.HOST),
+        target(PHASES.ROUND_ACTIVE, PACING.HOST),
+        target(PHASES.FINISHED, PACING.HOST),
       ]),
     }),
   }),
   [PHASES.SCOREBOARD]: Object.freeze({
     [EVENT_TYPES.TIMER_ELAPSED]: Object.freeze({
-      pacing: PACING.AUTO,
-      targets: Object.freeze([PHASES.COUNTDOWN, PHASES.ROUND_ACTIVE, PHASES.FINISHED]),
+      targets: Object.freeze([
+        target(PHASES.COUNTDOWN, PACING.AUTO),
+        target(PHASES.ROUND_ACTIVE, PACING.AUTO),
+        target(PHASES.FINISHED, PACING.AUTO),
+      ]),
     }),
     [EVENT_TYPES.HOST_NEXT]: Object.freeze({
-      pacing: PACING.HOST,
-      targets: Object.freeze([PHASES.COUNTDOWN, PHASES.ROUND_ACTIVE, PHASES.FINISHED]),
+      targets: Object.freeze([
+        target(PHASES.COUNTDOWN, PACING.HOST),
+        target(PHASES.ROUND_ACTIVE, PACING.HOST),
+        target(PHASES.FINISHED, PACING.HOST),
+      ]),
     }),
   }),
 });
@@ -221,8 +254,9 @@ function transition(state, event, pacing, now) {
 }
 
 /**
- * Voortgangsevents: bronfase/event moeten in de tabel staan, de pacing moet
- * kloppen en de aangeleverde nextPhase moet in `targets` zitten.
+ * Voortgangsevents: bronfase/event moeten in de tabel staan, de aangeleverde
+ * nextPhase moet een bestemming van die rij zijn en de pacing moet bij díe
+ * bestemming horen.
  * @param {string} phase
  * @param {string} type
  * @param {Event} event
@@ -235,25 +269,44 @@ function applyTableTransition(phase, type, event, pacing) {
     return reject(ERROR_CODES.INVALID_PHASE);
   }
 
-  // pacing telt alleen mee waar de tabel onderscheid maakt: TIMER_ELAPSED
-  // vanuit ROUND_RESULT/SCOREBOARD vereist "auto", HOST_NEXT vereist "host".
-  if (row.pacing !== null && pacing !== row.pacing) {
-    return reject(ERROR_CODES.INVALID_PHASE);
-  }
-
   // HOST_START draagt volgens de event-union geen nextPhase; dan geldt de
   // enige toegestane bestemming. Wordt er tóch een nextPhase meegegeven, dan
   // wordt die net als bij de andere events tegen de tabel gevalideerd.
   const requested =
     type === EVENT_TYPES.HOST_START && event.nextPhase === undefined
-      ? row.targets[0]
+      ? row.targets[0].phase
       : event.nextPhase;
 
-  if (!row.targets.includes(requested)) {
+  const allowed = findTarget(row, requested);
+  if (allowed === undefined) {
+    return reject(ERROR_CODES.INVALID_PHASE);
+  }
+
+  // pacing telt alleen mee waar de tabel onderscheid maakt, en dat onderscheid
+  // hangt aan de bestemming: ROUND_RESULT + TIMER_ELAPSED mag bij host-tempo
+  // wél naar SCOREBOARD, maar niet naar de drie andere bestemmingen.
+  if (allowed.pacing !== ANY_PACING && pacing !== allowed.pacing) {
     return reject(ERROR_CODES.INVALID_PHASE);
   }
 
   return accept(requested);
+}
+
+/**
+ * Zoekt de bestemming van een tabelrij. Vergelijkt strikt op de fase-string, dus
+ * een nextPhase van een willekeurig type lokt nooit een key-lookup of coercion
+ * uit (invariant 3: nooit een throw).
+ * @param {{ targets: ReadonlyArray<{ phase: string, pacing: (string|null) }> }} row
+ * @param {unknown} requested
+ * @returns {{ phase: string, pacing: (string|null) } | undefined}
+ */
+function findTarget(row, requested) {
+  for (const candidate of row.targets) {
+    if (candidate.phase === requested) {
+      return candidate;
+    }
+  }
+  return undefined;
 }
 
 /**

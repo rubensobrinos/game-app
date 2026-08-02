@@ -104,13 +104,12 @@ documenteigenaren raken.
 
 | # | Onderwerp | Status | Bij wie |
 | --- | --- | --- | --- |
-| 1 | `INVALID_PAUSE_STATE` staat niet in de foutcodelijst van `PROTOCOL.md`, terwijl de client foutcodes vertaalt. De module houdt de code, maar scheidt hem via `INTERNAL_ERROR_CODES` van de codes die wél naar de wire mogen. | verzoek open | `PROTOCOL.md`-eigenaar |
+| 1 | `INVALID_PAUSE_STATE` blijft intern en mag niet ongefilterd naar de wire. | bevestigd | producteigenaar; zie `docs/multiplayer/DECISIONS.md` #12 |
 | 2 | `PROTOCOL.md` definieert `game:pause` als `{ reason?: string }`; de reducer vereist een reden. Opgelost als aanroepercontract: de protocol-adapter (AR5/AR6) vult een ontbrekende reden in. De reducer verzint geen protocol-defaults. | belegd bij AR5/AR6 | architectuur (hier) |
-| 3 | Host-tempo vereist nu een `HOST_NEXT` ná zowel `ROUND_RESULT` als `SCOREBOARD` — twee bevestigingen per ronde bij een tussenstand per ronde. `GAME-RULES.md` laat ook de lezing toe dat de uitslag op zijn timer doorloopt (één tik per ronde). | besluit open | `GAME-RULES.md`-eigenaar |
+| 3 | Host-tempo gebruikt één hostactie per ronde; `ROUND_RESULT` loopt op timer door naar `SCOREBOARD`. | bevestigd en geïmplementeerd | producteigenaar; zie `docs/multiplayer/DECISIONS.md` #1 |
 
-Punt 3 is bewust conservatief opgelost: de strenge lezing sluit de andere niet
-uit. Eén tik per ronde vereist alleen dat `ROUND_RESULT` bij `pacing: "host"`
-óók `TIMER_ELAPSED` accepteert — één regel in de overgangstabel plus fixtures.
+Punt 3 is geïmplementeerd: `ROUND_RESULT` accepteert bij `pacing: "host"`
+`TIMER_ELAPSED` uitsluitend richting `SCOREBOARD`; de fixtures dekken dit pad.
 
 Daarnaast één bekende beperking, geen besluit: een property-getter die zelf werpt
 propageert naar buiten. De reducer werpt nooit op platte data. Omdat de aanroeper

@@ -74,13 +74,11 @@ Legenda: ✅ Klaar (gebouwd en getest) — 🟡 Deels — ⬜ Nog niet gestart �
 
 Volledige toelichting in [`README.md`](README.md#openstaande-besluiten).
 
-- [ ] **Host-tempo** — AR1 vereist nu `HOST_NEXT` ná zowel `ROUND_RESULT` als
-      `SCOREBOARD` (twee bevestigingen per ronde). `GAME-RULES.md` laat ook één tik
-      per ronde toe. Besluit bij de `GAME-RULES.md`-eigenaar; omschakelen kost één
-      tabelregel plus fixtures.
-- [ ] **`INVALID_PAUSE_STATE`** — staat niet in de foutcodelijst van `PROTOCOL.md`.
-      Apart gezet in `INTERNAL_ERROR_CODES` zodat de adapter hem niet ongefilterd
-      doorstuurt. Verzoek bij de `PROTOCOL.md`-eigenaar.
+- [x] **Host-tempo** — bevestigd: één hostactie per ronde. `ROUND_RESULT` loopt op
+      timer door naar `SCOREBOARD`; implementatie en fixtures zijn aangepast en
+      geverifieerd. Zie `docs/multiplayer/DECISIONS.md` #1.
+- [x] **`INVALID_PAUSE_STATE`** — bevestigd als uitsluitend interne code; niet als
+      wire-fout publiceren. Zie `docs/multiplayer/DECISIONS.md` #12.
 - [x] **Verplichte `reason`** — `PROTOCOL.md` maakt hem optioneel. Opgelost als
       aanroepercontract: de protocol-adapter vult hem in, de reducer verzint geen
       protocol-defaults.

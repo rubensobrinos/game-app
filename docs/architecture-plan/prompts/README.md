@@ -13,6 +13,7 @@ voor onszelf, niet voor de uitvoerder.
 | Bestand | Fase | Dekt |
 | --- | --- | --- |
 | [`AR0-AR1-state-machine.md`](AR0-AR1-state-machine.md) | AR0 + AR1 | Scope-check + state machine als pure reducer |
+| [`AR-RESUME-AFTER-DECISIONS.md`](AR-RESUME-AFTER-DECISIONS.md) | Hervatting | Bevestigde cross-planbesluiten verwerken en AR2–AR6 hervatten |
 
 Volgende prompts (AR2 room-codes, AR3 snapshot-precedence, AR4 server-time, AR5
 server-skeleton-voorstel) volgen in dezelfde stijl zodra we er zijn — geen zin om ze
