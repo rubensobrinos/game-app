@@ -14,12 +14,13 @@ zelf.
 | Rondestructuur (fasetijden, auto-/host-tempo) | — | **n.v.t. voor GR** | Puur configwaarden + faseovergangen — dat is de state machine (`ARCHITECTURE.md`, `server/architecture/`), geen apart GR-module nodig |
 | Puntentelling → Individueel (formule, deadline-grace) | GR1 | ✅ Klaar | `scoring.js`, 32/32 tests, zelf geverifieerd |
 | Puntentelling → Gelijke eindscore (tiebreak) | GR2 | ✅ Klaar | `standings.js`, 23/23 tests, competitierangschikking bevestigd |
-| Vraagselectie | GR4 | 📝 Spec klaar, klaar om uit te voeren | Blockers verwerkt; mixgames geschrapt (één `gameType` per match, voor nu) |
-| Spelvormen 1–5 (Golf 1) — antwoord *valideren* | GR3 | ✅ Klaar | `validators.js`, 39/39 tests. `correctAnswer`-vorm niet langer geblokkeerd: `docs/data-model-plan/HANDOFF.md` §1 bevestigt de voorgestelde tabel (`{ optionId }` / `{ choice }` / `{ side }` / `{ cardIndex }`) als vastgesteld, geen aanname meer. Blokkadetekst in dit bestand was verouderd t.o.v. `HANDOFF.md`/`prompts/README.md`, hier gecorrigeerd op 2026-08-02; die twee bestanden noemen de oude "geblokkeerd, bewust"-formulering nog en zijn niet door deze wijziging bijgewerkt |
-| Spelvormen 1–5 (Golf 1) — vraag *selecteren/genereren* | GR4 | 📝 Spec klaar, klaar om uit te voeren | Zelfde fase als Vraagselectie hierboven |
+| Vraagselectie | GR4 | ✅ Klaar | `question-selection.js`, 26/26 tests, zelf geverifieerd na twee mislukte agentpogingen (output-tokenlimiet) |
+| Spelvormen 1–5 (Golf 1) — antwoord *valideren* | GR3 | ✅ Klaar | `validators.js`, 39/39 tests. `correctAnswer`-vorm bevestigd — zie `HANDOFF.md` §1, inmiddels ook door `docs/data-model-plan/HANDOFF.md` §1 en de producteigenaar (`docs/multiplayer/DECISIONS.md` #15) |
+| Spelvormen 1–5 (Golf 1) — vraag *selecteren/genereren* | GR4 | ✅ Klaar | Zelfde fase als Vraagselectie hierboven |
 | Spelvormen 6–7 (Golf 2, incl. logo's) | — | **Buiten scope** | Golf 2 / feature-flagged, expliciet niet nu |
-| Late join | GR5 | ⬜ Nog niet gestart | |
-| Speler verlaat of disconnect | GR5 | ⬜ Nog niet gestart | Zelfde fase als Late join |
+| Late join | GR5 | ✅ Klaar | `eligibility.js`, 25/25 tests |
+| Speler verlaat of disconnect | GR5 | ✅ Klaar | Zelfde fase als Late join |
+| Antwoordverdeling per ronde | GR8 | ✅ Klaar | `answer-distribution.js`, 12/12 tests, uit `DECISIONS.md` #14 |
 | Teams — fase 1.5 | GR6 | ⏭️ Uit huidige scope | Producteigenaar bevestigde: nu geen teams bouwen |
 | Verdiepende content (vlagverhaal) | — | **Buiten scope** | Doc zelf: "verandert geen punten" — geen serverregel om te bouwen |
 | Reactiezinnen en streaks | — | **Buiten scope** | Doc zelf: client-side, "geen invloed op de server-score" |
@@ -27,15 +28,15 @@ zelf.
 
 ## Samengevat
 
-3 van de 8 relevante GR-fases af en geverifieerd (GR1–GR3), 1 spec-klaar-maar-
-ongebouwd (GR4 — beide blockers opgelost, mixgames voor nu geschrapt op
-instructie), 2 nog te starten (GR5, GR6), plus GR7 (interfacevoorstel richting
-PROTOCOL/DATA-MODEL — grotendeels al ingehaald door `HANDOFF.md`). Drie
-secties uit `GAME-RULES.md` vereisen sowieso geen GR-module — dat volgt
-letterlijk uit het document zelf, niet uit tijdgebrek.
+**6 van de 6 nog-te-bouwen GR-fases af en geverifieerd (GR1–GR5, GR8).** GR6 is
+uit scope (bevestigd door producteigenaar), GR7 is ingehaald door
+`HANDOFF.md`/`DECISIONS.md`. Drie secties uit `GAME-RULES.md` vereisen sowieso
+geen GR-module. `server/rules/` staat op **157/157 tests groen**
+(`node --test 'server/rules/**/*.test.js'`), geen dependencies.
 
-*Laatst bijgewerkt: 2026-08-02, correctie van de verouderde GR3-blokkadetekst
-(zie regel hierboven) n.a.v. `docs/data-model-plan/HANDOFF.md` §1; geen
-fase-inhoud gewijzigd. Vorige update: na GR4-herziening (review +
-mixgames-vereenvoudiging). Bijwerken bij elke faseovergang, niet achteraf in
-bulk.*
+Openstaand buiten deze scope: het "gedeelde contentmodule"-werk
+(`shared/content/`, `HANDOFF.md` §3) en de seed-deterministische
+Echt-of-Nep-renderer — beide bij een andere/geen eigenaar, niet blokkerend
+voor wat hier is gebouwd.
+
+*Laatst bijgewerkt: 2026-08-02, GR5 en GR8 geïmplementeerd en geverifieerd.*

@@ -34,13 +34,14 @@ Legenda: ✅ klaar en geverifieerd — 📝 spec klaar, nog niet gebouwd —
 | scoring | `scoring.js` | ✅ Klaar | GR1 | 32/32 |
 | standings | `standings.js` | ✅ Klaar | GR2 | 23/23 |
 | validators | `validators.js` | ✅ Klaar | GR3 | 39/39 |
-| question-selection | — | 📝 Spec klaar, nog niet gebouwd | GR4 | — |
-| rematch-exclusion | — | 📝 Spec klaar, nog niet gebouwd | GR4 | — |
-| late-join | — | ⬜ Nog niet gestart | GR5 | — |
-| disconnect-accounting | — | ⬜ Nog niet gestart | GR5 | — |
-| teams-scoring | — | ⬜ Nog niet gestart (fase 1.5, na Golf 1) | GR6 | — |
+| question-selection (incl. rematch-exclusion) | `question-selection.js` | ✅ Klaar | GR4 | 26/26 |
+| eligibility (late-join + disconnect-accounting) | `eligibility.js` | ✅ Klaar | GR5 | 25/25 |
+| answer-distribution | `answer-distribution.js` | ✅ Klaar | GR8 | 12/12 |
+| ~~teams-scoring~~ | — | **Gesloten** — producteigenaar: "Teams worden nu niet gebouwd" | GR6 | — |
 
-**Totaal nu:** 94/94 tests groen (`node --test server/rules/*.test.js`).
+**Totaal nu:** 157/157 tests groen (`node --test 'server/rules/**/*.test.js'`).
+Alle geplande GR-fases voor `GAME-RULES.md` zijn hiermee afgerond (GR6
+gesloten, GR7 ingehaald door `HANDOFF.md`).
 
 Zie [`docs/game-rules-plan/GR-PROGRESS.md`](../../docs/game-rules-plan/GR-PROGRESS.md)
 voor dekking per sectie van `GAME-RULES.md` en

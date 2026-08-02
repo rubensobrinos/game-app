@@ -53,11 +53,11 @@ doen tijdens een live game. Besluit:
 Details: [`prompts/GR2-standings.md`](prompts/GR2-standings.md), sectie
 "Nadrukkelijk buiten scope".
 
-## 3. Aan wie dan ook — het "gedeelde contentmodule"-principe (`ARCHITECTURE.md` #6) is nog door niemand gebouwd
+## 3. Aan `shared/content/` (locatie bevestigd, `DECISIONS.md` #29) — nog te bouwen
 
-**Status: geen eigenaar bekend.** Niet blokkerend voor GR4 zelf (die test met
-mocks), wel iets dat op een gegeven moment iemand moet oppakken vóór er een
-echte match gespeeld kan worden.
+**Status: eigenaar/locatie nu bekend, module bestaat nog niet.** Niet
+blokkerend voor GR4 zelf (die test met mocks), wel iets dat vóór een echte
+match gebouwd moet zijn.
 
 **3a — Content laden en normaliseren.** `ARCHITECTURE.md` #6 beschrijft één
 versieerbare contentmodule die client én server gebruiken voor landen,
@@ -88,6 +88,18 @@ in `data/country-facts.js`, niet in `data/countries.js`; hoofdstad-coverage is
 
 ## 4. Informationeel — geen actie nodig
 
+- **Naammismatch: "normaal" vs. `easy/medium/hard/extreme`.**
+  `DECISIONS.md` #35 noemt "moeilijkheid normaal" als default bij Snel
+  starten, en `DATA-MODEL.md`'s `GameConfiguration`-voorbeeld gebruikt zelfs
+  `"difficulty": "normal"`. De echte content (`data/countries.js`) kent geen
+  `"normal"`-niveau — alleen `easy/medium/hard/extreme`. GR4's
+  `buildMatchQuestionPlan` accepteert dus geen `"normal"`; wie roomconfig naar
+  GR4 vertaalt (vermoedelijk `"normal" → "medium"`) moet die mapping ergens
+  vastleggen. Niet door ons opgelost — wij kennen alleen de content-tiers.
+- **GR1's deadline-grace-gedrag is extern bevestigd.** `DECISIONS.md` #13
+  ("binnen grace kan een antwoord correct zijn, maar krijgt nooit tijdbonus")
+  komt exact overeen met `scoreAnswer()`s bestaande gedrag — geen wijziging
+  nodig.
 - **Competitierangschikking bevestigd.** Gedeelde posities in `rankPlayers()`s
   output volgen `1,1,3,4`, niet `1,1,2,3` — relevant voor wie scoreboard-UI of
   -snapshots bouwt: positienummers kunnen dus gaten vertonen.

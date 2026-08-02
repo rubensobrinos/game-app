@@ -45,7 +45,8 @@ en de rolverdeling per document daarin.
 | `validators/*` | één validator per Golf 1-spelvorm (5 stuks) | §Spelvormen |
 | `late-join` | eligibility en `vanaf ronde {n}`-markering | §Late join |
 | `disconnect-accounting` | wel/niet meetellen in antwoordvoortgang-noemer | §Speler verlaat of disconnect |
-| `teams-scoring` | gemiddelde-per-ronde-formule (fase 1.5, later) | §Teams — fase 1.5 |
+| `answer-distribution` | verdeling van ingestuurde antwoorden per ronde berekenen | `DECISIONS.md` #14 (rules-laag berekent, protocol transporteert alleen) — nieuw, niet uit het oorspronkelijke GAME-RULES.md-scanwerk |
+| ~~`teams-scoring`~~ | ~~gemiddelde-per-ronde-formule~~ | **Gesloten, niet gebouwd** — `DECISIONS.md` #8: "Teams worden nu niet gebouwd" |
 
 Elke module is een eigen bestand met eigen unit tests, zodat een wijziging in één
 spelvorm niet de andere modules raakt.
@@ -75,24 +76,37 @@ spelvorm niet de andere modules raakt.
   correctheid van het antwoord tegen de ronde — geen afleidbaarheid van het
   correcte antwoord uit id/volgorde/seed (expliciete eis in `PROTOCOL.md`).
 
-### GR4 — Vraagselectie & rematch-exclusie
-- Geen dubbele vraag binnen een match, gelijkmatige verdeling bij mixgames,
-  uitsluiting van `previousMatchQuestionKeys` totdat de pool onvoldoende groot is.
+### GR4 — Vraagselectie & rematch-exclusie — ✅ afgerond
+- Eén `gameType` per match (geen mix) — bevestigd als MVP-scopekeuze in
+  `DECISIONS.md` #31/#32, niet langer alleen mijn eigen vereenvoudiging.
+  Discriminated `publicQuestionPayload` per spelvorm, `correctAnswer` nooit in
+  `round:started` — bevestigd in `DECISIONS.md` #20.
 
-### GR5 — Late join & disconnect-accounting
+### GR5 — Late join & disconnect-accounting — volgende
 - Eligibility vanaf `eligibleFromRound`, uitsluiting uit de noemer tijdens
-  graceperiode, geen terugwerkende puntenaftrek.
+  graceperiode, geen terugwerkende puntenaftrek. `DECISIONS.md` #3 bevestigt
+  dat de client `eligibleFromRound` proactief te zien krijgt (servervalidatie
+  blijft leidend); #5 bevestigt dat een `left: true`-speler niet automatisch
+  meetelt in een rematch.
 
-### GR6 — Teams (fase 1.5, na Golf 1)
-- Gemiddelde-per-ronde-formule zodat teamgrootte en late joins niet oneerlijk
-  meewegen. Bouw ik pas nadat GR1–GR5 groen zijn — `PRODUCT.md` merkt teams al als
-  latere uitbreiding aan, dus dit heeft geen launch-prioriteit.
+### GR6 — Teams — **gesloten, niet gebouwd**
+`DECISIONS.md` #8: "Teams worden nu niet gebouwd." Geen prompt, geen module.
 
-### GR7 — Interfacevoorstel voor PROTOCOL.md / DATA-MODEL.md
-- Geen ADR, wel een voorstel: de input/output-types die deze module verwacht
-  (`Round`, `Answer`, `Player`-subset), zodat de eigenaar van die ADR-plichtige
-  documenten iets concreets heeft om tegenaan te reviewen in plaats van vanaf nul
-  te ontwerpen.
+### GR7 — Interfacevoorstel voor PROTOCOL.md / DATA-MODEL.md — **vervuld via `HANDOFF.md`**
+Het doel van deze fase (concrete input/output-types voorleggen aan de
+ADR-plichtige documenten) is al bereikt via de lopende `HANDOFF.md`-cyclus:
+`DECISIONS.md` #15 bevestigt de `correctAnswer`-vormen letterlijk. Geen aparte
+prompt nodig.
+
+### GR8 — Antwoordverdeling per ronde — nieuw, nog te schrijven
+`DECISIONS.md` #14: "De rules/service-laag berekent antwoordverdelingen; het
+protocol transporteert en valideert alleen de uitkomst." Dit stond in geen
+eerdere GAME-RULES.md-doorlichting als aparte module — `PROTOCOL.md`'s
+`round:ended`-kernpayload noemt wel "verdeling", maar GAME-RULES.md zelf
+beschrijft niet expliciet hóe die berekend wordt. Voorstel: per ronde, per
+spelvorm, tellen hoeveel spelers welke optie/`side`/`cardIndex`/`choice`
+kozen — dezelfde vijf spelvormen als GR3, dus vermoedelijk een kleine, nauw
+verwante module.
 
 ## Testplan
 
@@ -143,8 +157,26 @@ Uitvoerbare, zelfstandige taakbeschrijvingen per fase staan in
   volledig herzien na [`REVIEW-GR4.md`](prompts/REVIEW-GR4.md): beide blockers
   (outputcontract, Echt-of-Nep-renderdata) en alle zes overige bevindingen
   verwerkt. Daarna op instructie verder vereenvoudigd: **één `gameType` per
-  match, geen mix** — round-robin/verdeling tussen spelvormen is daarmee
-  geschrapt, niet bevestigd. Klaar om uit te voeren.
+  match, geen mix**. **Afgerond en geverifieerd.**
+- [`prompts/GR5-eligibility.md`](prompts/GR5-eligibility.md) — late join en
+  disconnect-accounting, gecombineerd in `eligibility.js`. **Afgerond en
+  geverifieerd.**
+- [`prompts/GR8-answer-distribution.md`](prompts/GR8-answer-distribution.md) —
+  nieuw, uit `DECISIONS.md` #14. **Afgerond en geverifieerd.**
+
+**GR5 + GR8 — afgerond.** `server/rules/eligibility.js` (25/25 tests) +
+`server/rules/answer-distribution.js` (12/12 tests), rechtstreeks
+geïmplementeerd (geen agents — kleiner genoeg om zelf sneller te doen).
+**157/157 tests groen totaal.**
+
+**GR4 — afgerond.** `server/rules/question-selection.js` (357 regels) +
+`question-selection.test.js` (337 regels). Twee gespawnde agentpogingen liepen
+tegen een output-tokenlimiet aan zonder een bestand te schrijven; zelf
+geïmplementeerd en getest. 26/26 nieuwe tests groen, 120/120 totaal
+(`node --test 'server/rules/**/*.test.js'`), geen dependencies. Terzijde: er
+staat inmiddels een root-`package.json` (architecture-plan's serverskeleton) —
+zonder dependencies, met een `test`-script dat `server/rules/` al meepakt.
+Niet door mij aangemaakt, geen actie nodig.
 
 **GR2 — afgerond.** `server/rules/standings.js` (136 regels) +
 `standings.test.js` (216 regels). Zelf geverifieerd (niet alleen het
