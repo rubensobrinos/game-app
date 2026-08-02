@@ -31,4 +31,4 @@ bijwerking 2026-08-02). **DT3b t/m DT7** hebben nu allemaal een geschreven promp
 zodat ze klaarliggen voor review — maar elk prompt-bestand bevat zijn eigen harde
 knip tussen wat nu al uitvoerbaar is (documentatie/matrix, geen checkpoint nodig) en
 wat op een expliciet `deps`/`prod`-akkoord of op concrete prerequisites uit DT3a
-wacht. Zie [`../PROGRESS.md`](../PROGRESS.md) voor de actuele status per fase.
+wacht. Zie [`../DT-PROGRESS.md`](../DT-PROGRESS.md) voor de actuele status per fase.
