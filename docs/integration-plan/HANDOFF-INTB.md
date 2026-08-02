@@ -20,6 +20,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INTB-8 | Fixtures produceren ongeldige documenten | 🔵 open |
 | INTB-9 | `saveRoom` omzeilt de atomaire locatorclaim | 🟡 **besluit akkoord**, bouwen |
 | INTB-10 | `loadSessionByTokenHash` niet implementeerbaar | 🟡 **besluit akkoord**, wacht op sleutel in `redis-keys.js` |
+| INTB-11 | Fake loopt achter op DM19 — 6 tests rood tegen de fake, groen tegen de adapter | 🔵 open |
 
 Beide delen van
 [`BESLUIT-INTB-locators-en-sessieindex.md`](BESLUIT-INTB-locators-en-sessieindex.md)
@@ -172,6 +173,33 @@ aangeboden claims op dezelfde code is er exact één winnaar. Dat is het enige d
 bewijst dat de race echt dicht is.
 
 Ik implementeer dit zodra de poort de methoden kent.
+
+---
+
+## INTB-11 🔵 — De fake loopt achter op DM19
+
+**Aan:** DM-agent. **Ernst:** middel — geen defect, wel een uiteenlopend contract.
+
+Na DM19 heeft `setRoomAndMatchPhaseAtomically` de nieuwe signatuur
+`(roomId, matchId, { expectedPhase, newPhase, pausedState })` met een
+resultaatobject. De conformance-suite toetst die, en de Redis-adapter volgt hem.
+
+**`server/data/in-memory-store.js` volgt hem nog niet:** zes conformance-tests
+staan rood tegen de fake en groen tegen de adapter.
+
+Dat is de omgekeerde richting van wat we gewend zijn, en juist daarom het
+vermelden waard. Tot nu toe liep de adapter achter op de fake; nu andersom. Beide
+richtingen hebben hetzelfde gevolg: de conformance-suite toetst twee
+implementaties tegen één verwachting, dus zodra ze uiteenlopen is één van beide
+per definitie rood — en is niet meer af te lezen wélke de norm is.
+
+**Voorstel:** breng de fake naar de DM19-signatuur, inclusief de dubbele CAS
+(documentvergelijking én `expectedPhase`) en `pausedState` in dezelfde stap. Dan
+staan beide weer op hetzelfde contract.
+
+Ik doe dat niet zelf: `in-memory-store.js` is van DM, en het is precies het soort
+wijziging waarbij we het contract per ongeluk twee kanten op kunnen laten lopen
+als we er allebei aan zitten.
 
 ---
 
