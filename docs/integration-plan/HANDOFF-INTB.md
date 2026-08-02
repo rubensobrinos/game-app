@@ -134,6 +134,97 @@ Ik implementeer dit zodra de poort de methoden kent.
 
 ---
 
+## INTB-5 🔴 — Een geroteerde uitnodiging blijft geldig
+
+**Aan:** DM-agent. **Ernst:** hoog — dit is een securitygevolg, geen hygiëne.
+**Gevonden door:** de conformance-suite (INTB1a), zelf gereproduceerd.
+
+`saveRoom` (`server/data/in-memory-store.js:44-49`) schrijft
+`roomIdByCode` en `roomIdByInviteId` bij, maar verwijdert de vórige sleutel
+nooit. Gereproduceerd:
+
+```
+room krijgt code 111111 / invite INV-AAA
+room krijgt daarna code 222222 / invite INV-BBB
+
+loadRoomByCode('111111')      -> room met code 222222
+loadRoomByInviteId('INV-AAA') -> room met invite INV-BBB
+```
+
+De oude uitnodiging werkt dus nog steeds, en levert zelfs het nieuwe document
+op. `ARCHITECTURE.md` §inviteId eist expliciet dat een invite "direct intrekbaar
+of roteerbaar" is. Dat is nu aantoonbaar niet zo: roteren voegt een tweede
+geldige capability toe in plaats van de eerste te vervangen.
+
+In Redis is het bovendien een lekkende `room:code:{code}`-sleutel met volle TTL —
+de coderuimte loopt vol. `DATA-MODEL.md` §TTL kent alleen opruiming bij verval en
+zegt niets over een lévende room die van code wisselt.
+
+**Voorstel:** laat `saveRoom` de vorige code- en invite-index expliciet
+vrijgeven, of koppel het aan de lifecycle uit **INTB-2**
+(`releaseGameCode`/`releaseInviteId`). Vastgelegd als karakterisatietest in
+`data-store-conformance.mjs` — die test moet omgekeerd worden zodra dit gefixt is.
+
+---
+
+## INTB-6 🔵 — De tiebreak van `getScoreboardTop` ligt nergens vast
+
+**Aan:** DM-agent en GR-agent.
+
+`DATA-MODEL.md` schrijft een sorted set voor; Redis breekt gelijke scores
+lexicografisch op member. De fake gebruikt `Array.prototype.sort` en komt op
+invoegvolgorde uit. Twee implementaties, twee antwoorden bij gelijkspel — en het
+scoreboard is precies de plek waar gelijke scores normaal zijn.
+
+`server/rules/standings.js` kent al een tiebreak (`correctCount`,
+`correctResponseTimeMsTotal`), maar de sorted set draagt die velden niet.
+
+**Voorstel:** kies of `getScoreboardTop` een niet-gegarandeerde volgorde bij
+gelijkspel mag opleveren die de aanroeper zelf herordent, of dat de
+score-encoding de tiebreak meedraagt. De conformance-suite gebruikt daarom
+bewust alleen verschillende scores.
+
+---
+
+## INTB-7 🔵 — `loadRoomByInviteId`: ruw invite-id of hash?
+
+**Aan:** DM-agent.
+
+`DATA-MODEL.md` wil dat de invite-lookupindex een hash gebruikt "zodat
+Redis-keynamen de capability niet rechtstreeks tonen", en `redis-keys.js` heet
+dan ook `roomInviteLookupKey(inviteHash)`. De poortmethode heet
+`loadRoomByInviteId(inviteId)` en de fake indexeert `room.inviteId` letterlijk.
+
+Met DECISIONS #26 (aparte pepper) is dat geen detail: moet de aanroeper hashen,
+dan moet hij de pepper kennen.
+
+**Voorstel:** leg in de JSDoc vast dat de poort altijd het **ruwe** `inviteId`
+aanneemt en dat de adapter intern hasht. De conformance-suite gaat daarvan uit.
+
+---
+
+## INTB-8 🔵 — Gedeelde testfixtures produceren ongeldige documenten
+
+**Aan:** DM-agent en de eigenaar van `tests/fixtures/`.
+
+Zelf gereproduceerd:
+
+```
+makeRoom()  -> assertRoomShape:  preset must be a string, got: undefined
+makeMatch() -> assertMatchShape: contentVersion must be a non-empty string, got: undefined
+```
+
+`makeRoom()` levert `config: {}` en draagt `contentVersion`/`rendererVersion` op
+Room, terwijl `makeMatch()` ze juist mist — precies omgekeerd aan DECISIONS #21
+en aan `types/room.js`, dat die velden bewust weglaat.
+
+Zolang dit zo staat kan een test slagen op data die `server/data/types/` in
+productie zou weigeren. **Voorstel:** laat de factories hun resultaat door de
+bijbehorende `assert*Shape` halen. INTB1a gebruikt daarom eigen, gevalideerde
+builders.
+
+---
+
 ## INTB-4 🔵 — De fake dwingt idempotentie en "één antwoord per ronde" niet af
 
 **Aan:** DM-agent. **Blokkeert:** INTB1b.
