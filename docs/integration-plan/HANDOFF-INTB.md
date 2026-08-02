@@ -20,7 +20,13 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INTB-8 | Fixtures produceren ongeldige documenten | 🔵 open |
 | INTB-9 | `saveRoom` omzeilt de atomaire locatorclaim | 🟡 **besluit akkoord**, bouwen |
 | INTB-10 | `loadSessionByTokenHash` niet implementeerbaar | 🟡 **besluit akkoord**, wacht op sleutel in `redis-keys.js` |
-| INTB-11 | Fake loopt achter op DM19 — 6 tests rood tegen de fake, groen tegen de adapter | 🔵 open |
+| INTB-11 | Fake loopt achter op DM19 | ✅ INT-A's flip (`c571092`) |
+| INTB-12 | Server draaide op de in-memory fake | ✅ INT-A bedraadde het, mét productie-eis |
+
+**Domein rustend.** Twaalf items, tien opgelost. Open blijven **INTB-6**
+(tiebreak bij gelijkspel) en **INTB-8** (fixtures die de eigen validators
+afkeuren) — beide bij DM. Zie
+[`INTB-PROGRESS.md`](INTB-PROGRESS.md) voor de overdracht.
 
 Beide delen van
 [`BESLUIT-INTB-locators-en-sessieindex.md`](BESLUIT-INTB-locators-en-sessieindex.md)

@@ -71,16 +71,74 @@ De gedeelde conformance-suite staat op 96/96 tegen de in-memory fake.
 Mutatiedekking per fase: 7/7, 11/11, 12/12, 9/10 (één beargumenteerd
 equivalent), 9/9, 10/10, plus zes verzwakte varianten voor de herstarttest.
 
-## De laatste blokkade — INTB-12
+## INTB-12 — opgelost door INT-A
 
-**De draaiende server gebruikt geen van dit alles.** `REDIS_URL` staat in
-compose maar komt niet voor in `server/index.mjs`; `buildServer()` valt terug op
-`createInMemoryStore()`. Zie
-[`HANDOFF-INTB-redis-bedrading.md`](HANDOFF-INTB-redis-bedrading.md) voor de
-kant-en-klare bedrading.
+De bedrading ligt er. `server/index.mjs` kiest de store op omgeving, en INT-A
+heeft daar iets aan toegevoegd dat niet in mijn voorstel stond: **`REDIS_URL` is
+verplicht in productie** en werpt bij afwezigheid — *"zonder persistente store
+overleeft geen enkele room een herstart"* — met een luide waarschuwing bij de
+in-memory terugval in ontwikkeling. Sterker dan wat ik aanleverde.
 
-Tot die regel er ligt is de INTB4a-DoD — een match die een game-server-herstart
-overleeft — niet haalbaar, en staat alles hierboven buiten de keten.
+Daarmee staat het adapterwerk in de keten in plaats van ernaast. De DoD-test
+(match → `docker compose restart game-server` → alles leeft nog) wordt door DT
+uitgevoerd als chaos-herhaling; de opslagkant ervan is bewezen in
+`redis/aof-restart.test.mjs`.
+
+---
+
+# Domein rustend
+
+INT-B is afgerond. Dit deel is de overdracht.
+
+## Waar alles staat
+
+| Map | Wat |
+| --- | --- |
+| `server/data/adapters/redis/` | verbinding, documentenvelop, 23 poortmethoden, AOF-herstarttest |
+| `server/data/adapters/postgres/` | gebufferde analytics + testguard |
+| `server/data/adapters/data-store-conformance.mjs` | de gedeelde suite; **elke** implementatie van de poort moet hier doorheen |
+| `compose.test.yml` | testinfra, project `aseso-game-test`, Redis 6380 en Postgres 5434 |
+
+## Vier dingen die een opvolger moet weten
+
+**1. De conformance-suite is het contract, niet de documentatie.** Wijzigt de
+poort, dan moeten fake én adapter mee. Vandaag bleek twee keer dat ze niet
+vanzelf gelijk lopen: één keer liep de adapter achter, één keer de fake. Beide
+keren was het antwoord "draai de suite", niet "lees het besluit".
+
+**2. `cjson` kan deze documenten niet verliesvrij rondpompen.** Een lege array
+komt er als leeg object uit. Daarom gebeurt al het JSON-werk client-side en
+krijgen de Lua-scripts kant-en-klare strings, met een compare-and-set om het
+venster te dichten dat daardoor ontstaat. Wie dat "vereenvoudigt" naar `cjson` in
+het script, breekt `previousMatchQuestionKeys` en merkt het pas in productie.
+
+**3. Een verstuurd Lua-script draait door als de verbinding wegvalt.** Er is geen
+rollback. De garantie is "alle writes of geen enkele", niet "bij een netwerkfout
+is er niets gebeurd". Herstel gaat via opnieuw lezen, of via dezelfde `actionId`.
+
+**4. De testguards zijn met opzet star.** Geen env-override op de testinstantie,
+hardgecodeerd 6380 en 5434, en ze breken af in plaats van door te gaan. Een
+`TEST_REDIS_URL` die iemand op productie richt is precies de fout die je één keer
+maakt.
+
+## Openstaand bij anderen
+
+| Item | Bij wie | Wat |
+| --- | --- | --- |
+| **INTB-6** | DM + GR | de tiebreak van `getScoreboardTop` ligt nergens vast; Redis breekt gelijke scores lexicografisch, de fake op invoegvolgorde. De suite vermijdt gelijke scores daarom bewust — precies de situatie die op een scoreboard normaal is |
+| **INTB-8** | DM + eigenaar `tests/fixtures/` | `makeRoom()` en `makeMatch()` produceren documenten die de eigen validators afkeuren; een test die daarop leunt kan slagen op data die in productie geweigerd wordt |
+
+## De rode draad die ik meegeef
+
+Drie keer op één dag bleek een intrekking niet in te trekken: geroteerde
+roomlocators, een claim die met `saveRoom` te omzeilen was, en een vervangen
+sessietoken. Alle drie zijn gerepareerd, maar het patroon is de vondst, niet de
+drie gevallen.
+
+Het model beschrijft overal hoe een capability ontstaat en bijna nergens hoe hij
+verdwijnt. Dat is als besluitvoorstel #37 naar de producteigenaar: maak
+intrekking een expliciete eis bij elke capability die erbij komt — wie geeft hem
+uit, wie trekt hem in, en welke operatie doet dat atomair.
 
 ## Rapportageroutine
 
