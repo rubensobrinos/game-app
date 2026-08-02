@@ -222,11 +222,18 @@ vragen". Een kruisverwijzing tussen beide lijsten staat als addendum onderaan
   uitvoeren — elk met eigen bevestiging, en met een dedicated compose-projectnaam/
   netwerk zodat testdata nooit een bestaande omgeving kan raken.
 
-### DT7 — CI-volgordevoorstel
+### DT7 — CI-volgordevoorstel — **opgelost, anders dan hier voorzien (2026-08-02)**
 - Voorstel (geen besluit) voor een eventueel nieuw, apart testworkflow-bestand —
   nooit het devkit-managed blok in `.github/workflows/ci.yml` en nooit
   `deploy.yml`. Lost de kloof uit DT0b pas op ná akkoord; tot die tijd draait alles
   lokaal, expliciet gedocumenteerd, niet stilzwijgend aangenomen als geborgd.
+- **Wat er echt gebeurde:** DT-R3 (zie `prompts/DT-R3-ci-devkit-profiel.md`) legde
+  drie opties voor; gekozen is optie A — een nieuw, correct devkitprofiel
+  (`node-esm-app`) upstream in het devkit-tool zelf. Dat maakt dit DT7-voorstel
+  overbodig: het devkit-managed blok in `ci.yml` draait nu zelf `node --check
+  server/index.mjs` (lint) en `npm test` (echte `node:test`-suite), zonder een
+  tweede, parallelle workflow. `ci-proposal.md` blijft staan als document, maar
+  wordt niet geactiveerd.
 
 ## Wat hier expliciet buiten valt
 

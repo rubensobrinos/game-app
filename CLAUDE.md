@@ -1,9 +1,9 @@
 <!-- BEGIN DEVKIT MANAGED -->
 <!-- Voeg lokale wijzigingen BUITEN deze markers toe — devkit update overschrijft alleen dit blok. -->
-# Repo: profiel `react-native-app`
+# Repo: profiel `node-esm-app`
 
-React Native app, TypeScript, Expo
-Taal: **typescript**
+Node.js ESM application, JavaScript with JSDoc and the built-in node:test runner
+Taal: **javascript**
 
 ## Hoe deze repo werkt
 

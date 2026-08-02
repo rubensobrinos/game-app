@@ -1,20 +1,20 @@
 # Testmatrix — integratielaag (DT3a)
 
-**Status (2026-08-02, heraudit [`DT-R1`](prompts/DT-R1-heraudit-integratie.md),
-gecorrigeerd bij verificatie): 0/14 rijen daadwerkelijk geactiveerd.** De
-heraudit vond aanvankelijk 5/14 (rijen 1, 2, 5, 8, 10) geactiveerd, geverifieerd
-tegen een geïsoleerde `git worktree` op commit `c7ce43b` (48/48 bestaande +
-5 nieuwe tests slaagden dáár). Bij eigen verificatie tegen de actuele werkboom
-faalden alle 5 nieuwe tests alsnog:
-`TypeError: context.store.loadRoomByInviteId is not a function`
-(`server/composition/room-lifecycle.mjs:253`) — dezelfde fout breekt ook de
-reeds bestaande `server/composition/room-lifecycle.test.mjs`, dus dit is geen
-regressie die deze audit veroorzaakte. Oorzaak: `server/data/repository.js` is
-via DM10/DM11 gemigreerd van `loadRoomByInviteId(inviteId)` naar
-`loadRoomByInviteHash(inviteHash)`; `room-lifecycle.mjs` roept nog de
-verwijderde methode aan. De 5 nieuwe tests zijn inhoudelijk correct en
-verplaatst naar `tests/integration/pending/*.draft.mjs` (niet in de actieve
-`*.test.*`-glob) totdat die ene aanroep is bijgewerkt — zie de
+**Status (2026-08-02, heropgevoerd): 5/14 rijen geactiveerd** — rijen 1, 2, 5,
+8, 10 (`tests/integration/matrix-row-{01,02,05,08,10}-*.test.mjs`, direct
+actief, geen `test.skip`, zelf gedraaid: 5/5 groen, en repo-breed
+`npm test`: 2096/2096 groen). Dit volgt op twee eerdere, tegenstrijdige standen
+dezelfde dag: de heraudit vond aanvankelijk 5/14, geverifieerd tegen een
+geïsoleerde `git worktree` op commit `c7ce43b` (48/48 bestaande + 5 nieuwe tests
+slaagden dáár); bij verificatie tegen de toen actuele werkboom faalden alle 5
+alsnog met `TypeError: context.store.loadRoomByInviteId is not a function`
+(`server/composition/room-lifecycle.mjs:253` riep een door de DM10/DM11-
+poortmigratie verwijderde methode aan), dus tijdelijk gecorrigeerd naar 0/14 en
+verplaatst naar `tests/integration/pending/*.draft.mjs`. Die onderliggende bug
+is inmiddels elders gefixt (`room-lifecycle.mjs` roept `loadRoomByInviteId`
+niet meer aan); bij hernieuwde verificatie slaagden alle 5 tests alsnog, dus
+teruggezet naar `tests/integration/*.test.mjs` en als geactiveerd gemarkeerd.
+Rijen 3, 4, 6, 7, 9, 11, 12, 13, 14 blijven geblokkeerd. Zie de
 "Audit-log"-sectie onderaan voor de volledige, per-rij motivatie en citaten.
 
 Onderdeel van [`README.md`](README.md), fase DT3a, uitgevoerd volgens
@@ -72,13 +72,16 @@ verificatie tegen de daadwerkelijke, actieve werkboom (dezelfde dag, ná de
 heraudit) faalden alle 5 nieuwe tests met
 `TypeError: context.store.loadRoomByInviteId is not a function` — dezelfde fout
 breekt ook de reeds bestaande `server/composition/room-lifecycle.test.mjs`, dus
-dit is een repo-brede staat, geen fout van deze heraudit of van de vijf nieuwe
-tests zelf. **Gecorrigeerd resultaat: 0/14 daadwerkelijk actief in de werkboom.**
-De vijf tests zijn verplaatst naar `tests/integration/pending/*.draft.mjs`
-(inhoudelijk ongewijzigd, alleen niet meer in de `*.test.*`-glob) totdat
-`server/composition/room-lifecycle.mjs` `loadRoomByInviteHash` aanroept in
-plaats van het verwijderde `loadRoomByInviteId` — zie rij 1/2/5/8/10 hieronder
-voor het exacte citaat.
+dit was een repo-brede staat, geen fout van deze heraudit of van de vijf nieuwe
+tests zelf. Op dat moment tijdelijk gecorrigeerd naar 0/14 en de vijf tests
+verplaatst naar `tests/integration/pending/*.draft.mjs`.
+
+**Heropvoering, later dezelfde dag.** De onderliggende migratie is inmiddels
+elders afgerond: `server/composition/room-lifecycle.mjs` roept
+`loadRoomByInviteId` niet meer aan. Bij hernieuwde verificatie slaagden alle
+vijf tests, teruggezet naar `tests/integration/*.test.mjs` en zelf gedraaid:
+5/5 groen, plus repo-breed `npm test` 2096/2096 groen. **Definitief resultaat:
+5/14 geactiveerd** (1, 2, 5, 8, 10) — zie rij 1/2/5/8/10 hieronder.
 
 **Methodologisch voorbehoud — instabiele werkboom tijdens deze audit.** Op het
 moment van schrijven liepen er meerdere gelijktijdige sessies op dezelfde
@@ -108,16 +111,16 @@ een regressie in díe migratie, niet in de hier geactiveerde rijen.
 
 | # | Status | Citaat | Datum |
 | --- | --- | --- | --- |
-| 1 | geblokkeerd (dicht bij) | `server/composition/room-lifecycle.mjs` `createRoom()` (regels 288–375) implementeert het gevraagde gedrag correct — bij `hostParticipates: false` blijft `player` `null`, respons heeft `playerId: null`/`effectiveName: null`/`roles: ['host']` — maar `createRoom()` roept intern `claimLocators()` aan, die op regel 253 `context.store.loadRoomByInviteId(...)` aanroept. Die methode bestaat niet meer in `server/data/repository.js` (gemigreerd naar `loadRoomByInviteHash` via DM10/DM11): `TypeError: context.store.loadRoomByInviteId is not a function`, geverifieerd tegen actuele HEAD. Test klaar en inhoudelijk correct in `tests/integration/pending/matrix-row-01-create-room-host-not-participating.draft.mjs`; hernoem naar `.test.mjs` in `tests/integration/` zodra die ene aanroep is bijgewerkt. | 2026-08-02 |
-| 2 | geblokkeerd (dicht bij) | Zelfde onderliggende functie en zelfde blokkade als rij 1 (`claimLocators()` → verwijderde `loadRoomByInviteId`). De `hostParticipates: true`-tak zelf (regels 315–340, Player-document via `assertPlayerShape`) is inhoudelijk correct. Test klaar in `tests/integration/pending/matrix-row-02-create-room-host-participating.draft.mjs`, faalt nu op dezelfde `TypeError` als rij 1. | 2026-08-02 |
+| 1 | geactiveerd | `server/composition/room-lifecycle.mjs` `createRoom()` (regels 288–375): bij `hostParticipates: false` blijft `player` `null` (geen `savePlayer`-aanroep), respons heeft `playerId: null`/`effectiveName: null`/`roles: ['host']`. De eerder gevonden `claimLocators()` → `loadRoomByInviteId`-blokkade is elders gefixt; `room-lifecycle.mjs` roept die methode niet meer aan. Test: `tests/integration/matrix-row-01-create-room-host-not-participating.test.mjs`, zelf gedraaid en geslaagd. | 2026-08-02 |
+| 2 | geactiveerd | `hostParticipates: true`-tak (regels 315–340): bouwt een Player-document via `assertPlayerShape`, identiek aan de vorm die `joinRoom()` voor een gewone joiner bouwt. Zelfde eerdere blokkade als rij 1, nu ook opgelost. Test: `tests/integration/matrix-row-02-create-room-host-participating.test.mjs`, zelf gedraaid en geslaagd. | 2026-08-02 |
 | 3 | geblokkeerd | `server/composition/room-lifecycle.mjs` regels 260–267 (commentaar bij `claimLocators`/`hashInviteId`): "De huidige poort indexeert op de rúwe inviteId ... en Room heeft geen `inviteHash`-veld, dus de hash heeft nu nog geen opslagplaats" — zelf-gedocumenteerd: geen hashindex-lookup zoals ARCHITECTURE.md:233–240 vereist (Prerequisite-kolom citeert die regel expliciet). De lopende DM10-poortmigratie (`loadRoomByInviteHash`, ongecommitteerd tijdens deze audit) sluit dit gat mogelijk binnenkort, maar `room-lifecycle.mjs` consumeert die nieuwe methode nog niet. | 2026-08-02 |
 | 4 | geblokkeerd | Geen enkel bestand in `server/` implementeert rate limiting: `grep -rli "ratelimit" server/` vindt alleen de foutcode `CODE_RATE_LIMITED` in `server/protocol/error-codes.mjs` en een "niet in scope"-commentaar in `server/protocol/rest-games-create-join.mjs`. Prerequisite-kolom vereist expliciet "de rate-limiting uit ARCHITECTURE.md" naast de coderegistratie. | 2026-08-02 |
-| 5 | geblokkeerd (dicht bij) | `resolveNames()` (regels 170–194) en `generateName()` (`server/data/name-processing.js`, regels 244–263) zijn zelf correct, maar de test roept ze aan via `createRoom()`/`joinRoom()`, die dezelfde `claimLocators()`-blokkade als rij 1 raken. Test klaar in `tests/integration/pending/matrix-row-05-displayname-and-generated-name.draft.mjs`. | 2026-08-02 |
+| 5 | geactiveerd | `resolveNames()` (regels 170–194) onderscheidt `displayName: null` van een opgegeven naam; `server/data/name-processing.js` `generateName()` (regels 244–263) implementeert adjectief+dier met terugval op `Speler {n}`. Zelfde eerdere blokkade als rij 1, nu ook opgelost. Test: `tests/integration/matrix-row-05-displayname-and-generated-name.test.mjs`, zelf gedraaid en geslaagd. | 2026-08-02 |
 | 6 | geblokkeerd | `server/composition/room-lifecycle.mjs` `getShareInfo()` (regels 584–595) levert de invite aan elke rol zonder rolcontrole — dat deel is er. Maar `server/protocol/client-events-dispatch.mjs` regel 136 registreert voor `share:opened` uitsluitend een payload-validator + rolcheck (`validateShareOpenedPayload`); geen enkele functie in `server/` persisteert of telt een `share:opened`-gebeurtenis. Prerequisite-kolom vereist expliciet "plus een `share:opened`-handler". | 2026-08-02 |
 | 7 | geblokkeerd | `server/composition/` bevatte tot en met deze audit geen Match/Round-compositie die een volledige cyclus draait; `Room.phase` wordt door `room-lifecycle.mjs` nooit buiten `LOBBY` gezet. Een nieuw `server/composition/match-lifecycle.mjs` verscheen tegen het einde van deze audit (ongecommitteerd, nog niet gekoppeld aan een bijgewerkte `room-lifecycle.mjs`) — potentieel relevant voor een volgende heraudit, nu nog niet aantoonbaar end-to-end werkend. | 2026-08-02 |
-| 8 | geblokkeerd (dicht bij) | `setRoomLocked()` (regels 604–617) en `joinRoom()`'s locked-check (regel 489–491) zijn zelf correct, maar de test moet eerst een room aanmaken via `createRoom()`, wat dezelfde `claimLocators()`-blokkade als rij 1 raakt. Test klaar in `tests/integration/pending/matrix-row-08-room-lock-blocks-and-allows-join.draft.mjs`. Buiten scope blijft het `room:lock-changed`-broadcastevent (geen Socket.IO-laag aanwezig). | 2026-08-02 |
+| 8 | geactiveerd | `setRoomLocked()` (regels 604–617) persisteert `Room.locked`; `joinRoom()` (regel 489–491) leest dat terug en weigert/staat joins toe. Zelfde eerdere blokkade als rij 1, nu ook opgelost. Test: `tests/integration/matrix-row-08-room-lock-blocks-and-allows-join.test.mjs`, zelf gedraaid en geslaagd. Buiten scope blijft het `room:lock-changed`-broadcastevent (geen Socket.IO-laag aanwezig). | 2026-08-02 |
 | 9 | geblokkeerd | `server/composition/room-lifecycle.mjs` `joinRoom()` accepteert `eligibleFromRound` als parameter maar berekent hem expliciet niet zelf (regel 461: "Deze module verzint dat getal niet zelf"). Er bestaat geen gekoppelde match-laag die de fase op joinmoment kent of late joiners van scoring/noemer uitsluit. Activatiecriterium vereist expliciet "tegen de échte state machine én scoring". | 2026-08-02 |
-| 10 | geblokkeerd (dicht bij) | `kickPlayer()` (regels 633–659) en `resolveSession()` (regels 677–689) zijn zelf correct, maar de test moet eerst een room aanmaken en laten joinen via `createRoom()`/`joinRoom()`, die dezelfde `claimLocators()`-blokkade als rij 1 raken. Test klaar in `tests/integration/pending/matrix-row-10-kick-revokes-session.draft.mjs`. Nuance ongewijzigd: DATA-MODEL.md documenteert zowel een `revoked`-veld op Session als een aparte Redis-set; deze implementatie gebruikt het eerste. | 2026-08-02 |
+| 10 | geactiveerd | `kickPlayer()` (regels 633–659) markeert `Player.kicked`/`Session.revoked`; `resolveSession()` (regels 677–689) geeft `SESSION_REVOKED` vóór elke andere check. Zelfde eerdere blokkade als rij 1, nu ook opgelost. Test: `tests/integration/matrix-row-10-kick-revokes-session.test.mjs`, zelf gedraaid en geslaagd. Nuance ongewijzigd: DATA-MODEL.md documenteert zowel een `revoked`-veld op Session als een aparte Redis-set; deze implementatie gebruikt het eerste. | 2026-08-02 |
 | 11 | geblokkeerd | Data-isolatie tussen rooms is aantoonbaar (`server/data/in-memory-store.js`, sleutels samengesteld uit `${roomId} ...`). Prerequisite-kolom vereist echter expliciet óók "socket-roomstrategie zoals in ARCHITECTURE.md beschreven"; geen enkel bestand in `server/` importeert `socket.io` behalve `server/index.mjs`, dat alle `/socket.io/*`-paden nog met `501 NOT_IMPLEMENTED` beantwoordt. | 2026-08-02 |
 | 12 | geblokkeerd | `server/data/answer-flow.js` `resolveAnswer()` is een pure, ongewijzigde beslisfunctie zonder I/O; er is geen compositie-aanroeper die hem tegen de échte opslag (`saveAcceptedAnswerAtomically`) uitvoert. Activatiecriterium vereist expliciet "tegen échte opslag (Redis/DB) idempotentie afdwingt". | 2026-08-02 |
 | 13 | geblokkeerd | `server/protocol/throttle-round-progress.mjs` `throttleRoundProgress()` bestaat als geïsoleerde module; geen compositielaag roept hem aan vanuit een echte `round:answer`-verwerkingsketen en er bestaat geen broadcastmechanisme (geen Socket.IO-laag, zie rij 11). | 2026-08-02 |

@@ -22,14 +22,14 @@ voor onszelf, niet voor de uitvoerder.
 | [`DT4b-device-matrix.md`](DT4b-device-matrix.md) | DT4b | Handmatige device-/browsermatrix — **runbook klaar, 0/10 devicechecks uitgevoerd** |
 | [`DT5-loadtests.md`](DT5-loadtests.md) | DT5 | Deel 1 evidence-tabel — **klaar, 0/10 criteria gemeten**. Deel 2/3 k6-scripts + uitvoering (na akkoord) |
 | [`DT6-chaostests.md`](DT6-chaostests.md) | DT6 | Deel 1 runbook + preflight-stap — **klaar, 0/6 scenario's uitgevoerd**. Deel 2 uitvoering (na gefaseerde autorisatie) |
-| [`DT7-ci-voorstel.md`](DT7-ci-voorstel.md) | DT7 | CI-volgordevoorstel — **beide blockers uit de review verwerkt** (`.js`+`.mjs`-glob, `shared/product` toegevoegd, expliciete sectie dat de bestaande `ci.yml` al kapot is en dit voorstel dat niet zelf oplost); activatie blijft apart |
+| [`DT7-ci-voorstel.md`](DT7-ci-voorstel.md) | DT7 | CI-volgordevoorstel — **overbodig geworden**: DT-R3 optie A (nieuw devkitprofiel) loste de kloof al op zonder dit voorstel te activeren |
 | [`REVIEW-DT3B-DT7.md`](REVIEW-DT3B-DT7.md) | — | Review van de resterende fasen; beide DT7-blockers en de overige bevindingen zijn verwerkt, zie [`../DT-PROGRESS.md`](../DT-PROGRESS.md) |
 | [`DT-RESUME-AFTER-DECISIONS.md`](DT-RESUME-AFTER-DECISIONS.md) | Hervatting | Uitvoeringsakkoord toepassen en technisch uitvoerbare tests activeren |
 | [`DT-R1-heraudit-integratie.md`](DT-R1-heraudit-integratie.md) | DT-R1 | 14 DT3a-rijen herchecken tegen de huidige (placeholder-)server |
 | [`DT-R2-chaos-preflight-echte-compose.md`](DT-R2-chaos-preflight-echte-compose.md) | DT-R2 | Chaos-runbook valideren tegen het echte `docker-compose.yml` |
 | [`DT-R4-playwright-k6-target-check.md`](DT-R4-playwright-k6-target-check.md) | DT-R4 | Bevestigen of Playwright/k6 al een concreet target hebben |
 | [`DT-R5-progress-bijwerken.md`](DT-R5-progress-bijwerken.md) | DT-R5 | `DT-PROGRESS.md` + rapportage — pas ná DT-R1/R2/R4 |
-| [`DT-R3-ci-devkit-profiel.md`](DT-R3-ci-devkit-profiel.md) | DT-R3 | CI-fix: geverifieerd dat geen `.devkit.yaml`-execution-override en geen passend profiel bestaan — **legt 3 opties voor, wacht op mensenkeuze** |
+| [`DT-R3-ci-devkit-profiel.md`](DT-R3-ci-devkit-profiel.md) | DT-R3 | CI-fix: geverifieerd dat geen `.devkit.yaml`-execution-override en geen passend profiel bestaan, 3 opties voorgelegd — **opgelost: optie A gekozen**, nieuw devkitprofiel `node-esm-app` upstream gebouwd en geactiveerd |
 
 DT-R1/R2/R4/R5 zijn herzien na review (2026-08-02): stale 5/400-bestandslimiet in
 DT-R1 vervangen door de huidige 15/5.000-grens, DT-R2 staat nu expliciet
