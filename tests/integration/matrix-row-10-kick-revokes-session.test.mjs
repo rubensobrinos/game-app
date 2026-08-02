@@ -1,15 +1,3 @@
-// LET OP — verplaatst naar pending/ en hernoemd naar .draft.mjs (niet .test.mjs):
-// deze test faalde bij verificatie tegen de actuele HEAD met
-// "TypeError: context.store.loadRoomByInviteId is not a function"
-// (server/composition/room-lifecycle.mjs:253 roept een methode aan die
-// server/data/repository.js na de DM10/DM11-poortmigratie niet meer
-// exporteert — zie docs/deployment-and-testing-plan/integration-matrix.md
-// §Audit-log voor het volledige citaat). De test zelf is inhoudelijk
-// correct; ze faalt puur op deze cross-plan interfacemismatch. Hernoem
-// terug naar .test.mjs in tests/integration/ zodra room-lifecycle.mjs
-// loadRoomByInviteHash aanroept in plaats van het verwijderde
-// loadRoomByInviteId — dan zou dit direct moeten slagen.
-
 // tests/integration/matrix-row-10-kick-revokes-session.test.mjs
 //
 // Metadata (puur ter traceerbaarheid, geen voorwaarde om te draaien):

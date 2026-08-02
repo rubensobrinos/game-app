@@ -39,6 +39,7 @@ import {
   isValidInviteId,
 } from '../architecture/room-codes.js';
 import { generateName, isProfane, processChosenName } from '../data/name-processing.js';
+import { ROOM_TTL_SECONDS } from '../data/ttl.js';
 import { assertGameConfigurationShape } from '../data/types/game-configuration.js';
 import { assertPlayerShape } from '../data/types/player.js';
 import { assertRoomShape } from '../data/types/room.js';
@@ -79,7 +80,7 @@ const JOIN_SOURCES = Object.freeze(['qr', 'shared_link', 'code', 'unknown']);
 const NAME_SOURCE_GENERATED = 'generated';
 const NAME_SOURCE_CHOSEN = 'chosen';
 
-/** Aantal kandidaten dat claimLocators per locator probeert. */
+/** Aantal (code, inviteId)-kandidaatparen dat claimLocators probeert te claimen. */
 const DEFAULT_LOCATOR_ATTEMPTS = 10;
 
 /**
@@ -198,24 +199,29 @@ function resolveNames(context, { displayName, language, existingEffectiveNames }
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // DIT IS DE ENIGE PLEK IN DE COMPOSITIE DIE DE CLAIM DOET, en dus de enige
-// plek die verandert zodra de poort een atomaire claim krijgt.
+// plek die veranderde toen de poort de atomaire claim kreeg.
 //
-// De poort (`DATA_STORE_METHOD_NAMES`, 18 methoden) heeft géén atomaire claim
-// voor de join-code; er is alleen `loadRoomByCode`/`loadRoomByInviteId`, twee
-// leesoperaties. Roomcreatie is daarmee onvermijdelijk check-then-act: tussen
-// "is deze code vrij?" en het wegschrijven van de room kan een tweede creatie
-// dezelfde code pakken. Tegen de in-memory fake heeft dat venster binnen één
-// proces geen effect; tegen Redis wél. INT-1 stelt daarom voor:
+// INT-1 is opgelost (variant A): de poort heeft nu
 //
 //   claimRoomLocatorsAtomically({ roomId, code, inviteHash, ttlSeconds })
 //     → { ok: true } | { ok: false, conflict: 'code' | 'inviteHash' }
+//   releaseRoomLocators({ roomId, code, inviteHash })
+//   refreshRoomLocators({ roomId, code, inviteHash, ttlSeconds })
 //
-// DM heeft die uitbreiding inmiddels als fase DM10 opgepakt
-// (docs/data-model-plan/prompts/DM10-room-locator-claim.md), inclusief een
-// `releaseRoomLocators({ roomId, code, inviteHash })`. Zodra die methoden in
-// de poort staan vervangen ze hieronder de twee lookups; de retry-lus en alle
-// aanroepers blijven ongewijzigd. De TTL van de claim volgt
-// `ROOM_TTL_SECONDS` uit server/data/ttl.js.
+// (docs/data-model-plan/prompts/DM10-room-locator-claim.md). Daarmee is
+// roomcreatie GEEN check-then-act meer: er wordt niet eerst gelezen of een
+// code vrij is en daarna geschreven — de claim zelf beslist, in één operatie,
+// en een bezette locator komt terug als `{ ok: false, conflict }`. Een conflict
+// is een normale uitkomst (INT-1 §3), geen fout: de lus genereert dan een
+// nieuwe kandidaat. `loadRoomByCode` wordt hier daarom niet meer aangeroepen.
+//
+// De TTL van de claim volgt `ROOM_TTL_SECONDS` uit server/data/ttl.js, zodat de
+// indexen niet eerder verlopen dan de room zelf (INT-1 §4); `touchRoom`
+// verlengt ze mee via `refreshRoomLocators`.
+//
+// De poort krijgt de HASH, nooit de platte `inviteId` (INT-1 §6,
+// DATA-MODEL.md's `room:invite:{inviteHash}`). Hashen doet deze laag, met
+// `hashInviteId` uit room-codes.js.
 //
 // `generateGameCode()` wordt BEWUST ZONDER `isTaken`-callback aangeroepen:
 // die callback is optioneel en moet synchroon zijn, en room-codes.js werpt
@@ -226,47 +232,111 @@ function resolveNames(context, { displayName, language, existingEffectiveNames }
 /**
  * Genereert en claimt een vrije `code` en `inviteId` voor een nieuwe room.
  *
+ * Per poging worden BEIDE locators opnieuw gegenereerd en samen aangeboden:
+ * de claim is één atomaire operatie over het paar (INT-1: "beide of geen van
+ * beide"), dus er bestaat geen halve toestand waarin alleen de code al vastligt
+ * en er nog een invite bij gezocht moet worden.
+ *
  * @param {import('./context.mjs').Context} context
  * @param {{ roomId: string, maxAttempts?: number }} params
  * @returns {Promise<{ code: string, inviteId: string, inviteHash: string }>}
  * @throws {import('../architecture/room-codes.js').GameCodeExhaustedError}
- *   als geen van de pogingen een vrije code oplevert
+ *   als elke poging op een bezette CODE strandde
+ * @throws {RangeError} als elke poging op een bezette INVITE-HASH strandde
  */
 export async function claimLocators(context, { roomId, maxAttempts = DEFAULT_LOCATOR_ATTEMPTS } = {}) {
-  let code = null;
-  for (let attempt = 1; attempt <= maxAttempts && code === null; attempt += 1) {
-    const candidate = generateGameCode();
-    if ((await context.store.loadRoomByCode(candidate)) === null) {
-      code = candidate;
+  let lastConflict = 'code';
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const code = generateGameCode();
+    const inviteId = generateInviteId();
+    // De ACTIEVE pepperversie, net als bij een nieuwe sessietoken. De invite
+    // blijft ook na een rotatie vindbaar doordat `findRoomByInviteId` de
+    // overige peppers meeneemt en `Room.inviteHash` bewaart met welke hash
+    // deze room daadwerkelijk in de index staat.
+    const inviteHash = hashInviteId(inviteId, activePepper(context));
+
+    const claim = await context.store.claimRoomLocatorsAtomically({
+      roomId,
+      code,
+      inviteHash,
+      ttlSeconds: ROOM_TTL_SECONDS,
+    });
+    if (claim.ok === true) {
+      return { code, inviteId, inviteHash };
     }
-  }
-  if (code === null) {
-    // Het gedocumenteerde foutcontract van room-codes.js, ongewijzigd
-    // overgenomen: name 'GameCodeExhaustedError', code 'CODE_SPACE_EXHAUSTED'.
-    // Geen eigen tweede uitputtingsfout.
-    throw new GameCodeExhaustedError(maxAttempts);
+    lastConflict = claim.conflict;
   }
 
-  let inviteId = null;
-  for (let attempt = 1; attempt <= maxAttempts && inviteId === null; attempt += 1) {
-    const candidate = generateInviteId();
-    if ((await context.store.loadRoomByInviteId(candidate)) === null) {
-      inviteId = candidate;
-    }
-  }
-  if (inviteId === null) {
+  if (lastConflict === 'inviteHash') {
+    // De codekant was vrij (de poort meldt 'code' zodra díe conflicteert), dus
+    // de 132-bits invite-ruimte is de blokkade. Dat is geen uitgeputte
+    // coderuimte en verdient daarom niet room-codes.js' foutcontract.
     throw new RangeError(`claimLocators: geen vrije inviteId na ${maxAttempts} pogingen voor roomId ${JSON.stringify(roomId)}.`);
   }
+  // Het gedocumenteerde foutcontract van room-codes.js, ongewijzigd
+  // overgenomen: name 'GameCodeExhaustedError', code 'CODE_SPACE_EXHAUSTED'.
+  // Geen eigen tweede uitputtingsfout.
+  throw new GameCodeExhaustedError(maxAttempts);
+}
 
-  // De hash is wat de poort volgens INT-1 §6 en DATA-MODEL.md's
-  // `room:invite:{inviteHash}` hoort te krijgen — nooit de capability zelf.
-  // De huidige poort indexeert op de rúwe inviteId (`loadRoomByInviteId`) en
-  // Room heeft geen `inviteHash`-veld, dus de hash heeft nu nog geen
-  // opslagplaats. Hij wordt hier al berekend zodat de atomaire claim uit
-  // INT-1 straks precies dit argument krijgt. Zie de handoff-notitie.
-  const inviteHash = hashInviteId(inviteId, context.config.tokenPepper);
+/** De pepper van de ACTIEVE versie — waarmee nieuwe hashes worden gemaakt. */
+function activePepper(context) {
+  const { version, peppers } = context.config.tokenPeppers;
+  return peppers[version];
+}
 
-  return { code, inviteId, inviteHash };
+/**
+ * Geeft een geslaagde claim weer vrij nadat de rest van de creatie alsnog
+ * misging. Zonder dit verbrandt elke mislukte creatie een join-code voor de
+ * volle room-TTL (INT-1 §5, variant A).
+ *
+ * Werpt nooit: deze opruiming draait in een catch-pad en mag de oorspronkelijke
+ * fout — de fout die de aanroeper moet zien — niet verdringen.
+ */
+async function releaseLocators(context, { roomId, code, inviteHash }) {
+  try {
+    await context.store.releaseRoomLocators({ roomId, code, inviteHash });
+  } catch {
+    // Bewust stil: de claim verloopt hoe dan ook op zijn eigen TTL, en er is in
+    // deze laag geen loggernaad om dit naartoe te schrijven (handoff-notitie).
+  }
+}
+
+/**
+ * Zoekt de room op de platte `inviteId` op, ROTATIEBESTENDIG.
+ *
+ * De index staat op `hashInviteId(inviteId, pepper)` en die hash draagt — anders
+ * dan een tokenhash uit auth-session.mjs, die `${versie}:${hex}` opslaat — GÉÉN
+ * versieprefix. Uit de binnenkomende `inviteId` alleen valt dus niet af te
+ * leiden met welke pepperversie hij ooit geïndexeerd is. Na een pepperrotatie
+ * zou hashen met uitsluitend de actieve pepper daarom élke lopende invite
+ * onvindbaar maken.
+ *
+ * Opgelost met exact dezelfde rotatiebron als `verifyToken`: de peppermap uit
+ * `config.tokenPeppers`. Eerst de ACTIEVE versie (het normale geval, één
+ * lookup), daarna de overige versies; de eerste treffer wint. Geen tweede
+ * mechanisme naast dat van de protocollaag — alleen zoekt `verifyToken` de
+ * pepper direct op omdat de opgeslagen hash zijn versie meedraagt, en moet het
+ * hier bij gebrek daaraan proberenderwijs.
+ *
+ * OPEN PUNT (handoff): een versieprefix op `inviteHash`, zoals tokens die wél
+ * hebben, lost dit structureel op — dan is het weer één lookup en hoeft een
+ * oude pepper niet in de map te blijven staan om invites levend te houden.
+ *
+ * @param {import('./context.mjs').Context} context
+ * @param {string} inviteId - al gevalideerd met `isValidInviteId`
+ * @returns {Promise<object|null>}
+ */
+async function findRoomByInviteId(context, inviteId) {
+  const { version, peppers } = context.config.tokenPeppers;
+  const versions = [version, ...Object.keys(peppers).filter((candidate) => candidate !== version)];
+  for (const pepperVersion of versions) {
+    const room = await context.store.loadRoomByInviteHash(hashInviteId(inviteId, peppers[pepperVersion]));
+    if (room !== null) {
+      return room;
+    }
+  }
+  return null;
 }
 
 /**
@@ -294,84 +364,111 @@ export async function createRoom(context, { config, hostParticipates, displayNam
   const roomId = createId(context, 'room');
   const sessionId = createId(context, 'sess');
   const { code, inviteId, inviteHash } = await claimLocators(context, { roomId });
-  const { token, tokenHash } = createSessionToken(context);
-  const createdAt = context.now();
 
-  const room = {
-    id: roomId,
-    code,
-    inviteId,
-    phase: 'LOBBY',
-    createdAt,
-    lastActivityAt: createdAt,
-    hostSessionIds: [sessionId],
-    locked: false,
-    config: gameConfiguration,
-    currentMatchId: null,
-  };
-  assertRoomShape(room);
+  // Vanaf hier zijn de locators geclaimd. Alles wat nog kan mislukken vóórdat
+  // de room bestaat, moet die claim weer vrijgeven — anders verbrandt een
+  // mislukte creatie een join-code voor de volle room-TTL (INT-1 §5, A).
+  let roomPersisted = false;
+  try {
+    const { token, tokenHash } = createSessionToken(context);
+    const createdAt = context.now();
 
-  let player = null;
-  if (hostParticipates) {
-    const names = resolveNames(context, {
-      displayName,
-      language: gameConfiguration.language,
-      existingEffectiveNames: [],
-    });
-    player = {
-      id: createId(context, 'p'),
-      roomId,
-      sessionId,
-      displayName: names.displayName,
-      generatedName: names.generatedName,
-      effectiveName: names.effectiveName,
-      nameSource: names.nameSource,
-      teamId: null,
-      score: 0,
-      correctCount: 0,
-      correctResponseTimeMsTotal: 0,
-      connected: false,
-      eligibleFromRound: 1,
-      joinedAt: createdAt,
-      left: false,
-      kicked: false,
+    const room = {
+      id: roomId,
+      code,
+      inviteId,
+      // ADDITIEF VELD (niet in types/room.js's typedef, wél door
+      // `assertRoomShape` genegeerd — die keurt alleen de velden die hij kent).
+      // Het Room-document bewaart WAARMEE deze room in de invite-index staat.
+      // Zonder dat kunnen `releaseRoomLocators`/`refreshRoomLocators` de
+      // indexsleutel alleen terugkrijgen door hem te hergokken uit `inviteId` +
+      // de actieve pepper — en precies dat gokt fout zodra de peppers roteren.
+      // Zie de handoff-notitie: DM zou het veld in Room's typedef/assertion
+      // mogen opnemen.
+      inviteHash,
+      phase: 'LOBBY',
+      createdAt,
+      lastActivityAt: createdAt,
+      hostSessionIds: [sessionId],
+      locked: false,
+      config: gameConfiguration,
+      currentMatchId: null,
     };
-    assertPlayerShape(player);
+    assertRoomShape(room);
+
+    let player = null;
+    if (hostParticipates) {
+      const names = resolveNames(context, {
+        displayName,
+        language: gameConfiguration.language,
+        existingEffectiveNames: [],
+      });
+      player = {
+        id: createId(context, 'p'),
+        roomId,
+        sessionId,
+        displayName: names.displayName,
+        generatedName: names.generatedName,
+        effectiveName: names.effectiveName,
+        nameSource: names.nameSource,
+        teamId: null,
+        score: 0,
+        correctCount: 0,
+        correctResponseTimeMsTotal: 0,
+        connected: false,
+        eligibleFromRound: 1,
+        joinedAt: createdAt,
+        left: false,
+        kicked: false,
+      };
+      assertPlayerShape(player);
+    }
+
+    const session = {
+      id: sessionId,
+      roomId,
+      roles: hostParticipates ? ['host', 'player'] : ['host'],
+      playerId: player === null ? null : player.id,
+      tokenHash,
+      createdAt,
+      lastSeenAt: createdAt,
+      connectedSocketIds: [],
+      revoked: false,
+    };
+    assertSessionShape(session);
+
+    // saveRoom eerst: pas dán bestaat de room waar de geclaimde locators naar
+    // wijzen. Vanaf dit punt is vrijgeven juist FOUT — dat zou een bestaande,
+    // vindbare room onvindbaar maken.
+    await context.store.saveRoom(room);
+    roomPersisted = true;
+    await context.store.saveSession(session);
+    if (player !== null) {
+      await context.store.savePlayer(player);
+    }
+
+    return succeed({
+      roomId,
+      gameCode: code,
+      inviteId,
+      inviteHash,
+      joinUrl: buildJoinUrl(context, inviteId),
+      sessionToken: token,
+      sessionId,
+      roles: [...session.roles],
+      playerId: session.playerId,
+      effectiveName: player === null ? null : player.effectiveName,
+    });
+  } catch (error) {
+    if (!roomPersisted) {
+      await releaseLocators(context, { roomId, code, inviteHash });
+    }
+    // Een fout ná `saveRoom` (sessie/speler) laat de room én zijn locators
+    // staan: de room is dan echt en vindbaar, alleen zonder hostsessie. Dat
+    // half-af zijn is een aparte, niet met een release op te lossen kwestie —
+    // zie de handoff-notitie.
+    throw error;
   }
-
-  const session = {
-    id: sessionId,
-    roomId,
-    roles: hostParticipates ? ['host', 'player'] : ['host'],
-    playerId: player === null ? null : player.id,
-    tokenHash,
-    createdAt,
-    lastSeenAt: createdAt,
-    connectedSocketIds: [],
-    revoked: false,
-  };
-  assertSessionShape(session);
-
-  // saveRoom eerst: dat is de schrijfactie die code en inviteId in de indexen
-  // zet en dus het check-then-act-venster uit INT-1 sluit.
-  await context.store.saveRoom(room);
-  await context.store.saveSession(session);
-  if (player !== null) {
-    await context.store.savePlayer(player);
-  }
-
-  return succeed({
-    roomId,
-    gameCode: code,
-    inviteId,
-    inviteHash,
-    joinUrl: buildJoinUrl(context, inviteId),
-    sessionToken: token,
-    sessionId,
-    roles: [...session.roles],
-    playerId: session.playerId,
-    effectiveName: player === null ? null : player.effectiveName,
-  });
 }
 
 /**
@@ -396,7 +493,7 @@ export async function previewInvite(context, { inviteId } = {}) {
   if (!isValidInviteId(inviteId)) {
     return fail(CODES.INVITE_INVALID);
   }
-  const room = await context.store.loadRoomByInviteId(inviteId);
+  const room = await findRoomByInviteId(context, inviteId);
   if (room === null) {
     return fail(CODES.GAME_NOT_FOUND);
   }
@@ -435,7 +532,7 @@ async function locateRoom(context, { inviteId, gameCode }) {
     if (!isValidInviteId(inviteId)) {
       return fail(CODES.INVITE_INVALID);
     }
-    const room = await context.store.loadRoomByInviteId(inviteId);
+    const room = await findRoomByInviteId(context, inviteId);
     return room === null ? fail(CODES.GAME_NOT_FOUND) : succeed(room);
   }
 
@@ -567,9 +664,34 @@ export async function joinRoom(context, {
  * write over het HELE Room-document is: de poort kent geen partiële update.
  * Zie de handoff-notitie — tegen een echte, gelijktijdige store kan dit een
  * concurrent `phase`-update overschrijven.
+ *
+ * Dit is óók het TTL-refreshpad, en dus de plek waar `refreshRoomLocators`
+ * hoort (INT-1 §4): zonder die aanroep verlopen `room:code:{code}` en
+ * `room:invite:{inviteHash}` op hun oorspronkelijke claim-TTL, terwijl de room
+ * zelf door de activiteit blijft leven — een levende room die niemand meer via
+ * code of invite kan vinden.
+ *
+ * De refresh gaat alleen op als het Room-document zijn `inviteHash` draagt.
+ * Rooms van vóór dat veld (of uit een fixture die de room buiten `createRoom`
+ * om opbouwt) hebben hem niet; hem hier hergokken uit `inviteId` + de actieve
+ * pepper zou na een rotatie de verkeerde sleutel verlengen en de echte laten
+ * verlopen. Niets verlengen is dan het veilige alternatief.
+ *
+ * Een refresh die de poort weigert (RangeError: de locators zijn niet meer van
+ * deze room) wordt NIET weggeslikt. Dat betekent dat de code of de invite
+ * inmiddels naar een andere room wijst, en dan is doorgaan met joinen erger dan
+ * falen.
  */
 async function touchRoom(context, room, at) {
   await context.store.saveRoom({ ...room, lastActivityAt: at });
+  if (typeof room.inviteHash === 'string' && room.inviteHash.length > 0) {
+    await context.store.refreshRoomLocators({
+      roomId: room.id,
+      code: room.code,
+      inviteHash: room.inviteHash,
+      ttlSeconds: ROOM_TTL_SECONDS,
+    });
+  }
 }
 
 /**
@@ -612,7 +734,11 @@ export async function setRoomLocked(context, { roomId, locked } = {}) {
   const at = context.now();
   const updated = { ...room, locked, lastActivityAt: at };
   assertRoomShape(updated);
-  await context.store.saveRoom(updated);
+  // Via touchRoom, niet rechtstreeks saveRoom: vergrendelen is activiteit en
+  // moet dus dezelfde TTL-verlenging krijgen als joinen en kicken, inclusief de
+  // locator-refresh. `lastActivityAt` staat er al op; touchRoom zet dezelfde
+  // waarde nog eens, wat niets verandert.
+  await touchRoom(context, updated, at);
   return succeed({ roomId: room.id, locked });
 }
 

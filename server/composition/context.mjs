@@ -17,9 +17,12 @@
 // 1. `now` is verplicht en wordt geïnjecteerd. Geen enkele module in
 //    server/composition/ roept `Date.now()` aan. Zonder die regel is de
 //    keten-test niet deterministisch en is elke timing-assertie een gok.
-// 2. Deze module leest GEEN env-variabelen. `tokenPepper` en `publicAppUrl`
-//    komen van de aanroeper (in productie uit TOKEN_PEPPER/PUBLIC_APP_URL,
-//    besluit 6) — precies zoals room-codes.js dat voor zijn pepper eist.
+// 2. Deze module leest GEEN env-variabelen. `tokenPeppers` en `publicAppUrl`
+//    komen van de aanroeper (in productie uit de omgeving, besluit 6) —
+//    precies zoals room-codes.js dat voor zijn pepper eist. Hoe een
+//    versieerbare peppermap uit `.env` komt (nu staat er één platte
+//    `TOKEN_PEPPER=` in .env.example en docker-compose.yml) is een
+//    prod-/secretsbeslissing en valt uitdrukkelijk buiten deze module.
 
 import { randomBytes as nodeRandomBytes } from 'node:crypto';
 
@@ -27,14 +30,35 @@ import { randomBytes as nodeRandomBytes } from 'node:crypto';
 // HANDOFF.md §"Zelf opgelost"), Node's cjs-module-lexer herkent het
 // `module.exports = { … }`-patroon van deze modules. Geen interop-shim nodig.
 import { assertImplementsDataStore } from '../data/repository.js';
-import { inviteHashEquals, MIN_PEPPER_BYTES } from '../architecture/room-codes.js';
-import { generateSessionToken, hashToken } from '../protocol/auth-session.mjs';
+import { MIN_PEPPER_BYTES } from '../architecture/room-codes.js';
+import { generateSessionToken, hashToken, verifyToken } from '../protocol/auth-session.mjs';
+
+/**
+ * De pepperbundel van de compositielaag (besluit 26, tweede helft: versieerbare
+ * HMAC-SHA256 met pepper).
+ *
+ * VORMKEUZE — `{ version, peppers }` in plaats van een platte `tokenPepper`:
+ *   - `peppers` IS het `peppersByVersion`-argument van
+ *     `auth-session.mjs#verifyToken`. Het gaat er ongewijzigd in; er wordt
+ *     nergens ter plekke een map omgebouwd, dus er kan ook nergens een
+ *     versie stilletjes uit die map vallen.
+ *   - `version` is de ACTIEVE versie: waarmee nieuwe tokens gehasht worden.
+ *     Oude versies blijven gewoon in `peppers` staan en blijven daardoor
+ *     verifieerbaar — dat is precies wat een rotatie nodig heeft.
+ *   - Eén samenhangend veld in plaats van twee losse configsleutels, zodat
+ *     "actieve versie" en "geldige peppers" niet uit elkaar kunnen lopen.
+ *
+ * Peppers zijn hier ALTIJD strings. `hashToken`/`verifyToken` eisen dat
+ * (`typeof pepper !== 'string'` → throw resp. `false`), dus een Buffer-pepper
+ * zou pas bij het eerste token stukgaan; die faalt hier nu al bij opstarten.
+ * @typedef {{ version: string, peppers: Readonly<Record<string, string>> }} TokenPeppers
+ */
 
 /**
  * @typedef {{
  *   store: import('../data/repository.js').DataStore,
  *   now: () => number,
- *   config: Readonly<{ tokenPepper: string|NodeJS.ArrayBufferView, publicAppUrl: string }>,
+ *   config: Readonly<{ tokenPeppers: TokenPeppers, publicAppUrl: string }>,
  *   cryptoSource: { randomBytes: (size: number) => Buffer },
  * }} Context
  */
@@ -43,21 +67,52 @@ import { generateSessionToken, hashToken } from '../protocol/auth-session.mjs';
 const DEFAULT_CRYPTO_SOURCE = { randomBytes: nodeRandomBytes };
 
 /**
- * Bytelengte van een pepper-waarde. Dezelfde twee vormen die room-codes.js's
- * (niet-geëxporteerde) assertUsablePepper accepteert voor `hashInviteId`; de
- * ondergrens komt óók daarvandaan (MIN_PEPPER_BYTES), zodat er niet twee
- * verschillende sterkte-eisen in de codebase staan.
- * @param {unknown} pepper
- * @returns {number|null} bytelengte, of null als het type onbruikbaar is
+ * Keurt de pepperbundel en levert een bevroren, genormaliseerde kopie op.
+ *
+ * De ondergrens per pepper komt uit room-codes.js (MIN_PEPPER_BYTES), zodat er
+ * niet twee verschillende sterkte-eisen in de codebase staan — ook een pepper
+ * die alleen nog voor verificatie van oude sessies in de map zit moet daaraan
+ * voldoen; een zwakke oude pepper is even lek als een zwakke nieuwe.
+ *
+ * @param {unknown} tokenPeppers
+ * @returns {Readonly<{ version: string, peppers: Readonly<Record<string, string>> }>}
+ * @throws {TypeError} bij een ontbrekende/onbruikbare vorm, een lege
+ *   peppermap, een actieve versie die niet in de map staat, of een pepper die
+ *   geen string is of onder MIN_PEPPER_BYTES blijft
  */
-function pepperByteLength(pepper) {
-  if (typeof pepper === 'string') {
-    return Buffer.byteLength(pepper, 'utf8');
+function normalizeTokenPeppers(tokenPeppers) {
+  if (typeof tokenPeppers !== 'object' || tokenPeppers === null || Array.isArray(tokenPeppers)) {
+    throw new TypeError('createContext: `config.tokenPeppers` moet een object { version, peppers } zijn; deze module kent geen default.');
   }
-  if (ArrayBuffer.isView(pepper)) {
-    return pepper.byteLength;
+  const { version, peppers } = tokenPeppers;
+  if (typeof version !== 'string' || version.length === 0) {
+    throw new TypeError(`createContext: \`config.tokenPeppers.version\` moet een niet-lege string zijn (de actieve pepperversie), kreeg: ${JSON.stringify(version)}`);
   }
-  return null;
+  if (typeof peppers !== 'object' || peppers === null || Array.isArray(peppers)) {
+    throw new TypeError('createContext: `config.tokenPeppers.peppers` moet een object { [versie]: pepper } zijn.');
+  }
+  const entries = Object.entries(peppers);
+  if (entries.length === 0) {
+    throw new TypeError('createContext: `config.tokenPeppers.peppers` mag niet leeg zijn.');
+  }
+  for (const [pepperVersion, pepper] of entries) {
+    // String, geen Buffer: auth-session.mjs's hashToken/verifyToken accepteren
+    // uitsluitend strings. Hier falen is opstarttijd; daar falen is looptijd.
+    if (typeof pepper !== 'string' || pepper.length === 0) {
+      throw new TypeError(`createContext: \`config.tokenPeppers.peppers[${JSON.stringify(pepperVersion)}]\` moet een niet-lege string zijn.`);
+    }
+    const pepperBytes = Buffer.byteLength(pepper, 'utf8');
+    if (pepperBytes < MIN_PEPPER_BYTES) {
+      throw new TypeError(`createContext: \`config.tokenPeppers.peppers[${JSON.stringify(pepperVersion)}]\` is ${pepperBytes} byte(s); minimaal ${MIN_PEPPER_BYTES} bytes vereist (room-codes.js MIN_PEPPER_BYTES).`);
+    }
+  }
+  if (!Object.hasOwn(peppers, version)) {
+    throw new TypeError(`createContext: actieve pepperversie ${JSON.stringify(version)} ontbreekt in \`config.tokenPeppers.peppers\` (aanwezig: ${JSON.stringify(Object.keys(peppers))}).`);
+  }
+  // Twee niveaus bevriezen: `Object.freeze({ ...config })` hieronder is ondiep,
+  // dus zonder dit zou een aanroeper de peppermap ná constructie alsnog kunnen
+  // omzetten — precies wat die freeze wil uitsluiten.
+  return Object.freeze({ version, peppers: Object.freeze({ ...peppers }) });
 }
 
 /**
@@ -88,7 +143,7 @@ function isAbsoluteUrl(value) {
  * @param {{
  *   store: object,
  *   now: () => number,
- *   config: { tokenPepper: string|NodeJS.ArrayBufferView, publicAppUrl: string, [k: string]: unknown },
+ *   config: { tokenPeppers: TokenPeppers, publicAppUrl: string, [k: string]: unknown },
  *   cryptoSource?: { randomBytes: (size: number) => Buffer },
  * }} params
  * @returns {Context}
@@ -111,13 +166,7 @@ export function createContext({ store, now, config, cryptoSource = DEFAULT_CRYPT
     throw new TypeError('createContext: `config` moet een object zijn.');
   }
 
-  const pepperBytes = pepperByteLength(config.tokenPepper);
-  if (pepperBytes === null) {
-    throw new TypeError('createContext: `config.tokenPepper` moet een string of een Buffer/TypedArray zijn; deze module kent geen default.');
-  }
-  if (pepperBytes < MIN_PEPPER_BYTES) {
-    throw new TypeError(`createContext: \`config.tokenPepper\` is ${pepperBytes} byte(s); minimaal ${MIN_PEPPER_BYTES} bytes vereist (room-codes.js MIN_PEPPER_BYTES).`);
-  }
+  const tokenPeppers = normalizeTokenPeppers(config.tokenPeppers);
 
   if (!isAbsoluteUrl(config.publicAppUrl)) {
     throw new TypeError(`createContext: \`config.publicAppUrl\` moet een absolute http(s)-URL zijn (besluit 6, PUBLIC_APP_URL), kreeg: ${JSON.stringify(config.publicAppUrl)}`);
@@ -130,7 +179,7 @@ export function createContext({ store, now, config, cryptoSource = DEFAULT_CRYPT
   return Object.freeze({
     store,
     now,
-    config: Object.freeze({ ...config }),
+    config: Object.freeze({ ...config, tokenPeppers }),
     cryptoSource,
   });
 }
@@ -159,9 +208,10 @@ export function createId(context, prefix) {
 
 /**
  * Sessietoken conform besluit 26: 32 random bytes → base64url (43 tekens),
- * opslag als HMAC-SHA256 met de pepper. Beide stappen komen ongewijzigd uit
- * server/protocol/auth-session.mjs — deze functie is puur de bedrading die de
- * pepper uit de context haalt en het paar teruggeeft.
+ * opslag als `${versie}:${HMAC-SHA256-hex}` met de ACTIEVE pepper. Beide
+ * stappen komen ongewijzigd uit server/protocol/auth-session.mjs — deze
+ * functie is puur de bedrading die de pepper uit de context haalt en het paar
+ * teruggeeft.
  *
  * Het KLARE token verlaat de server precies één keer, in de create/join-
  * response. Alleen `tokenHash` gaat naar de store (Session.tokenHash).
@@ -175,26 +225,36 @@ export function createSessionToken(context) {
 }
 
 /**
- * Hasht een bestaand token met dezelfde constructie als createSessionToken.
- * Nodig om een binnenkomend token tegen een opgeslagen `Session.tokenHash` te
- * leggen zonder het token ooit op te slaan.
+ * Hasht een bestaand token met dezelfde constructie als createSessionToken:
+ * altijd met de ACTIEVE pepperversie. Nodig om een nieuw token te kunnen
+ * opslaan; om een BESTAANDE hash te controleren is `verifySessionToken` de
+ * juiste ingang — die kan ook nog met een oudere versie gehashte tokens aan.
  *
  * @param {Context} context
  * @param {string} token
- * @returns {string} 64 tekens lowercase hex
+ * @returns {string} `${versie}:${64 tekens lowercase hex}`
  */
 export function hashSessionToken(context, token) {
-  return hashToken(token, context.config.tokenPepper);
+  const { version, peppers } = context.config.tokenPeppers;
+  return hashToken(token, { version, pepper: peppers[version] });
 }
 
 /**
  * Constant-time verificatie van een aangeboden token tegen een opgeslagen
- * hash (besluit 26). Gebruikt `inviteHashEquals` uit room-codes.js — dat is
- * exact een timingSafeEqual over 64 hex-tekens, en de tokenhash heeft
- * dezelfde vorm. Geen tweede vergelijkingsmechanisme dus.
+ * hash (besluit 26). Delegeert volledig aan `verifyToken` uit
+ * auth-session.mjs: die leest de pepperversie uit `expectedHash`, zoekt de
+ * bijbehorende pepper op in de peppermap en vergelijkt met `timingSafeEqual`.
+ * Geen tweede vergelijkingsmechanisme naast dat van de protocollaag — en een
+ * kale hashvergelijking zou sowieso niet meer kloppen nu de opgeslagen hash
+ * een versieprefix draagt.
  *
- * Werpt NOOIT: vijandige invoer (niet-string, lege string, misvormde hash)
- * levert `false`. Dat is bewust — dit draait op spelerinvoer.
+ * Hierdoor verifieert een token dat met een ÓUDE pepperversie is gehasht nog
+ * steeds, zolang die versie in `config.tokenPeppers.peppers` blijft staan —
+ * dat is de rotatie waarvoor besluit 26 de versionering vraagt.
+ *
+ * Werpt NOOIT: vijandige invoer (niet-string, lege string, misvormde hash,
+ * onbekende pepperversie) levert `false`. Dat is bewust — dit draait op
+ * spelerinvoer.
  *
  * @param {Context} context
  * @param {unknown} token
@@ -205,11 +265,8 @@ export function verifySessionToken(context, token, expectedHash) {
   if (typeof token !== 'string' || token.length === 0) {
     return false;
   }
-  let actualHash;
-  try {
-    actualHash = hashSessionToken(context, token);
-  } catch {
-    return false;
-  }
-  return inviteHashEquals(actualHash, expectedHash);
+  // Optional chaining zodat ook een handmatig samengestelde context (buiten
+  // createContext om) `false` oplevert in plaats van te werpen; verifyToken
+  // verdraagt een ontbrekende peppermap zelf al.
+  return verifyToken(token, expectedHash, context.config.tokenPeppers?.peppers);
 }

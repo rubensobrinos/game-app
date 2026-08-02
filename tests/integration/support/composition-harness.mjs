@@ -27,6 +27,16 @@ export const PEPPER = 'integratietest-pepper-met-ruim-voldoende-bytes';
 export const APP_URL = 'https://play.aseso.nl';
 
 /**
+ * Besluit 26: versieerbare peppers — één ACTIEVE versie plus alle versies die
+ * nog geverifieerd moeten kunnen worden. Dit is de vorm die
+ * `createContext` eist (`config.tokenPeppers`); de platte `tokenPepper` die
+ * hier eerder stond bestaat niet meer en zou nu bij het opbouwen van de context
+ * al een TypeError geven. Dezelfde vorm als in
+ * `server/composition/room-lifecycle.test.mjs`.
+ */
+export const TOKEN_PEPPERS = Object.freeze({ version: 'v1', peppers: Object.freeze({ v1: PEPPER }) });
+
+/**
  * @param {{ store?: object, now?: () => number, config?: object }} [params]
  * @returns {import('../../../server/composition/context.mjs').Context}
  */
@@ -34,6 +44,6 @@ export function makeContext({ store = createInMemoryStore(), now = () => FIXED_N
   return createContext({
     store,
     now,
-    config: { tokenPepper: PEPPER, publicAppUrl: APP_URL, ...config },
+    config: { tokenPeppers: TOKEN_PEPPERS, publicAppUrl: APP_URL, ...config },
   });
 }

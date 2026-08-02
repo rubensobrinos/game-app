@@ -10,7 +10,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { hashInviteId } from '../architecture/room-codes.js';
 import { createInMemoryStore } from '../data/in-memory-store.js';
+import { ROOM_TTL_SECONDS } from '../data/ttl.js';
 import { assertPlayerShape } from '../data/types/player.js';
 import { assertSessionShape } from '../data/types/session.js';
 import { createContext } from './context.mjs';
@@ -30,6 +32,10 @@ import {
 
 const FIXED_NOW = 1_754_136_000_000;
 const PEPPER = 'test-pepper-met-ruim-genoeg-bytes';
+/** De opvolger bij een rotatie — zie de pepperrotatietest onderaan. */
+const PEPPER_V2 = 'tweede-test-pepper-met-ruim-genoeg-bytes';
+/** Besluit 26: versieerbare peppers — één actieve versie, alle geldige in de map. */
+const TOKEN_PEPPERS = { version: 'v1', peppers: { v1: PEPPER } };
 const APP_URL = 'https://play.aseso.nl';
 
 /** Telt schrijfacties op de poort, zonder het gedrag te wijzigen. */
@@ -59,7 +65,7 @@ function makeContext({ store = createInMemoryStore(), now = () => FIXED_NOW, con
   return createContext({
     store,
     now,
-    config: { tokenPepper: PEPPER, publicAppUrl: APP_URL, ...config },
+    config: { tokenPeppers: TOKEN_PEPPERS, publicAppUrl: APP_URL, ...config },
   });
 }
 
@@ -494,37 +500,171 @@ test('een late joiner krijgt de eligibleFromRound die de match-laag aanlevert', 
   assert.equal((await context.store.loadPlayer(room.roomId, joined.value.playerId)).eligibleFromRound, 4);
 });
 
-// ─── De join-code-claim (HANDOFF INT-1) ─────────────────────────────────────
+// ─── De join-code-claim (HANDOFF INT-1, opgelost door DM10) ─────────────────
 
 test('claimLocators probeert een nieuwe kandidaat zodra een code al bezet is', async () => {
   const inner = createInMemoryStore();
-  let codeLookups = 0;
+  const aangeboden = [];
   const store = {
     ...inner,
-    async loadRoomByCode(code) {
-      codeLookups += 1;
-      // De eerste twee kandidaten zijn "bezet".
-      return codeLookups <= 2 ? { id: 'room_bezet', code } : inner.loadRoomByCode(code);
+    async claimRoomLocatorsAtomically(claim) {
+      aangeboden.push(claim);
+      // De eerste twee kandidaten botsen op de code.
+      return aangeboden.length <= 2 ? { ok: false, conflict: 'code' } : inner.claimRoomLocatorsAtomically(claim);
     },
   };
   const context = makeContext({ store });
 
   const claimed = await claimLocators(context, { roomId: 'room_nieuw' });
-  assert.equal(codeLookups, 3);
+  assert.equal(aangeboden.length, 3);
   assert.match(claimed.code, /^[0-9]{6}$/);
   assert.match(claimed.inviteId, /^[A-Za-z0-9_-]{22}$/);
   assert.match(claimed.inviteHash, /^[0-9a-f]{64}$/);
   assert.notEqual(claimed.inviteHash, claimed.inviteId);
+
+  // Elke poging biedt een VERS paar aan, en de laatste is wat er teruggegeven
+  // wordt — er wordt geen afgewezen kandidaat alsnog gebruikt.
+  assert.equal(new Set(aangeboden.map((claim) => claim.inviteHash)).size, 3);
+  assert.equal(aangeboden.at(-1).code, claimed.code);
+  assert.equal(aangeboden.at(-1).inviteHash, claimed.inviteHash);
+  // De poort krijgt de hash met de room-TTL, nooit de platte capability.
+  assert.deepEqual(new Set(aangeboden.map((claim) => claim.ttlSeconds)), new Set([ROOM_TTL_SECONDS]));
+  assert.equal(aangeboden.some((claim) => claim.inviteHash === claimed.inviteId), false);
 });
 
 test('claimLocators werpt GameCodeExhaustedError als elke kandidaat bezet is', async () => {
   const inner = createInMemoryStore();
-  const store = { ...inner, async loadRoomByCode(code) { return { id: 'room_bezet', code }; } };
+  const store = { ...inner, async claimRoomLocatorsAtomically() { return { ok: false, conflict: 'code' }; } };
   const context = makeContext({ store });
 
   await assert.rejects(
     () => claimLocators(context, { roomId: 'room_nieuw', maxAttempts: 3 }),
     (error) => error.name === 'GameCodeExhaustedError' && error.code === 'CODE_SPACE_EXHAUSTED',
+  );
+
+  // Een uitgeputte INVITE-ruimte is geen uitgeputte coderuimte en krijgt
+  // daarom niet room-codes.js' foutcontract.
+  const inviteBezet = { ...inner, async claimRoomLocatorsAtomically() { return { ok: false, conflict: 'inviteHash' }; } };
+  await assert.rejects(
+    () => claimLocators(makeContext({ store: inviteBezet }), { roomId: 'room_nieuw', maxAttempts: 3 }),
+    (error) => error instanceof RangeError && /geen vrije inviteId na 3 pogingen/.test(error.message),
+  );
+});
+
+test('een claimconflict levert een nieuwe kandidaat op en geen fout: createRoom loopt gewoon door', async () => {
+  const inner = createInMemoryStore();
+  const afgewezen = [];
+  let claims = 0;
+  const store = {
+    ...inner,
+    async claimRoomLocatorsAtomically(claim) {
+      claims += 1;
+      // Eén botsing per locatorkant — beide conflictwaarden uit het contract.
+      if (claims <= 2) {
+        afgewezen.push(claim);
+        return { ok: false, conflict: claims === 1 ? 'code' : 'inviteHash' };
+      }
+      return inner.claimRoomLocatorsAtomically(claim);
+    },
+  };
+  const context = makeContext({ store });
+
+  const created = await createRoom(context, { hostParticipates: false });
+  assert.equal(created.ok, true);
+  assert.equal(claims, 3);
+
+  // De room draait op de geclaimde kandidaat en is via beide locators vindbaar.
+  const stored = await inner.loadRoom(created.value.roomId);
+  assert.equal(stored.code, created.value.gameCode);
+  assert.equal(stored.inviteHash, created.value.inviteHash);
+  assert.equal((await joinRoom(context, { gameCode: created.value.gameCode, joinSource: 'code' })).ok, true);
+  assert.equal((await previewInvite(context, { inviteId: created.value.inviteId })).ok, true);
+
+  // Van de afgewezen kandidaten is niets in de index blijven hangen.
+  for (const claim of afgewezen) {
+    assert.equal(await inner.loadRoomByInviteHash(claim.inviteHash), null);
+    assert.notEqual(claim.inviteHash, created.value.inviteHash);
+  }
+});
+
+test('een creatie die ná een geslaagde claim mislukt geeft de locators weer vrij', async () => {
+  const inner = createInMemoryStore();
+  const geclaimd = [];
+  const vrijgegeven = [];
+  const store = {
+    ...inner,
+    async claimRoomLocatorsAtomically(claim) {
+      const result = await inner.claimRoomLocatorsAtomically(claim);
+      if (result.ok === true) {
+        geclaimd.push(claim);
+      }
+      return result;
+    },
+    async releaseRoomLocators(pair) {
+      vrijgegeven.push(pair);
+      return inner.releaseRoomLocators(pair);
+    },
+    async saveRoom() {
+      throw new Error('store weigert de room ná de claim');
+    },
+  };
+  const context = makeContext({ store });
+
+  await assert.rejects(
+    () => createRoom(context, { hostParticipates: true, displayName: 'Host' }),
+    /store weigert de room ná de claim/,
+  );
+
+  assert.equal(geclaimd.length, 1);
+  const { roomId, code, inviteHash } = geclaimd[0];
+  assert.deepEqual(vrijgegeven, [{ roomId, code, inviteHash }]);
+
+  // Niet alleen "release is aangeroepen": de code is daarna écht opnieuw
+  // claimbaar door een andere room, en brandt dus geen room-TTL lang op.
+  assert.equal(await inner.loadRoomByCode(code), null);
+  assert.equal(await inner.loadRoomByInviteHash(inviteHash), null);
+  assert.deepEqual(
+    await inner.claimRoomLocatorsAtomically({ roomId: 'room_volgende', code, inviteHash, ttlSeconds: ROOM_TTL_SECONDS }),
+    { ok: true },
+  );
+});
+
+// ─── Pepperrotatie en de invite-index ───────────────────────────────────────
+
+test('een met v1 gehashte inviteId blijft vindbaar nadat v2 de actieve pepper is geworden', async () => {
+  const store = createInMemoryStore();
+  const room = await makeRoom(makeContext({ store }), { hostParticipates: false });
+
+  // De rotatie: v2 actief, v1 blijft in de map staan — precies wat besluit 26
+  // voor tokens voorschrijft, hier voor dezelfde peppers.
+  const geroteerd = makeContext({
+    store,
+    config: { tokenPeppers: { version: 'v2', peppers: { v1: PEPPER, v2: PEPPER_V2 } } },
+  });
+
+  // Er wordt niets omgeïndexeerd: onder de nieuwe pepper heeft dezelfde
+  // inviteId een andere hash, en die staat nergens.
+  const hashV2 = hashInviteId(room.inviteId, PEPPER_V2);
+  assert.notEqual(hashV2, room.inviteHash);
+  assert.equal(await store.loadRoomByInviteHash(hashV2), null);
+  assert.notEqual(await store.loadRoomByInviteHash(room.inviteHash), null);
+
+  const preview = await previewInvite(geroteerd, { inviteId: room.inviteId });
+  assert.equal(preview.ok, true);
+  assert.equal(preview.value.roomId, room.roomId);
+
+  // Ook het join-pad (dat via touchRoom de locators verlengt met de hash die
+  // op het Room-document staat, niet met een opnieuw geraden hash).
+  const joined = await joinRoom(geroteerd, { inviteId: room.inviteId, displayName: 'Na rotatie', joinSource: 'qr' });
+  assert.equal(joined.ok, true);
+  assert.equal(joined.value.roomId, room.roomId);
+
+  // En de keerzijde: valt v1 helemaal uit de map, dan is de invite écht weg.
+  // Dát is het moment waarop een versieprefix op de hash geholpen zou hebben.
+  const zonderV1 = makeContext({ store, config: { tokenPeppers: { version: 'v2', peppers: { v2: PEPPER_V2 } } } });
+  assert.deepEqual(
+    await previewInvite(zonderV1, { inviteId: room.inviteId }),
+    { ok: false, code: 'GAME_NOT_FOUND' },
   );
 });
 
