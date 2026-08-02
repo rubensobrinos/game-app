@@ -84,15 +84,25 @@ zelf gereproduceerd, nog echt open.** Ook: INT-6/INTB-7 (invite-hash) is
 inhoudelijk al opgelost, maar beide statustabellen zijn stale. Drie
 voorstellen geschreven, geen enkele geïmplementeerd (poort-bevroren):
 
-- [ ] `HANDOFF.md` §9 — `rotateRoomLocators` voor INTB-5, wacht op akkoord
-  INT-A + INT-B
+- [ ] `HANDOFF.md` §9 — `rotateRoomLocators` voor INTB-5. **Product-owner-
+  akkoord binnen**, formeel ingediend bij INT-A + INT-B; wacht nu op hun
+  technische akkoord (poort-bevroren).
 - [ ] `HANDOFF.md` §10 — `loadSessionByTokenHash` voor INT-3 (blokkeert
-  INT-A stap 2), wacht op akkoord
-- [ ] `HANDOFF.md` §11 — eenregelig voorstel aan spec-redactie voor INT-9
-  (`deadlineGraceMs`-documentatie, geen poortwijziging)
+  INT-A stap 2). **Product-owner-akkoord binnen**, formeel ingediend; wacht op
+  INT-A/INT-B-akkoord.
+- [x] `HANDOFF.md` §11 — eenregelig voorstel aan spec-redactie voor INT-9
+  (`deadlineGraceMs`-documentatie, geen poortwijziging). **Akkoord en
+  ingediend** — geen INT-A/INT-B-akkoord nodig, geen poortwijziging.
+
+**Afgesproken bouwvolgorde zodra INT-A + INT-B akkoord geven op §9/§10: §10
+eerst** (deblokkeert INT-A stap 2, niets publiek dus tempo wint), **direct
+gevolgd door §9** (moet af vóór er iets via de tunnel bereikbaar is — anders
+is een niet-intrekbare uitnodiging een echt securitygat).
 
 INTB-8 ligt al bij de DT-agent, geen actie hier. INTB-6 (tiebreak) blijft
-terecht open, wacht op GR.
+terecht open, wacht op GR. Verwacht nog een klein, regulier HANDOFF-item van
+INT-A (versieprefix op `inviteHash`, volgt de tokens-versioneringslijn uit
+besluit 26) — geen speciale voorrang zodra het binnenkomt.
 
 ## Cijfers
 

@@ -371,10 +371,28 @@ worden bijgewerkt** — geen actie van mij nodig behalve deze melding.
 | INT-9 | DM | 🔵 open, terecht — geen poortwijziging, een documentatie-eenduidigheid. Voorstel aan spec-redactie in §11 |
 | INT-4 | cc DM | 🔵 open, primair CT — geen actie hier |
 
-## 9. VOORSTEL (wacht op akkoord INT-A + INT-B, NIET geïmplementeerd) — INTB-5: `rotateRoomLocators`
+**Terugkoppeling na productbeoordeling van deze audit:** INT-6/INTB-7's
+statustabellen corrigeren is al bij INT-A/INT-B belegd — deze audit is de
+onderbouwing daarvan, geen apart verzoek nodig. **Verwacht van INT-A nog een
+klein HANDOFF-item: een versieprefix-op-`inviteHash`-voorstel** (dezelfde
+versioneringslijn als de tokens, besluit 26) — behandel dat als regulier
+HANDOFF-item zodra het binnenkomt, geen speciale voorrang.
 
-Security gaat voor tempo, dus dit eerst. Aan: INT-A, INT-B — akkoord nodig
-vóór implementatie (poort-bevroren, §7b).
+## 9. FORMEEL VOORSTEL — wacht op akkoord INT-A + INT-B (poort-bevroren, §7b) — INTB-5: `rotateRoomLocators`
+
+**Product-owner-akkoord binnen: dit voorstel is goedgekeurd.** Formeel
+ingediend bij INT-A en INT-B, conform het bevriezingsproces — nog NIET
+geïmplementeerd, wacht op jullie technische akkoord (product-akkoord is niet
+hetzelfde als integrator-akkoord).
+
+**Afgesproken bouwvolgorde zodra beide integrators akkoord geven: §10 eerst
+(deblokkeert INT-A stap 2, nog niets publiek dus tempo wint daar), direct
+daarna dit item (§9) — vóór er ook maar iets via de tunnel bereikbaar is, want
+dan is een niet-intrekbare uitnodiging een echt securitygat, geen
+theoretisch risico meer.**
+
+Security gaat voor tempo, dus dit eerst gedocumenteerd. Aan: INT-A, INT-B —
+akkoord nodig vóór implementatie (poort-bevroren, §7b).
 
 ### Wat er moet kunnen
 
@@ -432,7 +450,14 @@ nu al een aanroeper is? Dat bepaalt of dit voorstel meteen bruikbaar is of
 voorlopig alleen het contract vastlegt (zoals `refreshRoomLocators` dat nu
 ook al doet voor TTL).
 
-## 10. VOORSTEL (wacht op akkoord INT-A + INT-B, NIET geïmplementeerd) — INT-3: `loadSessionByTokenHash`
+## 10. FORMEEL VOORSTEL — wacht op akkoord INT-A + INT-B (poort-bevroren, §7b) — INT-3: `loadSessionByTokenHash`
+
+**Product-owner-akkoord binnen: dit voorstel is goedgekeurd.** Formeel
+ingediend bij INT-A en INT-B — nog NIET geïmplementeerd, wacht op jullie
+technische akkoord. **Bouwvolgorde: dit item (§10) eerst zodra beide
+akkoord geven — deblokkeert INT-A stap 2 en er draait nog niets publiek, dus
+tempo wint hier — direct gevolgd door §9 (INTB-5), vóór er iets via de tunnel
+bereikbaar wordt.**
 
 Aan: INT-A. Blokkeert INT-A stap 2 (echt transport), dus na INTB-5 het
 duurste openstaande item.
@@ -469,9 +494,15 @@ loadSessionByTokenHash(tokenHash) → Promise<Session | null>
   tussen twee sessies is geen praktisch scenario, geen speciale afhandeling
   nodig.
 
-## 11. Aan spec-redactie (SR) — INT-9: `deadlineGraceMs` eenduidig maken
+## 11. INGEDIEND bij spec-redactie (SR) — akkoord product owner — INT-9: `deadlineGraceMs` eenduidig maken
 
-Eén regel, geen poortwijziging, dus buiten de bevriezing van §7b: `DATA-MODEL.md`'s
+**Akkoord, ingediend.** Buiten de bevriezing van §7b — geen poortwijziging,
+alleen een documentatiecorrectie in `DATA-MODEL.md`, dus geen INT-A/INT-B-
+akkoord nodig. `docs/data-model-plan/` heeft geen directe verbinding met
+`docs/spec-redactie/` — dit bestand is, net als bij elk ander plan, het
+kanaal ernaartoe.
+
+Eén regel, geen poortwijziging: `DATA-MODEL.md`'s
 `GameConfiguration`-voorbeeld toont `"deadlineGraceMs": 150`, terwijl
 `DECISIONS.md` besluit 13 bindend 250 ms als MAXIMUM vastlegt.
 `QUICK_START_CONFIG` gebruikt daarom al 250 — `DECISIONS.md` wint, dat is niet
