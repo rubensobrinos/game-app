@@ -94,10 +94,13 @@ voorstellen geschreven, geen enkele geïmplementeerd (poort-bevroren):
   (`deadlineGraceMs`-documentatie, geen poortwijziging). **Akkoord en
   ingediend** — geen INT-A/INT-B-akkoord nodig, geen poortwijziging.
 
-**Afgesproken bouwvolgorde zodra INT-A + INT-B akkoord geven op §9/§10: §10
-eerst** (deblokkeert INT-A stap 2, niets publiek dus tempo wint), **direct
-gevolgd door §9** (moet af vóór er iets via de tunnel bereikbaar is — anders
-is een niet-intrekbare uitnodiging een echt securitygat).
+**Bouwvolgorde, bijgewerkt:** §10 eerst (deblokkeert INT-A stap 2, niets
+publiek dus tempo wint) → **een aankomend, nog niet ontvangen gebundeld
+poortvoorstel van INT-A over de returnwaarde van
+`saveAcceptedAnswerAtomically`** (met voorrang boven §9 behandelen zodra het
+binnenkomt — raakt INT-B's lopende Lua-werk) → §9 (moet af vóór er iets via
+de tunnel bereikbaar is). Nog niets van dit voorstel gezien; alleen de
+aankondiging.
 
 INTB-8 ligt al bij de DT-agent, geen actie hier. INTB-6 (tiebreak) blijft
 terecht open, wacht op GR. Verwacht nog een klein, regulier HANDOFF-item van

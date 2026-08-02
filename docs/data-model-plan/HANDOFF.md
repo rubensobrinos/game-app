@@ -378,6 +378,12 @@ klein HANDOFF-item: een versieprefix-op-`inviteHash`-voorstel** (dezelfde
 versioneringslijn als de tokens, besluit 26) — behandel dat als regulier
 HANDOFF-item zodra het binnenkomt, geen speciale voorrang.
 
+**Aangekondigd, nog niet ontvangen: een gebundeld poortvoorstel van INT-A
+over de returnwaarde van `saveAcceptedAnswerAtomically`** (het DM13-contract
+uit §7a — momenteel `Promise<void>`). Raakt INT-B's lopende Lua-werk, dus
+**met voorrang boven §9** te behandelen zodra het binnenkomt.
+**Bijgewerkte volgorde: §10 → dit inkomende voorstel → §9.**
+
 ## 9. FORMEEL VOORSTEL — wacht op akkoord INT-A + INT-B (poort-bevroren, §7b) — INTB-5: `rotateRoomLocators`
 
 **Product-owner-akkoord binnen: dit voorstel is goedgekeurd.** Formeel
