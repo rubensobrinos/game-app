@@ -19,8 +19,10 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { Buffer } = require('node:buffer');
+const crypto = require('node:crypto');
 const {
   generateGameCode, generateInviteId, hashInviteId, isValidGameCode, isValidInviteId,
+  matchesInviteId, GameCodeExhaustedError,
 } = require('./room-codes');
 
 const SIX_DIGITS = /^[0-9]{6}$/;
@@ -262,7 +264,12 @@ test('hashInviteId is deterministisch en levert een SHA-256-digest van vaste len
 
 test('een andere pepper geeft een andere hash — de pepper doet echt mee', () => {
   assert.notStrictEqual(hashInviteId(INVITE_1, PEPPER_A), hashInviteId(INVITE_1, PEPPER_B));
-  assert.notStrictEqual(hashInviteId(INVITE_1, 'pepper-1'), hashInviteId(INVITE_1, 'pepper-2'));
+  // Beide fixtures zijn precies 16 tekens: de assertie is onveranderd, alleen de peppers voldoen
+  // nu aan de entropie-ondergrens (zie 'pepper: te kort werpt' hieronder). De oude waarden
+  // 'pepper-1'/'pepper-2' waren 8 bytes en zijn per definitie een misconfiguratie.
+  assert.notStrictEqual(
+    hashInviteId(INVITE_1, 'pepper-000000001'), hashInviteId(INVITE_1, 'pepper-000000002'),
+  );
   for (const id of invites().slice(0, 200)) {
     assert.notStrictEqual(hashInviteId(id, PEPPER_A), hashInviteId(id, PEPPER_B),
       'de pepper heeft geen invloed op de hash');
@@ -378,6 +385,228 @@ test('isValidInviteId accepteert base64url-inviteIds en wijst alles daarbuiten a
   for (const id of VALID_INVITES) assert.strictEqual(isValidInviteId(id), true, id);
   for (const [label, value] of INVALID_INVITES) {
     assert.strictEqual(isValidInviteId(value), false, `ten onrechte geaccepteerd: ${label}`);
+  }
+});
+
+// --- Callbackcontract en invoerguards ----------------------------------------------------
+//
+// Regressierijen bij een adversariële review. Anders dan de blok hierboven zijn deze wél
+// geschreven tegen het expliciete contract van de module (foutcontract in de modulekop), omdat
+// het hier juist om het gedrag op verkeerd gebruik gaat. Elke drempel staat als literal in de
+// test en niet als geïmporteerde constante: een test die de constante importeert bevestigt
+// alleen zichzelf, en zou meeschuiven als iemand de grens verlaagt.
+
+/** Een pepper van precies 32 bytes, in de vier vormen die createHmac native aankan. */
+const PEPPER_BYTES = Buffer.alloc(32, 0x2a);
+
+test('isTaken moet synchroon zijn: een async callback werpt in plaats van stil te accepteren', () => {
+  // De kern van de bug: een async isTaken geeft een Promise, en `Promise !== true`. Een
+  // implementatie die alleen op `!== true` test, keurt daarmee élke kandidaat bij poging 1 goed
+  // en heeft de uniciteitscontrole feitelijk uitgezet — zonder één signaal.
+  let calls = 0;
+  const isTaken = async () => { calls += 1; return true; };
+  assert.throws(() => generateGameCode({ isTaken }), (error) => {
+    assert.ok(error instanceof TypeError, `verwachtte TypeError, kreeg ${error?.name}`);
+    // De boodschap moet de aanroeper naar de echte oorzaak wijzen, niet naar "ongeldige waarde".
+    assert.match(error.message, /async/i, 'boodschap noemt de async callback niet');
+    assert.match(error.message, /promise/i, 'boodschap noemt de Promise niet');
+    return true;
+  });
+  assert.strictEqual(calls, 1, 'isTaken werd niet één keer aangeroepen');
+
+  // Ook een handgemaakte thenable (geen echte Promise) mag niet als "vrij" doorglippen.
+  assert.throws(() => generateGameCode({ isTaken: () => ({ then() {} }) }), TypeError);
+
+  // En het gevolg dat de bug verborg: wie zegt dat alles bezet is, krijgt uitputting.
+  assert.throws(() => generateGameCode({ isTaken: () => true }), (error) => {
+    assert.ok(error instanceof GameCodeExhaustedError);
+    assert.strictEqual(error.name, 'GameCodeExhaustedError');
+    assert.strictEqual(error.code, 'CODE_SPACE_EXHAUSTED');
+    assert.ok(Number.isSafeInteger(error.attempts) && error.attempts >= 1);
+    return true;
+  });
+  assert.throws(() => generateGameCode({ isTaken: () => true, maxAttempts: 1 }), (error) => {
+    assert.strictEqual(error.attempts, 1);
+    return true;
+  });
+});
+
+test('isTaken moet een echte boolean geven — truthy niet-booleans tellen niet als vrij', () => {
+  // Rijen die onder `!== true` allemaal "vrij" zouden heten, terwijl de aanroeper duidelijk
+  // "bezet" bedoelt. Stil accepteren geeft dubbele codes; werpen is de enige veilige uitkomst.
+  const TRUTHY_NOT_TRUE = [
+    ['getal 1', 1], ['string yes', 'yes'], ['string true', 'true'], ['leeg object', {}],
+    ['lege array', []], ['Date', new Date(0)], ['boxed Boolean(true)', Object(true)],
+    ['BigInt 1n', 1n], ['Symbol', Symbol('taken')], ['functie', () => true],
+  ];
+  for (const [label, value] of TRUTHY_NOT_TRUE) {
+    assert.throws(() => generateGameCode({ isTaken: () => value }), TypeError,
+      `truthy niet-boolean stil geaccepteerd: ${label}`);
+  }
+  // Falsy niet-booleans zijn net zo goed een contractbreuk: ze betekenen niet aantoonbaar
+  // "vrij", en een code teruggeven op basis van `undefined` is precies de stille route.
+  const FALSY_NOT_FALSE = [
+    ['undefined (vergeten return)', undefined], ['null', null], ['getal 0', 0],
+    ['lege string', ''], ['NaN', NaN],
+  ];
+  for (const [label, value] of FALSY_NOT_FALSE) {
+    assert.throws(() => generateGameCode({ isTaken: () => value }), TypeError,
+      `falsy niet-boolean stil geaccepteerd: ${label}`);
+  }
+  // Echte booleans blijven gewoon werken.
+  assert.match(generateGameCode({ isTaken: () => false }), SIX_DIGITS);
+});
+
+test('options wordt niet van Object.prototype gelezen (prototype-pollution)', () => {
+  // Zonder eigen-property-test pikt destructuring overerfde properties op: één regel
+  // prototype-pollution elders in het proces legt dan alle roomcreatie plat.
+  const results = {};
+  try {
+    Object.prototype.isTaken = () => true;
+    results.noArgs = generateGameCode();
+    results.emptyObject = generateGameCode({});
+    results.nullArg = generateGameCode(null);
+    // Een EIGEN isTaken moet natuurlijk wél gewoon werken, ook tijdens de vervuiling.
+    results.ownWins = generateGameCode({ isTaken: () => false });
+  } finally {
+    delete Object.prototype.isTaken;
+  }
+  try {
+    Object.prototype.maxAttempts = 0;
+    results.pollutedMaxAttempts = generateGameCode();
+  } finally {
+    delete Object.prototype.maxAttempts;
+  }
+  // Netjes opgeruimd voordat er verder iets gebeurt — anders lekt dit naar elke andere test.
+  assert.strictEqual('isTaken' in Object.prototype, false, 'Object.prototype niet opgeruimd');
+  assert.strictEqual('maxAttempts' in Object.prototype, false, 'Object.prototype niet opgeruimd');
+
+  for (const [label, code] of Object.entries(results)) {
+    assert.match(code, SIX_DIGITS, `overerfde optie sloeg door bij: ${label}`);
+  }
+});
+
+test('een werpende getter op options geeft een TypeError, conform het foutcontract', () => {
+  for (const name of ['isTaken', 'maxAttempts']) {
+    const boom = new Error('boom');
+    const options = {};
+    Object.defineProperty(options, name, { get() { throw boom; }, enumerable: true });
+    assert.throws(() => generateGameCode(options), (error) => {
+      assert.ok(error instanceof TypeError,
+        `options.${name} propageerde de rauwe fout in plaats van een TypeError`);
+      assert.notStrictEqual(error, boom);
+      assert.strictEqual(error.cause, boom, 'de oorspronkelijke fout is weggegooid');
+      return true;
+    });
+  }
+});
+
+test('maxAttempts is begrensd: een absurd budget werpt in plaats van de event loop te blokkeren', () => {
+  // 2.000.000 pogingen is ~1,5 s synchroon rekenen; in die tijd wordt geen enkele socket
+  // bediend. Zo'n waarde is altijd een vergissing, dus hij hoort te werpen — snel.
+  for (const value of [1001, 10_000, 2_000_000, Number.MAX_SAFE_INTEGER]) {
+    assert.throws(() => generateGameCode({ maxAttempts: value, isTaken: () => false }), TypeError,
+      `maxAttempts=${value} werd geaccepteerd`);
+  }
+  // De bovengrens zelf en alles eronder blijven geldig.
+  for (const value of [1, 2, 10, 999, 1000]) {
+    assert.match(generateGameCode({ maxAttempts: value, isTaken: () => false }), SIX_DIGITS,
+      `maxAttempts=${value} werd ten onrechte afgewezen`);
+  }
+  // Ongewijzigd: onzin blijft onzin.
+  for (const value of [0, -1, 1.5, NaN, Infinity, '10', null]) {
+    assert.throws(() => generateGameCode({ maxAttempts: value }), TypeError,
+      `maxAttempts=${String(value)} werd geaccepteerd`);
+  }
+});
+
+test('pepper: elke sleutelvorm die createHmac aankan geeft dezelfde hash als een Buffer', () => {
+  // Alleen Buffer accepteren duwt een Uint8Array-pepper naar de string-route, en een string
+  // wordt als utf8 gelezen — een stille verzwakking die nergens uit blijkt.
+  const expected = hashInviteId(INVITE_1, PEPPER_BYTES);
+  assert.match(expected, SHA256_HEX);
+  const forms = [
+    ['Uint8Array', new Uint8Array(PEPPER_BYTES)],
+    ['Uint8Array via subarray', new Uint8Array(PEPPER_BYTES).subarray(0)],
+    ['Uint32Array', new Uint32Array(new Uint8Array(PEPPER_BYTES).buffer.slice(0))],
+    ['DataView', new DataView(new Uint8Array(PEPPER_BYTES).buffer.slice(0))],
+    ['secret KeyObject', crypto.createSecretKey(PEPPER_BYTES)],
+  ];
+  for (const [label, pepper] of forms) {
+    assert.strictEqual(hashInviteId(INVITE_1, pepper), expected,
+      `${label}-pepper geeft een andere hash dan dezelfde bytes als Buffer`);
+  }
+  // Een utf8-string van dezelfde bytes hoort er ook op uit te komen; dat maakt zichtbaar dat de
+  // string-route utf8 is en geen encoding raadt.
+  assert.strictEqual(hashInviteId(INVITE_1, PEPPER_BYTES.toString('utf8')), expected);
+  // Een hexstring is NIET hetzelfde als de bytes die hij voorstelt — de valkuil uit de JSDoc.
+  assert.notStrictEqual(hashInviteId(INVITE_1, PEPPER_BYTES.toString('hex')), expected);
+
+  // Geen sleutelvorm: moet werpen in plaats van naar iets zwakkers terug te vallen.
+  const NOT_A_PEPPER = [
+    ['undefined', undefined], ['null', null], ['getal', 123456789012345], ['true', true],
+    ['object', { pepper: 'x'.repeat(32) }], ['array van bytes', new Array(32).fill(42)],
+    ['ArrayBuffer (geen view)', new ArrayBuffer(32)],
+    ['publieke KeyObject', crypto.generateKeyPairSync('ed25519').publicKey],
+  ];
+  for (const [label, pepper] of NOT_A_PEPPER) {
+    assert.throws(() => hashInviteId(INVITE_1, pepper), TypeError, `geaccepteerd als pepper: ${label}`);
+  }
+});
+
+test('pepper: te weinig entropie werpt, en de ondergrens telt bytes en geen tekens', () => {
+  // 16 bytes is de grens; met minder is offline brute-force van de hashindex haalbaar en is de
+  // pepper er alleen voor de vorm.
+  for (let bytes = 0; bytes < 16; bytes += 1) {
+    assert.throws(() => hashInviteId(INVITE_1, Buffer.alloc(bytes, 7)), TypeError,
+      `Buffer van ${bytes} bytes geaccepteerd`);
+    assert.throws(() => hashInviteId(INVITE_1, 'x'.repeat(bytes)), TypeError,
+      `string van ${bytes} tekens geaccepteerd`);
+    assert.throws(() => hashInviteId(INVITE_1, new Uint8Array(bytes)), TypeError,
+      `Uint8Array van ${bytes} bytes geaccepteerd`);
+  }
+  assert.throws(() => hashInviteId(INVITE_1, crypto.createSecretKey(Buffer.alloc(8))), TypeError,
+    'secret KeyObject van 8 bytes geaccepteerd');
+  // Precies op de grens: geldig.
+  assert.match(hashInviteId(INVITE_1, Buffer.alloc(16, 7)), SHA256_HEX);
+  assert.match(hashInviteId(INVITE_1, 'x'.repeat(16)), SHA256_HEX);
+  // Bytes, niet tekens: vier emoji zijn 4 tekens maar 16 utf8-bytes (geldig), terwijl 8 emoji's
+  // waard aan tekens... andersom: 15 tekens ASCII is 15 bytes en dus ongeldig.
+  assert.match(hashInviteId(INVITE_1, '🎉🎉🎉🎉'), SHA256_HEX, '4 emoji = 16 bytes, moet geldig zijn');
+  assert.strictEqual(Buffer.byteLength('🎉🎉🎉🎉', 'utf8'), 16);
+  assert.throws(() => hashInviteId(INVITE_1, '🎉🎉🎉'), TypeError, '3 emoji = 12 bytes');
+});
+
+test('matchesInviteId: een ongeldige pepper werpt altijd, ongeacht de invoer van de aanvaller', () => {
+  const goodHash = hashInviteId(INVITE_1, PEPPER_A);
+  // Positief geval eerst, zodat de rest niet triviaal groen kan zijn.
+  assert.strictEqual(matchesInviteId(INVITE_1, PEPPER_A, goodHash), true);
+  assert.strictEqual(matchesInviteId(INVITE_2, PEPPER_A, goodHash), false);
+  assert.strictEqual(matchesInviteId(INVITE_1, PEPPER_B, goodHash), false);
+  // Spelerinvoer blijft `false` opleveren bij een correcte pepper — nooit een exception.
+  for (const [label, value] of HOSTILE) {
+    assert.strictEqual(matchesInviteId(value, PEPPER_A, goodHash), false, `inviteId: ${label}`);
+    assert.strictEqual(matchesInviteId(INVITE_1, PEPPER_A, value), false, `expectedHash: ${label}`);
+  }
+  // Een misconfiguratie van de pepper mag NIET afhangen van wat de aanvaller stuurt: als een
+  // welgevormde inviteId werpt en een misvormde netjes `false` geeft, is dat een orakel waarmee
+  // de aanvaller de validatiedrempel kan aftasten. Altijd werpen, in elke combinatie.
+  const BAD_PEPPERS = [
+    ['undefined', undefined], ['null', null], ['lege string', ''], ['één teken', 'x'],
+    ['15 bytes', 'x'.repeat(15)], ['lege Buffer', Buffer.alloc(0)], ['getal', 12345678901234],
+  ];
+  const INPUTS = [
+    ['geldig id + geldige hash', INVITE_1, goodHash],
+    ['geldig id + misvormde hash', INVITE_1, 'nope'],
+    ['misvormd id + geldige hash', '!!', goodHash],
+    ['misvormd id + misvormde hash', '!!', 'nope'],
+    ['null id + null hash', null, null],
+  ];
+  for (const [pepperLabel, pepper] of BAD_PEPPERS) {
+    for (const [inputLabel, id, hash] of INPUTS) {
+      assert.throws(() => matchesInviteId(id, pepper, hash), TypeError,
+        `pepper "${pepperLabel}" werpt niet bij ${inputLabel} — gedrag hangt af van de aanvaller`);
+    }
   }
 });
 

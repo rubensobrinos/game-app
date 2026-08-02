@@ -38,6 +38,22 @@
 //   - isValidGameCode()/isValidInviteId()/isValidInviteHash() werpen NOOIT en
 //     geven altijd een boolean, ook op vijandige input.
 //
+// SYNCHROON CONTRACT — `isTaken` is en blijft SYNCHROON en moet een echte
+// boolean teruggeven. Een `async` callback levert een Promise op, en een Promise
+// is nooit `=== true`; die zou de uniciteitscontrole stilzwijgend uitschakelen.
+// Daarom werpt deze module een TypeError zodra `isTaken` iets anders dan een
+// boolean teruggeeft (thenables krijgen een eigen boodschap). Er komt hier
+// bewust GEEN async variant bij: die hoort in de compositielaag (AR5a), waar de
+// vorm van de store bekend is.
+//
+// OPEN PUNT (AR5a) — het `isTaken`-contract is check-then-act en houdt dus een
+// TOCTOU-venster: tussen de controle en het daadwerkelijke `SET room:code:{code}`
+// kan een andere schrijver dezelfde code claimen. Waterdicht wordt dat pas met
+// een atomaire claim (`SET NX` / `tryClaim`) in de compositielaag die de store
+// kent. Deze module verandert daar de signatuur niet voor; ze levert een
+// kandidaat die volgens de aanroeper vrij is, en de aanroeper moet de claim zelf
+// atomair maken.
+//
 // AFWIJKING VAN DE BRON — DATA-MODEL.md toont als voorbeeld
 // `"inviteId": "N4x7pQm2K8tW"` (12 base64url-tekens ≈ 72 bits), terwijl
 // ARCHITECTURE.md "minimaal 96 bits entropie" eist. De harde eis wint: deze
@@ -55,6 +71,20 @@ const GAME_CODE_SPACE = 1000000;
 
 /** Eindig maximum aantal botsingspogingen; zie generateGameCode(). */
 const DEFAULT_MAX_CODE_ATTEMPTS = 10;
+
+// Bovengrens op `maxAttempts`. Elke poging is een synchrone randomBytes plus een
+// synchrone `isTaken`, dus het budget is rechtstreeks blokkeertijd op de event
+// loop: 2.000.000 pogingen kost ~1,5 s waarin geen enkele andere socket wordt
+// bediend. Bij een realistische bezetting is zelfs 1000 al absurd ruim (bij 30%
+// bezette codes is de kans op 1000 botsingen 0,3^1000), dus een hogere waarde is
+// altijd een vergissing van de aanroeper en geen legitieme configuratie.
+const MAX_CODE_ATTEMPTS = 1000;
+
+// Ondergrens op de pepper. De pepper bestaat om offline brute-force van de
+// hashindex onmogelijk te maken; met één byte (256 mogelijkheden) is dat doel
+// niet gehaald en is de index feitelijk ongepepperd. 16 bytes = 128 bits is de
+// gebruikelijke minimale sleutelsterkte voor een HMAC-sleutel.
+const MIN_PEPPER_BYTES = 16;
 
 /** 16 bytes = 128 bits, ruim boven de geëiste 96 bits. */
 const INVITE_ID_BYTES = 16;
@@ -138,6 +168,53 @@ function randomCodeNumber() {
 }
 
 /**
+ * Leest één optie, maar alleen als het een EIGEN property is.
+ *
+ * Zonder de `hasOwn`-test pikt destructuring overerfde properties op. Een
+ * `Object.prototype.isTaken = () => true` — via prototype-pollution, of gewoon
+ * een slordige polyfill — zou dan de parameterloze `generateGameCode()` op elke
+ * kandidaat laten botsen: permanente DoS op roomcreatie. `Object.prototype
+ * .maxAttempts = 0` zou elke aanroep laten werpen.
+ *
+ * De try/catch houdt het foutcontract heel: een werpende getter of proxy-trap op
+ * `options` is een ongeldige `options` en moet dus een TypeError geven, niet de
+ * willekeurige fout van de aanroeper.
+ *
+ * @param {object} settings
+ * @param {string} name
+ * @returns {unknown} de waarde, of undefined als de property niet eigen is
+ */
+function readOwnOption(settings, name) {
+  try {
+    return Object.hasOwn(settings, name) ? settings[name] : undefined;
+  } catch (cause) {
+    throw new TypeError(
+      `generateGameCode kon options.${name} niet lezen: een getter of proxy-trap wierp.`,
+      { cause },
+    );
+  }
+}
+
+/**
+ * Is `value` een thenable (Promise of Promise-achtige)?
+ * Werpt niet: een werpende `then`-getter telt als "niet thenable" en loopt
+ * daarna alsnog tegen de boolean-controle aan.
+ *
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isThenable(value) {
+  if (value === null || (typeof value !== 'object' && typeof value !== 'function')) {
+    return false;
+  }
+  try {
+    return typeof value.then === 'function';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Genereert een join-code die (volgens `isTaken`) nog vrij is.
  *
  * Eigenschappen, conform ARCHITECTURE.md → "Code":
@@ -151,32 +228,71 @@ function randomCodeNumber() {
  * aanroeper die `room:code:{code}` bijhoudt MOET hem meegeven; anders is
  * uniciteit onder actieve rooms niet gegarandeerd.
  *
+ * `isTaken` moet SYNCHROON zijn en een echte boolean teruggeven — zie de
+ * modulekop. Een async callback of een truthy niet-boolean (`1`, `'yes'`, `{}`)
+ * werpt een TypeError in plaats van de controle stil over te slaan.
+ *
+ * Opties worden alleen gelezen als ze een EIGEN property van `options` zijn, en
+ * de default is een prototypeloos object: `Object.prototype`-vervuiling kan de
+ * uniciteitscontrole dus niet van buitenaf omzetten.
+ *
  * @param {{ isTaken?: (code: string) => boolean, maxAttempts?: number }} [options]
  * @returns {string} zescijferige code
- * @throws {TypeError} bij een ongeldige `options`, `isTaken` of `maxAttempts`
+ * @throws {TypeError} bij een ongeldige `options`, `isTaken` of `maxAttempts`,
+ *   of als `isTaken` iets anders dan een boolean teruggeeft
  * @throws {GameCodeExhaustedError} als alle pogingen op een botsing stuiten
  */
 function generateGameCode(options) {
-  const settings = options === undefined || options === null ? {} : options;
+  const settings =
+    options === undefined || options === null ? Object.create(null) : options;
   if (typeof settings !== 'object' || Array.isArray(settings)) {
     throw new TypeError('generateGameCode verwacht een options-object.');
   }
 
-  const { isTaken, maxAttempts } = settings;
+  const isTaken = readOwnOption(settings, 'isTaken');
+  const maxAttempts = readOwnOption(settings, 'maxAttempts');
   if (isTaken !== undefined && typeof isTaken !== 'function') {
     throw new TypeError('isTaken moet een functie (code) => boolean zijn.');
   }
   const attemptBudget = maxAttempts === undefined ? DEFAULT_MAX_CODE_ATTEMPTS : maxAttempts;
-  if (!Number.isSafeInteger(attemptBudget) || attemptBudget < 1) {
-    throw new TypeError('maxAttempts moet een positief geheel getal zijn.');
+  if (
+    !Number.isSafeInteger(attemptBudget) ||
+    attemptBudget < 1 ||
+    attemptBudget > MAX_CODE_ATTEMPTS
+  ) {
+    throw new TypeError(
+      `maxAttempts moet een geheel getal van 1 t/m ${MAX_CODE_ATTEMPTS} zijn.`,
+    );
   }
 
   for (let attempt = 1; attempt <= attemptBudget; attempt += 1) {
     const candidate = String(randomCodeNumber()).padStart(GAME_CODE_LENGTH, '0');
+    if (isTaken === undefined) {
+      return candidate;
+    }
     // Een werpende `isTaken` is een fout van de aanroeper (bijv. Redis down) en
     // propageert bewust onveranderd: hem opslokken zou een code opleveren
     // waarvan de uniciteit niet is gecontroleerd.
-    if (isTaken === undefined || isTaken(candidate) !== true) {
+    const taken = isTaken(candidate);
+    // Fail loud, nooit stil accepteren: `Promise !== true` en `1 !== true` zijn
+    // allebei "niet bezet" als je alleen op `!== true` test, waarmee elke
+    // kandidaat bij poging 1 wordt goedgekeurd en de uniciteitscontrole in feite
+    // is uitgeschakeld. Dat is precies de fout die je nooit ziet gebeuren.
+    if (isThenable(taken)) {
+      throw new TypeError(
+        'isTaken gaf een Promise terug: een async isTaken wordt niet ondersteund, ' +
+          'omdat de uniciteitscontrole dan stilzwijgend wordt overgeslagen. Los de ' +
+          'lookup (bijv. Redis) op vóór de aanroep en geef een synchrone ' +
+          '(code) => boolean mee.',
+      );
+    }
+    if (typeof taken !== 'boolean') {
+      throw new TypeError(
+        `isTaken moet een boolean teruggeven, kreeg ${typeof taken}. Truthy ` +
+          'niet-boolean waarden worden bewust niet als "bezet" geteld.',
+      );
+    }
+    if (taken === false) {
       return candidate;
     }
   }
@@ -199,6 +315,50 @@ function generateInviteId() {
 }
 
 /**
+ * Controleert dat de pepper bruikbaar is als HMAC-sleutel, en werpt anders.
+ *
+ * Geaccepteerd — precies wat `crypto.createHmac` native als sleutel aankan:
+ *  - `string` (zie de LET OP hieronder);
+ *  - elke `ArrayBuffer`-view: `Buffer`, `Uint8Array`, andere TypedArrays,
+ *    `DataView`. Alleen `Buffer.isBuffer` toestaan zou een `Uint8Array`-pepper
+ *    naar de string-route duwen, wat een stille verzwakking is;
+ *  - een secret `KeyObject` uit `crypto.createSecretKey(...)`.
+ *
+ * LET OP — een string wordt door `createHmac` als UTF-8 gelezen, niet als
+ * encoding. Een hex-geëncodeerde `TOKEN_PEPPER` van 64 tekens levert als string
+ * dus 64 tekens van 4 bits informatie op in plaats van 32 volle bytes. Geef
+ * bytes als bytes door: `Buffer.from(process.env.TOKEN_PEPPER, 'hex')`.
+ *
+ * @param {unknown} pepper
+ * @returns {void}
+ * @throws {TypeError} bij een ontbrekende, verkeerd getypeerde of te korte pepper
+ */
+function assertUsablePepper(pepper) {
+  let byteLength;
+  if (typeof pepper === 'string') {
+    // Bytelengte, niet tekenlengte: vier emoji zijn vier tekens maar 16 bytes.
+    byteLength = Buffer.byteLength(pepper, 'utf8');
+  } else if (ArrayBuffer.isView(pepper)) {
+    // byteLength, niet length: een Uint32Array van 4 elementen is 16 bytes.
+    byteLength = pepper.byteLength;
+  } else if (pepper instanceof crypto.KeyObject && pepper.type === 'secret') {
+    byteLength = pepper.symmetricKeySize;
+  } else {
+    throw new TypeError(
+      'hashInviteId vereist een pepper van de aanroeper (string, Buffer/TypedArray of ' +
+        'secret KeyObject); deze module kent geen default.',
+    );
+  }
+
+  if (byteLength < MIN_PEPPER_BYTES) {
+    throw new TypeError(
+      `De pepper is ${byteLength} byte(s); minimaal ${MIN_PEPPER_BYTES} bytes vereist. ` +
+        'Een kortere pepper maakt offline brute-force van de hashindex haalbaar.',
+    );
+  }
+}
+
+/**
  * Berekent de lookupindex voor `room:invite:{inviteHash}`.
  *
  * DATA-MODEL.md eist een hash zodat Redis-keynamen de capability niet
@@ -211,22 +371,24 @@ function generateInviteId() {
  * pepper- en bericht-grenzen. Zonder de pepper is de index niet reproduceerbaar
  * en dus niet offline te brute-forcen.
  *
+ * De pepper mag een string, een `ArrayBuffer`-view (`Buffer`, `Uint8Array`, …)
+ * of een secret `KeyObject` zijn, en moet minimaal 16 bytes tellen. Een STRING
+ * WORDT ALS UTF-8 GELEZEN: geef een hex- of base64-geëncodeerde `TOKEN_PEPPER`
+ * dus als `Buffer.from(value, 'hex')` door, anders levert hij per teken maar
+ * 4 respectievelijk 6 bits in plaats van 8. Zie assertUsablePepper().
+ *
  * @param {string} inviteId - moet aan isValidInviteId() voldoen
- * @param {string | Buffer} pepper - geheim van de aanroeper (prod: TOKEN_PEPPER)
+ * @param {string | NodeJS.ArrayBufferView | crypto.KeyObject} pepper - geheim van
+ *   de aanroeper (prod: TOKEN_PEPPER)
  * @returns {string} 64 tekens lowercase hex
- * @throws {TypeError} bij een ongeldige inviteId of een lege/ontbrekende pepper
+ * @throws {TypeError} bij een ongeldige inviteId, of bij een ontbrekende,
+ *   verkeerd getypeerde of te korte pepper
  */
 function hashInviteId(inviteId, pepper) {
   if (!isValidInviteId(inviteId)) {
     throw new TypeError('hashInviteId kreeg een ongeldige inviteId.');
   }
-  const isStringPepper = typeof pepper === 'string' && pepper.length > 0;
-  const isBufferPepper = Buffer.isBuffer(pepper) && pepper.length > 0;
-  if (!isStringPepper && !isBufferPepper) {
-    throw new TypeError(
-      'hashInviteId vereist een niet-lege pepper van de aanroeper; deze module kent geen default.',
-    );
-  }
+  assertUsablePepper(pepper);
 
   return crypto.createHmac('sha256', pepper).update(inviteId, 'utf8').digest('hex');
 }
@@ -254,15 +416,24 @@ function inviteHashEquals(hashA, hashB) {
 
 /**
  * Controleert of een inviteId bij een bekende hash hoort, in constante tijd.
- * Ongeldige of onbekende invoer levert `false` op in plaats van een fout, zodat
- * dit direct op spelerinvoer gebruikt kan worden.
+ * Ongeldige of onbekende SPELERINVOER levert `false` op in plaats van een fout,
+ * zodat dit direct op spelerinvoer gebruikt kan worden.
+ *
+ * Een ongeldige pepper is géén spelerinvoer maar een misconfiguratie van de
+ * aanroeper, en wordt daarom ALS EERSTE gecontroleerd — vóór `inviteId` en
+ * `expectedHash`. Andersom zou het gedrag van de aanvallersinvoer afhangen
+ * (welgevormd id → exception, misvormd id → nette `false`), en dat verschil is
+ * een orakel waarmee een aanvaller de validatiedrempel kan aftasten.
  *
  * @param {unknown} inviteId
- * @param {string | Buffer} pepper
+ * @param {string | NodeJS.ArrayBufferView | crypto.KeyObject} pepper
  * @param {unknown} expectedHash
  * @returns {boolean}
+ * @throws {TypeError} bij een ontbrekende, verkeerd getypeerde of te korte
+ *   pepper — altijd, ongeacht `inviteId` en `expectedHash`
  */
 function matchesInviteId(inviteId, pepper, expectedHash) {
+  assertUsablePepper(pepper);
   if (!isValidInviteId(inviteId) || !isValidInviteHash(expectedHash)) {
     return false;
   }
@@ -294,6 +465,10 @@ function isValidGameCode(value) {
  * bovengrens houdt Redis-keynamen begrensd en voorkomt dat een enorme string
  * onnodig gehasht wordt. Afgewezen: `+`, `/`, `=`, padding, spaties, lege
  * string, niet-strings, `null`, objecten. Werpt nooit.
+ *
+ * Het bereik is bewust ruimer dan wat generateInviteId() maakt (altijd exact 22
+ * tekens): oudere of extern uitgegeven inviteIds moeten geldig blijven. Versmal
+ * dit pas als er een reden is; het is geen ongelukje.
  *
  * @param {unknown} value
  * @returns {boolean}
@@ -335,6 +510,8 @@ module.exports = {
   GAME_CODE_LENGTH,
   GAME_CODE_SPACE,
   DEFAULT_MAX_CODE_ATTEMPTS,
+  MAX_CODE_ATTEMPTS,
+  MIN_PEPPER_BYTES,
   INVITE_ID_BYTES,
   INVITE_ID_MIN_LENGTH,
   INVITE_ID_MAX_LENGTH,
