@@ -37,7 +37,7 @@ generiek "klaar":
 | Testfixtures (Room/Session/Player/Match/Round/Answer) | ✅ Uitgevoerd en geslaagd | DT2 — `node --test` echt gedraaid, 7/7 groen |
 | Testlagen — Unit | ⚪ N.v.t. | eigendom van elke module-eigenaar zelf |
 | Testlagen — Contracttests | ⏹️ Vervallen bij mij | PROTOCOL.md's PR7 bouwt dit zelf; DT1a is 📄 voorbereiding klaar als auditmatrix (26 open beslispunten + kruisverwijzing), **bevestiging door PROTOCOL.md-eigenaar nog niet binnen** |
-| Testlagen — Integratie | 📄 matrix klaar / ✅ 5/14 geactiveerd | DT3a: 14 scenario's (📄). **DT-R1-heraudit (2026-08-02):** een echte compositielaag bleek te bestaan (`server/composition/`, niet via Fastify/Socket.IO maar als direct aanroepbare functies — zie `server-composition-request.md`). Rijen 1,2,5,8,10 kregen direct actieve tests. Tussentijds (zie `integration-matrix.md` §Audit-log voor het volledige verloop) faalden ze kort op een cross-plan interfacemismatch (`loadRoomByInviteId` verwijderd door DM10/DM11), maar die is elders gerepareerd. **Definitief: 5/14 geactiveerd, zelf gedraaid: 5/5 groen**, plus repo-breed `npm test`: 2096/2096 groen. Rijen 3,4,6,7,9,11,12,13,14 blijven geblokkeerd — grotere compositiestukken (match-laag, Socket.IO, rate limiting) ontbreken nog. |
+| Testlagen — Integratie | 📄 matrix klaar / ✅ 10/14 geactiveerd | DT3a: 14 scenario's (📄). Via twee heraudits (DT-R1, herhaald op verzoek): eerst 5/14 (1,2,5,8,10), daarna nog eens 5 erbij (3,7,9,12,14) — de tweede audit herbeoordeelde onafhankelijk de claim uit `match-lifecycle.mjs`-commit `27f6e4e` in plaats van 'm te vertrouwen. **Definitief: 10/14 geactiveerd, zelf herverifieerd: repo-breed `npm test` 2158/2158 groen**, de 5 nieuwste tests ook los gedraaid (6/6, rij 9 heeft twee testblokken). Rijen 4,6,11,13 blijven geblokkeerd — rate limiting, `share:opened`-persistentie, een socket-laag en een `round:progress`-broadcast-aanroeper ontbreken nog; voor elk opnieuw expliciet gezocht en niets gevonden. |
 | Testlagen — Browser/E2E | 📄 klaar / 🚧 uitvoering geblokkeerd (implementatie) | DT4a Deel 1: 6 pseudocode-scenario's (📄), elk met een eigen implementatieprerequisite — **DT-R4 (2026-08-02) bevestigd met verse citaten: nog geen enkele HTML koppelt aan `client/flow/`**, 0/6 uitvoerbaar. DT4b: runbook klaar (📄), **0/10 devicechecks uitgevoerd — 🚧 handmatig**, geen dependency lost dit op |
 | Testlagen — Restart-/chaostests | 📄 klaar / 🚧 uitvoering geblokkeerd (autorisatie) | DT6 Deel 1: runbook + preflight-stap voor 6 scenario's — DT-R2 (2026-08-02) gevalideerd tegen `docker-compose.yml`. **Stap 1 uitgevoerd (2026-08-02, geautoriseerd):** `aseso-game-chaos`-stack live opgestart naast de draaiende `aseso-game`-stack, geïsoleerd via `compose.chaos.override.yml` (loopback-poorten 8080/8443). Live preflight bevestigd: 5/5 services healthy, Redis AOF actief. **0/6 scenario's uitgevoerd** — resetten (stap 2) en het eerste destructieve scenario (stap 3) blijven apart geautoriseerd |
 | Testlagen — Loadtests | 📄 klaar / 🚧 uitvoering geblokkeerd (dependency + implementatie) | DT5 Deel 1: 10/10 criteria toegewezen aan een bewijsmethode (📄) — **DT-R4 (2026-08-02) bevestigd: geen spelbelastbare server aanwezig**, dus 0/10 criteria daadwerkelijk gemeten; wacht op loadtooling, een draaiende server, observability, een geschikte omgeving én een uitvoeringsakkoord |
@@ -80,8 +80,8 @@ architecture-plan, protocol-plan, product-plan, content-plan e.a.) hebben in
 dezelfde periode zelf duizenden tests toegevoegd en gedraaid.
 
 **Resterende technische blockers, één zin per fase:**
-- DT3b: 5/14 geactiveerd; overige 9 missen grotere compositiestukken (match-laag,
-  Socket.IO, rate limiting).
+- DT3b: 10/14 geactiveerd; overige 4 (rijen 4,6,11,13) missen rate limiting,
+  `share:opened`-persistentie, een socket-laag resp. een broadcast-aanroeper.
 - DT4a: geen geïntegreerde, gerenderde multiplayer-UI om te besturen.
 - DT4b: geen dependency lost dit op — wacht op een mens met een echt toestel.
 - DT5: geen spelbelastbare server; k6 zonder target meet niets zinvols.
@@ -91,8 +91,9 @@ dezelfde periode zelf duizenden tests toegevoegd en gedraaid.
 
 ## Openstaande actiepunten
 
-- [ ] DT3b — 5/14 geactiveerd (1,2,5,8,10). Overige 9 rijen missen grotere
-      compositiestukken (match-laag, Socket.IO, rate limiting) — geen quick fix.
+- [ ] DT3b — 10/14 geactiveerd (1,2,3,5,7,8,9,10,12,14). Overige 4 rijen
+      (4,6,11,13) missen rate limiting, `share:opened`-persistentie, een
+      socket-laag resp. een `round:progress`-broadcast-aanroeper.
 - [ ] DT4a — 0/6 uitvoerbaar. Wacht op zowel `deps` (Playwright) als een
       geïntegreerde, gerenderde UI (bevestigd afwezig, DT-R4).
 - [ ] DT4b — 0/10 devicechecks uitgevoerd. Handmatig, geen dependency-blokkade.
@@ -114,9 +115,10 @@ dezelfde periode zelf duizenden tests toegevoegd en gedraaid.
 
 ## Cijfers
 
-- **Daadwerkelijk uitgevoerd en geslaagd:** DT0, DT2 (7/7), DT3b (5/14, elk
-  zelf gedraaid), DT7/DT-R3 (CI zelf gefixt via profielwijziging), en (buiten
-  mijn eigen scope, maar nagetelde repo-brede stand) 2096/2096 tests repo-breed.
+- **Daadwerkelijk uitgevoerd en geslaagd:** DT0, DT2 (7/7), DT3b (10/14, elk
+  zelf gedraaid), DT7/DT-R3 (CI zelf gefixt via profielwijziging), DT6 stap 1
+  (chaos-stack live, geïsoleerd), en (buiten mijn eigen scope, maar nagetelde
+  repo-brede stand) 2158/2158 tests repo-breed.
 - **Voorbereiding klaar, uitvoering nog niet:** DT0b, DT1a, DT3a (resterende 9
   rijen), DT4a Deel 1, DT4b, DT5 Deel 1, DT6 Deel 1 (nu gevalideerd tegen de
   echte stack).
