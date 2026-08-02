@@ -16,6 +16,100 @@ bevat dit document alleen tekst — commando's zoals hieronder getoond zijn de
 opdrachten die *later*, na aparte autorisatie, gegeven zouden worden. Er is tijdens
 het schrijven van dit bestand geen enkel commando uitgevoerd.
 
+## Vergelijking tegen het echte `docker-compose.yml` (DT-R2)
+
+[`REVIEW-DT3B-DT7.md`](prompts/REVIEW-DT3B-DT7.md) #9 signaleerde dat de
+aannames hieronder "documentaannames [zijn] zolang de Compose-stack niet
+bestaat" en vroeg een read-only preflight vóór uitvoering. Die Compose-stack
+bestaat inmiddels (`docker-compose.yml` + `compose.tunnel.override.yml` in de
+repo-root). Dit is die read-only vergelijking: regel voor regel tegen de
+échte bestanden, aangevuld met de output van `docker compose -f
+docker-compose.yml -f compose.tunnel.override.yml config` (en dezelfde met
+`--profile tunnel`) om ook de env-interpolatie en de override-merge te zien —
+zonder dat de stack gestart is. Per punt: **bevestigd** (klopt met het echte
+bestand) of **gecorrigeerd** (klopte niet, en is hieronder/hierboven
+aangepast).
+
+- **Servicenamen** — bevestigd. `docker-compose.yml` definieert exact
+  `reverse-proxy`, `frontend`, `game-server`, `redis`, `postgres` en
+  `cloudflared` (regels 24, 41, 64, 91, 109, 126), geen naam ontbreekt of wijkt
+  af.
+- **`restart: unless-stopped`** — bevestigd voor alle zes services (o.a.
+  gebruikt in scenario 1's "de `game-server`-container zelf herstart vrijwel
+  direct"); elke service in `docker-compose.yml` heeft `restart:
+  unless-stopped`.
+- **`game-server`-healthcheck** — bevestigd: `interval: 15s`, `retries: 5`
+  (`docker-compose.yml` regels 86–88), zoals aangenomen in scenario 1.
+- **`redis`-healthcheck** — bevestigd: `interval: 10s`, `retries: 5`
+  (regels 104–106), zoals aangenomen in scenario 2.
+- **`postgres`-healthcheck** — bevestigd: `pg_isready`, `interval: 10s`,
+  `retries: 10` (regels 119–123), zoals aangenomen in scenario 3.
+- **`cloudflared` zonder eigen healthcheck** — bevestigd: er staat geen
+  `healthcheck`-blok op de `cloudflared`-service (regels 126–134), zoals
+  scenario 4 aanneemt.
+- **Redis AOF-vlaggen** — bevestigd: `command: [redis-server, --appendonly,
+  "yes", --appendfsync, everysec]` en volume `redis-data:/data` (regels
+  94–101), exact zoals scenario 2 aanneemt ("`--appendonly yes --appendfsync
+  everysec`, volume `redis-data` gekoppeld").
+- **Interne netwerkisolatie van Redis/PostgreSQL** — bevestigd: `redis`
+  (regel 107) en `postgres` (regel 124) zitten alleen op het
+  `internal`-netwerk, dat zelf `internal: true` heeft (regels 136–139);
+  `cloudflared` zit alleen op `edge` (regel 134) en heeft geen route naar
+  `internal`. Dit onderbouwt
+  scenario 4's controlepunt "de tunnel routeert alleen naar de reverse proxy;
+  Redis en PostgreSQL blijven op het interne netwerk".
+- **`tunnel`-profiel** — deels gecorrigeerd. Het profiel zelf klopt
+  (`profiles: ["tunnel"]` op `cloudflared`, regel 130), maar twee aannames
+  eromheen waren fout en zijn hieronder/hierboven aangepast:
+  - De opstartcommando's voor tunnel-scenario's (stap 1 hieronder en scenario
+    4) noemden alleen `-f docker-compose.yml --profile tunnel`, zonder `-f
+    compose.tunnel.override.yml`. Zonder die override blijft de
+    `ports`-mapping `80:80`/`443:443` van `reverse-proxy` gewoon staan — precies
+    wat `compose.tunnel.override.yml` juist moet voorkomen (`ports: !reset
+    []`, bevestigd via `docker compose ... --profile tunnel config`: met de
+    override heeft `reverse-proxy` in de samengevoegde config geen enkele
+    `ports`-sleutel meer). Beide commando's zijn gecorrigeerd om de override
+    expliciet mee te geven, in lijn met `docker-compose.yml`'s eigen
+    kopcommentaar (regels 16–19).
+  - De gedeelde randvoorwaarde hieronder stelde dat 80/443-portmapping wél
+    nodig is "tenzij het scenario dat specifiek vereist (tunnel-reconnect)" —
+    dat stond andersom: juist het tunnel-scenario is degene die de override
+    gebruikt die de portmapping wégneemt, dus juist géén hostportmapping
+    nodig heeft. Deze bullet is gecorrigeerd.
+- **"Preflight tegen de échte stack" (stap 3 hieronder)** — was een abstracte
+  verwijzing naar "de échte stack"; gecorrigeerd naar een concrete verwijzing
+  naar `docker-compose.yml` (zie hieronder).
+
+Niet eerder in dit runbook genoemd (geen bestaande aanname om te bevestigen of
+corrigeren, dus hier apart benoemd in plaats van genegeerd):
+
+- **`frontend`-mounts** — `frontend` (nginx:alpine) mount 11 losse
+  read-only bestanden/mappen uit de repo-root (`index.html`, `style.css`,
+  `app.js`, `hint.js`, `flaginfo.js`, `geo.js`, `geo-facts.js`, `data/`,
+  `flags/`, `logos/`, `football/`) plus `nginx/default.conf` (regels 44–56).
+  Geen enkel scenario hieronder oefent een `frontend`-restart uit; deze
+  mounts zijn dus nooit geraakt door een chaostest in dit document.
+- **`frontend`-healthcheck** — `frontend` heeft wél een healthcheck
+  (`wget --spider http://localhost/`, `interval: 15s`, `retries: 5`, regels
+  57–61), maar die wordt door geen enkel scenario hierboven gebruikt.
+- **`reverse-proxy` heeft géén healthcheck** — in tegenstelling tot de andere
+  vier services heeft `reverse-proxy` (Caddy) geen `healthcheck`-blok. Het
+  hangt zelf af van `frontend` en `game-server` via `condition:
+  service_healthy` (regels 34–38), maar niemand controleert `reverse-proxy`
+  zelf op gezondheid. Geen scenario hierboven test een `reverse-proxy`-restart.
+- **`cloudflared` start op `condition: service_started`, niet
+  `service_healthy`** — `cloudflared` wacht alleen tot `reverse-proxy` gestart
+  is (regels 131–133), niet tot die gezond is — logisch omdat `reverse-proxy`
+  geen healthcheck heeft, maar relevant als een toekomstig scenario ooit een
+  koude start van de hele stack met tunnel test.
+- **Openstaand juridisch punt in `docker-compose.yml`'s kopcommentaar** —
+  de `logos/`- en `football/`-mounts op `frontend` staan er "omdat de
+  singleplayer-UI ze verwacht", met een expliciete TODO om ze vóór publieke
+  launch uit te schakelen (`docker-compose.yml` regels 11–14, verwijst naar
+  `docs/fase1-runbook.md` open punt 1). Raakt geen chaos-scenario direct, maar
+  is een bestaande aantekening in het bestand dat dit runbook nu als bron
+  gebruikt, dus hier niet genegeerd.
+
 ## Volgorde die voor élk scenario geldt
 
 Per [`README.md`](README.md) §DT6 en §Checkpoints geldt voor ieder scenario
@@ -30,10 +124,13 @@ autorisatie nodig (Deel 2 van [`DT6-chaostests.md`](prompts/DT6-chaostests.md)):
    docker compose -p aseso-game-chaos -f docker-compose.yml up -d
    ```
 
-   Voor scenario's die de tunnel raken komt daar het `tunnel`-profiel bij:
+   Voor scenario's die de tunnel raken komt daar het `tunnel`-profiel bij, mét
+   de override die de host-portmapping sluit (zie "Vergelijking tegen het
+   echte `docker-compose.yml`" hierboven — dit was eerder fout genoteerd
+   zonder de override):
 
    ```
-   docker compose -p aseso-game-chaos -f docker-compose.yml --profile tunnel up -d
+   docker compose -p aseso-game-chaos -f docker-compose.yml -f compose.tunnel.override.yml --profile tunnel up -d
    ```
 
 2. **Resetten naar een schone teststand** — volumes van de vorige run weg,
@@ -46,21 +143,30 @@ autorisatie nodig (Deel 2 van [`DT6-chaostests.md`](prompts/DT6-chaostests.md)):
    ```
 
 3. **Preflight tegen de échte stack** — vóórdat een scenario's opdracht wordt
-   gegeven, controleren dat de aannames in dit runbook nog kloppen tegen wat er
-   daadwerkelijk draait: bestaat de containernaam exact zo (`docker compose -p
-   aseso-game-chaos ps`)? Rapporteert de healthcheck het interval/retries zoals
-   hieronder aangenomen (`docker inspect --format '{{json .State.Health}}'
-   <container>`)? Draait Redis daadwerkelijk met `--appendonly yes
-   --appendfsync everysec` (`docker compose -p aseso-game-chaos exec redis
-   redis-cli config get appendonly` / `appendfsync`)? Dit runbook is geschreven
-   vóórdat de Compose-stack en de servercontainers echt bestonden
-   ([`REVIEW-DT3B-DT7.md`](prompts/REVIEW-DT3B-DT7.md) #9); containernamen,
-   healthchecks, AOF-instellingen en hersteltijdvensters hieronder zijn
-   documentaannames op basis van `ARCHITECTURE.md`/`DEPLOYMENT-AND-TESTING.md`,
-   niet geverifieerd gedrag. Wijkt de preflight af van wat een sectie hieronder
-   aanneemt, corrigeer eerst deze sectie's aanname vóórdat het scenario wordt
-   uitgevoerd — voer nooit een scenario uit tegen een aanname waarvan de preflight
-   al liet zien dat die niet klopt.
+   gegeven, controleren dat de aannames in dit runbook nog kloppen tegen het
+   daadwerkelijke `docker-compose.yml` (en, voor tunnel-scenario's,
+   `compose.tunnel.override.yml`) in de repo-root, en tegen wat er
+   daadwerkelijk draait op basis van dát bestand: bestaat de containernaam
+   exact zo (`docker compose -p aseso-game-chaos ps`)? Rapporteert de
+   healthcheck het interval/retries zoals in `docker-compose.yml` gedefinieerd
+   en hieronder aangenomen (`docker inspect --format '{{json .State.Health}}'
+   <container>`)? Draait Redis daadwerkelijk met de vlaggen uit
+   `docker-compose.yml`'s `command:`-blok voor de `redis`-service
+   (`--appendonly yes --appendfsync everysec`, `docker compose -p
+   aseso-game-chaos exec redis redis-cli config get appendonly` /
+   `appendfsync`)? Dit runbook is geschreven vóórdat de Compose-stack en de
+   servercontainers echt bestonden ([`REVIEW-DT3B-DT7.md`](prompts/REVIEW-DT3B-DT7.md)
+   #9); een statische, read-only vergelijking tussen dit runbook en het
+   inmiddels bestaande `docker-compose.yml` + `compose.tunnel.override.yml` is
+   uitgevoerd en gedocumenteerd in "Vergelijking tegen het echte
+   `docker-compose.yml` (DT-R2)" hierboven — dat dekt de tekst van het bestand,
+   niet het daadwerkelijke runtimegedrag van draaiende containers. Deze
+   stap-3-preflight blijft daarom nodig als laatste, runtime-check vóórdat een
+   scenario uitgevoerd wordt, ook al zijn de documentaannames zelf al
+   geverifieerd. Wijkt de preflight af van wat een sectie hieronder aanneemt,
+   corrigeer eerst deze sectie's aanname vóórdat het scenario wordt uitgevoerd
+   — voer nooit een scenario uit tegen een aanname waarvan de preflight al liet
+   zien dat die niet klopt.
 4. **Het scenario zelf uitvoeren** — het scenario-specifieke commando uit de
    betreffende sectie hieronder, per scenario apart geautoriseerd (niet één keer
    voor alle zes tegelijk), en pas ná een preflight die geen afwijking vond.
@@ -73,9 +179,15 @@ Gedeelde randvoorwaarden voor alle zes scenario's:
 - eigen `.env` voor deze teststack, met eigen testwaarden — nooit de echte
   `TOKEN_PEPPER`/`POSTGRES_PASSWORD`/`CLOUDFLARE_TUNNEL_TOKEN` uit een pilot- of
   productieomgeving hergebruiken;
-- geen `ports`-mapping naar 80/443 op de hostmachine tenzij het scenario dat
-  specifiek vereist (tunnel-reconnect); waar mogelijk alleen via het interne
-  Compose-netwerk of `docker compose exec` benaderen;
+- geen `ports`-mapping naar 80/443 op de hostmachine bij tunnel-scenario's
+  (gecorrigeerd: dit stond hier eerder andersom, alsof tunnel-reconnect júist
+  wél portmapping nodig zou hebben — het is precies omgekeerd. Draai
+  tunnel-scenario's altijd mét `-f compose.tunnel.override.yml`, dat
+  `reverse-proxy`'s `ports` volledig verwijdert; `docker compose ...
+  --profile tunnel config` bevestigt dat er dan geen `ports`-sleutel meer
+  overblijft. Alleen bij een niet-tunnel scenario dat bewust directe
+  hostexposure test, is portmapping naar 80/443 relevant); waar mogelijk
+  alleen via het interne Compose-netwerk of `docker compose exec` benaderen;
 - na afloop van een testsessie: `docker compose -p aseso-game-chaos down -v` om
   geen chaos-testdata te laten rondslingeren.
 
@@ -208,7 +320,7 @@ scenario test specifiek het tunnelpad); er is een actieve room.
 **Opdracht(en):**
 
 ```
-docker compose -p aseso-game-chaos --profile tunnel restart cloudflared
+docker compose -p aseso-game-chaos -f docker-compose.yml -f compose.tunnel.override.yml --profile tunnel restart cloudflared
 ```
 
 **Verwacht hersteltijdvenster:** `cloudflared` heeft in de referentie-Compose
