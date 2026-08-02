@@ -39,6 +39,59 @@ function answerPayloadFor(round) {
 }
 
 // ---------------------------------------------------------------------------
+// connect() onStatus (transport-contract-response.md, correctie 2)
+// ---------------------------------------------------------------------------
+
+test('connect() reports connecting then connected, in that order, before the snapshot arrives', async () => {
+  const transport = createMockTransport();
+  const created = await transport.createGame({ config: {}, hostParticipates: true, displayName: 'Host' });
+
+  const statuses = [];
+  const events = [];
+  transport.connect(created.sessionToken, {
+    onEvent: (envelope) => events.push(envelope),
+    onStatus: (status) => statuses.push(status),
+  });
+
+  assert.deepEqual(statuses, ['connecting']);
+  assert.deepEqual(events, []);
+
+  await Promise.resolve(); // let the queued microtask run
+  assert.deepEqual(statuses, ['connecting', 'connected']);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event, 'room:state');
+});
+
+test('connect() with an unknown sessionToken reports disconnected and never connecting/connected', async () => {
+  const transport = createMockTransport();
+  await transport.createGame({ config: {}, hostParticipates: true, displayName: 'Host' });
+
+  const statuses = [];
+  const conn = transport.connect('not-a-real-token', { onStatus: (status) => statuses.push(status) });
+  assert.deepEqual(statuses, ['disconnected']);
+  await assert.rejects(() => conn.send('game:start', 'act_1', {}), { code: 'TOKEN_INVALID' });
+});
+
+test('close() reports disconnected', async () => {
+  const transport = createMockTransport();
+  const created = await transport.createGame({ config: {}, hostParticipates: true, displayName: 'Host' });
+
+  const statuses = [];
+  const conn = transport.connect(created.sessionToken, { onStatus: (status) => statuses.push(status) });
+  await Promise.resolve();
+  conn.close();
+
+  assert.deepEqual(statuses, ['connecting', 'connected', 'disconnected']);
+});
+
+test('connect() without onEvent/onStatus handlers does not throw (both are optional no-ops)', async () => {
+  const transport = createMockTransport();
+  const created = await transport.createGame({ config: {}, hostParticipates: true, displayName: 'Host' });
+  assert.doesNotThrow(() => transport.connect(created.sessionToken, {}));
+  assert.doesNotThrow(() => transport.connect(created.sessionToken, null));
+});
+
+// ---------------------------------------------------------------------------
 // create -> preview -> join happy path
 // ---------------------------------------------------------------------------
 
