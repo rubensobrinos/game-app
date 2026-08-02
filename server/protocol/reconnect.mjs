@@ -10,7 +10,8 @@
  * volgende disconnect begint dus weer bij 1 seconde, niet waar de vorige
  * episode bleef steken).
  *
- * Dupliceert bewust niet `architecture-plan`'s AR3 (`snapshot-precedence`)
+ * Dupliceert bewust niet `architecture-plan`'s AR3
+ * (`shared/protocol/snapshot-precedence.mjs`, gedeeld met de client)
  * of AR4 (`server-time`) — PROTOCOL.md §Reconnect stap 5-6 (snapshot
  * opvragen, snapshot laat lokale fase/score/antwoordstatus overschrijven)
  * horen bij de aanroepende laag die die AR3/AR4-functies aanroept, niet bij

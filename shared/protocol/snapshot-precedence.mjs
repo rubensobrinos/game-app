@@ -1,6 +1,17 @@
-'use strict';
-
 // Precedentieregel tussen snapshots en events binnen één room-sessie.
+//
+// WOONT ONDER shared/ EN IS ESM — BEWUST, NIET TOEVALLIG
+// Deze module heette eerder `server/architecture/snapshot-precedence.js` en was
+// CommonJS. Hij is verhuisd omdat de CLIENT hem nodig heeft: `frontend/js/transport.mjs`
+// dwingt er "snapshot boven events" (PROTOCOL.md basisregel 6) mee af, en dat moet in een
+// BROWSER gebeuren. Onder `server/` lukte dat om twee onafhankelijke redenen niet — het
+// entrypoint mount alleen `/client/*`, `/shared/*` en `frontend/` statisch (`server/index.mjs`),
+// dus `/server/**` gaf een 404, én CommonJS (`module.exports`) laadt sowieso niet als
+// ES-module in een browser. Server en client moeten deze regel DELEN: twee implementaties
+// van precies deze ordening is hoe state stilzwijgend uiteen gaat lopen. `shared/` is
+// daarvoor de afgesproken plek (DECISIONS.md #29, dezelfde reden als de contentmodule).
+// De regel zelf is ongewijzigd; alleen het modulesysteem en de locatie zijn dat.
+//
 // Bron: docs/multiplayer/ARCHITECTURE.md §3 "Snapshot boven event replay",
 // docs/multiplayer/PROTOCOL.md basisregel 6 ("Snapshots zijn leidend boven eerder
 // ontvangen events") plus de sectie "Reconnect" (stap 1-7), en
@@ -391,7 +402,7 @@ function deny(reason) {
   return { apply: false, reason };
 }
 
-module.exports = {
+export {
   shouldApplySnapshot,
   shouldApplyEvent,
   REASONS,

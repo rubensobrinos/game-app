@@ -7,7 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test 'server/**/*.test.*' 'client/**/*.test.*' 'shared/**/*.test.*' 'tests/**/*.test.*'",
+    "test": "node --test 'server/**/*.test.*' 'client/**/*.test.*' 'shared/**/*.test.*' 'frontend/**/*.test.*' 'tests/**/*.test.*'",
     "start": "node server/index.mjs"
   },
   "dependencies": {

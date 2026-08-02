@@ -8,7 +8,13 @@
 //   - /healthz en /readyz bedienen, met hetzelfde contract als de placeholder;
 //   - client/, shared/ en frontend/ statisch serveren (antwoord op UI-3 in
 //     docs/integration-plan/transport-contract-response.md);
-//   - de socketlaag aanhaken zodra server/transport/socket.mjs bestaat.
+//   - de socketlaag aanhaken zodra server/transport/socket.mjs bestaat, en die
+//     via een LAAT GEVULDE referentie beschikbaar maken voor de REST-laag —
+//     `POST /games/join` moet room-breed een `room:player-changed` uitsturen en
+//     dat kan alleen over de socket;
+//   - die socketlaag in `preClose` weer afbreken, dus VOORDAT Fastify de
+//     HTTP-server sluit: één open WebSocket zou anders `fastify.close()` (en
+//     daarmee de SIGTERM-afhandeling) laten hangen.
 //
 // `buildServer(options)` bouwt de server ZONDER een poort te binden, zodat
 // tests hem via Fastify's `inject` kunnen bevragen. Er wordt alleen echt
@@ -280,6 +286,14 @@ function registerStaticRoutes(fastify) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * @typedef {{
+ *   close: () => Promise<void>,
+ *   broadcastPlayerChanged?: (roomId: string, delta: { type: string, playerId: string }) => Promise<void>,
+ *   sendSnapshot?: (roomId: string, sessionId: string) => Promise<{ ok: boolean }>,
+ * }} SocketHandle
+ */
+
+/**
  * Haakt `server/transport/socket.mjs` aan wanneer dat bestand bestaat.
  *
  * Gereserveerde vorm (afgesproken met de socket-agent):
@@ -292,7 +306,7 @@ function registerStaticRoutes(fastify) {
  *
  * @param {import('node:http').Server} httpServer
  * @param {{ context: object, config: object }} params
- * @returns {Promise<{ close: () => Promise<void> } | null>}
+ * @returns {Promise<SocketHandle | null>}
  */
 export async function attachSocketsIfAvailable(httpServer, { context, config }) {
   let module;
@@ -349,6 +363,24 @@ export async function buildServer(options = {}) {
   fastify.decorate('appContext', context);
   fastify.decorate('appConfig', config);
 
+  // ── De brug tussen REST en de socketlaag ───────────────────────────────────
+  //
+  // `POST /games/join` en `POST /{code}/leave` lopen over HTTP, maar
+  // `room:player-changed` moet room-breed over de SOCKET. Zonder deze brug ziet
+  // een lobby een nieuwe speler nooit binnenkomen — `socket.mjs` exporteert
+  // `broadcastPlayerChanged` juist daarvoor.
+  //
+  // VOLGORDEPROBLEEM: de socketlaag kan pas worden aangehaakt als
+  // `fastify.server` bestaat, en dat is ná `ready()` — dus ná de registratie van
+  // de REST-plugin. Het handle bestaat op registratiemoment dus nog niet.
+  // Daarom een LAAT GEVULDE referentie plus een getter: de REST-laag vraagt het
+  // handle pas op op het moment dat hij het gebruikt (per request), niet bij
+  // registratie. Een kopie van de waarde meegeven zou hier voor altijd `null`
+  // vastleggen — bedrading die stil niets doet.
+  /** @type {{ current: SocketHandle | null }} */
+  const socketsRef = { current: null };
+  const getSockets = () => socketsRef.current;
+
   // /healthz — ongewijzigd t.o.v. de placeholder: 200 zolang het proces leeft.
   fastify.get('/healthz', async () => ({ ok: true }));
 
@@ -360,23 +392,30 @@ export async function buildServer(options = {}) {
     reason: 'geen Redis-verbinding: de persistente store komt in stap 3 (INT-B)',
   }));
 
-  await fastify.register(restRoutes, { context, prefix: REST_PREFIX });
+  await fastify.register(restRoutes, { context, prefix: REST_PREFIX, getSockets });
 
   registerStaticRoutes(fastify);
 
   if (attachSockets) {
-    // De onClose-hook moet vóór `ready()` geregistreerd zijn — daarna weigert
-    // Fastify nieuwe hooks. Vandaar de holder in plaats van de hook pas te
-    // registreren als de socketlaag er blijkt te zijn.
-    /** @type {{ close: () => Promise<void> } | null} */
-    let sockets = null;
-    fastify.addHook('onClose', async () => {
-      if (sockets !== null) {
-        await sockets.close();
+    // `preClose`, NIET `onClose`. Fastify's afsluitvolgorde is:
+    //   preClose-hooks → HTTP-server sluiten → onClose-hooks.
+    // Een open WebSocket houdt de HTTP-server open, dus als de socketteardown
+    // pas in `onClose` draait, blijft `fastify.close()` hangen op precies de
+    // verbindingen die die teardown had moeten verbreken. Dat is hetzelfde pad
+    // als de SIGTERM-handler in `start()`, dus dan werkt graceful shutdown niet
+    // — `docker compose down` wacht tot zijn timeout en elke herstart hangt.
+    // In `preClose` zijn de sockets al weg voordat de HTTP-server dichtgaat.
+    //
+    // De hook moet vóór `ready()` geregistreerd zijn (daarna weigert Fastify
+    // nieuwe hooks), en op dat moment bestaat het handle nog niet. Vandaar de
+    // holder: de hook leest hem pas bij het afsluiten.
+    fastify.addHook('preClose', async () => {
+      if (socketsRef.current !== null) {
+        await socketsRef.current.close();
       }
     });
     await fastify.ready();
-    sockets = await attachSocketsIfAvailable(fastify.server, { context, config });
+    socketsRef.current = await attachSocketsIfAvailable(fastify.server, { context, config });
   }
 
   return fastify;

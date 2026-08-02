@@ -316,13 +316,66 @@ async function snapshotFor(context, roomId, sessionId) {
 /**
  * Fastify-plugin met de zes REST-eindpunten.
  *
+ * `getSockets` is de brug naar de socketlaag. Hij is een GETTER en geen waarde:
+ * `server/index.mjs` haakt de socketlaag pas op `fastify.server` aan ná
+ * `ready()`, dus ná de registratie van deze plugin. Een meegegeven waarde zou
+ * hier voor altijd `null` zijn. Ontbreekt hij (of levert hij `null` op, zoals in
+ * elke test die zonder sockets draait), dan blijven de eindpunten precies doen
+ * wat ze deden — alleen zonder broadcast.
+ *
  * @param {import('fastify').FastifyInstance} fastify
- * @param {{ context: Context }} options
+ * @param {{ context: Context, getSockets?: () => (object | null) }} options
  */
 export default async function restRoutes(fastify, options) {
-  const { context } = options;
+  const { context, getSockets = () => null } = options;
   if (context === undefined || context === null) {
     throw new TypeError('restRoutes: `options.context` is verplicht (zie server/composition/context.mjs).');
+  }
+
+  /**
+   * Stuurt `room:player-changed` room-breed via de socketlaag.
+   *
+   * WAAROM DIT HIER STAAT: `POST /games/join` en `POST /{code}/leave` lopen niet
+   * over de socket, terwijl de rest van de room wél over de socket meekijkt.
+   * `socket.mjs` exporteert `broadcastPlayerChanged` speciaal voor deze twee
+   * paden; zonder deze aanroep ziet een lobby nooit een nieuwe speler
+   * binnenkomen. De PAYLOAD wordt hier niet samengesteld: `playerCount` en de
+   * eventvorm komen uit de socketlaag, zodat er geen tweede telregel ontstaat.
+   *
+   * Een mislukte broadcast mag de HTTP-respons NOOIT omzetten in een fout: de
+   * join/leave is dan al doorgevoerd en een 500 zou de client laten denken dat
+   * hij niet in de room zit. Hij wordt gelogd via Fastify's eigen logger (de
+   * enige logweg hier) en verder genegeerd.
+   *
+   * `delta.type` kent vier waarden (`server-events-room-lifecycle.mjs`). Twee
+   * daarvan lopen hierlangs (`join`, `leave`); `kick` stuurt `socket.mjs` zelf
+   * al bij `game:kick`. `rename` heeft nog nergens een pad: `player:rename`
+   * bestaat als clientevent, maar `server/composition/room-lifecycle.mjs` heeft
+   * geen hernoemfunctie, dus `socket.mjs` weigert het event met
+   * `UNSUPPORTED_EVENT`. Zodra die compositiefunctie er is, hoort de broadcast
+   * dáár te gebeuren (rename loopt over de socket, niet over REST) — niet hier.
+   *
+   * @param {import('fastify').FastifyRequest} request
+   * @param {string} roomId
+   * @param {{ type: 'join' | 'leave' | 'rename' | 'kick', playerId: string }} delta
+   * @returns {Promise<boolean>} of er daadwerkelijk is uitgezonden
+   */
+  async function broadcastPlayerChanged(request, roomId, delta) {
+    if (typeof delta.playerId !== 'string' || delta.playerId.length === 0) {
+      return false;
+    }
+    const sockets = getSockets();
+    if (sockets === null || sockets === undefined || typeof sockets.broadcastPlayerChanged !== 'function') {
+      return false;
+    }
+    try {
+      await sockets.broadcastPlayerChanged(roomId, delta);
+      return true;
+    } catch {
+      // Geen `error.message` en geen stacktrace in de log — regel 2.
+      request.log?.warn?.({ layer: 'rest', roomId, delta: delta.type }, 'room:player-changed niet verstuurd');
+      return false;
+    }
   }
 
   // Fastify's eigen JSON-parser maakt van een lege body een 400 in ZIJN
@@ -412,6 +465,20 @@ export default async function restRoutes(fastify, options) {
       return sendError(reply, joined.code);
     }
 
+    // De rest van de room hoort de nieuwe speler te zien verschijnen.
+    //
+    // VOLGORDE IS HIER BETEKENISVOL: eerst uitzenden, dán pas de snapshot voor
+    // de respons bouwen. De snapshot krijgt daarmee een `serverTime` die nooit
+    // LAGER is dan die van het event. Andersom zou de client zijn eigen
+    // join-snapshot als achterhaald kunnen afwijzen: het socketevent is er
+    // altijd eerder dan de HTTP-respons, dus met een oudere snapshot slaat de
+    // precedentieregel (`shared/protocol/snapshot-precedence.mjs`, basisregel 6)
+    // terecht `STALE_SNAPSHOT` — op de verkeerde boodschap.
+    await broadcastPlayerChanged(request, joined.value.roomId, {
+      type: 'join',
+      playerId: joined.value.playerId,
+    });
+
     const state = await snapshotFor(context, joined.value.roomId, joined.value.sessionId);
     if (state === null) {
       return sendInternalError(reply);
@@ -493,7 +560,8 @@ export default async function restRoutes(fastify, options) {
   // staat daarom de minimale bedrading die besluit 4 nakomt, met `roomId` uit
   // de sessie en `assertPlayerShape` als vangnet. Zie het handoff-item: dit
   // hoort in room-lifecycle.mjs te verhuizen, inclusief de TTL-verlenging
-  // (`touchRoom`) en het `player:changed`-event die hier nu ontbreken.
+  // (`touchRoom`) die hier nog ontbreekt. Het `room:player-changed`-event wordt
+  // hieronder wél verstuurd — dat is transportwerk en hoort hier.
   fastify.post('/games/:code/leave', async (request, reply) => {
     const validated = validateLeaveGameRequestShape({
       code: request.params?.code,
@@ -529,6 +597,12 @@ export default async function restRoutes(fastify, options) {
       const left = { ...player, left: true };
       assertPlayerShape(left);
       await context.store.savePlayer(left);
+      // Alleen bij een ECHTE overgang: een tweede `leave` van dezelfde speler
+      // verandert niets en hoort de room dus ook niets te melden.
+      await broadcastPlayerChanged(request, located.value.id, {
+        type: 'leave',
+        playerId: session.playerId,
+      });
     }
 
     // `PROTOCOL.md` documenteert geen responsbody voor dit eindpunt en er is

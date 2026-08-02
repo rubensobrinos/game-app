@@ -1,5 +1,3 @@
-'use strict';
-
 // Tabelgedreven testsuite voor de precedentieregel snapshot vs. event.
 // Spec: docs/multiplayer/PROTOCOL.md basisregel 6 + sectie "Reconnect",
 // docs/multiplayer/ARCHITECTURE.md §3 en docs/multiplayer/DATA-MODEL.md (rematch =
@@ -10,7 +8,7 @@
 // TWEE SOORTEN RIJEN — LEES DIT VOORDAT JE ER EEN VERANDERT
 // De meeste rijen leggen een BRONEIS vast: haal je die weg, dan wijkt de module af van
 // PROTOCOL.md, ARCHITECTURE.md of DATA-MODEL.md. Maar een deel van het gedrag staat in
-// géén enkele bron; dat is een MODULEAFSPRAAK die snapshot-precedence.js zelf heeft
+// géén enkele bron; dat is een MODULEAFSPRAAK die snapshot-precedence.mjs zelf heeft
 // gekozen omdat de spec zwijgt. Die rijen dragen het voorvoegsel "moduleafspraak — " en
 // zijn precies zo hard getest, maar om een andere reden: ze bevriezen een keuze zodat
 // een wijziging zichtbaar wordt in plaats van stilzwijgend. Verandert de spec (of de
@@ -21,10 +19,10 @@
 // de keuze om fractionele epoch-ms te accepteren. De meta-test onderaan bewaakt dat de
 // markering blijft staan.
 
-const { test } = require('node:test');
-const assert = require('node:assert');
+import { test } from 'node:test';
+import assert from 'node:assert';
 
-const { shouldApplySnapshot, shouldApplyEvent, REASONS } = require('./snapshot-precedence');
+import { shouldApplySnapshot, shouldApplyEvent, REASONS } from './snapshot-precedence.mjs';
 
 const V1 = 'v1';
 const ROOM = '482917';

@@ -39,11 +39,35 @@ async function makeServer({ store = createInMemoryStore(), now = () => FIXED_NOW
 }
 
 /** Alleen de REST-plugin, met een handmatig samengestelde context. */
-async function makeRestOnlyServer(context) {
+async function makeRestOnlyServer(context, { getSockets } = {}) {
   const fastify = Fastify();
-  await fastify.register(restRoutes, { context, prefix: REST_PREFIX });
+  await fastify.register(restRoutes, { context, prefix: REST_PREFIX, ...(getSockets ? { getSockets } : {}) });
   await fastify.ready();
   return fastify;
+}
+
+/**
+ * Een socketlaag-dubbel dat alleen registreert wat er wordt uitgezonden.
+ *
+ * Bewust GEEN Socket.IO: hier wordt het CONTRACT getest dat `rest.mjs` met de
+ * socketlaag heeft (wordt er uitgezonden, wanneer, met welke delta), niet of
+ * Socket.IO die boodschap over de draad krijgt. Dat laatste bewijst
+ * `server/index.test.mjs` met een echte verbinding.
+ */
+function makeSocketsDouble({ throws = false } = {}) {
+  /** @type {Array<{ roomId: string, delta: object }>} */
+  const broadcasts = [];
+  return {
+    broadcasts,
+    handle: {
+      async broadcastPlayerChanged(roomId, delta) {
+        broadcasts.push({ roomId, delta });
+        if (throws) {
+          throw new Error('socketlaag onbereikbaar');
+        }
+      },
+    },
+  };
 }
 
 function makeContext({ store = createInMemoryStore(), now = () => FIXED_NOW } = {}) {
@@ -207,6 +231,139 @@ test('POST /api/v1/games/join — validatiefout: twee locators tegelijk → 400 
 
   assert.equal(response.statusCode, 400);
   assert.equal(response.json().code, 'INVITE_INVALID');
+});
+
+// ─── De brug naar de socketlaag (room:player-changed) ────────────────────────
+//
+// `POST /games/join` en `POST /{code}/leave` lopen niet over de socket, terwijl
+// de rest van de room daar wél op meekijkt. Zonder deze aanroepen ziet een lobby
+// nooit een nieuwe speler binnenkomen. Hieronder het CONTRACT met de socketlaag;
+// `server/index.test.mjs` bewijst met een echte verbinding dat het handle ook
+// daadwerkelijk wordt doorgegeven.
+
+test('POST /api/v1/games/join — meldt de room de nieuwe speler via de socketlaag', async (t) => {
+  const sockets = makeSocketsDouble();
+  const context = makeContext();
+  const fastify = await makeRestOnlyServer(context, { getSockets: () => sockets.handle });
+  t.after(() => fastify.close());
+  const created = await createGameOverHttp(fastify);
+
+  const response = await fastify.inject({
+    method: 'POST',
+    url: '/api/v1/games/join',
+    payload: { gameCode: created.gameCode, displayName: 'Ruben', joinSource: 'code' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(sockets.broadcasts, [{
+    roomId: response.json().roomId,
+    delta: { type: 'join', playerId: response.json().playerId },
+  }]);
+});
+
+test('POST /api/v1/games/{code}/leave — meldt de room het vertrek, en alleen bij de eerste keer', async (t) => {
+  const sockets = makeSocketsDouble();
+  const context = makeContext();
+  const fastify = await makeRestOnlyServer(context, { getSockets: () => sockets.handle });
+  t.after(() => fastify.close());
+  const created = await createGameOverHttp(fastify);
+  const joined = await fastify.inject({
+    method: 'POST',
+    url: '/api/v1/games/join',
+    payload: { gameCode: created.gameCode, displayName: 'Ruben', joinSource: 'code' },
+  }).then((response) => response.json());
+
+  const leave = () => fastify.inject({
+    method: 'POST',
+    url: `/api/v1/games/${created.gameCode}/leave`,
+    headers: bearer(joined.sessionToken),
+  });
+
+  assert.equal((await leave()).statusCode, 200);
+  assert.equal((await leave()).statusCode, 200);
+
+  // Tweemaal verlaten, maar `left` ging maar één keer van false naar true.
+  assert.deepEqual(sockets.broadcasts.map((entry) => entry.delta.type), ['join', 'leave']);
+  assert.deepEqual(sockets.broadcasts.at(-1), {
+    roomId: joined.roomId,
+    delta: { type: 'leave', playerId: joined.playerId },
+  });
+});
+
+test('het handle wordt PER REQUEST opgevraagd, niet bij registratie', async (t) => {
+  // Dit is de kern van de volgordekwestie in `buildServer`: de socketlaag wordt
+  // pas ná `ready()` aangehaakt, dus op registratiemoment is er nog geen handle.
+  // Werd de waarde toen vastgelegd, dan bleef hij voor altijd `null` en deed de
+  // bedrading stil niets.
+  const sockets = makeSocketsDouble();
+  /** @type {object | null} */
+  let current = null;
+  let calls = 0;
+  const context = makeContext();
+  const fastify = await makeRestOnlyServer(context, {
+    getSockets: () => { calls += 1; return current; },
+  });
+  t.after(() => fastify.close());
+
+  const created = await createGameOverHttp(fastify);
+  const before = await fastify.inject({
+    method: 'POST',
+    url: '/api/v1/games/join',
+    payload: { gameCode: created.gameCode, displayName: 'Vroeg', joinSource: 'code' },
+  });
+  assert.equal(before.statusCode, 200);
+  assert.equal(sockets.broadcasts.length, 0, 'nog geen socketlaag: niets uitgezonden');
+
+  // Nu pas komt de socketlaag beschikbaar — precies zoals in `buildServer`.
+  current = sockets.handle;
+  const after = await fastify.inject({
+    method: 'POST',
+    url: '/api/v1/games/join',
+    payload: { gameCode: created.gameCode, displayName: 'Laat', joinSource: 'code' },
+  });
+  assert.equal(after.statusCode, 200);
+  assert.equal(sockets.broadcasts.length, 1);
+  assert.ok(calls >= 2, `de getter moet per request worden aangeroepen, kreeg ${calls}`);
+});
+
+test('een socketlaag die werpt maakt van een geslaagde join geen fout', async (t) => {
+  // De join is dan al doorgevoerd; een 500 zou de client laten denken dat hij
+  // niet in de room zit.
+  const sockets = makeSocketsDouble({ throws: true });
+  const context = makeContext();
+  const fastify = await makeRestOnlyServer(context, { getSockets: () => sockets.handle });
+  t.after(() => fastify.close());
+  const created = await createGameOverHttp(fastify);
+
+  const response = await fastify.inject({
+    method: 'POST',
+    url: '/api/v1/games/join',
+    payload: { gameCode: created.gameCode, displayName: 'Ruben', joinSource: 'code' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(sockets.broadcasts.length, 1);
+});
+
+test('zonder socketlaag verandert er niets aan de eindpunten', async (t) => {
+  // De standaardsituatie in vrijwel elke andere test: `getSockets` ontbreekt.
+  const fastify = await makeServer();
+  t.after(() => fastify.close());
+  const created = await createGameOverHttp(fastify);
+
+  const joined = await fastify.inject({
+    method: 'POST',
+    url: '/api/v1/games/join',
+    payload: { gameCode: created.gameCode, displayName: 'Ruben', joinSource: 'code' },
+  });
+  assert.equal(joined.statusCode, 200);
+
+  const left = await fastify.inject({
+    method: 'POST',
+    url: `/api/v1/games/${created.gameCode}/leave`,
+    headers: bearer(joined.json().sessionToken),
+  });
+  assert.equal(left.statusCode, 200);
 });
 
 test('POST /api/v1/games/join — onbekende maar welgevormde code → 404 GAME_NOT_FOUND', async (t) => {
