@@ -20,7 +20,10 @@ stack te starten.
    `game-server`, `redis`, `postgres`, `cloudflared`), healthcheck-`interval`/
    `retries` per service, Redis' `--appendonly`/`--appendfsync`-vlaggen, en het
    `tunnel`-profiel, tussen `chaos-runbook.md`'s aannames en het echte
-   `docker-compose.yml` + `compose.tunnel.override.yml`.
+   `docker-compose.yml` + `compose.tunnel.override.yml`. Gebruik `docker compose
+   config` (zie Harde grenzen) om de daadwerkelijk samengevoegde configuratie te
+   zien — inclusief env-interpolatie — in plaats van de twee YAML-bestanden alleen
+   met het oog te combineren.
 2. Corrigeer elke afwijking die je vindt direct in `chaos-runbook.md` (bijv. een
    ander healthcheck-interval, een andere volumenaam, een ontbrekende service).
 3. Vul de "Preflight tegen de échte stack"-stap (in de sectie "Volgorde die voor
@@ -34,7 +37,13 @@ stack te starten.
 
 ## Harde grenzen
 
-- Geen `docker compose`-commando uitvoeren, ook niet als "test" van deze stap.
+- **Toegestane uitzondering:** `docker compose -f docker-compose.yml -f
+  compose.tunnel.override.yml config` (eventueel met `--profile tunnel`) mag wél
+  — dit is puur read-only, rendert de samengevoegde configuratie (env-interpolatie,
+  override-merge) zonder iets te starten, en is juist nuttig om stap 1 grondiger te
+  maken dan een handmatige tekstvergelijking. Elk ander `docker compose`-subcommando
+  (`up`, `start`, `restart`, `stop`, `down`, `exec`, `ps`, `logs`, …) blijft
+  verboden in deze fase.
 - Alleen `chaos-runbook.md` wijzigen; geen ander bestand.
 - Als `docker-compose.yml` een service of instelling bevat die niet in het
   runbook staat (bijv. de `frontend`-mounts), dat expliciet benoemen in plaats van

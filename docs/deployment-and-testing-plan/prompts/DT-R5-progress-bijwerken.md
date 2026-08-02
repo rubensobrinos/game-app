@@ -6,27 +6,37 @@ hun bevindingen, het herhaalt ze niet zelf.
 
 ## Context
 
-`DT-PROGRESS.md` gebruikt sinds de vorige review al vier bewijsniveaus (📄/💻/✅/🚧).
-DT-RESUME-AFTER-DECISIONS.md vraagt een preciezere driedeling daarbovenop:
-**uitgevoerd**, **technisch geblokkeerd**, **alleen handmatig verifieerbaar**
-(DT4b hoort in die laatste categorie — nooit geautomatiseerd, per ontwerp).
+`DT-PROGRESS.md` gebruikt al zes bewijsniveaus (📄/💻/✅/🚧/⚪/⏹️) — dat blijft zo.
+**Geen nieuw top-level niveau toevoegen** (herzien na review: een zevende
+"handmatig verifieerbaar"-categorie overlapt met 🚧 en maakt de legenda minder
+eenduidig, niet meer). In plaats daarvan: het bestaande 🚧-niveau eist al een
+"specifieke reden"; breid de opsomming van redenen uit met **handmatig** naast
+implementatie/dependency/omgeving/autorisatie, en gebruik die voor DT4b
+(devicechecks — geen dependency lost dit op, een mens met een toestel wel).
+
+**Persistente bronnen om te lezen, geen aannames:**
+- `integration-matrix.md`'s "Audit-log"-sectie (DT-R1).
+- `chaos-runbook.md`'s bevestigde/gecorrigeerde markeringen (DT-R2).
+- `e2e-load-target-check.md` (DT-R4).
 
 ## Stappen
 
-1. Neem de resultaten van DT-R1 (aantal geactiveerde integratierijen, met bewijs),
-   DT-R2 (bevestigde vs. gecorrigeerde chaos-aannames) en DT-R4 (Playwright-/
-   k6-target ja/nee) over in de tabel "Per sectie in DEPLOYMENT-AND-TESTING.md".
-2. Voeg de derde categorie "alleen handmatig verifieerbaar" toe aan de
-   niveaulegenda, en pas 'm toe op DT4b (devicechecks — nooit "technisch
-   geblokkeerd" in de zin dat een dependency het oplost; ze wachten op een mens
-   met een toestel).
+1. Neem de resultaten uit de drie bronnen hierboven letterlijk over in de tabel
+   "Per sectie in DEPLOYMENT-AND-TESTING.md" — citeer, verzin niets bij als een
+   bron ontbreekt (meld dat expliciet in plaats van te gokken).
+2. Pas de bestaande 🚧-redenopsomming toe met "handmatig" als expliciete reden voor
+   DT4b, zonder een nieuw symbool of niveau te introduceren.
 3. Schrijf een kort rapportageblok (nieuwe sectie "## Rapportage
    uitvoeringsakkoord", onderaan) met exact wat DT-RESUME opdracht 8 vraagt:
    - welke dependencies inmiddels daadwerkelijk aanwezig zijn (`package.json`,
-     `docker-compose.yml`) versus welke nog niet (Playwright, k6);
-   - welke tests er sinds het uitvoeringsakkoord daadwerkelijk zijn uitgevoerd,
-     met resultaat (verwacht: alleen de al bestaande DT2-fixtures, tenzij DT-R1
-     iets activeerde);
+     `docker-compose.yml`) versus welke nog niet (Playwright, k6) — uit
+     `e2e-load-target-check.md`;
+   - welke tests er sinds het uitvoeringsakkoord daadwerkelijk zijn uitgevoerd, met
+     resultaat. **Tel dit daadwerkelijk na** (bijv. `git log` sinds de
+     `DECISIONS.md`-commit doorzoeken op nieuwe `*.test.*`-bestanden en hun
+     testrun-uitkomst) — neem niet aan dat het bij de bestaande DT2-fixtures blijft,
+     andere plannen (data-model-plan, architecture-plan, protocol-plan) hebben in
+     dezelfde periode zelf ook veel tests toegevoegd en gedraaid;
    - de resterende technische blockers per fase, één zin elk, geen herhaling van
      de volledige tabel.
 4. Werk de datumregel bovenaan bij.
@@ -39,7 +49,9 @@ DT-RESUME-AFTER-DECISIONS.md vraagt een preciezere driedeling daarbovenop:
 
 ## Definition of done
 
-- Alle drie bewijscategorieën (uitgevoerd/technisch geblokkeerd/handmatig
-  verifieerbaar) zijn consistent toegepast, niet alleen toegevoegd aan de legenda.
-- Het rapportageblok bevat concrete cijfers (aantallen, niet "sommige"), of
-  expliciet "0" waar dat de eerlijke uitkomst is.
+- De bestaande zes niveaus blijven ongewijzigd als verzameling; "handmatig" is
+  toegevoegd als 🚧-reden, geen nieuw symbool.
+- Elke tabelrij die verandert, citeert de bron (DT-R1/R2/R4-artefact), geen
+  ongefundeerde upgrade van status.
+- Het rapportageblok bevat concrete, nageteld cijfers (aantallen, niet "sommige"),
+  of expliciet "0" waar dat de eerlijke uitkomst is.

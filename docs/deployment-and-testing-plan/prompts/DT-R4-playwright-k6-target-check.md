@@ -24,20 +24,32 @@ aannemen dat het antwoord nog hetzelfde is als bij het schrijven van DT4a/DT5.
 2. Zoek naar een `game-server` die verder gaat dan `server/index.mjs`'s
    placeholder (§DT-R1) — d.w.z. echte `/api/v1/games`-afhandeling en
    Socket.IO-events, niet `501 NOT_IMPLEMENTED`.
-3. Rapporteer per tool (Playwright, k6) expliciet: target bestaat / bestaat niet,
-   met het concrete bestand of de afwezigheid daarvan als bewijs.
-4. **Als een target wél bestaat:** voeg geen dependency toe in deze prompt zelf —
-   meld het aan `DT-R5` zodat de mens kan beslissen of nu al met Playwright/k6
-   begonnen wordt, of eerst nog meer server-/UI-werk wenselijk is.
+3. Schrijf de bevindingen naar
+   [`e2e-load-target-check.md`](../e2e-load-target-check.md) (nieuw bestand) — per
+   tool (Playwright, k6): target bestaat / bestaat niet, met het concrete bestand
+   of de afwezigheid daarvan als bewijs, en de datum van controle. Dit is het
+   persistente overdrachtsartefact dat DT-R5 leest — geen mondelinge of
+   cross-conversatie "melding".
+4. **Als een target wél bestaat:** de dependency-goedkeuring is al gegeven
+   (`docs/multiplayer/DECISIONS.md` §Uitvoeringsakkoord, expliciet: "voeg
+   Playwright- en loadtesttooling toe wanneer hun concrete targets bestaan") —
+   vraag **niet opnieuw** om een generiek akkoord. Noteer in
+   `e2e-load-target-check.md` concreet wat de volgende stap zou zijn (Playwright
+   toevoegen voor DT4a Deel 2, of k6 voor DT5 Deel 2) als aparte, uitvoerbare
+   vervolgprompt — de daadwerkelijke `npm install` blijft wel een eigen actie,
+   niet iets wat deze prompt zelf al doet.
 5. **Als geen target bestaat (verwachte uitkomst):** wijzig niets aan `DT4a`/`DT5`;
-   bevestig alleen expliciet, met datum, dat de eerdere blokkade nog steeds geldt.
+   bevestig alleen expliciet, met datum, dat de eerdere blokkade nog steeds geldt —
+   ook dit gaat in `e2e-load-target-check.md`, niet alleen in een chatbericht.
 
 ## Harde grenzen
 
-- Geen `npm install`, geen wijziging aan `package.json`.
+- Geen `npm install`, geen wijziging aan `package.json` — het vaststellen dat een
+  target bestaat is niet hetzelfde als de dependency toevoegen; dat blijft een
+  eigen, aparte actie ook al is er geen nieuw mens-akkoord meer voor nodig.
 - Geen nieuw testbestand onder `tests/e2e/` of `tests/load/`.
 
 ## Definition of done
 
-- Eén kort verslag (kan direct als input voor DT-R5, geen apart bestand nodig)
-  met per tool: target ja/nee, bewijs, datum van controle.
+- `e2e-load-target-check.md` bestaat, met per tool: target ja/nee, bewijs, datum.
+  Dit bestand is wat DT-R5 leest.
