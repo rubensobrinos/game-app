@@ -31,20 +31,27 @@
 //    ROUND_RESULT daarom TIMER_ELAPSED, maar uitsluitend naar SCOREBOARD. Dit
 //    vervangt de eerdere strenge lezing (twee bevestigingen per ronde).
 //
-//    INTERPRETATIE bij besluit 1 — het besluit maakt dit niet expliciet, deze
-//    module kiest het zo: HOST_NEXT vanuit ROUND_RESULT blijft bestaan.
-//    GameConfiguration.scoreboardFrequency kan `every_round`, periodiek of UIT
-//    zijn. Wordt de tussenstand overgeslagen en zou ROUND_RESULT bij host-tempo
-//    altijd timer-gedreven zijn, dan kent die ronde helemaal geen hostactie en
-//    loopt de game bij host-tempo volledig automatisch — dat maakt host-tempo
-//    betekenisloos. De regel die beide configuraties op precies één hostactie per
-//    ronde houdt:
-//      - tussenstand AAN → hostactie bij SCOREBOARD; ROUND_RESULT loopt op timer;
-//      - tussenstand UIT → hostactie bij ROUND_RESULT (HOST_NEXT naar de volgende
-//        ronde of naar FINISHED).
-//    Welke van de twee geldt, bepaalt de AANROEPER door de nextPhase die hij
-//    levert; de reducer valideert alleen. Daarom is SCOREBOARD géén HOST_NEXT-
-//    bestemming meer: dat pad is per besluit 1 timer-gedreven.
+//    Besluit 1 geldt ONVOORWAARDELIJK: bij host-tempo zit de hostactie ALTIJD bij
+//    SCOREBOARD, in élke configuratie. Elke ronde loopt dus via
+//    ROUND_RESULT --timer--> SCOREBOARD --HOST_NEXT--> volgende, en kost precies
+//    één hostactie. HOST_NEXT vanuit ROUND_RESULT bestaat daarom niet.
+//
+//    TERUGGEDRAAID — deze module kende hier eerder een als zodanig gemarkeerde
+//    INTERPRETATIE: bij een overgeslagen tussenstand zou de hostactie naar
+//    ROUND_RESULT verschuiven (HOST_NEXT naar COUNTDOWN/ROUND_ACTIVE/FINISHED).
+//    Die tak veroorzaakte een DEADLOCK met client/flow/host-controls-state.mjs,
+//    dat de hostactie 'next' uitsluitend bij SCOREBOARD aanbiedt: de server
+//    wachtte op een actie die de client nooit stuurt, terwijl de timerovergang
+//    geweigerd werd. Zie docs/integration-plan/HANDOFF.md, INT-10. Niet
+//    terugzetten.
+//
+//    NOTITIE VOOR DE EIGENAAR VAN GAME-RULES.md — dit heeft één consequentie die
+//    daar thuishoort: `scoreboardFrequency: 'uit'` betekent bij host-tempo "toon
+//    geen tussenstand", NIET "sla de fase over". De SCOREBOARD-fase blijft
+//    bestaan, want daar doet de host zijn enige actie; wat die fase toont is een
+//    presentatiekeuze. Bij auto-tempo verandert er niets: daar mag ROUND_RESULT
+//    de tussenstand nog steeds overslaan (TIMER_ELAPSED rechtstreeks naar
+//    COUNTDOWN/ROUND_ACTIVE/FINISHED).
 
 /**
  * @typedef {{
@@ -155,25 +162,18 @@ const TRANSITIONS = Object.freeze({
       targets: Object.freeze([target(PHASES.ROUND_RESULT, ANY_PACING)]),
     }),
   }),
+  // ROUND_RESULT kent bewust GEEN HOST_NEXT: bij host-tempo loopt de uitslag
+  // altijd op de timer door naar SCOREBOARD, waar de host zijn enige actie doet
+  // (aanname 2 in de modulekop, INT-10). Die tak niet terugzetten.
   [PHASES.ROUND_RESULT]: Object.freeze({
     [EVENT_TYPES.TIMER_ELAPSED]: Object.freeze({
       targets: Object.freeze([
         // Besluit 1: bij host-tempo loopt de uitslag op zijn timer door naar de
-        // tussenstand — daar zit dan de enige hostactie van de ronde.
+        // tussenstand — daar zit de enige hostactie van de ronde.
         target(PHASES.SCOREBOARD, ANY_PACING),
         target(PHASES.COUNTDOWN, PACING.AUTO),
         target(PHASES.ROUND_ACTIVE, PACING.AUTO),
         target(PHASES.FINISHED, PACING.AUTO),
-      ]),
-    }),
-    [EVENT_TYPES.HOST_NEXT]: Object.freeze({
-      targets: Object.freeze([
-        // Alleen voor de configuraties zonder tussenstand in deze ronde: dan is
-        // dit de enige hostactie. SCOREBOARD ontbreekt bewust — dat pad is
-        // timer-gedreven (zie aanname 2 in de modulekop).
-        target(PHASES.COUNTDOWN, PACING.HOST),
-        target(PHASES.ROUND_ACTIVE, PACING.HOST),
-        target(PHASES.FINISHED, PACING.HOST),
       ]),
     }),
   }),

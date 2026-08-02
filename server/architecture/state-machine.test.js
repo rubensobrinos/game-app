@@ -128,14 +128,6 @@ const FIXTURES = [
   // zijn timer door naar SCOREBOARD. Dat is de enige timer-bestemming bij host.
   row('ROUND_RESULT + TIMER_ELAPSED (host) → SCOREBOARD (besluit 1: uitslag loopt op de timer door)',
     'ROUND_RESULT', 'host', { type: 'TIMER_ELAPSED', nextPhase: 'SCOREBOARD' }, ok('SCOREBOARD')),
-  // HOST_NEXT vanuit ROUND_RESULT blijft bestaan voor rondes zónder tussenstand;
-  // dat is dan de enige hostactie van die ronde.
-  row('ROUND_RESULT + HOST_NEXT (host) → COUNTDOWN (tussenstand uit, volgende ronde)',
-    'ROUND_RESULT', 'host', { type: 'HOST_NEXT', nextPhase: 'COUNTDOWN' }, ok('COUNTDOWN')),
-  row('ROUND_RESULT + HOST_NEXT (host) → ROUND_ACTIVE (tussenstand én countdown overslaan)',
-    'ROUND_RESULT', 'host', { type: 'HOST_NEXT', nextPhase: 'ROUND_ACTIVE' }, ok('ROUND_ACTIVE')),
-  row('ROUND_RESULT + HOST_NEXT (host) → FINISHED (laatste ronde)', 'ROUND_RESULT', 'host',
-    { type: 'HOST_NEXT', nextPhase: 'FINISHED' }, ok('FINISHED')),
   row('SCOREBOARD + TIMER_ELAPSED (auto) → COUNTDOWN (volgende ronde)', 'SCOREBOARD', 'auto',
     { type: 'TIMER_ELAPSED', nextPhase: 'COUNTDOWN' }, ok('COUNTDOWN')),
   row('SCOREBOARD + TIMER_ELAPSED (auto) → ROUND_ACTIVE (volgende ronde zonder countdown)',
@@ -151,13 +143,22 @@ const FIXTURES = [
 
   // [3] Pacing-mismatch: verkeerd event voor het ingestelde tempo. Bij
   // ROUND_RESULT hangt dat per bestemming samen (besluit 1): TIMER_ELAPSED mag
-  // bij host alleen naar SCOREBOARD, HOST_NEXT mag juist niet naar SCOREBOARD.
+  // bij host uitsluitend naar SCOREBOARD, en HOST_NEXT is er helemaal niet
+  // geldig — de hostactie zit altijd bij SCOREBOARD (INT-10).
   row('ROUND_RESULT + HOST_NEXT bij pacing auto → afgewezen', 'ROUND_RESULT', 'auto',
     { type: 'HOST_NEXT', nextPhase: 'COUNTDOWN' }, err('INVALID_PHASE')),
   row('SCOREBOARD + HOST_NEXT bij pacing auto → afgewezen', 'SCOREBOARD', 'auto',
     { type: 'HOST_NEXT', nextPhase: 'COUNTDOWN' }, err('INVALID_PHASE')),
   row('ROUND_RESULT + HOST_NEXT (host) → SCOREBOARD afgewezen (besluit 1: dat pad loopt op de timer)',
     'ROUND_RESULT', 'host', { type: 'HOST_NEXT', nextPhase: 'SCOREBOARD' }, err('INVALID_PHASE')),
+  // ROUND_RESULT kent bij host-tempo geen enkele HOST_NEXT-bestemming: de host
+  // handelt pas bij SCOREBOARD. Zie de regressietest voor INT-10 onderaan.
+  row('ROUND_RESULT + HOST_NEXT (host) → COUNTDOWN afgewezen (hostactie zit bij SCOREBOARD)',
+    'ROUND_RESULT', 'host', { type: 'HOST_NEXT', nextPhase: 'COUNTDOWN' }, err('INVALID_PHASE')),
+  row('ROUND_RESULT + HOST_NEXT (host) → ROUND_ACTIVE afgewezen (hostactie zit bij SCOREBOARD)',
+    'ROUND_RESULT', 'host', { type: 'HOST_NEXT', nextPhase: 'ROUND_ACTIVE' }, err('INVALID_PHASE')),
+  row('ROUND_RESULT + HOST_NEXT (host) → FINISHED afgewezen (hostactie zit bij SCOREBOARD)',
+    'ROUND_RESULT', 'host', { type: 'HOST_NEXT', nextPhase: 'FINISHED' }, err('INVALID_PHASE')),
   row('ROUND_RESULT + TIMER_ELAPSED (host) → COUNTDOWN afgewezen (host beslist over de volgende ronde)',
     'ROUND_RESULT', 'host', { type: 'TIMER_ELAPSED', nextPhase: 'COUNTDOWN' }, err('INVALID_PHASE')),
   row('ROUND_RESULT + TIMER_ELAPSED (host) → ROUND_ACTIVE afgewezen', 'ROUND_RESULT', 'host',
@@ -419,7 +420,10 @@ const FIXTURES = [
     { type: 'HOST_RESUME', nextPhase: 'ROUND_ACTIVE' }, err('INVALID_PHASE')),
   invalidPacingRow('Pacing 42 + HOST_PAUSE met geldige payload → INVALID_PHASE', 'ROUND_ACTIVE', 42,
     { type: 'HOST_PAUSE', reason: 'host-pauze', remainingMs: 3_000 }, err('INVALID_PHASE')),
-  invalidPacingRow('Pacing "HOST" (hoofdletters) + HOST_NEXT → INVALID_PHASE', 'ROUND_RESULT', 'HOST',
+  // Bronfase SCOREBOARD, want dat is de enige HOST_NEXT-bron: met pacing 'host'
+  // zou deze rij slagen, dus faalt hij echt op de pacing-validatie en niet op de
+  // tabel.
+  invalidPacingRow('Pacing "HOST" (hoofdletters) + HOST_NEXT → INVALID_PHASE', 'SCOREBOARD', 'HOST',
     { type: 'HOST_NEXT', nextPhase: 'COUNTDOWN' }, err('INVALID_PHASE')),
   invalidPacingRow('Ongeldige pacing + onbekend event-type → UNSUPPORTED_EVENT (event vóór pacing)',
     'LOBBY', 'AUTO', { type: 'GAME_START' }, err('UNSUPPORTED_EVENT')),
@@ -469,8 +473,8 @@ function playHostSteps(startState, steps) {
 }
 
 // Besluit 1 (docs/multiplayer/DECISIONS.md): host-tempo kent precies één hostactie
-// per ronde. Waar die zit hangt af van GameConfiguration.scoreboardFrequency; de
-// aanroeper drukt dat uit in de nextPhase die hij levert.
+// per ronde, en die zit altijd bij SCOREBOARD — onafhankelijk van
+// GameConfiguration.scoreboardFrequency.
 test('scenario host-tempo MET tussenstand: de enige hostactie zit bij SCOREBOARD', () => {
   const { state, hostActions } = playHostSteps({ phase: 'LOBBY', pausedState: null }, [
     { event: { type: 'HOST_START' }, expectedPhase: 'COUNTDOWN' },
@@ -492,24 +496,66 @@ test('scenario host-tempo MET tussenstand: de enige hostactie zit bij SCOREBOARD
     err('INVALID_PHASE'));
 });
 
-test('scenario host-tempo ZONDER tussenstand: de enige hostactie zit bij ROUND_RESULT', () => {
+// De configuratie kan de tussenstand uitzetten, maar niet de fase: bij host-tempo
+// is SCOREBOARD de enige plek waar de host kan handelen, dus komt élke ronde er
+// langs. `scoreboardFrequency: 'uit'` betekent "toon geen tussenstand", niet "sla
+// de fase over" — zie aanname 2 in de modulekop en INT-10.
+test('scenario host-tempo: elke ronde loopt via SCOREBOARD en kost precies één HOST_NEXT', () => {
   const { state, hostActions } = playHostSteps({ phase: 'LOBBY', pausedState: null }, [
     { event: { type: 'HOST_START' }, expectedPhase: 'COUNTDOWN' },
+    // Ronde 1.
     { event: { type: 'TIMER_ELAPSED', nextPhase: 'ROUND_ACTIVE' }, expectedPhase: 'ROUND_ACTIVE' },
     { event: { type: 'TIMER_ELAPSED', nextPhase: 'ROUND_RESULT' }, expectedPhase: 'ROUND_RESULT' },
-    // Tussenstand overgeslagen: dan is dít de enige hostactie van de ronde.
+    { event: { type: 'TIMER_ELAPSED', nextPhase: 'SCOREBOARD' }, expectedPhase: 'SCOREBOARD' },
     { event: { type: 'HOST_NEXT', nextPhase: 'COUNTDOWN' }, expectedPhase: 'COUNTDOWN' },
+    // Ronde 2 — dezelfde keten, ook in een configuratie die de tussenstand niet toont.
+    { event: { type: 'TIMER_ELAPSED', nextPhase: 'ROUND_ACTIVE' }, expectedPhase: 'ROUND_ACTIVE' },
+    { event: { type: 'TIMER_ELAPSED', nextPhase: 'ROUND_RESULT' }, expectedPhase: 'ROUND_RESULT' },
+    { event: { type: 'TIMER_ELAPSED', nextPhase: 'SCOREBOARD' }, expectedPhase: 'SCOREBOARD' },
+    // Laatste ronde: dezelfde hostactie op dezelfde plek, alleen een andere bestemming.
+    { event: { type: 'HOST_NEXT', nextPhase: 'FINISHED' }, expectedPhase: 'FINISHED' },
   ]);
 
-  assert.strictEqual(state.phase, 'COUNTDOWN', 'de ronde eindigt in de countdown van de volgende ronde');
-  assert.strictEqual(hostActions, 1, 'precies één HOST_NEXT in de hele ronde');
+  assert.strictEqual(state.phase, 'FINISHED', 'de match eindigt na de laatste hostactie');
+  assert.strictEqual(hostActions, 2, 'precies één HOST_NEXT per ronde, twee rondes');
 
-  // Zonder die hostactie komt de game niet verder: de timer mag vanuit de uitslag
-  // bij host-tempo alleen naar de tussenstand, niet naar de volgende ronde.
+  // Er is geen route die SCOREBOARD overslaat: vanuit de uitslag weigert host-tempo
+  // zowel de timer als de hostactie naar de volgende ronde of het einde.
+  for (const nextPhase of ['COUNTDOWN', 'ROUND_ACTIVE', 'FINISHED']) {
+    for (const type of ['TIMER_ELAPSED', 'HOST_NEXT']) {
+      assert.deepStrictEqual(
+        transition({ phase: 'ROUND_RESULT', pausedState: null }, { type, nextPhase }, 'host', NOW),
+        err('INVALID_PHASE'),
+        `ROUND_RESULT + ${type} → ${nextPhase} mag bij host-tempo niet bestaan`);
+    }
+  }
+});
+
+// REGRESSIE INT-10 (docs/integration-plan/HANDOFF.md). Deze module accepteerde ooit
+// HOST_NEXT vanuit ROUND_RESULT bij host-tempo, terwijl
+// client/flow/host-controls-state.mjs de hostactie 'next' uitsluitend bij SCOREBOARD
+// aanbiedt (WAITING_PHASES). Met de tussenstand uit hing de match daardoor in
+// ROUND_RESULT: de server wachtte op een actie die nooit kwam en weigerde de timer.
+// Zet die tak niet terug — deze test faalt dan meteen.
+test('regressie INT-10: ROUND_RESULT + HOST_NEXT bestaat niet bij host-tempo (deadlock met de client)', () => {
+  for (const nextPhase of ['COUNTDOWN', 'ROUND_ACTIVE', 'FINISHED', 'SCOREBOARD']) {
+    assert.deepStrictEqual(
+      transition({ phase: 'ROUND_RESULT', pausedState: null },
+        { type: 'HOST_NEXT', nextPhase }, 'host', NOW),
+      err('INVALID_PHASE'),
+      `ROUND_RESULT + HOST_NEXT → ${nextPhase} moet afgewezen blijven (INT-10)`);
+  }
+
+  // De keten die de client wél aanbiedt moet blijven werken, anders is de deadlock
+  // alleen verplaatst.
   assert.deepStrictEqual(
     transition({ phase: 'ROUND_RESULT', pausedState: null },
-      { type: 'TIMER_ELAPSED', nextPhase: 'COUNTDOWN' }, 'host', NOW),
-    err('INVALID_PHASE'));
+      { type: 'TIMER_ELAPSED', nextPhase: 'SCOREBOARD' }, 'host', NOW),
+    ok('SCOREBOARD'));
+  assert.deepStrictEqual(
+    transition({ phase: 'SCOREBOARD', pausedState: null },
+      { type: 'HOST_NEXT', nextPhase: 'COUNTDOWN' }, 'host', NOW),
+    ok('COUNTDOWN'));
 });
 
 test('afgewezen transitie laat het originele state-object volledig ongewijzigd', () => {
