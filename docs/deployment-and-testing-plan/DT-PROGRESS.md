@@ -39,7 +39,7 @@ generiek "klaar":
 | Testlagen — Contracttests | ⏹️ Vervallen bij mij | PROTOCOL.md's PR7 bouwt dit zelf; DT1a is 📄 voorbereiding klaar als auditmatrix (26 open beslispunten + kruisverwijzing), **bevestiging door PROTOCOL.md-eigenaar nog niet binnen** |
 | Testlagen — Integratie | 📄 matrix klaar / ✅ 12/14 geactiveerd | DT3a: 14 scenario's (📄). Verloop: 5/14 → 10/14 (2e heraudit) → **de socketlaag landde** (`server/transport/socket.mjs`) → 3e heraudit trof onderweg een echte, tijdelijke regressie in `setRoomAndMatchPhaseAtomically` (rijen 7,9,12,14 tijdelijk terug naar geblokkeerd, 11/13 geschreven maar geblokkeerd door dezelfde regressie, dus 6/14) → **bij eigen herverificatie kort daarna bleek de regressie al elders opgelost**: alle 12 tests slagen individueel én in de volledige `npm test` (2421 tests, 2415 pass, 6 fail — alle 6 in een ongerelateerde DataStore-conformance-suite). **Definitief: 12/14.** Rijen 4 en 6 blijven geblokkeerd: rate limiting bestaat nergens; `share:opened` is nu wél bereikbaar via de socketlaag maar de handler (`socket.mjs:966-970`) logt alleen, persisteert niets. |
 | Testlagen — Browser/E2E | 📄 klaar / 🚧 uitvoering geblokkeerd (implementatie) | DT4a Deel 1: 6 pseudocode-scenario's (📄). **DT-R4-herverificatie (2026-08-02, nacht): 2 van 3 Playwright-triggercriteria nu waar** — `frontend/` bevat een echte, gerenderde Home-/Join-UI die daadwerkelijk `client/flow/` importeert (was 0), en de server serveert die content. Resterende blokkade: `frontend/js/app.mjs` gebruikt nog `createMockTransport()` i.p.v. `createTransport()` uit het al bestaande `transport.mjs` — één importregel, niet mijn module. DT4b: runbook klaar (📄), **0/10 devicechecks uitgevoerd — 🚧 handmatig**, geen dependency lost dit op |
-| Testlagen — Restart-/chaostests | 📄 klaar / ✅ 1/6 scenario's uitgevoerd | DT6: `aseso-game-chaos`-stack draait geïsoleerd (`compose.chaos.override.yml`, loopback 8080/8443) naast de echte `aseso-game`-stack. **Scenario 1 uitgevoerd (2026-08-02, geautoriseerd):** game-server-restart, REST-realiseerbaar deel — container herstelt (~50s tot healthy), `/api/v1/time` werkt na herstel, roomstate overleeft de restart **niet** (verwacht: geen Redis-koppeling, alleen `createInMemoryStore()`). Bijvangst: `server/Dockerfile` bouwde zonder dependencies/`shared/`/`frontend/` — gefixt, anders kon dit scenario niet eens starten. Onverwachte, reproduceerbare bevinding los van chaos: `GET /api/v1/games/{code}/state` geeft `500 INTERNAL_ERROR` met een geldig token — gemeld, niet zelf gefixt (niet mijn module). Resetten en scenario 2–6: elk apart geautoriseerd. |
+| Testlagen — Restart-/chaostests | 📄 klaar / ✅ 1/6 scenario's uitgevoerd (2×, volledig) | DT6: `aseso-game-chaos`-stack draait geïsoleerd (`compose.chaos.override.yml`, loopback 8080/8443) naast de echte `aseso-game`-stack. **Scenario 1, eerste run:** socketlaag bestond nog niet, alleen REST-deel uitvoerbaar; roomstate overleefde de restart niet (geen Redis-koppeling). **Scenario 1, herhaling (2026-08-02, apart akkoord):** nu wél "midden in een ronde" (echte socket, `game:start`, `round:answer` vóór de restart) en mét een gezonde, draaiende Redis. Uitkomst ongewijzigd — roomstate overleeft nog steeds niet — maar nu met een eenduidige, geverifieerde oorzaak: `server/index.mjs` koppelt nergens aan Redis (`REDIS_URL`/`server/data/adapters/redis/` nul treffers, ook in de gebouwde image), `redis-cli dbsize` blijft `0` ondanks een room/match/antwoord die er wél zijn geweest. Bevestigt `INT-PROGRESS.md`'s eigen ⏸️ op stap 3 (INT-B) met live gedrag, niet alleen broncode-inspectie. Vooraf voorgelegd aan de producteigenaar (stap 3 ontbreekt, dus geen ander resultaat te verwachten); toch uitgevoerd als formele herbevestiging. Bijvangst eerste run: `server/Dockerfile`-fix. Resetten en scenario 2–6: elk apart geautoriseerd. |
 | Testlagen — Loadtests | 📄 klaar / 🚧 Deel 2 klaar, Deel 3 gestart (L0) — 1 bug gevonden | DT5 Deel 1: 10/10 criteria toegewezen aan een bewijsmethode (📄). **Deel 2 (2026-08-02): k6-scripts geschreven** — `l1-event-latency-and-answer-peak.js` (rijen 4/5), `l2-l3-multi-room-scale.js` (rijen 9/10). **Deel 3, L0-schaal geautoriseerd en uitgevoerd**: rij 4-proxy p95 = 22 ms (lokaal, < 300 ms-doel), connectie-/round-started-rate 100%. **Rij 5 blootgelegd als niet-bewijsbaar**: `round:progress` laat zijn definitieve "iedereen heeft geantwoord"-update structureel vallen bij een antwoordpiek (bugrapport, niet mijn module — zie `bug-report-round-progress-drops-final-update.md`); script aangepast om er niet meer op te wachten. Onderweg ook een aparte, inmiddels elders opgeloste bug gevonden die de server tijdelijk liet crashen bij opstarten (`bug-report-boot-crash-invalid-request.md`). L1 (100 spelers) en hoger, en elke test via de publieke route, blijven apart geautoriseerd; L2/L3 bovendien pas na een omgeving-/providercheck |
 | Testlagen — CI-integratie | ✅ Uitgevoerd en geslaagd | DT7/DT-R3: **opgelost via optie A** (nieuw devkitprofiel `node-esm-app`, niet mijn eigen DT7-voorstel voor een parallelle workflow — dat is nu overbodig). De bestaande, managed `ci.yml` draait zelf al `node --check server/index.mjs` (lint) en `npm test` (echte `node:test`-suite) op Node 22. Geverifieerd: `devkit doctor --here` → profiel `node-esm-app`, geen managed-block-drift; `devkit validate-config` groen; `npm test` 2096/2096 groen. |
 | Handmatige pilots | ⚪ Buiten scope | `prod`, always_ask |
@@ -99,31 +99,35 @@ architecture-plan, protocol-plan, product-plan, content-plan e.a.) hebben in
 dezelfde periode zelf duizenden tests toegevoegd en gedraaid.
 
 **Resterende technische blockers, één zin per fase (bijgewerkt 2026-08-02 avond):**
-- DT3b: 10/14 geactiveerd; overige 4 (rijen 4,6,11,13) missen rate limiting,
-  `share:opened`-persistentie, een socket-laag resp. een broadcast-aanroeper —
-  rij 4/6's andere helft (coderegistratie, joinUrl-zichtbaarheid) is inmiddels
-  wel bevestigd tegen de echte server.
-- DT4a: geen geïntegreerde, gerenderde multiplayer-UI om te besturen (de server
-  die 'm zou serveren, bestaat inmiddels wel).
+- DT3b: 12/14 geactiveerd; overige 2 (rijen 4,6) missen rate limiting resp.
+  `share:opened`-persistentie (socket bereikbaar, handler persisteert niet).
+- DT4a: UI bestaat en koppelt aan `client/flow/` (2/3 Playwright-triggers
+  waar); resterende blokkade is één importregel (`app.mjs` gebruikt nog de
+  mocktransport, niet de al bestaande echte `transport.mjs`).
 - DT4b: geen dependency lost dit op — wacht op een mens met een echt toestel.
-- DT5: geen spelbelastbare server; k6 zonder target meet niets zinvols.
-- DT6: scenario 1 gedaan (REST-deel); scenario's 2–6 en resetten wachten op aparte autorisatie, elk apart.
+- DT5: k6-scripts geschreven en op L0-schaal uitgevoerd; rij 4-proxy ruim
+  binnen doel, rij 5 blootgelegd als niet-bewijsbaar door een servertekortkoming
+  (`round:progress` laat de definitieve update vallen bij een antwoordpiek).
+- DT6: scenario 1 tweemaal gedaan (eerst REST-deel, daarna volledig incl.
+  socket + Redis-stack); scenario's 2–6 en resetten wachten op aparte
+  autorisatie, elk apart.
 - DT7: **opgelost** — devkitprofiel `node-esm-app` vervangt het onjuiste
   `react-native-app`-profiel; geen blocker meer.
 
 ## Openstaande actiepunten
 
-- [ ] DT3b — 10/14 geactiveerd (1,2,3,5,7,8,9,10,12,14). Overige 4 rijen
-      (4,6,11,13) missen rate limiting, `share:opened`-persistentie, een
-      socket-laag resp. een `round:progress`-broadcast-aanroeper.
-- [ ] DT4a — 0/6 uitvoerbaar. Wacht op zowel `deps` (Playwright) als een
-      geïntegreerde, gerenderde UI (bevestigd afwezig, DT-R4).
+- [ ] DT3b — 12/14 geactiveerd. Overige 2 rijen (4,6) missen rate limiting
+      resp. `share:opened`-persistentie.
+- [ ] DT4a — 2/3 Playwright-triggercriteria waar; wacht op de laatste
+      importwijziging in `app.mjs` (niet mijn module).
 - [ ] DT4b — 0/10 devicechecks uitgevoerd. Handmatig, geen dependency-blokkade.
-- [ ] DT5 — 0/10 criteria gemeten. Wacht op loadtooling (bevestigd afwezig
-      target, DT-R4), een draaiende server, observability, omgeving, akkoord.
-- [ ] DT6 — 0/6 scenario's uitgevoerd. Runbook nu gevalideerd tegen het echte
-      `docker-compose.yml` (DT-R2); wacht op gefaseerde autorisatie om de stack
-      daadwerkelijk op te starten.
+- [x] DT5 Deel 1/2 — evidence-matrix + k6-scripts klaar. Deel 3: L0-schaal
+      uitgevoerd (rij 4-proxy binnen doel); rij 5 blootgelegd als niet-bewijsbaar
+      door een servertekortkoming (bugrapport, niet mijn module); L1 en hoger
+      blijven apart geautoriseerd.
+- [ ] DT6 — 1/6 scenario's uitgevoerd (scenario 1, tweemaal — REST-deel,
+      daarna volledig incl. socket + Redis). Scenario's 2–6 en resetten wachten
+      op aparte autorisatie, elk apart.
 - [x] DT7/DT-R3 — devkitprofiel `node-esm-app` opgeleverd en geactiveerd (optie
       A). Mijn eigen DT7-voorstel (`ci-proposal.md`, een parallelle
       `tests-node.yml`) is daarmee overbodig geworden — de bestaande managed

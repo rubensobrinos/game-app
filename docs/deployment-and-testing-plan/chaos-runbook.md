@@ -110,7 +110,21 @@ corrigeren, dus hier apart benoemd in plaats van genegeerd):
   is een bestaande aantekening in het bestand dat dit runbook nu als bron
   gebruikt, dus hier niet genegeerd.
 
-## Status (2026-08-02, bijgewerkt): stap 1 én scenario 1 uitgevoerd, geautoriseerd
+## Status (2026-08-02, tweede update): scenario 1 herhaald, nu écht "midden in een ronde"
+
+De socketlaag bestond bij de eerste run nog niet, dus scenario 1 kon toen
+alleen zijn REST-realiseerbare deel doorlopen. Op verzoek herhaald zodra de
+socketlaag er was, mét Redis in de stack — in de verwachting dat de
+roomstate dit keer de restart zou overleven. Vóór uitvoering bleek dat
+"stap 3" (Redis daadwerkelijk aan de server gekoppeld, `INT-PROGRESS.md`)
+nog niet bestaat; na overleg is toch doorgezet, als formele herbevestiging.
+**Uitkomst: roomstate overleeft de restart nog steeds niet — nu wél met een
+volledig gerealiseerde "midden in een ronde"-voorwaarde, en nu met een
+eenduidige, geverifieerde oorzaak** (`redis-cli dbsize` blijft `0`, ook na
+een room/match/antwoord die er wél zijn geweest). Zie scenario 1's tweede
+"Uitkomst"-sectie hieronder voor de volledige tabel.
+
+## Status (2026-08-02, eerste update): stap 1 én scenario 1 uitgevoerd, geautoriseerd
 
 De `aseso-game-chaos`-stack is opgestart en gezond
 (`docker compose -p aseso-game-chaos -f docker-compose.yml -f
@@ -326,6 +340,58 @@ Niet zelf gefixt — `server/transport/rest.mjs` is niet mijn module.
 containerimage kon dus nooit de échte server draaien). Bijgewerkt: `npm ci
 --omit=dev` + `COPY client/ shared/ frontend/`. Zonder die fix faalt dit
 scenario al bij het opstarten, niet pas bij de restart.
+
+### Herhaling 2026-08-02 — nu écht "midden in een ronde", op verzoek na een expliciet, apart akkoord
+
+**Aanleiding:** de eerste uitvoering hierboven kon de kernvoorwaarde van dit
+scenario niet realiseren (geen socketlaag). Die laag bestaat nu wel
+(`server/transport/socket.mjs`, geland sinds de eerste run). Vóór uitvoering
+gecontroleerd of ook "stap 3" (Redis daadwerkelijk gekoppeld aan de server, de
+reden waarom een herhaling met Redis iets nieuws zou bewijzen) al bestaat:
+**nee** — `server/index.mjs` bevat geen enkele referentie naar
+`REDIS_URL`/`server/data/adapters/redis/`, bevestigd zowel in de broncode als
+rechtstreeks in de gebouwde containerimage (`docker compose exec game-server
+grep -c "adapters/redis\|REDIS_URL" server/index.mjs` → `0`).
+`docs/integration-plan/INT-PROGRESS.md` bevestigt dit zelf: stap 3 ("echte
+adapters — INT-B") staat op ⏸️. Dit is voorgelegd en er is expliciet gekozen
+om toch door te zetten, als formele herbevestiging in plaats van als
+voortgangsmeting.
+
+**Uitgevoerd:** stack volledig gereset (`down -v`) en herbouwd (`--build`,
+huidige `main` inclusief alle fixes van vandaag) tegen `aseso-game-chaos`,
+geïsoleerd van de live `aseso-game`-stack (aparte projectnaam, bevestigd via
+`docker compose -p aseso-game ps` vóór aanvang — geen wijziging daaraan).
+
+1. Preflight: alle vijf services `healthy`; Redis draait met `appendonly yes`
+   / `appendfsync everysec` (rechtstreeks bevraagd, niet aangenomen);
+   `/healthz` → `200`; `/readyz` → `503` (verwacht, zie omgevingschecklist).
+2. Room aangemaakt over de echte loopback-route (`127.0.0.1:8080`), host +
+   speler gejoined, `game:start` over een echte socket, `round:started`
+   ontvangen, speler heeft echt geantwoord (`round:answer`, ack `ok: true`).
+   Snapshot vóór de restart bevestigd: `200`, `phase: "ROUND_ACTIVE"`,
+   `matchId` en `matchSequence: 1` gezet — de voorwaarde van dit scenario is
+   nu, in tegenstelling tot de vorige run, écht gerealiseerd.
+3. `docker compose -p aseso-game-chaos restart game-server` uitgevoerd.
+
+| Verwachting | Uitkomst | Verklaring |
+| --- | --- | --- |
+| Container herstart binnen `restart: unless-stopped` | ✅ | herstartte zonder handmatig ingrijpen |
+| Healthcheck weer `healthy` binnen ~75 s | ✅, sneller | ~19 s |
+| `/api/v1/time` werkt na herstel | ✅ | `200 {"serverTime": ...}` |
+| Roomstate overleeft de restart, mét Redis draaiend | ❌, **verwacht, zelfde reden als de eerste run** | `401 TOKEN_INVALID` op het sessietoken van vóór de restart, ondanks een gezonde, draaiende Redis met AOF. **Geen regressie van dit scenario en geen inconsistentie met de eerste run** — Redis draait wel, maar de server praat er nog niet mee: `redis-cli dbsize` na de restart geeft `0`, terwijl de room/match/antwoord daarvóór wel degelijk zijn aangemaakt. Bevestigt rechtstreeks dat "stap 3" niet bestaat, niet alleen via broncode-inspectie maar via het daadwerkelijke gedrag. |
+| `game:paused`/`game:resumed`, socket-reconnect, "geen dubbele punten" | niet getest | vereist een nog bereikbare sessie ná herstart — juist wat hierboven ontbreekt |
+
+**Wat dit scenario dus wél nieuw bewijst t.o.v. de eerste run:** de
+"midden-in-een-ronde"-voorwaarde is nu echt gerealiseerd (was de vorige keer
+niet mogelijk), en de negatieve uitkomst is nu eenduidig toe te schrijven aan
+één concrete, geverifieerde oorzaak (geen Redis-koppeling in
+`server/index.mjs`) in plaats van aan "geen socketlaag" zoals de vorige keer.
+Zodra INT-B stap 3 landt, is dit scenario direct opnieuw uit te voeren zonder
+verdere voorbereiding — de rest van de opzet (stack, override, preflight,
+scenario-drijfscript) staat al.
+
+**Chaos-stack blijft draaiend** (`aseso-game-chaos`, niet afgebroken) voor een
+eventuele volgende scenario-run, zoals ook na de eerste uitvoering.
 
 ---
 
