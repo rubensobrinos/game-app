@@ -312,13 +312,14 @@ state via de échte REST-laag.
 
 **Onverwachte, reproduceerbare bevinding (los van chaos, ook vóór de restart al
 aanwezig):** `GET /api/v1/games/{code}/state` met een geldig, zojuist ontvangen
-`sessionToken` geeft **`500 INTERNAL_ERROR`**, zowel bij een net aangemaakte room
-(`hostParticipates:true`) als na een `join`. Reproductie: `POST /api/v1/games` →
-`POST /api/v1/games/join` of direct → `GET /api/v1/games/{code}/state` met de
-teruggegeven token. Kon niet verder gediagnosticeerd worden: `buildServer()`
-draait via `start()` met `logger: false` (geen Fastify-requestlog), dus geen
-stacktrace beschikbaar. Niet zelf gefixt — `server/transport/rest.mjs` is niet
-mijn module. Gemeld als bevinding, geen aanname over de oorzaak.
+`sessionToken` geeft **`500 INTERNAL_ERROR`** op elke room die nog in `LOBBY`
+staat. **Oorzaak gevonden** (stond al als commentaar in
+`server/transport/rest.mjs` zelf, niet geraden): `validateSnapshotShape` eist
+een niet-lege `matchId` en `matchSequence >= 1`, die vóór de eerste match niet
+bestaan — bewust nog niet omheen gebouwd, in afwachting van een handoff-item.
+Dit raakt het hele reconnectpad tijdens de lobbyfase. Volledige repro +
+impact: [`bug-report-snapshot-500-on-lobby.md`](bug-report-snapshot-500-on-lobby.md).
+Niet zelf gefixt — `server/transport/rest.mjs` is niet mijn module.
 
 **Bijvangst:** `server/Dockerfile` bouwde tot dusver zonder `npm ci` en zonder
 `shared/`/`frontend/` te kopiëren (stale sinds de placeholder-fase — het
