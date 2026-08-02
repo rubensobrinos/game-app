@@ -103,6 +103,12 @@ const HTTP_STATUS_BY_ERROR_CODE = Object.freeze({
   // Room en join
   GAME_NOT_FOUND: 404,
   INVITE_INVALID: 400,
+  // Toegevoegd door PR na de slotlichting: een request die zijn eigen schema
+  // niet haalt, zonder dat er een invite in het spel is. Vervangt het
+  // misleidende INVITE_INVALID bij bijvoorbeeld een ontbrekende `preset` in
+  // POST /games — de UI toonde daar een melding over een ongeldige
+  // uitnodiging bij een fout die niets met uitnodigingen te maken had.
+  INVALID_REQUEST: 400,
   GAME_FULL: 409,
   GAME_ALREADY_STARTED: 409,
   LATE_JOIN_DISABLED: 403,

@@ -21,6 +21,7 @@ import { createRoom } from '../composition/room-lifecycle.mjs';
 import { startMatch } from '../composition/match-lifecycle.mjs';
 import { createInMemoryStore } from '../data/in-memory-store.js';
 import { ALL_ERROR_CODES } from '../protocol/error-codes.mjs';
+import { validateSnapshotShape } from '../protocol/snapshot-shape.mjs';
 import { CONTENT_VERSION } from '../../shared/content/index.mjs';
 
 const FIXED_NOW = 1_785_000_000_000;
@@ -135,7 +136,11 @@ test('POST /api/v1/games — hostParticipates=false geeft playerId/effectiveName
   assert.deepEqual(body.roles, ['host']);
 });
 
-test('POST /api/v1/games — validatiefout: hostParticipates ontbreekt → 400 INVITE_INVALID', async (t) => {
+test('POST /api/v1/games — validatiefout: hostParticipates ontbreekt → 400 INVALID_REQUEST', async (t) => {
+  // Een misvormde create heeft niets met een uitnodiging te maken; PROTOCOL.md
+  // §Foutcodes kent daarvoor `INVALID_REQUEST`. `INVITE_INVALID` blijft
+  // gereserveerd voor locatorproblemen bij join/preview — zie de test
+  // hieronder over twee locators tegelijk.
   const fastify = await makeServer();
   t.after(() => fastify.close());
 
@@ -146,7 +151,7 @@ test('POST /api/v1/games — validatiefout: hostParticipates ontbreekt → 400 I
   });
 
   assert.equal(response.statusCode, 400);
-  assert.deepEqual(response.json(), { code: 'INVITE_INVALID', meta: {} });
+  assert.deepEqual(response.json(), { code: 'INVALID_REQUEST', meta: {} });
 });
 
 test('POST /api/v1/games — een te lange displayName krijgt de eigen inputcode, niet INVITE_INVALID', async (t) => {
@@ -435,8 +440,9 @@ test('GET /api/v1/games/{code}/state — happy path levert de snapshot', async (
   const fastify = await makeServer({ store });
   t.after(() => fastify.close());
   const created = await createGameOverHttp(fastify);
-  // De match starten: pas dán heeft de snapshot een matchId/matchSequence en
-  // haalt hij `validateSnapshotShape`. Zie het handoff-item over de LOBBY-vorm.
+  // De match starten: pas dán draagt de snapshot een échte matchId en
+  // `matchSequence: 1`. De lobbyvariant (allebei null) staat in de eigen test
+  // hieronder; deze test dekt de kant mét match.
   const started = await startMatch(makeContext({ store }), { roomId: created.roomId });
   assert.equal(started.ok, true);
 
@@ -533,12 +539,13 @@ test('GET /api/v1/games/{code}/state — een sessie van een ándere room krijgt 
   assert.equal(response.json().code, 'GAME_NOT_FOUND');
 });
 
-test('GET /api/v1/games/{code}/state — OPENSTAAND GAT: een LOBBY-snapshot haalt validateSnapshotShape niet', async (t) => {
-  // Documenteert het handoff-item, geen goedkeuring ervan: `snapshot-shape.mjs`
-  // eist een niet-lege `matchId` en `matchSequence >= 1`, terwijl een room in
-  // LOBBY nog geen match heeft. De transportlaag bouwt daar bewust NIET omheen
-  // en geeft dus een 500 in plaats van een ongekeurde snapshot. Zodra PR de
-  // validator (of de compositie) repareert, moet deze test omdraaien naar 200.
+test('GET /api/v1/games/{code}/state — in de lobby: 200 met matchId en matchSequence allebei null (INT-17)', async (t) => {
+  // Het contract van de pre-match-lobby, over het eindpunt heen nagemeten.
+  // Er is nog geen match (`Room.currentMatchId` is null), dus verzint de
+  // snapshot geen matchId: `matchId` en `matchSequence` zijn ALLEBEI null en
+  // `snapshot-shape.mjs` laat precies die combinatie door. De route keurt zijn
+  // eigen respons nog steeds vóór verzending — hij bouwt niet om de validator
+  // heen, de validator kent de lobby nu gewoon.
   const fastify = await makeServer();
   t.after(() => fastify.close());
   const created = await createGameOverHttp(fastify);
@@ -549,8 +556,30 @@ test('GET /api/v1/games/{code}/state — OPENSTAAND GAT: een LOBBY-snapshot haal
     headers: bearer(created.sessionToken),
   });
 
-  assert.equal(response.statusCode, 500);
-  assert.deepEqual(response.json(), { code: 'INTERNAL_ERROR', meta: {} });
+  assert.equal(response.statusCode, 200, response.body);
+  const body = response.json();
+  assert.deepEqual(
+    Object.keys(body).sort(),
+    ['currentRound', 'protocolVersion', 'room', 'scoreboard', 'self', 'serverTime'],
+  );
+  assert.equal(body.protocolVersion, 'v1');
+  assert.equal(body.serverTime, FIXED_NOW);
+  assert.equal(body.room.code, created.gameCode);
+  assert.equal(body.room.phase, 'LOBBY');
+  assert.equal(body.room.matchId, null);
+  assert.equal(body.room.matchSequence, null);
+  assert.equal(body.room.pausedState, null);
+  assert.equal(body.room.playerCount, 1);
+  assert.equal(body.room.locked, false);
+  assert.deepEqual(body.currentRound, {});
+  assert.deepEqual(body.scoreboard.top, []);
+  assert.equal(body.self.playerId, created.playerId);
+  assert.deepEqual(body.self.roles, ['host', 'player']);
+  assert.equal(body.self.eligibleFromRound, 1);
+
+  // Dezelfde keuring die de route zelf toepast, hier onafhankelijk herhaald op
+  // de body die daadwerkelijk over de wire kwam.
+  assert.deepEqual(validateSnapshotShape(body), { ok: true });
 });
 
 // ─── POST /api/v1/games/:code/leave ──────────────────────────────────────────

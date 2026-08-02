@@ -332,27 +332,56 @@ test('fetchState levert de volledige snapshot met bearer-auth', async (t) => {
   assert.equal(snapshot.self.eligibleFromRound, 1);
 });
 
-test('CANARY — fetchState geeft in de LOBBY een 500 (openstaande serverbug)', async (t) => {
+test('fetchState geeft in de LOBBY een geldige snapshot (INT-17 opgelost)', async (t) => {
   const { baseUrl } = await startServer(t);
   const transport = makeTransport(baseUrl);
   const created = await transport.createGame(CREATE_REQUEST);
 
-  // `rest.mjs` keurt de snapshot met `validateSnapshotShape`, en die eist een
-  // niet-lege `matchId` en een `matchSequence >= 1` die vóór de eerste match
-  // niet bestaan. `rest.mjs` benoemt dat zelf al bij dit eindpunt; er wordt
-  // hier niet omheen gebouwd. Zodra het gefixt is faalt deze test en kan hij
-  // een gewone happy-path-assertie worden.
+  // Dit was de vierde vastgepinde plek van INT-17: een lobby-snapshot haalde
+  // `validateSnapshotShape` niet, omdat die een niet-lege `matchId` en een
+  // `matchSequence >= 1` eiste die vóór de eerste match niet bestaan. PR heeft
+  // de shape een lobby-variant gegeven; hier ligt vast wat de client dan krijgt.
+  const snapshot = await transport.fetchState(created.gameCode, created.sessionToken);
+
+  assert.equal(snapshot.room.phase, 'LOBBY');
+  assert.equal(snapshot.room.matchId, null);
+  assert.equal(snapshot.room.matchSequence, null);
+  assert.deepEqual(snapshot.currentRound, {});
+  assert.deepEqual(snapshot.scoreboard.top, []);
+  assert.deepEqual(snapshot.self.roles, ['host', 'player']);
+});
+
+test('een 500 zonder PROTOCOL.md-code wordt een ProtocolError waar de UI generiek op terugvalt', async (t) => {
+  const { baseUrl, fastify } = await startServer(t);
+  const transport = makeTransport(baseUrl);
+  const created = await transport.createGame(CREATE_REQUEST);
+
+  // De lobby-500 lokte dit gedrag voorheen uit; dat pad is weg. Zonder een
+  // vervangende uitlokking zou deze assertie over lege lucht gaan — precies de
+  // vacuümverificatie uit AGENTS.md. Daarom nu bij de bron: de poort werpt een
+  // fout zónder `protocolCode`, wat de serverkant een kale 500 hoort te maken.
+  const store = fastify.appContext?.store ?? null;
+  assert.ok(store, 'de harness moet bij de store kunnen om een serverfout uit te lokken');
+  const original = store.loadRoomByCode;
+  store.loadRoomByCode = async () => {
+    throw new Error('interne storefout met /pad/in-memory-store.js:42 erin');
+  };
+
   const error = await transport.fetchState(created.gameCode, created.sessionToken).then(
     () => null,
     (caught) => caught
   );
+  store.loadRoomByCode = original;
 
-  // Wat dit wél bewijst over de transportlaag: een 500 wordt netjes een
-  // `Error` met `.code`, en `INTERNAL_ERROR` is geen PROTOCOL.md-code, dus de
-  // UI valt terecht op haar generieke tekst terug.
   assert.ok(error instanceof ProtocolError);
   assert.equal(error.code, 'INTERNAL_ERROR');
   assert.equal(messageForErrorCode(error.code), 'UNKNOWN_ERROR');
+  assert.ok(!/\.js:|Error:/.test(JSON.stringify(error.meta ?? {})), 'geen stacktracefragment naar de client');
+
+  // Zelfcontrole: was de patch nooit aangekomen, dan had de aanroep hierboven
+  // gewoon 200 gegeven en bewees de test niets. Dit moet dus weer slagen.
+  const recovered = await transport.fetchState(created.gameCode, created.sessionToken);
+  assert.equal(recovered.room.phase, 'LOBBY');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

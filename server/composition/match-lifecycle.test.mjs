@@ -1305,27 +1305,67 @@ test('een ontbrekende contentVersion op de context is een programmeerfout, geen 
   );
 });
 
-test('een snapshot in de lobby heeft nog geen matchId/matchSequence — gedocumenteerd gat', async () => {
+test('een pre-match-lobby levert een geldige snapshot met matchId én matchSequence null (INT-17)', async () => {
   const harness = makeHarness();
   const { context } = harness;
   const { roomId, players } = await seedRoom(harness, { extraPlayers: 1 });
 
   const snapshot = await buildSnapshot(context, { roomId, sessionId: players[0].sessionId });
   assert.equal(snapshot.ok, true);
+
+  // HET CONTRACT VAN DE LOBBY. Vóór de eerste match bestaat er geen match —
+  // `Room.currentMatchId` is dan null (DATA-MODEL.md §Room) — en de snapshot
+  // liegt daar niet overheen met een nepwaarde: `matchId` en `matchSequence`
+  // zijn ALLEBEI null. `snapshot-shape.mjs` staat precies die combinatie toe;
+  // een halve invulling blijft ongeldig (zie de twee asserties onderaan).
+  // Voor snapshot-precedence telt een snapshot zonder match als sequence 0.
+  assert.deepEqual(
+    Object.keys(snapshot.value).sort(),
+    ['currentRound', 'protocolVersion', 'room', 'scoreboard', 'self', 'serverTime'],
+  );
+  assert.deepEqual(
+    Object.keys(snapshot.value.room).sort(),
+    [
+      'allowLateJoin', 'code', 'config', 'joinUrl', 'locked', 'matchId',
+      'matchSequence', 'phase', 'playerCount', 'pausedState',
+    ].sort(),
+  );
   assert.equal(snapshot.value.room.phase, 'LOBBY');
   assert.equal(snapshot.value.room.matchId, null);
   assert.equal(snapshot.value.room.matchSequence, null);
+  assert.equal(snapshot.value.room.pausedState, null);
+  assert.equal(snapshot.value.room.playerCount, 2);
+  assert.equal(snapshot.value.room.locked, false);
   assert.deepEqual(snapshot.value.currentRound, {});
   assert.deepEqual(snapshot.value.scoreboard.top, []);
+  assert.equal(snapshot.value.self.playerId, players[0].playerId);
+  assert.equal(snapshot.value.self.eligibleFromRound, 1);
+  assert.equal(snapshot.value.self.answeredCurrentRound, false);
   assert.deepEqual(findCorrectAnswerPaths(snapshot.value), []);
 
-  // PIN VAN HET GAT — `snapshot-shape.mjs` eist een niet-lege `matchId` en een
-  // `matchSequence` >= 1, ook vóór de eerste match. Deze assertie legt de
-  // huidige, afwijzende uitkomst vast; zodra PROTOCOL.md de lobby-snapshot
-  // toestaat (null of het veld weglaten) hoort deze test te FALEN en te worden
-  // omgedraaid. Zie het handoff-item; hier bewust geen nepwaarde verzonnen.
-  assert.deepEqual(validateSnapshotShape(snapshot.value), { ok: false, code: null });
+  assert.deepEqual(validateSnapshotShape(snapshot.value), { ok: true });
   assert.deepEqual(assertNoActiveRoundAnswerLeak(snapshot.value), { ok: true });
+
+  // De validator is niet zomaar toegeeflijk geworden: alléén "allebei null"
+  // mag. Eén van de twee ingevuld is een inconsistente snapshot en blijft een
+  // afwijzing — anders bewees de assertie hierboven niets.
+  assert.deepEqual(
+    validateSnapshotShape({ ...snapshot.value, room: { ...snapshot.value.room, matchId: 'match_verzonnen' } }),
+    { ok: false, code: null },
+  );
+  assert.deepEqual(
+    validateSnapshotShape({ ...snapshot.value, room: { ...snapshot.value.room, matchSequence: 1 } }),
+    { ok: false, code: null },
+  );
+
+  // En zodra de match er wél is, staan er echte waarden: dezelfde validator,
+  // andere invulling. Daarmee is de lobby-null een fase en geen vrijbrief.
+  const started = await startMatch(context, { roomId });
+  assert.equal(started.ok, true, JSON.stringify(started));
+  const afterStart = await buildSnapshot(context, { roomId, sessionId: players[0].sessionId });
+  assert.equal(afterStart.value.room.matchId, started.value.matchId);
+  assert.equal(afterStart.value.room.matchSequence, 1);
+  assert.deepEqual(validateSnapshotShape(afterStart.value), { ok: true });
 });
 
 test('resolveEligibleFromRound geeft 1 zolang er geen lopende match is', async () => {

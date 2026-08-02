@@ -20,11 +20,15 @@
 //     *arrangement* gebruikt door de getScoreboardTop-tests (het scoreboard
 //     heeft geen andere schrijfweg).
 //   * De room-locators zijn een LIFECYCLE, geen losse setter: claim → gebruik
-//     → release/refresh (DM10, HANDOFF-item INTB-2). `saveRoom` vult alleen de
-//     code-index en kán de inviteHash-index niet vullen — `Room` draagt een
-//     plat `inviteId`, geen hash. Elke test die `loadRoomByInviteHash` wil
-//     bewijzen claimt dus eerst; dat spiegelt de echte flow, waarin de claim
-//     altijd aan de roomcreatie voorafgaat.
+//     → release/refresh (DM10, HANDOFF-item INTB-2). `saveRoom` raakt de
+//     lookup-indexen NIET aan — sinds het besluit bij INTB-9/INTB-11 (zie
+//     `docs/integration-plan/BESLUIT-INTB-locators-en-sessieindex.md`, deel A)
+//     zijn `claimRoomLocatorsAtomically`, `rotateRoomLocators` en
+//     `releaseRoomLocators` de enige drie schrijvers ervan. Elke test die langs
+//     `loadRoomByCode` of `loadRoomByInviteHash` leest, claimt dus eerst; dat
+//     spiegelt de echte flow, waarin de claim altijd aan de roomcreatie
+//     voorafgaat. De test "alleen saveRoom maakt een room niet vindbaar via
+//     zijn code" legt dat besluit expliciet vast.
 //   * DRIE TESTS STAAN BEWUST ROOD, op HANDOFF-item INTB-4. Zie het
 //     gelijknamige blok onderaan: de fake dwingt idempotentie op `actionId` en
 //     "één antwoord per speler per ronde" niet af, terwijl DATA-MODEL.md die
@@ -224,6 +228,29 @@ function makeMatch(overrides = {}) {
   return match;
 }
 
+/**
+ * Eén `MatchPausedState` (server/data/types/match.js), zoals
+ * `setRoomAndMatchPhaseAtomically` hem sinds DM19 in DEZELFDE atomaire stap
+ * als de fasewissel wegschrijft.
+ *
+ * Validatie loopt via `makeMatch` en niet via een directe
+ * `assertPausedStateShape`: die functie wordt niet los geëxporteerd, en een
+ * pausedState is per contract alleen geldig samen met `phase: 'PAUSED'`. Zo
+ * loopt een kapotte fixture hier stuk in plaats van een adapter te laten
+ * slagen op een vorm die productie nooit accepteert.
+ */
+function makePausedState(overrides = {}) {
+  const pausedState = {
+    previousPhase: 'ROUND_ACTIVE',
+    remainingMs: 7000,
+    reason: 'host_paused',
+    pausedAt: T_ROUND_STARTS + 8000,
+    ...overrides,
+  };
+  makeMatch({ phase: 'PAUSED', pausedState });
+  return pausedState;
+}
+
 function makeRound(overrides = {}) {
   const round = {
     id: 'round_1',
@@ -404,11 +431,14 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
     //
     // `loadRoomByInviteHash` verving `loadRoomByInviteId` (DM10, HANDOFF-item
     // INTB-7): de poort neemt de HASH, nooit de platte capability, en heeft dus
-    // ook nooit de pepper nodig. Gevolg voor de arrangementen hieronder:
-    // `saveRoom` kan de invite-index niet vullen (een Room draagt `inviteId`,
-    // geen `inviteHash`), dus elke test die langs die ingang leest claimt eerst
-    // met `claimRoomLocatorsAtomically`. Het contract van de claim zelf staat
-    // verderop in zijn eigen blok; hier is hij puur arrangement.
+    // ook nooit de pepper nodig.
+    //
+    // GEVOLG VOOR DE ARRANGEMENTEN HIERONDER: `saveRoom` schrijft geen enkele
+    // lookup-index meer — niet de invite-index (die kon hij nooit: een `Room`
+    // draagt `inviteId`, geen `inviteHash`) en sinds het INTB-9-besluit ook niet
+    // de code-index. Elke test die langs een van beide ingangen leest, claimt
+    // dus eerst met `claimRoomLocatorsAtomically`. Het contract van de claim
+    // zelf staat verderop in zijn eigen blok; hier is hij puur arrangement.
     // ------------------------------------------------------------------
     describe('Room', () => {
       it('een opgeslagen room komt veld voor veld ongewijzigd terug', () => withStore(async (store) => {
@@ -423,7 +453,39 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
 
       it('een onbekende join-code levert null op', () => withStore(async (store) => {
         await store.saveRoom(makeRoom());
+        await store.claimRoomLocatorsAtomically(makeLocatorClaim());
         assertIsNull(await store.loadRoomByCode('ZZZ999'), 'loadRoomByCode van een onbekende code');
+      }));
+
+      it('alleen saveRoom, zonder claim, maakt een room NIET vindbaar via zijn code (INTB-11)', () => withStore(async (store) => {
+        // HET BESLUIT, EXPLICIET VASTGELEGD — HANDOFF-item INTB-11, uitgewerkt
+        // in BESLUIT-INTB-locators-en-sessieindex.md deel A (akkoord).
+        //
+        // `claimRoomLocatorsAtomically`, `rotateRoomLocators` en
+        // `releaseRoomLocators` zijn de ENIGE drie schrijvers van de
+        // lookup-indexen. Elke andere schrijfweg is per definitie een bug: een
+        // `saveRoom` die de code-index vult gaat langs de claimcontrole heen, en
+        // dan wijst de index naar B terwijl het claimregister A als eigenaar
+        // kent — de speler die de code intypt komt in de verkeerde room en een
+        // derde room struikelt over een code die van niemand meer is.
+        //
+        // Deze test is BEWUST niet zwakker geformuleerd dan het besluit: hij
+        // eist `null`, niet "mag null zijn". Een implementatie die hier rood
+        // staat, hoort te veranderen — de verwachting niet.
+        const room = makeRoom();
+        await store.saveRoom(room);
+
+        assertIsNull(await store.loadRoomByCode('AAA111'), 'de join-code van een room die nooit geclaimd is');
+        assertIsNull(await store.loadRoomByInviteHash(INVITE_HASH_A), 'de invite-hash van een room die nooit geclaimd is');
+        // Het roomdocument zelf staat er wél: onvindbaar via de locators is iets
+        // anders dan niet opgeslagen. Roomcreatie is tweefasig, geen no-op.
+        assert.deepStrictEqual(await store.loadRoom('room_a'), room);
+
+        // En na de claim is hij alsnog vindbaar — zodat deze test niet per
+        // ongeluk slaagt op een store die de lookup helemaal niet doet.
+        assert.deepStrictEqual(await store.claimRoomLocatorsAtomically(makeLocatorClaim()), { ok: true });
+        assert.deepStrictEqual(await store.loadRoomByCode('AAA111'), room);
+        assert.deepStrictEqual(await store.loadRoomByInviteHash(INVITE_HASH_A), room);
       }));
 
       it('een onbekende invite-hash levert null op', () => withStore(async (store) => {
@@ -668,9 +730,10 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
 
         // En de INDEX moet diezelfde winnaar dragen: één winnaar in de
         // returnwaarden terwijl er twee in de index hebben geschreven, is
-        // hetzelfde dubbelboekingsgevaar, alleen stiller. Meten kan hier niet
-        // via `saveRoom` (dat overschrijft de code-index zelf) maar wél via de
-        // idempotente herclaim: alleen de zittende eigenaar krijgt `ok`.
+        // hetzelfde dubbelboekingsgevaar, alleen stiller. Meten gebeurt via de
+        // idempotente herclaim — alleen de zittende eigenaar krijgt `ok`. Via
+        // `saveRoom` zou het sowieso niet kunnen: die raakt de index niet aan
+        // (INTB-11).
         const winnaarIndex = uitkomsten.findIndex((uitkomst) => uitkomst.ok === true);
         const verliezerIndex = winnaarIndex === 0 ? 1 : 0;
         assert.deepStrictEqual(
@@ -826,7 +889,23 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
     });
 
     // ------------------------------------------------------------------
-    // Session: loadSession, saveSession
+    // Session: loadSession, saveSession, loadSessionByTokenHash
+    //
+    // `loadSessionByTokenHash` (DM14/§10) bestaat omdat een socket-handshake
+    // alleen een `sessionToken` meestuurt: op dat moment kent de server de room
+    // nog niet, en het opzoeken van de sessie ÍS de manier waarop hij hem leert
+    // kennen. Vandaar de HASH als ingang en geen `roomId`-parameter.
+    //
+    // Twee eisen die de fake en de adapter allebei moeten waarmaken, en die de
+    // suite hier vastlegt (BESLUIT-INTB-locators-en-sessieindex.md, deel B):
+    //   * ROTATIE TREKT IN. Een sessie die een nieuwe `tokenHash` krijgt, laat
+    //     de oude ophouden te werken — anders staan er twee geldige
+    //     capabilities naast elkaar. Dat is dezelfde klasse fout als INTB-5
+    //     (geroteerde uitnodiging bleef geldig) en INTB-9 (index trok de vorige
+    //     claim niet in), nu voor sessietokens.
+    //   * DE LOOKUP LEVERT DE SESSIE ZELF, niet een kopie die kan verouderen:
+    //     wie via het token binnenkomt, hoort exact hetzelfde document te zien
+    //     als wie via `loadSession` binnenkomt.
     // ------------------------------------------------------------------
     describe('Session', () => {
       it('een opgeslagen sessie komt veld voor veld ongewijzigd terug', () => withStore(async (store) => {
@@ -869,6 +948,110 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
         loaded.revoked = true;
         loaded.connectedSocketIds.push('socket_indringer');
         assert.deepStrictEqual(await store.loadSession('room_a', 'session_1'), makeSession());
+      }));
+
+      it('een sessie is op zijn tokenhash vindbaar zonder dat de aanroeper de room kent', () => withStore(async (store) => {
+        const session = makeSession();
+        await store.saveSession(session);
+
+        assert.deepStrictEqual(await store.loadSessionByTokenHash('hash_session_1'), session);
+      }));
+
+      it('een onbekende tokenhash levert null op, geen fout', () => withStore(async (store) => {
+        await store.saveSession(makeSession());
+        assertIsNull(await store.loadSessionByTokenHash('hash_bestaat_niet'), 'loadSessionByTokenHash van een onbekende hash');
+      }));
+
+      it('de lookup vindt de sessie in de JUISTE room, ook als twee rooms hetzelfde sessie-id dragen', () => withStore(async (store) => {
+        const inA = makeSession({ roomId: 'room_a', tokenHash: 'hash_a', roles: ['host'] });
+        const inB = makeSession({ roomId: 'room_b', tokenHash: 'hash_b', roles: ['player'], playerId: 'player_b' });
+        await store.saveSession(inA);
+        await store.saveSession(inB);
+
+        assert.deepStrictEqual(await store.loadSessionByTokenHash('hash_a'), inA);
+        assert.deepStrictEqual(await store.loadSessionByTokenHash('hash_b'), inB);
+      }));
+
+      it('de lookup levert de HUIDIGE sessie op, niet een kopie van het moment van opslaan', () => withStore(async (store) => {
+        // De index hoort een verwijzing te zijn, geen tweede plek waar de sessie
+        // staat. Slaat een implementatie het document ín de index op, dan leest
+        // wie via het token binnenkomt een verouderde `revoked`-vlag — precies
+        // het veld waarop een intrekking rust.
+        await store.saveSession(makeSession({ revoked: false }));
+        await store.saveSession(makeSession({ revoked: true }));
+
+        const viaToken = await store.loadSessionByTokenHash('hash_session_1');
+        assert.strictEqual(viaToken.revoked, true);
+        assert.deepStrictEqual(viaToken, await store.loadSession('room_a', 'session_1'));
+      }));
+
+      it('een INGETROKKEN sessie blijft op zijn tokenhash vindbaar — "onbekend" en "herroepen" zijn niet hetzelfde', () => withStore(async (store) => {
+        // De index wordt bij `revoked: true` NIET geleegd (DM14/§10): de
+        // aanroeper moet een herroepen token kunnen onderscheiden van een token
+        // dat nooit heeft bestaan, anders is elke intrekking van buitenaf niet
+        // te onderscheiden van een typefout.
+        await store.saveSession(makeSession({ revoked: true }));
+
+        const found = await store.loadSessionByTokenHash('hash_session_1');
+        assert.notStrictEqual(found, null, 'een herroepen sessie hoort vindbaar te blijven');
+        assert.strictEqual(found.revoked, true);
+      }));
+
+      it('een nieuwe tokenhash trekt de OUDE in — geen tweede geldige capability naast de nieuwe', () => withStore(async (store) => {
+        // Dit is INTB-5 nog een keer, nu voor sessietokens
+        // (BESLUIT-INTB-locators-en-sessieindex.md deel B, §Rotatie). Het
+        // vervangen van een tokenhash MOET de vorige index in dezelfde stap
+        // vrijgeven; blijft de oude werken, dan heeft een uitgegeven-en-
+        // ingetrokken token nog steeds toegang tot de room.
+        await store.saveSession(makeSession({ tokenHash: 'hash_oud' }));
+        assert.notStrictEqual(await store.loadSessionByTokenHash('hash_oud'), null, 'de fixture moet echt geland zijn');
+
+        await store.saveSession(makeSession({ tokenHash: 'hash_nieuw' }));
+
+        assertIsNull(await store.loadSessionByTokenHash('hash_oud'), 'de vervangen tokenhash — een ingetrokken token hoort niet geldig te blijven');
+        assert.deepStrictEqual(
+          await store.loadSessionByTokenHash('hash_nieuw'),
+          makeSession({ tokenHash: 'hash_nieuw' })
+        );
+        // En de sessie zelf is niet verdwenen met zijn oude index mee.
+        assert.deepStrictEqual(await store.loadSession('room_a', 'session_1'), makeSession({ tokenHash: 'hash_nieuw' }));
+      }));
+
+      it('een rotatie raakt de tokenhash van een ANDERE sessie niet', () => withStore(async (store) => {
+        // De opruiming mag precies één index treffen: die van de sessie die
+        // roteert. Een implementatie die "alle indexen van deze room" opruimt en
+        // opnieuw opbouwt, gooit hier de zittende medespeler eruit.
+        await store.saveSession(makeSession({ id: 'session_1', tokenHash: 'hash_1' }));
+        await store.saveSession(makeSession({ id: 'session_2', tokenHash: 'hash_2', roles: ['player'], playerId: 'player_2' }));
+
+        await store.saveSession(makeSession({ id: 'session_1', tokenHash: 'hash_1b' }));
+
+        assertIsNull(await store.loadSessionByTokenHash('hash_1'), 'de geroteerde tokenhash');
+        assert.strictEqual((await store.loadSessionByTokenHash('hash_1b')).id, 'session_1');
+        assert.strictEqual((await store.loadSessionByTokenHash('hash_2')).id, 'session_2', 'de andere sessie hoort ongemoeid te blijven');
+      }));
+
+      it('dezelfde sessie opnieuw opslaan met DEZELFDE tokenhash laat de lookup werken', () => withStore(async (store) => {
+        // Het spiegelbeeld van de rotatietest: een implementatie die bij elke
+        // save eerst de vorige index wist en daarna de nieuwe zet, opent een
+        // venster waarin een ongewijzigd, geldig token nergens naartoe wijst.
+        await store.saveSession(makeSession({ lastSeenAt: T_ACTIVITY }));
+        await store.saveSession(makeSession({ lastSeenAt: T_ROUND_STARTS }));
+
+        assert.deepStrictEqual(
+          await store.loadSessionByTokenHash('hash_session_1'),
+          makeSession({ lastSeenAt: T_ROUND_STARTS })
+        );
+      }));
+
+      it('het aanpassen van de via de tokenhash teruggelezen sessie raakt de opslag niet', () => withStore(async (store) => {
+        await store.saveSession(makeSession());
+
+        const loaded = await store.loadSessionByTokenHash('hash_session_1');
+        loaded.revoked = true;
+        loaded.connectedSocketIds.push('socket_indringer');
+
+        assert.deepStrictEqual(await store.loadSessionByTokenHash('hash_session_1'), makeSession());
       }));
     });
 
@@ -1106,7 +1289,7 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
     });
 
     // ------------------------------------------------------------------
-    // setRoomAndMatchPhaseAtomically
+    // setRoomAndMatchPhaseAtomically (DM19)
     //
     // DECISIONS #30: `Match.phase` is autoritair, `Room.phase` is een afgeleide
     // projectie die in DEZELFDE atomaire operatie wordt bijgewerkt. Geen
@@ -1114,15 +1297,52 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
     // Daarom test dit blok niet alleen "beide staan achteraf goed", maar ook
     // dat elk faalpad BEIDE documenten ongemoeid laat: een adapter die eerst
     // de room schrijft en dan pas de match valideert, valt daar door de mand.
+    //
+    // DE SIGNATUUR IS SINDS DM19 (reactie op INT-16):
+    //   (roomId, matchId, { expectedPhase, newPhase, pausedState })
+    //     -> { ok: true } | { ok: false, actualPhase }
+    // met drie eisen die hieronder elk hun eigen test hebben:
+    //
+    //   * DUBBELE COMPARE-AND-SET. `Room.phase` én `Match.phase` moeten op het
+    //     moment van aanroepen `expectedPhase` dragen. Een mismatch aan één van
+    //     beide kanten is een NORMALE uitkomst — een resultaatobject, geen
+    //     exception, net als bij de locatorclaim — en `actualPhase` is altijd
+    //     `Match.phase`, ook als de room de mismatch veroorzaakte.
+    //   * `pausedState` in DEZELFDE stap. Vóór DM19 was dat een losse
+    //     `saveMatch` van de aanroeper, dus precies het dual-write-pad dat #30
+    //     elders verbiedt.
+    //   * DE `pausedState`/`PAUSED`-INVARIANT IN BEIDE RICHTINGEN, als throw.
+    //     Twee tests, niet één: een implementatie die alleen "PAUSED vereist
+    //     een pausedState" afdwingt, laat een `pausedState` achter op een match
+    //     die allang weer speelt — en dan hervat een tweede pauzeknop op een
+    //     bevroren restant uit een vorige pauze. Dat is een contractschending
+    //     van de AANROEPER (nooit geldig, ongeacht de store-toestand), dus een
+    //     `RangeError` en geen `{ ok: false }`.
     // ------------------------------------------------------------------
     describe('setRoomAndMatchPhaseAtomically', () => {
-      it('Room.phase en Match.phase dragen na afloop dezelfde nieuwe waarde (DECISIONS #30)', () => withStore(async (store) => {
-        // Bewust ONGELIJKE beginwaarden: als de assertie hieronder ook zou
-        // slagen wanneer er niets gebeurt, bewijst ze niets.
-        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
-        await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+      /**
+       * Room en Match op DEZELFDE beginfase: dat is de enige toestand waarin een
+       * geslaagde overgang mogelijk is (de dubbele compare-and-set eist het), en
+       * meteen de toestand waarin de invariant "de twee lopen niet uit de pas"
+       * al vóór de operatie klopte — anders zou een falende assertie de fixture
+       * aanwijzen in plaats van de operatie.
+       */
+      async function arrangeInPhase(store, phase, overrides = {}) {
+        await store.saveRoom(makeRoom({ phase }));
+        await store.saveMatch(makeMatch({ phase, ...overrides }));
+      }
 
-        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'SCOREBOARD');
+      it('Room.phase en Match.phase dragen na afloop dezelfde nieuwe waarde (DECISIONS #30)', () => withStore(async (store) => {
+        // De doelfase verschilt van de beginfase; zou de assertie ook slagen
+        // wanneer er niets gebeurt, dan bewees ze niets.
+        await arrangeInPhase(store, 'LOBBY');
+
+        assert.deepStrictEqual(
+          await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+            expectedPhase: 'LOBBY', newPhase: 'SCOREBOARD', pausedState: null,
+          }),
+          { ok: true }
+        );
 
         const room = await store.loadRoom('room_a');
         const match = await store.loadMatch('room_a', 'match_1');
@@ -1132,34 +1352,160 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
       }));
 
       it('de operatie verplaatst alleen phase en laat elk ander veld van beide documenten staan', () => withStore(async (store) => {
-        await store.saveRoom(makeRoom());
-        await store.saveMatch(makeMatch());
+        await arrangeInPhase(store, 'LOBBY');
 
-        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'PAUSED');
+        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+          expectedPhase: 'LOBBY', newPhase: 'FINISHED', pausedState: null,
+        });
 
-        assert.deepStrictEqual(await store.loadRoom('room_a'), makeRoom({ phase: 'PAUSED' }));
-        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'PAUSED' }));
+        assert.deepStrictEqual(await store.loadRoom('room_a'), makeRoom({ phase: 'FINISHED' }));
+        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'FINISHED' }));
+      }));
+
+      it('pausedState landt in DEZELFDE stap als de fasewissel, niet in een tweede saveMatch', () => withStore(async (store) => {
+        await arrangeInPhase(store, 'ROUND_ACTIVE');
+
+        assert.deepStrictEqual(
+          await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+            expectedPhase: 'ROUND_ACTIVE', newPhase: 'PAUSED', pausedState: makePausedState(),
+          }),
+          { ok: true }
+        );
+
+        assert.deepStrictEqual(
+          await store.loadMatch('room_a', 'match_1'),
+          makeMatch({ phase: 'PAUSED', pausedState: makePausedState() })
+        );
+        assert.strictEqual((await store.loadRoom('room_a')).phase, 'PAUSED');
+      }));
+
+      it('het verlaten van PAUSED wist pausedState in diezelfde stap', () => withStore(async (store) => {
+        // De andere helft van de invariant, en de reden dat hij bestaat: bleef
+        // `pausedState` na het hervatten staan, dan draagt een spelende match
+        // een bevroren `remainingMs` uit een vorige pauze.
+        await arrangeInPhase(store, 'ROUND_ACTIVE');
+        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+          expectedPhase: 'ROUND_ACTIVE', newPhase: 'PAUSED', pausedState: makePausedState(),
+        });
+
+        assert.deepStrictEqual(
+          await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+            expectedPhase: 'PAUSED', newPhase: 'ROUND_ACTIVE', pausedState: null,
+          }),
+          { ok: true }
+        );
+
+        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'ROUND_ACTIVE' }));
+      }));
+
+      it('newPhase "PAUSED" zonder pausedState werpt RangeError en schrijft niets', () => withStore(async (store) => {
+        await arrangeInPhase(store, 'ROUND_ACTIVE');
+
+        await assert.rejects(
+          () => store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+            expectedPhase: 'ROUND_ACTIVE', newPhase: 'PAUSED', pausedState: null,
+          }),
+          RangeError,
+          'een pauze zonder pauzestand is intern inconsistent, geen normale racefout'
+        );
+
+        assert.deepStrictEqual(await store.loadRoom('room_a'), makeRoom({ phase: 'ROUND_ACTIVE' }));
+        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'ROUND_ACTIVE' }));
+      }));
+
+      it('een pausedState buiten de fase PAUSED werpt RangeError en schrijft niets', () => withStore(async (store) => {
+        await arrangeInPhase(store, 'ROUND_ACTIVE');
+
+        await assert.rejects(
+          () => store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+            expectedPhase: 'ROUND_ACTIVE', newPhase: 'SCOREBOARD', pausedState: makePausedState(),
+          }),
+          RangeError,
+          'een pauzestand op een niet-gepauzeerde fase is net zo goed een contractschending'
+        );
+
+        assert.deepStrictEqual(await store.loadRoom('room_a'), makeRoom({ phase: 'ROUND_ACTIVE' }));
+        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'ROUND_ACTIVE' }));
+      }));
+
+      it('een verkeerde expectedPhase schrijft niets en levert de WERKELIJKE fase op', () => withStore(async (store) => {
+        await arrangeInPhase(store, 'ROUND_ACTIVE');
+
+        assert.deepStrictEqual(
+          await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+            expectedPhase: 'LOBBY', newPhase: 'COUNTDOWN', pausedState: null,
+          }),
+          { ok: false, actualPhase: 'ROUND_ACTIVE' },
+          'een verlopen verwachting is een normale uitkomst, geen exception'
+        );
+
+        assert.deepStrictEqual(await store.loadRoom('room_a'), makeRoom({ phase: 'ROUND_ACTIVE' }));
+        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'ROUND_ACTIVE' }));
+      }));
+
+      it('de compare-and-set kijkt naar BEIDE documenten, en meldt altijd Match.phase als actualPhase', () => withStore(async (store) => {
+        // Een scheve toestand: de projectie loopt achter op de autoriteit. Zo'n
+        // toestand hoort niet te bestaan, en juist daarom mag deze operatie er
+        // niet stilzwijgend overheen schrijven — dat is wat "dubbele"
+        // compare-and-set betekent. Beide kanten worden hier geraakt: de
+        // verwachting die bij de MATCH past en de verwachting die bij de ROOM
+        // past falen allebei, en allebei met Match.phase in de returnwaarde
+        // (besluit 30: dat veld is autoritair).
+        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
+        await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+
+        assert.deepStrictEqual(
+          await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+            expectedPhase: 'ROUND_ACTIVE', newPhase: 'SCOREBOARD', pausedState: null,
+          }),
+          { ok: false, actualPhase: 'ROUND_ACTIVE' },
+          'de match klopte, de room niet — dat is een mismatch'
+        );
+        assert.deepStrictEqual(
+          await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+            expectedPhase: 'LOBBY', newPhase: 'SCOREBOARD', pausedState: null,
+          }),
+          { ok: false, actualPhase: 'ROUND_ACTIVE' },
+          'de room klopte, de match niet — en gerapporteerd wordt de autoritaire fase'
+        );
+
+        assert.deepStrictEqual(await store.loadRoom('room_a'), makeRoom({ phase: 'LOBBY' }));
+        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'ROUND_ACTIVE' }));
       }));
 
       it('een hele fasereeks blijft in lockstep — geen enkele overgang laat één van beide achter', () => withStore(async (store) => {
-        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
-        await store.saveMatch(makeMatch({ phase: 'LOBBY' }));
+        await arrangeInPhase(store, 'LOBBY');
 
+        let current = 'LOBBY';
         for (const phase of ['COUNTDOWN', 'ROUND_ACTIVE', 'ROUND_RESULT', 'SCOREBOARD', 'PAUSED', 'ROUND_ACTIVE', 'FINISHED']) {
-          await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', phase);
+          assert.deepStrictEqual(
+            await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+              expectedPhase: current,
+              newPhase: phase,
+              pausedState: phase === 'PAUSED' ? makePausedState({ previousPhase: current }) : null,
+            }),
+            { ok: true },
+            `overgang ${current} -> ${phase}`
+          );
           const room = await store.loadRoom('room_a');
           const match = await store.loadMatch('room_a', 'match_1');
           assert.strictEqual(room.phase, phase, `Room.phase na overgang naar ${phase}`);
           assert.strictEqual(match.phase, phase, `Match.phase na overgang naar ${phase}`);
+          assert.strictEqual(
+            match.pausedState === null, phase !== 'PAUSED',
+            `pausedState hoort ${phase === 'PAUSED' ? 'gevuld' : 'null'} te zijn in ${phase}`
+          );
+          current = phase;
         }
       }));
 
       it('een onbekend roomId werpt RangeError en laat room én match onaangeraakt', () => withStore(async (store) => {
-        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
-        await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+        await arrangeInPhase(store, 'LOBBY');
 
         await assert.rejects(
-          () => store.setRoomAndMatchPhaseAtomically('room_bestaat_niet', 'match_1', 'FINISHED'),
+          () => store.setRoomAndMatchPhaseAtomically('room_bestaat_niet', 'match_1', {
+            expectedPhase: 'LOBBY', newPhase: 'FINISHED', pausedState: null,
+          }),
           RangeError,
           'een onbekend roomId hoort RangeError te geven, niet stil te slagen'
         );
@@ -1168,16 +1514,17 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
         // liggende: een half uitgevoerde schrijving verraadt zich in het
         // document waar je niet keek.
         assert.deepStrictEqual(await store.loadRoom('room_a'), makeRoom({ phase: 'LOBBY' }));
-        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'ROUND_ACTIVE' }));
+        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'LOBBY' }));
         assertIsNull(await store.loadRoom('room_bestaat_niet'), 'de mislukte aanroep mag geen room hebben aangemaakt');
       }));
 
       it('een onbekend matchId werpt RangeError en laat room én match onaangeraakt', () => withStore(async (store) => {
-        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
-        await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+        await arrangeInPhase(store, 'LOBBY');
 
         await assert.rejects(
-          () => store.setRoomAndMatchPhaseAtomically('room_a', 'match_bestaat_niet', 'FINISHED'),
+          () => store.setRoomAndMatchPhaseAtomically('room_a', 'match_bestaat_niet', {
+            expectedPhase: 'LOBBY', newPhase: 'FINISHED', pausedState: null,
+          }),
           RangeError,
           'een onbekend matchId hoort RangeError te geven, niet stil te slagen'
         );
@@ -1186,19 +1533,20 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
         // dus een implementatie die de room alvast bijwerkt en pas daarna de
         // match opzoekt, heeft precies hier een dual-write achtergelaten.
         assert.deepStrictEqual(await store.loadRoom('room_a'), makeRoom({ phase: 'LOBBY' }));
-        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'ROUND_ACTIVE' }));
+        assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'LOBBY' }));
         assertIsNull(await store.loadMatch('room_a', 'match_bestaat_niet'), 'de mislukte aanroep mag geen match hebben aangemaakt');
       }));
 
       it('een tweede room met een eigen match beweegt niet mee', () => withStore(async (store) => {
         const roomB = makeRoom({ id: 'room_b', code: 'BBB222', inviteId: 'invite_b', hostSessionIds: ['session_host_b'], phase: 'LOBBY' });
-        const matchB = makeMatch({ id: 'match_b', roomId: 'room_b', phase: 'ROUND_ACTIVE' });
-        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
-        await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+        const matchB = makeMatch({ id: 'match_b', roomId: 'room_b', phase: 'LOBBY' });
+        await arrangeInPhase(store, 'LOBBY');
         await store.saveRoom(roomB);
         await store.saveMatch(matchB);
 
-        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED');
+        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+          expectedPhase: 'LOBBY', newPhase: 'FINISHED', pausedState: null,
+        });
 
         assert.strictEqual((await store.loadRoom('room_a')).phase, 'FINISHED');
         assert.strictEqual((await store.loadMatch('room_a', 'match_1')).phase, 'FINISHED');
@@ -1210,24 +1558,32 @@ export function runDataStoreConformance({ describe, name, createStore, teardown 
         // Aparte test van de kruisbesmetting hierboven: een adapter die de
         // fase over "alle matches van deze room" zet, komt door de vorige test
         // heen en struikelt hier.
-        const matchTwee = makeMatch({ id: 'match_2', roomId: 'room_a', sequence: 2, phase: 'ROUND_ACTIVE' });
-        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
-        await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+        const matchTwee = makeMatch({ id: 'match_2', roomId: 'room_a', sequence: 2, phase: 'LOBBY' });
+        await arrangeInPhase(store, 'LOBBY');
         await store.saveMatch(matchTwee);
 
-        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED');
+        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+          expectedPhase: 'LOBBY', newPhase: 'FINISHED', pausedState: null,
+        });
 
         assert.strictEqual((await store.loadMatch('room_a', 'match_1')).phase, 'FINISHED');
         assert.deepStrictEqual(await store.loadMatch('room_a', 'match_2'), matchTwee);
       }));
 
       it('dezelfde fase nog een keer zetten is idempotent en geen fout', () => withStore(async (store) => {
-        await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
-        await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+        // Idempotent BINNEN het contract: een herhaling noemt als verwachting de
+        // fase waar de operatie hem net heeft neergezet, niet de fase van vóór
+        // de eerste aanroep — dat laatste is per definitie verlopen.
+        await arrangeInPhase(store, 'LOBBY');
 
-        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'SCOREBOARD');
-        await assert.doesNotReject(
-          () => store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'SCOREBOARD'),
+        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+          expectedPhase: 'LOBBY', newPhase: 'SCOREBOARD', pausedState: null,
+        });
+        assert.deepStrictEqual(
+          await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+            expectedPhase: 'SCOREBOARD', newPhase: 'SCOREBOARD', pausedState: null,
+          }),
+          { ok: true },
           'een herhaalde faseovergang naar dezelfde waarde hoort geen fout te zijn'
         );
 

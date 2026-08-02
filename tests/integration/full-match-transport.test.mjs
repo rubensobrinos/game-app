@@ -33,18 +33,21 @@
 // verplichte asserties. De match wordt vervroegd afgesloten met `game:finish`
 // — een gedocumenteerd hostevent uit het alfabet, geen testomweg.
 //
-// TWEE OPENSTAANDE PUNTEN WORDEN VASTGEPIND, NIET OMZEILD:
-//   - LOBBY-SNAPSHOT: `GET /api/v1/games/{code}/state` geeft in de lobby 500,
-//     omdat `validateSnapshotShape` een niet-lege `matchId` en een
-//     `matchSequence >= 1` eist die vóór de eerste match niet bestaan (zie het
-//     commentaar bij die route in `server/transport/rest.mjs`). Vastgepind in
-//     de ketentest; alle snapshotasserties staan daarom ná `game:start`.
+// DE LOBBY-SNAPSHOT IS ONDERDEEL VAN DE KETEN, GEEN UITZONDERING MEER.
+// `GET /api/v1/games/{code}/state` geeft in de lobby 200 met `matchId` en
+// `matchSequence` allebei null (INT-17) — dat contract wordt hieronder in de
+// ketentest afgemeten, vóór `game:start`, naast de snapshotasserties van een
+// lopende ronde.
+//
+// ÉÉN OPENSTAAND PUNT WORDT NOG VASTGEPIND, NIET OMZEILD:
 //   - INT-5: het juiste antwoord is voor `flags_mc` afleidbaar uit de publieke
 //     payload (`question.targetIso2 === correctAnswer.optionId`). Zie
 //     `assertSnapshotHidesCorrectAnswer`.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+
+import { validateSnapshotShape } from '../../server/protocol/snapshot-shape.mjs';
 
 import { APP_URL } from './support/composition-harness.mjs';
 import { startTransportServer } from './support/transport-harness.mjs';
@@ -400,15 +403,29 @@ test('Keten over echt HTTP en echte WebSockets: room -> preview -> twee joins ->
   assert.equal(host.state.room.config.questionSeconds, QUESTION_MS / 1000);
   assert.equal(host.state.room.config.deadlineGraceMs, 250);
 
-  // ── OPENSTAAND PUNT: een LOBBY-snapshot haalt validateSnapshotShape niet ──
-  // `matchId`/`matchSequence` zijn `null` vóór de eerste match, terwijl de
-  // validator een niet-lege string resp. een geheel getal >= 1 eist. De route
-  // maakt daar (terecht, want een response die zijn eigen validator niet haalt
-  // is een serverfout) een 500 van. HUIDIG GEDRAG, vastgepind: zodra dit is
-  // opgelost hoort hieronder een 200 met een LOBBY-snapshot te staan.
+  // ── GET /state in de lobby: 200 met een geldige pre-match-snapshot ───────
+  // Er is nog geen match, dus `matchId` en `matchSequence` zijn ALLEBEI null
+  // (INT-17) en `currentRound` is leeg. Dat is het contract van de lobby, hier
+  // over echt HTTP nagemeten en met dezelfde validator gekeurd die de route
+  // zelf gebruikt.
   const lobbyState = await harness.get(`/api/v1/games/${host.gameCode}/state`, { token: host.sessionToken });
-  assert.equal(lobbyState.status, 500, 'openstaand punt bij PR: LOBBY-snapshot faalt op validateSnapshotShape');
-  assert.deepEqual(lobbyState.body, { code: 'INTERNAL_ERROR', meta: {} }, 'geen detail, geen stacktrace');
+  assert.equal(lobbyState.status, 200, JSON.stringify(lobbyState.body));
+  assert.deepEqual(
+    Object.keys(lobbyState.body).sort(),
+    ['currentRound', 'protocolVersion', 'room', 'scoreboard', 'self', 'serverTime'],
+  );
+  assert.equal(lobbyState.body.room.code, host.gameCode);
+  assert.equal(lobbyState.body.room.phase, 'LOBBY');
+  assert.equal(lobbyState.body.room.matchId, null);
+  assert.equal(lobbyState.body.room.matchSequence, null);
+  assert.equal(lobbyState.body.room.pausedState, null);
+  assert.equal(lobbyState.body.room.playerCount, 1);
+  assert.deepEqual(lobbyState.body.currentRound, {});
+  assert.deepEqual(lobbyState.body.scoreboard.top, []);
+  assert.equal(lobbyState.body.self.playerId, host.playerId);
+  assert.deepEqual(lobbyState.body.self.roles, ['host', 'player']);
+  assert.equal(lobbyState.body.self.eligibleFromRound, 1);
+  assert.deepEqual(validateSnapshotShape(lobbyState.body), { ok: true });
 
   // ── GET /api/v1/games/preview ────────────────────────────────────────────
   const preview = await harness.get(`/api/v1/games/preview?inviteId=${encodeURIComponent(host.inviteId)}`);
@@ -940,12 +957,47 @@ test('Geen interne foutcode over de wire: een uitgelokte INVALID_PAUSE_STATE ber
   const hostSocket = await harness.connect(host.sessionToken);
   const playerSocket = await harness.connect(player.sessionToken);
 
-  // De REST-kant eerst: het LOBBY-snapshotgat levert een 500 en die body mag
-  // geen detail dragen. (Ná `game:start` is de fase geen LOBBY meer en geeft
-  // dit eindpunt gewoon 200 — vandaar dat deze aanroep hier vooraan staat.)
-  const lobbyState = await harness.get(`/api/v1/games/${host.gameCode}/state`, { token: host.sessionToken });
-  assert.equal(lobbyState.status, 500);
-  assert.deepEqual(lobbyState.body, { code: 'INTERNAL_ERROR', meta: {} });
+  // ── De REST-kant ─────────────────────────────────────────────────────────
+  //
+  // Tot INT-17 werd de interne code hier uitgelokt door het LOBBY-snapshotgat:
+  // dat gaf een 500 waarvan de body geen detail mocht dragen. Die 500 bestaat
+  // niet meer (de lobby geeft nu gewoon 200), dus wordt de fout nu bij de bron
+  // uitgelokt in plaats van bij een bug: de POORT werpt. Dat is exact het pad
+  // dat een echte compositie-/domeinfout ook loopt — `rest.mjs` vangt alles wat
+  // binnen de plugin werpt af in één `setErrorHandler`.
+  //
+  // Eerst een fout MÉT `protocolCode: 'INVALID_PAUSE_STATE'`, de enige interne
+  // code van vandaag (besluit 12). Hij mag niet worden doorgegeven maar moet op
+  // de gepubliceerde `INVALID_PHASE` worden afgebeeld — en de interne naam mag
+  // in geen enkele body opduiken (de veeg onderaan controleert dat nogmaals).
+  const realLoadRoomByCode = harness.store.loadRoomByCode.bind(harness.store);
+  harness.store.loadRoomByCode = async () => {
+    throw Object.assign(new Error('interne pauzetoestand: INVALID_PAUSE_STATE'), {
+      protocolCode: 'INVALID_PAUSE_STATE',
+    });
+  };
+  const internalOverRest = await harness.get(`/api/v1/games/${host.gameCode}/state`, { token: host.sessionToken });
+  assert.equal(internalOverRest.status, 409, JSON.stringify(internalOverRest.body));
+  assert.deepEqual(internalOverRest.body, { code: 'INVALID_PHASE', meta: {} });
+
+  // Daarna een fout ZONDER protocolCode: dat is een serverfout en levert 500
+  // zonder één woord over wat er misging. De boodschap is expres
+  // stacktrace-achtig; belandt hij toch in de body, dan slaat de veeg aan.
+  harness.store.loadRoomByCode = async () => {
+    throw new Error('kapotte-poort in server/data/in-memory-store.js:42 — mag nooit naar buiten');
+  };
+  const serverFault = await harness.get(`/api/v1/games/${host.gameCode}/state`, { token: host.sessionToken });
+  assert.equal(serverFault.status, 500);
+  assert.deepEqual(serverFault.body, { code: 'INTERNAL_ERROR', meta: {} });
+
+  harness.store.loadRoomByCode = realLoadRoomByCode;
+
+  // Zelfcontrole: de poort is weer heel. Zonder deze regel zou een uitlokking
+  // die per ongeluk niet aankwam (of niet werd teruggedraaid) onzichtbaar
+  // blijven en zouden de twee asserties hierboven niets bewijzen.
+  const healthyAgain = await harness.get(`/api/v1/games/${host.gameCode}/state`, { token: host.sessionToken });
+  assert.equal(healthyAgain.status, 200, JSON.stringify(healthyAgain.body));
+  assert.equal(healthyAgain.body.room.phase, 'LOBBY');
 
   // Pauzeren tijdens COUNTDOWN: `remainingMs` is dan niet uit persistente state
   // af te leiden, waardoor de state machine intern `INVALID_PAUSE_STATE`
@@ -970,9 +1022,12 @@ test('Geen interne foutcode over de wire: een uitgelokte INVALID_PAUSE_STATE ber
   const unknownRoute = await harness.get('/api/v1/games/000000/state', { token: host.sessionToken });
   assert.equal(unknownRoute.status, 404);
   assert.deepEqual(unknownRoute.body, { code: 'GAME_NOT_FOUND', meta: {} });
+  // Een misvormde create is `INVALID_REQUEST`, niet `INVITE_INVALID`: die
+  // tweede blijft voorbehouden aan invite-/joinlocatorproblemen
+  // (PROTOCOL.md §Foutcodes).
   const malformed = await harness.post('/api/v1/games', { body: { hostParticipates: 'ja' } });
   assert.equal(malformed.status, 400);
-  assert.deepEqual(malformed.body, { code: 'INVITE_INVALID', meta: {} });
+  assert.deepEqual(malformed.body, { code: 'INVALID_REQUEST', meta: {} });
 
   assertNoInternalLeakOnTheWire(harness, { secretTokens: [host.sessionToken, player.sessionToken] });
   assertNoTokenInAnyUrl(harness, [host.sessionToken, player.sessionToken]);
