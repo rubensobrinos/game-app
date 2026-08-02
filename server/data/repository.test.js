@@ -121,8 +121,8 @@ describe('assertImplementsDataStore — contract-sanity-check #1-3', () => {
     delete incomplete.loadRoom;
     assert.throws(() => assertImplementsDataStore(incomplete), TypeError);
   });
-  test('#3 DATA_STORE_METHOD_NAMES bevat 18 methoden (17 uit de prompt + loadAnswer)', () => {
-    assert.strictEqual(DATA_STORE_METHOD_NAMES.length, 18);
+  test('#3 DATA_STORE_METHOD_NAMES bevat 21 methoden (18 uit DM6 + claimRoomLocatorsAtomically/releaseRoomLocators/refreshRoomLocators uit DM10)', () => {
+    assert.strictEqual(DATA_STORE_METHOD_NAMES.length, 21);
   });
 });
 
@@ -172,7 +172,7 @@ describe('CRUD-rondje per entiteit #4-10', () => {
     const store = createInMemoryStore();
     await store.saveMatch(makeMatch());
     const round = { id: 'round_1', matchId: 'match_1', status: 'ACTIVE' };
-    await store.saveRound(round);
+    await store.saveRound('room_1', round);
     assert.deepStrictEqual(await store.loadRound('room_1', 'match_1', 'round_1'), round);
   });
 
@@ -183,21 +183,22 @@ describe('CRUD-rondje per entiteit #4-10', () => {
     assert.strictEqual(await store.loadPlayer('room_1', 'nope'), null);
     assert.strictEqual(await store.loadMatch('room_1', 'nope'), null);
     assert.strictEqual(await store.loadRound('room_1', 'match_1', 'nope'), null);
-    assert.strictEqual(await store.loadAnswer('round_1', 'nope'), null);
+    assert.strictEqual(await store.loadAnswer('room_1', 'match_1', 'round_1', 'nope'), null);
   });
 });
 
-describe('loadRoomByCode/loadRoomByInviteId — rechtstreeks op het veld, geen hashing #11-12', () => {
+describe('loadRoomByCode/loadRoomByInviteHash — rechtstreeks op het veld resp. via een claim, geen hashing in de fake zelf #11-12', () => {
   test('#11 loadRoomByCode vindt dezelfde room als loadRoom', async () => {
     const store = createInMemoryStore();
     await store.saveRoom(makeRoom());
     assert.deepStrictEqual(await store.loadRoomByCode('482917'), await store.loadRoom('room_1'));
   });
 
-  test('#12 loadRoomByInviteId vindt dezelfde room als loadRoom', async () => {
+  test('#12 loadRoomByInviteHash vindt dezelfde room als loadRoom, na een claim (saveRoom alleen vult de code-index, niet de inviteHash-index — zie DM10)', async () => {
     const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '482917', inviteHash: 'hash_abc', ttlSeconds: 14400 });
     await store.saveRoom(makeRoom());
-    assert.deepStrictEqual(await store.loadRoomByInviteId('invite_abc'), await store.loadRoom('room_1'));
+    assert.deepStrictEqual(await store.loadRoomByInviteHash('hash_abc'), await store.loadRoom('room_1'));
   });
 });
 
@@ -235,13 +236,13 @@ describe('saveAcceptedAnswerAtomically — alles-of-niets, dekt Answer+Player+sc
     };
     await store.saveAcceptedAnswerAtomically('room_1', 'match_1', write);
 
-    assert.deepStrictEqual(await store.loadAnswer('round_1', 'p_1'), write.answer);
+    assert.deepStrictEqual(await store.loadAnswer('room_1', 'match_1', 'round_1', 'p_1'), write.answer);
     const player = await store.loadPlayer('room_1', 'p_1');
     assert.strictEqual(player.score, 158);
     assert.strictEqual(player.correctCount, 1);
     assert.strictEqual(player.correctResponseTimeMsTotal, 1000);
     assert.deepStrictEqual(await store.getScoreboardTop('room_1', 'match_1', 10), [{ playerId: 'p_1', score: 158 }]);
-    assert.deepStrictEqual(await store.loadActionCacheEntry('act_1'), write.actionCacheEntry);
+    assert.deepStrictEqual(await store.loadActionCacheEntry('room_1', 'act_1'), write.actionCacheEntry);
   });
 
   test('#17 niet-bestaande playerId -> throw, geen van de vier onderdelen wordt geschreven', async () => {
@@ -254,9 +255,9 @@ describe('saveAcceptedAnswerAtomically — alles-of-niets, dekt Answer+Player+sc
     };
     await assert.rejects(() => store.saveAcceptedAnswerAtomically('room_1', 'match_1', write));
 
-    assert.strictEqual(await store.loadAnswer('round_1', 'p_1'), null);
+    assert.strictEqual(await store.loadAnswer('room_1', 'match_1', 'round_1', 'p_1'), null);
     assert.deepStrictEqual(await store.getScoreboardTop('room_1', 'match_1', 10), []);
-    assert.strictEqual(await store.loadActionCacheEntry('act_1'), null);
+    assert.strictEqual(await store.loadActionCacheEntry('room_1', 'act_1'), null);
   });
 
   test('#18 updatedPlayer bevat absolute waarden, geen delta: score wordt overschreven, niet opgeteld', async () => {
@@ -283,7 +284,7 @@ describe('saveAcceptedAnswerAtomically — alles-of-niets, dekt Answer+Player+sc
 describe('loadActionCacheEntry — onbekende actionId geeft null #20', () => {
   test('#20 onbekende actionId -> null, geen throw', async () => {
     const store = createInMemoryStore();
-    assert.strictEqual(await store.loadActionCacheEntry('nope'), null);
+    assert.strictEqual(await store.loadActionCacheEntry('room_1', 'nope'), null);
   });
 });
 
@@ -334,5 +335,168 @@ describe('getScoreboardTop — sortering en limit #21-23', () => {
   test('#23 onbekende matchId geeft lege array', async () => {
     const store = createInMemoryStore();
     assert.deepStrictEqual(await store.getScoreboardTop('room_1', 'nope', 10), []);
+  });
+
+  test('#23b (DM12) twee rooms met eenzelfde matchId houden onafhankelijke ranglijsten — het scenario dat INTB-3 vond', async () => {
+    const store = createInMemoryStore();
+    await store.savePlayer(makePlayer({ id: 'p_1', roomId: 'room_a' }));
+    await store.savePlayer(makePlayer({ id: 'p_2', roomId: 'room_b' }));
+    await store.saveAcceptedAnswerAtomically('room_a', 'match_gedeeld', {
+      answer: makeAnswer({ playerId: 'p_1' }),
+      updatedPlayer: { id: 'p_1', score: 100, correctCount: 1, correctResponseTimeMsTotal: 100 },
+      actionCacheEntry: { actionId: 'act_a', ack: {} },
+    });
+    await store.saveAcceptedAnswerAtomically('room_b', 'match_gedeeld', {
+      answer: makeAnswer({ playerId: 'p_2' }),
+      updatedPlayer: { id: 'p_2', score: 700, correctCount: 1, correctResponseTimeMsTotal: 100 },
+      actionCacheEntry: { actionId: 'act_b', ack: {} },
+    });
+
+    assert.deepStrictEqual(await store.getScoreboardTop('room_a', 'match_gedeeld', 10), [{ playerId: 'p_1', score: 100 }]);
+    assert.deepStrictEqual(await store.getScoreboardTop('room_b', 'match_gedeeld', 10), [{ playerId: 'p_2', score: 700 }]);
+  });
+});
+
+describe('claimRoomLocatorsAtomically/releaseRoomLocators/refreshRoomLocators — DM10 #24-33', () => {
+  test('#24 vrije code + inviteHash claimen slaagt, en is onmiddellijk zichtbaar via een tweede claim-poging (claim en lookup delen dezelfde index) — óók vóór saveRoom', async () => {
+    const store = createInMemoryStore();
+    const result = await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    assert.deepStrictEqual(result, { ok: true });
+    // De room zelf is nog niet opgeslagen; een tweede claim op dezelfde
+    // code/inviteHash door een ANDERE roomId moet al conflicteren.
+    const secondClaim = await store.claimRoomLocatorsAtomically({ roomId: 'room_2', code: '111111', inviteHash: 'hash_2', ttlSeconds: 14400 });
+    assert.deepStrictEqual(secondClaim, { ok: false, conflict: 'code' });
+  });
+
+  test('#25 bezette code (andere roomId), vrije inviteHash -> conflict: code, inviteHash blijft vrij voor een derde roomId (geen partial claim)', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    const result = await store.claimRoomLocatorsAtomically({ roomId: 'room_2', code: '111111', inviteHash: 'hash_2', ttlSeconds: 14400 });
+    assert.deepStrictEqual(result, { ok: false, conflict: 'code' });
+    const thirdClaim = await store.claimRoomLocatorsAtomically({ roomId: 'room_3', code: '222222', inviteHash: 'hash_2', ttlSeconds: 14400 });
+    assert.deepStrictEqual(thirdClaim, { ok: true });
+  });
+
+  test('#26 vrije code, bezette inviteHash (andere roomId) -> conflict: inviteHash, code blijft vrij (omgekeerd bewijs)', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    const result = await store.claimRoomLocatorsAtomically({ roomId: 'room_2', code: '222222', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    assert.deepStrictEqual(result, { ok: false, conflict: 'inviteHash' });
+    const thirdClaim = await store.claimRoomLocatorsAtomically({ roomId: 'room_3', code: '222222', inviteHash: 'hash_3', ttlSeconds: 14400 });
+    assert.deepStrictEqual(thirdClaim, { ok: true });
+  });
+
+  test('#27 dezelfde roomId claimt exact dezelfde code + inviteHash opnieuw -> ok:true, geen conflict (idempotentie)', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    const result = await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    assert.deepStrictEqual(result, { ok: true });
+  });
+
+  test('#28 releaseRoomLocators door de eigenaar maakt beide vrij voor een andere roomId', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    await store.releaseRoomLocators({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1' });
+    const result = await store.claimRoomLocatorsAtomically({ roomId: 'room_2', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    assert.deepStrictEqual(result, { ok: true });
+  });
+
+  test('#29 releaseRoomLocators door een roomId die maar één van de twee bezit doet NIETS (alles-of-niets)', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    // room_1 bezit de code, maar niet 'hash_ander' (nooit geclaimd) -> gedeeltelijk bezit.
+    await store.releaseRoomLocators({ roomId: 'room_1', code: '111111', inviteHash: 'hash_ander' });
+    // De code blijft bezet door room_1 -> een ander roomId kan hem niet claimen.
+    const result = await store.claimRoomLocatorsAtomically({ roomId: 'room_2', code: '111111', inviteHash: 'hash_2', ttlSeconds: 14400 });
+    assert.deepStrictEqual(result, { ok: false, conflict: 'code' });
+  });
+
+  test('#30 releaseRoomLocators op een nooit-geclaimde combinatie werpt niet (no-op)', async () => {
+    const store = createInMemoryStore();
+    await assert.doesNotReject(() => store.releaseRoomLocators({ roomId: 'room_1', code: 'nope', inviteHash: 'nope' }));
+  });
+
+  test('#31 refreshRoomLocators op een actief eigen bezit slaagt zonder fout', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    await assert.doesNotReject(() => store.refreshRoomLocators({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 }));
+  });
+
+  test('#32 refreshRoomLocators op een niet (meer) bezeten locator werpt RangeError', async () => {
+    const store = createInMemoryStore();
+    await assert.rejects(
+      () => store.refreshRoomLocators({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 }),
+      RangeError
+    );
+  });
+
+  test('#33 claimRoomLocatorsAtomically met een nieuwe inviteHash-kandidaat door de eigenaar-roomId slaagt (retry op alleen de invite-kant)', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    const result = await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_nieuw', ttlSeconds: 14400 });
+    assert.deepStrictEqual(result, { ok: true });
+  });
+});
+
+describe('saveRound/loadAnswer/loadActionCacheEntry — room-scoping (DM11) #34-38', () => {
+  test('#34 saveRound werpt RangeError als de match niet bestaat (integriteit behouden, nu O(1) i.p.v. scan)', async () => {
+    const store = createInMemoryStore();
+    await assert.rejects(
+      () => store.saveRound('room_1', { id: 'round_1', matchId: 'match_onbekend', status: 'ACTIVE' }),
+      RangeError
+    );
+  });
+
+  test('#35 saveRound werpt RangeError als de match bestaat maar bij een ANDER roomId hoort (geen wees-rondes, geen geraden roomId)', async () => {
+    const store = createInMemoryStore();
+    await store.saveMatch(makeMatch({ roomId: 'room_a' }));
+    await assert.rejects(
+      () => store.saveRound('room_b', { id: 'round_1', matchId: 'match_1', status: 'ACTIVE' }),
+      RangeError
+    );
+  });
+
+  test('#36 twee rooms met hetzelfde matchId houden hun rondes gescheiden (onmogelijk te arrangeren vóór DM11 — de oude scan vond alleen de eerste treffer)', async () => {
+    const store = createInMemoryStore();
+    await store.saveMatch(makeMatch({ roomId: 'room_a', id: 'match_gedeeld' }));
+    await store.saveMatch(makeMatch({ roomId: 'room_b', id: 'match_gedeeld' }));
+    await store.saveRound('room_a', { id: 'round_1', matchId: 'match_gedeeld', status: 'ACTIVE' });
+    await store.saveRound('room_b', { id: 'round_1', matchId: 'match_gedeeld', status: 'ENDED' });
+
+    assert.strictEqual((await store.loadRound('room_a', 'match_gedeeld', 'round_1')).status, 'ACTIVE');
+    assert.strictEqual((await store.loadRound('room_b', 'match_gedeeld', 'round_1')).status, 'ENDED');
+  });
+
+  test('#37 twee rooms met hetzelfde actionId krijgen elk hun eigen loadActionCacheEntry-resultaat', async () => {
+    const store = createInMemoryStore();
+    await store.savePlayer(makePlayer({ id: 'p_1', roomId: 'room_a' }));
+    await store.savePlayer(makePlayer({ id: 'p_2', roomId: 'room_b' }));
+    await store.saveAcceptedAnswerAtomically('room_a', 'match_1', {
+      answer: makeAnswer({ playerId: 'p_1', actionId: 'act_gedeeld' }),
+      updatedPlayer: { id: 'p_1', score: 100, correctCount: 1, correctResponseTimeMsTotal: 100 },
+      actionCacheEntry: { actionId: 'act_gedeeld', ack: { roundId: 'round_1', bron: 'room_a' } },
+    });
+    await store.saveAcceptedAnswerAtomically('room_b', 'match_1', {
+      answer: makeAnswer({ playerId: 'p_2', actionId: 'act_gedeeld' }),
+      updatedPlayer: { id: 'p_2', score: 200, correctCount: 1, correctResponseTimeMsTotal: 100 },
+      actionCacheEntry: { actionId: 'act_gedeeld', ack: { roundId: 'round_1', bron: 'room_b' } },
+    });
+
+    assert.deepStrictEqual(await store.loadActionCacheEntry('room_a', 'act_gedeeld'), { actionId: 'act_gedeeld', ack: { roundId: 'round_1', bron: 'room_a' } });
+    assert.deepStrictEqual(await store.loadActionCacheEntry('room_b', 'act_gedeeld'), { actionId: 'act_gedeeld', ack: { roundId: 'round_1', bron: 'room_b' } });
+  });
+
+  test('#38 identifiers met een spatie erin botsen niet — geneste Maps, geen samengestelde string-sleutel (zie in-memory-store.js)', async () => {
+    const store = createInMemoryStore();
+    // "room 1" + "1 match" zou onder een `${a} ${b}`-sleutel op dezelfde string
+    // uitkomen als "room" + "1 1 match". Met geneste Maps is dat structureel
+    // onmogelijk.
+    await store.saveMatch(makeMatch({ roomId: 'room 1', id: '1 match' }));
+    await store.saveMatch(makeMatch({ roomId: 'room', id: '1 1 match' }));
+
+    assert.strictEqual((await store.loadMatch('room 1', '1 match')).roomId, 'room 1');
+    assert.strictEqual((await store.loadMatch('room', '1 1 match')).roomId, 'room');
+    assert.strictEqual(await store.loadMatch('room 1', '1 1 match'), null);
+    assert.strictEqual(await store.loadMatch('room', '1 match'), null);
   });
 });

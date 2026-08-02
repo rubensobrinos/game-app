@@ -143,3 +143,95 @@ bestaat.
 
 Geen actie vereist vóór jullie kant er klaar voor is — onze lokale kopieën
 werken intussen prima, ze zijn alleen niet de eindtoestand.
+
+## 6. Aan `integration-plan` (INT-A + INT-B) — INT-1, INTB-1, INTB-2, INTB-3 beantwoord
+
+Alle vier zijn uitgevoerd via
+[`prompts/DM10-room-locator-claim.md`](prompts/DM10-room-locator-claim.md),
+[`prompts/DM11-room-scoped-round-answer.md`](prompts/DM11-room-scoped-round-answer.md)
+en [`prompts/DM12-scoreboard-room-scoping.md`](prompts/DM12-scoreboard-room-scoping.md)
+— alle drie herzien na een eigen reviewronde vóórdat er iets werd gebouwd; zie
+die bestanden voor de volledige motivatie. Hieronder alleen wat er concreet
+veranderd is in `server/data/repository.js`/`in-memory-store.js`.
+
+**INT-1 + INTB-2 (join-code + inviteHash-claim).** Nieuw:
+`claimRoomLocatorsAtomically({ roomId, code, inviteHash, ttlSeconds }) → {
+ok: true } | { ok: false, conflict: 'code' | 'inviteHash' }`,
+`releaseRoomLocators({ roomId, code, inviteHash })` (alles-of-niets, **niet**
+`releaseRoomLocators(roomId)` zoals INT-1 voorstelde — reden staat in
+DM10) en `refreshRoomLocators({ roomId, code, inviteHash, ttlSeconds })`
+(legt het TTL-eigendomscontract vast, simuleert geen echte TTL-aftelling).
+`room-codes.js` is ongewijzigd, zoals INT-1 al voorspelde. Dit **unblocks** de
+atomaire Redis-implementatie — het bewijst zelf geen Redis-atomiciteit, dat
+blijft een (b)-ADR-uitvoeringsdetail van de echte adapter.
+
+**Bijvangst, niet apart gevraagd maar nodig om INT-1/INTB-2 consistent te
+maken:** `loadRoomByInviteId(inviteId)` is hernoemd naar
+`loadRoomByInviteHash(inviteHash)` — de oude methode werkte op de platte
+`inviteId`, terwijl de nieuwe claim op `inviteHash` werkt; twee identifiers
+voor hetzelfde concept naast elkaar zou de net-opgeloste inconsistentie via
+de achterdeur terugbrengen. Hashen gebeurt vóór de repository
+(`hashInviteId()` uit `server/architecture/room-codes.js`). **Gevolg voor
+arrangement:** `saveRoom` vult de `inviteHash`-index niet meer (kan niet, Room
+draagt geen hash) — alleen `claimRoomLocatorsAtomically` doet dat. Een test die
+`loadRoomByInviteHash` wil arrangeren moet dus eerst claimen, niet alleen
+`saveRoom` aanroepen.
+
+**INTB-1 (room-scoping op Round/Answer).** Signaturen verbreed, **geen**
+nieuwe velden op `Round`/`Answer` (richting 1, niet richting 2 — DM11 legt uit
+waarom, kort: een gedupliceerde relatie zonder integriteitscheck tegen het
+echte brondocument is een nieuwe inconsistentiebron):
+
+```
+saveRound(roomId, round)
+loadAnswer(roomId, matchId, roundId, playerId)
+loadActionCacheEntry(roomId, actionId)
+```
+
+`saveRound`'s matchintegriteitscontrole (RangeError bij een onbekende/
+verkeerde-room-match) is behouden, nu een directe geneste lookup i.p.v. de
+oude lineaire scan. `answer-flow.js` is ongewijzigd.
+
+**INTB-3 (scoreboard-scoping).** Gekozen: op beide keyen (niet aannemen dat
+`matchId` globaal uniek is). De fake gebruikt nu geneste Maps op
+`(roomId, matchId)`.
+
+**Impact op `server/data/adapters/data-store-conformance.mjs` (jullie
+bestand — ik heb het niet zelf gewijzigd).** Draaide de suite vóór dit
+antwoord: 45/45 groen (INTB-1-blok geskipt). Erna: 19 tests rood, allemaal
+verwacht en al door jullie eigen commentaar geannoteerd:
+
+- het `Room`-blok (7 tests) roept nog `loadRoomByInviteId` aan — dit is niet
+  alleen een rename: de arrangement moet eerst claimen (zie hierboven), niet
+  alleen `saveRoom` aanroepen;
+- het `Round (leeskant)`-blok (6 tests) en de INTB-4-hulpfuncties (regel
+  265/269) roepen `saveRound`/`loadAnswer`/`loadActionCacheEntry` nog met de
+  oude signatuur aan — precies wat jullie eigen commentaar bij het
+  `describe.skip`-blok al aankondigde ("verandert alleen de
+  arrangement-regel");
+- het `describe.skip('INTB-1 — …')`-blok zelf hoeft **niet herschreven** te
+  worden — de testbodies daarin zijn al tegen exact de bovenstaande
+  signaturen geschreven en zouden nu moeten slagen; alleen `.skip` weghalen
+  en de wachtnoot schrappen;
+- de karakterisatietest "twee rooms die hetzelfde match-id gebruiken delen
+  één ranglijst" klopt niet meer — dat gedrag is met opzet veranderd
+  (INTB-3);
+- de drie **INTB-4**-tests waren al rood vóór dit antwoord (bevestigd: die
+  falen op het ontbreken van een dubbel-check in
+  `saveAcceptedAnswerAtomically`, iets wat DM10/11/12 niet aanraakt) — dat
+  blijft zo. **INTB-4 is gezien, maar bewust niet in deze ronde opgepakt**:
+  het is een structurele vraag over of idempotentie/"één antwoord per ronde"
+  ín de atomaire operatie moet zitten (jullie punt: een check in
+  `answer-flow.js` dekt concurrency niet af) en verdient een eigen
+  voorstelronde, net als DM10/11/12 die hadden — geen drive-by-fix naast dit
+  antwoord. Voorgesteld als kandidaat-volgende-fase (`DM13`), nog niet
+  geschreven.
+
+## 7. Klein, buiten scope van DM10/11/12 — genoteerd, niet opgepakt
+
+`sessionsByKey`/`playersByKey` in `in-memory-store.js` gebruiken nog steeds
+`` `${roomId} ${playerId}` ``-samengestelde string-sleutels, dezelfde klasse
+kwetsbaarheid (in theorie, geen praktijkincident) die DM11/DM12 net voor
+`matches`/`rounds`/`answers`/`actionCache`/`scoreboard` hebben opgelost.
+Bewust niet meegenomen om de scope van deze ronde niet verder op te rekken —
+kleine, geïsoleerde opvolging als iemand er nog eens langs gaat.

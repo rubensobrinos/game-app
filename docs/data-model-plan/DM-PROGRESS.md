@@ -21,7 +21,7 @@ uit het brondocument zelf.
 | Redis-sleutels | DM1 | ✅ Klaar en geverifieerd | `redis-keys.js`, 65 tests |
 | TTL | DM1 | 🟡 Deels | Alleen `ROOM_TTL_SECONDS` (1 test); refreshmatrix/cleanup-cadans bewust apart voorstel, geen datum |
 | Actieve-ronde-projectie (`toActiveRoundSnapshot`) | DM3 | ✅ Klaar en geverifieerd | Neemt sinds `DECISIONS.md` #21 ook `match` aan (voor `contentVersion`/`rendererVersion` in de output) en controleert `round.status === 'ACTIVE'` |
-| Repository/domeinpoort | DM6 | ✅ Klaar en geverifieerd | `repository.js` + `in-memory-store.js`, 23 tests. `loadRoomByInviteId` i.p.v. hash-lookup; atomaire operaties bewijzen alleen single-threaded domeinsemantiek, geen Redis-concurrency |
+| Repository/domeinpoort | DM6, uitgebreid door DM10/DM11/DM12 | ✅ Klaar en geverifieerd | `repository.js` + `in-memory-store.js`, 23 → 43 tests in `repository.test.js`. `loadRoomByInviteHash` (hernoemd van `loadRoomByInviteId`, werkt op de hash) + `claimRoomLocatorsAtomically`/`releaseRoomLocators`/`refreshRoomLocators` (DM10); `saveRound`/`loadAnswer`/`loadActionCacheEntry` room-gescoped, geneste Maps i.p.v. samengestelde string-sleutels (DM11); scoreboard op (roomId, matchId) (DM12). Atomaire operaties bewijzen alleen single-threaded domeinsemantiek, geen Redis-concurrency |
 | Atomische antwoordverwerking | DM7 | ✅ Klaar en geverifieerd | `answer-flow.js`, 28 tests. Idempotentie eerst, geen scorelek in de ack, `valid: false` → `INVALID_ANSWER_FORMAT` |
 | Persistente analytics | DM8 | ✅ Voorstel klaar (bewust geen code) | `docs/data-model-plan/proposals/analytics-event-contract.md` + `schema.sql`. `id`/`room_id_hash`/`max_player_count` expliciet geblokkeerd, geen oneerlijke default |
 | Wat niet persistent wordt opgeslagen | DM5 | ✅ Klaar en geverifieerd | `privacy-guard.js`, 109 tests. Allowlist per doeltabel, geen denylist |
@@ -60,6 +60,9 @@ zijn verwerkt vóór commit:
 - [x] [`DM7`](prompts/DM7-answer-flow.md) — uitgevoerd
 - [x] [`DM8`](prompts/DM8-analytics-proposal.md) — uitgevoerd (voorstel, geen code)
 - [x] [`DM9`](prompts/DM9-game-rules-reconciliation.md) — uitgevoerd
+- [x] [`DM10`](prompts/DM10-room-locator-claim.md) — uitgevoerd, reactie op INT-1/INTB-2
+- [x] [`DM12`](prompts/DM12-scoreboard-room-scoping.md) — uitgevoerd (vóór DM11), reactie op INTB-3
+- [x] [`DM11`](prompts/DM11-room-scoped-round-answer.md) — uitgevoerd (na DM12), reactie op INTB-1
 - [x] Checkpoint 4 besloten en verwerkt (`DECISIONS.md` #21)
 
 Resterende, echt externe wachtpunten: de (b)-ADR-items die de adapterlaag raken
@@ -67,21 +70,31 @@ Resterende, echt externe wachtpunten: de (b)-ADR-items die de adapterlaag raken
 `DECISIONS.md` #22–26 heeft de meeste daarvan al principieel beslist, maar de
 daadwerkelijke connectiecode is een aparte, latere fase (`deps`/`prod`).
 
+**Nieuw, nog niet opgepakt: INTB-4.** `docs/integration-plan/HANDOFF-INTB.md`
+meldt dat `saveAcceptedAnswerAtomically` in de fake idempotentie en "één
+antwoord per speler per ronde" niet afdwingt (`answer-flow.js`'s check dekt
+geen concurrency af). Ontdekt tijdens de bouw van DM10–DM12, bewust niet
+meegenomen — verdient een eigen voorstelronde (kandidaat `DM13`). Zie
+`HANDOFF.md` §6.
+
 ## Cijfers
 
-- **DM0–DM9: alle tien fases uitgevoerd.** `node --test
-  'server/data/**/*.test.js'` → **456/456 tests groen** (86 suites).
+- **DM0–DM12: alle dertien fases uitgevoerd.** `node --test
+  'server/data/**/*.test.js'` → **472/472 tests groen** (88 suites).
 - Twee reviewrondes volledig verwerkt: [`REVIEW.md`](REVIEW.md) (2 blockers, 10
   hoge bevindingen, vóór DM0/DM1) en
   [`prompts/REVIEW-DM2-DM9.md`](prompts/REVIEW-DM2-DM9.md) (3 blockers, 8 hoge,
-  3 middelhoge, vóór uitvoering van DM2–DM9).
+  3 middelhoge, vóór uitvoering van DM2–DM9). Een derde reviewronde (eigen,
+  vóór uitvoering) op DM10–DM12 vond drie fundamentele contractproblemen —
+  zie de "Herzien na een eigen reviewronde"-secties in die promptbestanden.
 - Eén productbesluitronde ([`docs/multiplayer/DECISIONS.md`](../multiplayer/DECISIONS.md),
   2 augustus 2026) tijdens uitvoering verwerkt — zie boven.
-- [`HANDOFF.md`](HANDOFF.md) heeft vijf beantwoorde/voorgestelde punten richting
-  `game-rules-plan`, `protocol-plan` en `architecture-plan`, waaronder het nog
-  openstaande voorstel voor een neutrale `PHASES`/`PACING`-module (§5).
+- [`HANDOFF.md`](HANDOFF.md) heeft zes beantwoorde/voorgestelde secties richting
+  `game-rules-plan`, `protocol-plan`, `architecture-plan` en `integration-plan`
+  (§6, nieuw: INT-1/INTB-1/INTB-2/INTB-3), waaronder het nog openstaande
+  voorstel voor een neutrale `PHASES`/`PACING`-module (§5).
 - Analytics (DM8) blijft bewust een voorstel onder
   [`proposals/`](proposals/), geen `server/`-code.
 
-*Laatst bijgewerkt: na uitvoering van DM0–DM9 en verwerking van
-`DECISIONS.md` #21.*
+*Laatst bijgewerkt: na uitvoering van DM10–DM12 (reactie op
+`docs/integration-plan/`'s HANDOFF-bevindingen INT-1/INTB-1/INTB-2/INTB-3).*

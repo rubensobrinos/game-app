@@ -174,3 +174,17 @@ resultaat te kunnen verifiëren en voor DM7's `existingAnswerForRound`-context.
 **Nabericht na `docs/multiplayer/DECISIONS.md` #21/DM2b's rename:** alle
 `RoomCore`-verwijzingen in `repository.js` (JSDoc-imports, typenaam) zijn
 bijgewerkt naar `Room` — zelfde reden als in `DM2b-room.md`. Gedrag ongewijzigd.
+
+**Nabericht (na DM10, DM11, DM12).** Drie latere, herziene fases breiden deze
+poort uit — zie [`DM10-room-locator-claim.md`](DM10-room-locator-claim.md),
+[`DM11-room-scoped-round-answer.md`](DM11-room-scoped-round-answer.md),
+[`DM12-scoreboard-room-scoping.md`](DM12-scoreboard-room-scoping.md) voor de
+volledige motivatie. Kort: `loadRoomByInviteId(inviteId)` is hernoemd naar
+`loadRoomByInviteHash(inviteHash)` (de claim werkt op de hash, niet op de
+platte capability — twee identifiers voor hetzelfde concept naast elkaar zou
+een nieuwe inconsistentie zijn); `claimRoomLocatorsAtomically`/
+`releaseRoomLocators`/`refreshRoomLocators` zijn toegevoegd; `saveRound`/
+`loadAnswer`/`loadActionCacheEntry` zijn room-gescoped (bredere signaturen,
+**geen** nieuwe velden op `Round`/`Answer`); de in-memory fake gebruikt sinds
+DM11/DM12 geneste Maps in plaats van met een spatie samengestelde
+string-sleutels voor `matches`/`rounds`/`answers`/`actionCache`/`scoreboard`.
