@@ -102,6 +102,22 @@ document totdat de betreffende fundamentele specificatie is bijgewerkt.
     auto-tempo, snelheidspunten aan, late join aan. Succescriteria 1–2 uit
     PRODUCT.md (10 seconden naar room/lobby) blijven onverkort gelden.
 
+## Capabilities
+
+36. *(gereserveerd — join-code-claim, gerealiseerd via DM10's
+    `claimRoomLocatorsAtomically`; zie `docs/integration-plan/HANDOFF.md` INT-1.)*
+37. **Capability-principe** (bevestigd 2 aug 2026, regie-sessie, op voorstel
+    van INT-B na drie gelijkvormige gaten — roomlocator-rotatie,
+    sessietoken-intrekking, claim-omzeiling via `saveRoom`): elke capability
+    (join-code, inviteId/hash, sessietoken, actionId-cache-entry) heeft exact
+    **één atomair schrijfpad en één atomair intrekpad**. Bij het toevoegen van
+    een nieuwe capability wordt expliciet vastgelegd: wie geeft hem uit, wie
+    trekt hem in, en welke operatie doet dat atomair. Een lookup die een
+    ingetrokken capability nog vindt is per definitie een bug. Elke
+    poortwijziging wordt hieraan getoetst; een integrator-akkoord op een
+    poortmethode betekent bovendien: implementeerbaar in Redis, inclusief
+    benoemde sleutel én een uitspraak over TTL.
+
 ## Uitvoeringsakkoord test- en deploymentwerk
 
 De producteigenaar heeft akkoord gegeven om de eerder geparkeerde test- en
