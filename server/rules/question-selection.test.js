@@ -124,6 +124,24 @@ describe('outputcontract per spelvorm #7-12', () => {
     assert.strictEqual(new Set(results.map((q) => q.publicQuestionPayload.targetIso2)).size, 6);
   });
 
+  test('#8b een ontbrekende capital-key (niet expliciet null) wordt ook uitgesloten van capitals_mc', () => {
+    // Regressietest voor de interface-gotcha richting CT/INT-A: een
+    // contentbron die de key weglaat i.p.v. `capital: null` te zetten, mag
+    // niet stilzwijgend als geschikt voor capitals_mc worden behandeld.
+    const poolWithMissingKey = POOL.map((e) => {
+      if (e.iso2 !== 'jp') return e;
+      const { capital, ...withoutCapital } = e;
+      return withoutCapital;
+    });
+    const results = buildMatchQuestionPlan(
+      baseParams({ pool: poolWithMissingKey, gameType: 'capitals_mc', totalRounds: 5, random: counterRandom(0) })
+    );
+    for (const q of results) {
+      assert.notStrictEqual(q.publicQuestionPayload.targetIso2, 'jp');
+      assert.ok(!q.publicQuestionPayload.optionIso2s.includes('jp'));
+    }
+  });
+
   test('#9 real_or_fake_flag, generated-tak levert seed/rendererVersion/spec van generateFlagSpec', () => {
     const results = buildMatchQuestionPlan(
       baseParams({ gameType: 'real_or_fake_flag', totalRounds: 6, random: counterRandom(0) })

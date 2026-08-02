@@ -66,9 +66,15 @@ function pairKey(isoA, isoB) {
   return [isoA, isoB].sort().join('-');
 }
 
-/** @returns {ContentEntry[]} pool gefilterd op difficulty (en optioneel geldige hoofdstad). */
+/**
+ * @returns {ContentEntry[]} pool gefilterd op difficulty (en optioneel
+ * geldige hoofdstad). `== null` (niet `===`) dekt zowel `capital: null` als
+ * een ontbrekende `capital`-key — een contentbron die de key weglaat in
+ * plaats van expliciet op `null` te zetten, mag capitals_mc niet stilzwijgend
+ * als geschikt beschouwen.
+ */
 function buildCandidatePool(pool, difficulty, requireCapital) {
-  return pool.filter((e) => e.difficulty === difficulty && (!requireCapital || e.capital !== null));
+  return pool.filter((e) => e.difficulty === difficulty && (!requireCapital || e.capital != null));
 }
 
 /** @returns {Array<[ContentEntry, ContentEntry]>} alle paren met ongelijke, niet-null metriekwaarden. */

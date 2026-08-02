@@ -53,40 +53,60 @@ doen tijdens een live game. Besluit:
 Details: [`prompts/GR2-standings.md`](prompts/GR2-standings.md), sectie
 "Nadrukkelijk buiten scope".
 
-## 3. Aan `shared/content/` (locatie bevestigd, `DECISIONS.md` #29) — nog te bouwen
+## 3. Aan de CT-agent (`docs/content-plan/prompts/CT1-shared-content-module.md`) en INT-A — contract overgedragen
 
-**Status: eigenaar/locatie nu bekend, module bestaat nog niet.** Niet
-blokkerend voor GR4 zelf (die test met mocks), wel iets dat vóór een echte
-match gebouwd moet zijn.
+**Status: eigenaar bekend (gecorrigeerd — eerdere versie van dit document zei
+"geen eigenaar bekend", dat klopte niet meer). Ons deel is af: het volledige
+interfacecontract staat gedocumenteerd. Bouw ernaartoe, wij bouwen niet verder
+mee.**
 
-**3a — Content laden en normaliseren.** `ARCHITECTURE.md` #6 beschrijft één
-versieerbare contentmodule die client én server gebruiken voor landen,
-hoofdsteden, moeilijkheidsindeling, vertalingen en vraagpools. Die bestaat nog
-niet. `server/rules/question-selection.js` (GR4) neemt daarom een
-al-genormaliseerde `ContentEntry[]`-pool aan als parameter in plaats van zelf
-`data/countries.js`/`data/country-facts.js` te laden — zie
-[`prompts/GR4-question-selection.md`](prompts/GR4-question-selection.md),
-sectie "Outputcontract", voor het exacte `ContentEntry`-schema dat GR4
-verwacht (incl. `name`/`capital` per taal, niet alleen een boolean).
+**3a — Content-poolinterface: zie
+[`CONTENT-POOL-INTERFACE.md`](CONTENT-POOL-INTERFACE.md).** Volledig,
+veld-voor-veld contract voor de `ContentEntry[]`-pool die
+`server/rules/question-selection.js` verwacht — inclusief twee concrete
+gotchas (`capital: null` vs. ontbrekende key; `"normal"` bestaat niet als
+content-tier) en referentiecijfers uit de bestaande `data/`-content. **Dit
+contract is leidend**: `shared/content/` levert deze vorm, GR4 verandert niet
+mee.
 
-**3b — Echt-of-Nep-renderer is niet seed-deterministisch.** De bestaande
-singleplayer-functie `generateFakeParams()` gebruikt zelf `Math.random()` en
-kan dus vandaag niet gebruikt worden om alle clients dezelfde specificatie uit
-dezelfde seed te laten renderen — een harde eis in `GAME-RULES.md`. GR4
-verwacht een geïnjecteerde `generateFlagSpec(seed) => { pattern, palette, ...,
+**3b — Echt-of-Nep-renderer (CT1 prioriteit 2).** De bestaande singleplayer-
+functie `generateFakeParams()` gebruikt zelf `Math.random()` en is dus niet
+seed-deterministisch — een harde eis in `GAME-RULES.md` (alle clients moeten
+dezelfde specificatie uit dezelfde seed renderen). GR4 verwacht een
+geïnjecteerde `generateFlagSpec(seed) => { pattern, palette, ...,
 rendererVersion }` (ontwerpbeslissing 2 in `GR4-question-selection.md`) en
-test met een mock; de echte, seed-deterministische versie moet nog gebouwd
-worden — waarschijnlijk een extractie/herschrijving van de bestaande
-singleplayer-logica, niet iets nieuws vanaf nul.
+test zelf met een mock — dus niet blokkerend voor ons, wel nodig vóór een
+echte match gespeeld kan worden.
 
-Relevante feiten uit onderzoek van de bestaande data (mogelijk nuttig voor wie
-dit bouwt): 230 landen, sleutel `iso2`; vier moeilijkheidsniveaus in de echte
-data (`easy/medium/hard/extreme` — `data/README.md`'s schema-tabel is
-verouderd en noemt er maar drie); `continent`/`population`/`area`/`gdp` zitten
-in `data/country-facts.js`, niet in `data/countries.js`; hoofdstad-coverage is
-230/230 volledig.
+## 4. Aan INT-A — bevestiging gevraagd, hierbij gegeven
 
-## 4. Informationeel — geen actie nodig
+**Ja: de returnvorm van `buildMatchQuestionPlan()` — `SelectedQuestion[]`,
+met `gameType`, `questionKey`, `publicQuestionPayload`, `correctAnswer`, en
+optioneel `validOptionIds` (alleen `flags_mc`/`capitals_mc`) en
+`resultDetails` (alleen `higher_lower`/`odd_one_out`) — is het bedoelde,
+stabiele outputcontract van GR4, geen incidenteel implementatiedetail.**
+
+Grondslag, niet alleen "het is nu zo geschreven":
+
+- Vastgelegd vóór implementatie in [`prompts/GR4-question-selection.md`](prompts/GR4-question-selection.md),
+  sectie "Outputcontract" — inclusief de reden waarom `resultDetails` een
+  apart veld is (waarden/continenten vóór `round:ended` tonen zou het
+  antwoord verklappen).
+- Getest, niet alleen gedocumenteerd: `server/rules/question-selection.test.js`
+  testgevallen #7 (`validOptionIds` exact gelijk aan de 4 opties), #9–#11
+  (aan-/afwezigheid van `rendererVersion`/`spec`/`resultDetails` per
+  spelvorm, en expliciet dat waarden/continenten **niet** in
+  `publicQuestionPayload` lekken).
+- `correctAnswer`s vorm per spelvorm is bovendien extern bekrachtigd
+  (`DECISIONS.md` #15, zie §1) — `validOptionIds`/`resultDetails` zijn eigen
+  ontwerp van GR4 (blocker 2 in `REVIEW-GR4.md`), niet apart door de
+  producteigenaar geratificeerd, maar staan sinds die review ongewijzigd en
+  158/158 getest.
+
+Wijzigt dit later (bv. door SR1's redactie van `GAME-RULES.md`), dan komt dat
+hier als nieuw punt, niet als stille breaking change.
+
+## 5. Informationeel — geen actie nodig
 
 - **Naammismatch: "normaal" vs. `easy/medium/hard/extreme`.**
   `DECISIONS.md` #35 noemt "moeilijkheid normaal" als default bij Snel

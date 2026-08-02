@@ -167,7 +167,25 @@ Uitvoerbare, zelfstandige taakbeschrijvingen per fase staan in
 **GR5 + GR8 — afgerond.** `server/rules/eligibility.js` (25/25 tests) +
 `server/rules/answer-distribution.js` (12/12 tests), rechtstreeks
 geïmplementeerd (geen agents — kleiner genoeg om zelf sneller te doen).
-**157/157 tests groen totaal.**
+**158/158 tests groen totaal** (na een defensieve fix in
+`question-selection.js`s hoofdstad-check n.a.v. het opstellen van
+[`CONTENT-POOL-INTERFACE.md`](CONTENT-POOL-INTERFACE.md) — zie `HANDOFF.md` §3).
+
+**Statuscorrectie (menselijk geverifieerd):** de contentmodule heeft wél al
+een eigenaar — de CT-agent
+(`docs/content-plan/prompts/CT1-shared-content-module.md`), inclusief de
+Echt-of-Nep-renderer als CT1-prioriteit 2. Ons deel daarin (het exacte
+poolcontract dat wij verwachten) staat nu overgedragen via
+[`CONTENT-POOL-INTERFACE.md`](CONTENT-POOL-INTERFACE.md) en `HANDOFF.md` §3.
+
+**Twee lopende, niet-blokkerende punten:**
+1. Beschikbaar blijven voor `HANDOFF`-vragen van integrators (INT-A) zodra een
+   keten-test deze modules daadwerkelijk aanroept.
+2. `GAME-RULES.md` is **niet bevroren** — SR1 redigeert het brondocument op de
+   inmiddels genomen besluiten. Een toekomstige wijziging daar kan een van
+   deze GR-modules alsnog raken; dit plan gaat er nu van uit dat de huidige
+   tekst (waarop alle GR-prompts zijn gebaseerd) klopt op het moment van
+   bouwen.
 
 **GR4 — afgerond.** `server/rules/question-selection.js` (357 regels) +
 `question-selection.test.js` (337 regels). Twee gespawnde agentpogingen liepen
