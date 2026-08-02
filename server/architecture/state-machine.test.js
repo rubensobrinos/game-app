@@ -272,6 +272,58 @@ const FIXTURES = [
   row('HOST_RESUME vanuit LOBBY afgewezen (niet gepauzeerd)', 'LOBBY', 'host',
     { type: 'HOST_RESUME', nextPhase: 'COUNTDOWN' }, err('INVALID_PHASE')),
 
+  // [6b] RECOVERY_RESUME (INT-16): alleen vanuit PAUSED en, anders dan
+  // HOST_RESUME, uitsluitend naar COUNTDOWN. ARCHITECTURE.md §10 eist dat herstel
+  // na een serverherstart met een nieuwe korte countdown gebeurt; de drie andere
+  // speelfasen zijn daarom geen geldige bestemming. Precies die beperking is de
+  // bestaansreden van het aparte event — zonder haar was het een synoniem.
+  row('RECOVERY_RESUME → COUNTDOWN (nieuwe korte countdown, ARCHITECTURE.md §10)',
+    pausedFrom('ROUND_ACTIVE'), 'auto', { type: 'RECOVERY_RESUME', nextPhase: 'COUNTDOWN' },
+    ok('COUNTDOWN')),
+  row('RECOVERY_RESUME → COUNTDOWN slaagt ook bij host-tempo (tempo speelt geen rol bij hervatten)',
+    pausedFrom('SCOREBOARD'), 'host', { type: 'RECOVERY_RESUME', nextPhase: 'COUNTDOWN' },
+    ok('COUNTDOWN')),
+  row('RECOVERY_RESUME → COUNTDOWN vanuit een pauze met reden server_recovery (besluit 11)',
+    { phase: 'PAUSED', pausedState: { previousPhase: 'ROUND_RESULT', remainingMs: 0,
+      reason: 'server_recovery', pausedAt: PAUSED_AT } }, 'auto',
+    { type: 'RECOVERY_RESUME', nextPhase: 'COUNTDOWN' }, ok('COUNTDOWN')),
+  row('RECOVERY_RESUME → ROUND_ACTIVE afgewezen (geen terugval midden in een ronde)',
+    pausedFrom('ROUND_ACTIVE'), 'auto', { type: 'RECOVERY_RESUME', nextPhase: 'ROUND_ACTIVE' },
+    err('INVALID_PHASE')),
+  row('RECOVERY_RESUME → ROUND_RESULT afgewezen (fases overslaan mag niet stilletjes)',
+    pausedFrom('ROUND_RESULT'), 'host', { type: 'RECOVERY_RESUME', nextPhase: 'ROUND_RESULT' },
+    err('INVALID_PHASE')),
+  row('RECOVERY_RESUME → SCOREBOARD afgewezen', pausedFrom('SCOREBOARD'), 'auto',
+    { type: 'RECOVERY_RESUME', nextPhase: 'SCOREBOARD' }, err('INVALID_PHASE')),
+  row('RECOVERY_RESUME → LOBBY afgewezen', pausedFrom(), 'host',
+    { type: 'RECOVERY_RESUME', nextPhase: 'LOBBY' }, err('INVALID_PHASE')),
+  row('RECOVERY_RESUME → PAUSED afgewezen (zelflus)', pausedFrom(), 'auto',
+    { type: 'RECOVERY_RESUME', nextPhase: 'PAUSED' }, err('INVALID_PHASE')),
+  row('RECOVERY_RESUME → FINISHED afgewezen (gebruik HOST_FINISH)', pausedFrom(), 'host',
+    { type: 'RECOVERY_RESUME', nextPhase: 'FINISHED' }, err('INVALID_PHASE')),
+  row('RECOVERY_RESUME met onbekende nextPhase-string afgewezen', pausedFrom(), 'auto',
+    { type: 'RECOVERY_RESUME', nextPhase: 'BOGUS_PHASE' }, err('INVALID_PHASE')),
+  row('RECOVERY_RESUME met nextPhase "countdown" (kleine letters) afgewezen', pausedFrom(), 'host',
+    { type: 'RECOVERY_RESUME', nextPhase: 'countdown' }, err('INVALID_PHASE')),
+  row('RECOVERY_RESUME met nextPhase null afgewezen', pausedFrom(), 'auto',
+    { type: 'RECOVERY_RESUME', nextPhase: null }, err('INVALID_PHASE')),
+  row('RECOVERY_RESUME zonder nextPhase afgewezen', pausedFrom(), 'host',
+    { type: 'RECOVERY_RESUME' }, err('INVALID_PHASE')),
+  // Elke niet-PAUSED bronfase: de fase-guard gaat vóór de payload, dus zelfs de
+  // enige geldige bestemming (COUNTDOWN) helpt hier niet.
+  row('RECOVERY_RESUME vanuit LOBBY afgewezen (niet gepauzeerd)', 'LOBBY', 'auto',
+    { type: 'RECOVERY_RESUME', nextPhase: 'COUNTDOWN' }, err('INVALID_PHASE')),
+  row('RECOVERY_RESUME vanuit COUNTDOWN afgewezen (niet gepauzeerd)', 'COUNTDOWN', 'host',
+    { type: 'RECOVERY_RESUME', nextPhase: 'COUNTDOWN' }, err('INVALID_PHASE')),
+  row('RECOVERY_RESUME vanuit ROUND_ACTIVE afgewezen (niet gepauzeerd)', 'ROUND_ACTIVE', 'auto',
+    { type: 'RECOVERY_RESUME', nextPhase: 'COUNTDOWN' }, err('INVALID_PHASE')),
+  row('RECOVERY_RESUME vanuit ROUND_RESULT afgewezen (niet gepauzeerd)', 'ROUND_RESULT', 'host',
+    { type: 'RECOVERY_RESUME', nextPhase: 'COUNTDOWN' }, err('INVALID_PHASE')),
+  row('RECOVERY_RESUME vanuit SCOREBOARD afgewezen (niet gepauzeerd)', 'SCOREBOARD', 'auto',
+    { type: 'RECOVERY_RESUME', nextPhase: 'COUNTDOWN' }, err('INVALID_PHASE')),
+  row('RECOVERY_RESUME vanuit FINISHED afgewezen (eindfase)', 'FINISHED', 'host',
+    { type: 'RECOVERY_RESUME', nextPhase: 'COUNTDOWN' }, err('INVALID_PHASE')),
+
   // [7] HOST_FINISH: geldig vanuit elke fase behalve FINISHED.
   row('HOST_FINISH vanuit LOBBY', 'LOBBY', 'auto', { type: 'HOST_FINISH' }, ok('FINISHED')),
   row('HOST_FINISH vanuit COUNTDOWN', 'COUNTDOWN', 'host', { type: 'HOST_FINISH' }, ok('FINISHED')),
@@ -304,6 +356,8 @@ const FIXTURES = [
     { type: 'PLAYER_ANSWER', answer: 'a' }, err('UNSUPPORTED_EVENT')),
   row('Onbekend type vanuit PAUSED', pausedFrom(), 'auto',
     { type: 'HOST_RESUMED', nextPhase: 'COUNTDOWN' }, err('UNSUPPORTED_EVENT')),
+  row('Type is hoofdlettergevoelig: recovery_resume vanuit PAUSED', pausedFrom(), 'host',
+    { type: 'recovery_resume', nextPhase: 'COUNTDOWN' }, err('UNSUPPORTED_EVENT')),
   row('Lege type-string vanuit FINISHED', 'FINISHED', 'host', { type: '' }, err('UNSUPPORTED_EVENT')),
   row('Event zonder type vanuit SCOREBOARD', 'SCOREBOARD', 'auto', {}, err('UNSUPPORTED_EVENT')),
   row('Type is hoofdlettergevoelig: host_start vanuit COUNTDOWN', 'COUNTDOWN', 'host',
@@ -408,7 +462,7 @@ const FIXTURES = [
     { type: 'HOST_FINISH' }, ok('FINISHED'), NaN),
 
   // [18] `pacing` wordt globaal gevalideerd tegen 'auto' | 'host', ongeacht event
-  // of fase — verspreid over alle zes event-types. Het event-alfabet blijft de
+  // of fase — verspreid over alle zeven event-types. Het event-alfabet blijft de
   // buitenste poort, ook vóór de pacing-check.
   invalidPacingRow('Pacing undefined + HOST_START → INVALID_PHASE', 'LOBBY', undefined,
     { type: 'HOST_START' }, err('INVALID_PHASE')),
@@ -418,6 +472,11 @@ const FIXTURES = [
     { type: 'TIMER_ELAPSED', nextPhase: 'ROUND_ACTIVE' }, err('INVALID_PHASE')),
   invalidPacingRow('Pacing "Auto" + HOST_RESUME → INVALID_PHASE', pausedFrom(), 'Auto',
     { type: 'HOST_RESUME', nextPhase: 'ROUND_ACTIVE' }, err('INVALID_PHASE')),
+  // Bronfase PAUSED met de enige geldige bestemming: met een geldige pacing zou
+  // deze rij slagen, dus faalt hij echt op de pacing-validatie.
+  invalidPacingRow('Pacing "host " (trailing spatie) + RECOVERY_RESUME → INVALID_PHASE',
+    pausedFrom(), 'host ', { type: 'RECOVERY_RESUME', nextPhase: 'COUNTDOWN' },
+    err('INVALID_PHASE')),
   invalidPacingRow('Pacing 42 + HOST_PAUSE met geldige payload → INVALID_PHASE', 'ROUND_ACTIVE', 42,
     { type: 'HOST_PAUSE', reason: 'host-pauze', remainingMs: 3_000 }, err('INVALID_PHASE')),
   // Bronfase SCOREBOARD, want dat is de enige HOST_NEXT-bron: met pacing 'host'
@@ -556,6 +615,56 @@ test('regressie INT-10: ROUND_RESULT + HOST_NEXT bestaat niet bij host-tempo (de
     transition({ phase: 'SCOREBOARD', pausedState: null },
       { type: 'HOST_NEXT', nextPhase: 'COUNTDOWN' }, 'host', NOW),
     ok('COUNTDOWN'));
+});
+
+// INT-16 (docs/integration-plan/HANDOFF.md): HOST_RESUME en RECOVERY_RESUME zijn
+// géén synoniemen. Dezelfde PAUSED-state, dezelfde gevraagde bestemming, twee
+// verschillende uitkomsten — dát is de reden dat het twee events zijn en niet één
+// event met een `reason`-veld. Verdwijnt dit verschil, dan is de splitsing zinloos
+// geworden en faalt deze test terecht.
+test('INT-16: RECOVERY_RESUME mag alleen naar COUNTDOWN, HOST_RESUME ook terug naar previousPhase', () => {
+  const paused = () => ({
+    phase: 'PAUSED',
+    pausedState: {
+      previousPhase: 'ROUND_ACTIVE',
+      remainingMs: 12_000,
+      reason: 'server_recovery',
+      pausedAt: PAUSED_AT,
+    },
+  });
+
+  // Een host hervat waar hij gebleven was: terug naar de lopende ronde.
+  const hostBack = transition(paused(), { type: 'HOST_RESUME', nextPhase: 'ROUND_ACTIVE' }, 'auto', NOW);
+  assert.deepStrictEqual(hostBack, ok('ROUND_ACTIVE'),
+    'HOST_RESUME naar previousPhase blijft toegestaan');
+
+  // Herstel na een serverherstart mag dat juist niet: ARCHITECTURE.md §10 eist een
+  // nieuwe korte countdown in plaats van stilletjes terugvallen in de ronde.
+  assert.deepStrictEqual(
+    transition(paused(), { type: 'RECOVERY_RESUME', nextPhase: 'ROUND_ACTIVE' }, 'auto', NOW),
+    err('INVALID_PHASE'),
+    'RECOVERY_RESUME naar previousPhase moet worden afgewezen');
+
+  // ...en de route die §10 wél voorschrijft slaagt.
+  const recovered = transition(paused(), { type: 'RECOVERY_RESUME', nextPhase: 'COUNTDOWN' }, 'auto', NOW);
+  assert.deepStrictEqual(recovered, ok('COUNTDOWN'),
+    'RECOVERY_RESUME naar COUNTDOWN is de enige toegestane hersteltransitie');
+
+  // Invariant 1 voor beide events: de pauze is weg, niet half blijven staan.
+  assert.strictEqual(hostBack.state.pausedState, null, 'HOST_RESUME wist pausedState');
+  assert.strictEqual(recovered.state.pausedState, null, 'RECOVERY_RESUME wist pausedState');
+
+  // De overige drie speelfasen scheiden de twee events op dezelfde manier: geldig
+  // voor HOST_RESUME, afgewezen voor RECOVERY_RESUME.
+  for (const nextPhase of ['ROUND_ACTIVE', 'ROUND_RESULT', 'SCOREBOARD']) {
+    assert.strictEqual(
+      transition(paused(), { type: 'HOST_RESUME', nextPhase }, 'host', NOW).ok, true,
+      `HOST_RESUME → ${nextPhase} blijft toegestaan`);
+    assert.deepStrictEqual(
+      transition(paused(), { type: 'RECOVERY_RESUME', nextPhase }, 'host', NOW),
+      err('INVALID_PHASE'),
+      `RECOVERY_RESUME → ${nextPhase} mag niet bestaan (ARCHITECTURE.md §10)`);
+  }
 });
 
 test('afgewezen transitie laat het originele state-object volledig ongewijzigd', () => {

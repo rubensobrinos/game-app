@@ -52,6 +52,46 @@
 //    presentatiekeuze. Bij auto-tempo verandert er niets: daar mag ROUND_RESULT
 //    de tussenstand nog steeds overslaan (TIMER_ELAPSED rechtstreeks naar
 //    COUNTDOWN/ROUND_ACTIVE/FINISHED).
+//
+// TWEE HERVAT-EVENTS — HOST_RESUME en RECOVERY_RESUME (INT-16)
+//
+// Deze module kende eerst één hervat-event, waarbij de aanroeper de bestemming
+// meeleverde. Het onderscheid tussen een handmatige hervatting en herstel na een
+// serverherstart zat daardoor nergens in het alfabet: alleen in de vrije tekst van
+// `pausedState.reason`, die deze module niet leest. Zie
+// docs/integration-plan/HANDOFF.md, INT-16 ("Twee resume-events in plaats van
+// één"); de poortkant van dat item is inmiddels gebouwd (DM19).
+//
+// De splitsing bestaat om precies één reden — de toegestane bestemming verschilt:
+//
+//   HOST_RESUME      → COUNTDOWN | ROUND_ACTIVE | ROUND_RESULT | SCOREBOARD.
+//                      Een host hervat waar hij gebleven was; welke fase dat is
+//                      beslist de aanroeper, niet deze reducer.
+//   RECOVERY_RESUME  → UITSLUITEND COUNTDOWN. ARCHITECTURE.md §10
+//                      ("Herstelbaarheid") eist dat hervatten na een
+//                      game-serverherstart gebeurt "met een nieuwe korte
+//                      countdown" — niet door stilletjes meerdere fases over te
+//                      slaan en midden in een lopende ronde terug te vallen.
+//
+// Zou RECOVERY_RESUME overal heen mogen, dan was het een synoniem van HOST_RESUME
+// en had een `reason`-veld volstaan. De beperking tot COUNTDOWN IS het event.
+//
+// Twee dingen dragen die keuze:
+//
+// - DECISIONS.md besluit 11 kent `server_recovery` al als eigen pauzereden naast
+//   `host` / `host_disconnected` / `no_answers`. Het onderscheid bestaat dus al
+//   productmatig aan de pauzekant; dit trekt het door naar de hervatkant, zodat
+//   een match niet met `reason: 'server_recovery'` gepauzeerd raakt en vervolgens
+//   via een pad hervat dat alleen een host mag nemen.
+// - Analytics en logs kunnen een herstart-hervatting nu onderscheiden van een
+//   hostactie. Voorheen was dat ONMOGELIJK: beide landden als hetzelfde
+//   HOST_RESUME in de eventstroom, en de enige aanwijzing (`pausedState.reason`)
+//   was op het moment van hervatten al weggegooid — `accept()` zet pausedState op
+//   null, dus het event zelf droeg geen spoor van de aanleiding.
+//
+// HOST_RESUME behoudt exact zijn oude gedrag; bestaande aanroepers breken niet.
+// Beide events zijn alleen geldig vanuit PAUSED en zetten `pausedState` op null
+// (invariant 1).
 
 /**
  * @typedef {{
@@ -73,6 +113,7 @@
  *   | { type: "HOST_NEXT", nextPhase: string }
  *   | { type: "HOST_PAUSE", reason: string, remainingMs: number }
  *   | { type: "HOST_RESUME", nextPhase: string }
+ *   | { type: "RECOVERY_RESUME", nextPhase: "COUNTDOWN" }
  *   | { type: "HOST_FINISH" }
  * } Event
  */
@@ -95,6 +136,7 @@ const EVENT_TYPES = Object.freeze({
   HOST_NEXT: 'HOST_NEXT',
   HOST_PAUSE: 'HOST_PAUSE',
   HOST_RESUME: 'HOST_RESUME',
+  RECOVERY_RESUME: 'RECOVERY_RESUME',
   HOST_FINISH: 'HOST_FINISH',
 });
 
@@ -212,6 +254,15 @@ const RESUMABLE_PHASES = Object.freeze([
 ]);
 
 /**
+ * Toegestane nextPhase-waarden bij RECOVERY_RESUME. Bewust ÉÉN bestemming:
+ * ARCHITECTURE.md §10 schrijft voor dat herstel na een serverherstart met een
+ * nieuwe korte countdown gebeurt. Deze lijst breder maken maakt RECOVERY_RESUME
+ * een synoniem van HOST_RESUME en haalt de bestaansreden van de splitsing weg
+ * (INT-16) — niet doen.
+ */
+const RECOVERY_RESUMABLE_PHASES = Object.freeze([PHASES.COUNTDOWN]);
+
+/**
  * Enige publieke ingang: valideert de overgang en levert een nieuwe MatchState.
  * Werpt nooit — elke afwijzing komt terug als { ok: false, code }.
  * @param {MatchState} state - wordt nooit gemuteerd
@@ -244,7 +295,9 @@ function transition(state, event, pacing, now) {
     case EVENT_TYPES.HOST_PAUSE:
       return applyPause(phase, event, now);
     case EVENT_TYPES.HOST_RESUME:
-      return applyResume(phase, event);
+      return applyResume(phase, event, RESUMABLE_PHASES);
+    case EVENT_TYPES.RECOVERY_RESUME:
+      return applyResume(phase, event, RECOVERY_RESUMABLE_PHASES);
     case EVENT_TYPES.HOST_FINISH:
       return applyFinish(phase);
     default:
@@ -355,15 +408,24 @@ function applyPause(phase, event, now) {
 }
 
 /**
- * HOST_RESUME: alleen vanuit PAUSED. De reducer controleert uitsluitend of
- * nextPhase in RESUMABLE_PHASES zit, niet of die gelijk is aan
- * pausedState.previousPhase — dat onderscheid (handmatige pauze vs. herstel na
- * serverrestart) is een bewuste keuze van de aanroeper.
+ * Gedeelde afhandeling van HOST_RESUME en RECOVERY_RESUME: beide zijn alleen
+ * geldig vanuit PAUSED en zetten pausedState op null. Het ENIGE verschil zit in
+ * `allowedPhases` — dat is de hele reden dat het twee events zijn (INT-16,
+ * ARCHITECTURE.md §10). Fase vóór payload, net als bij HOST_PAUSE: hervatten
+ * vanuit een niet-gepauzeerde fase blijft INVALID_PHASE, ook bij een onzinnige
+ * nextPhase.
+ *
+ * De reducer controleert uitsluitend het lidmaatschap van `allowedPhases`, niet
+ * of nextPhase gelijk is aan pausedState.previousPhase — welke fase de host
+ * hervat is een keuze van de aanroeper. Wélk van de twee events past bij de
+ * aanleiding is dat óók; de reducer leidt dat niet af uit pausedState.reason.
  * @param {string} phase
  * @param {Event} event
+ * @param {ReadonlyArray<string>} allowedPhases - RESUMABLE_PHASES of
+ *   RECOVERY_RESUMABLE_PHASES
  * @returns {{ ok: true, state: MatchState } | { ok: false, code: string }}
  */
-function applyResume(phase, event) {
+function applyResume(phase, event, allowedPhases) {
   if (phase !== PHASES.PAUSED) {
     return reject(ERROR_CODES.INVALID_PHASE);
   }
@@ -371,7 +433,7 @@ function applyResume(phase, event) {
   // waarde gaan. Bij twee lezingen kan een getter de tweede keer een
   // ONGEVALIDEERDE fase teruggeven ('PAUSED', of iets buiten het domein).
   const requested = event.nextPhase;
-  if (!RESUMABLE_PHASES.includes(requested)) {
+  if (!allowedPhases.includes(requested)) {
     return reject(ERROR_CODES.INVALID_PHASE);
   }
   return accept(requested);

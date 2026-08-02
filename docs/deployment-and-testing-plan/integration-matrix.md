@@ -1,33 +1,89 @@
 # Testmatrix — integratielaag (DT3a)
 
-**Status (2026-08-02, tweede heraudit): 10/14 rijen geactiveerd** — rijen 1, 2,
-3, 5, 7, 8, 9, 10, 12, 14
-(`tests/integration/matrix-row-{01,02,03,05,07,08,09,10,12,14}-*.test.mjs`,
-direct actief, geen `test.skip`, zelf gedraaid: 11/11 groen — rij 9 heeft twee
-testblokken in één bestand). Repo-breed `npm test` vóór deze audit: 2150/2150
-groen; ná het toevoegen van de zes nieuwe testblokken (rijen 3, 7, 9×2, 12, 14)
-en het uitbreiden van `tests/integration/support/composition-harness.mjs` met
-`makeClock`/`CONTENT_VERSION`/`RENDERER_VERSION` (additief, bestaande exports
-ongewijzigd): 2158/2158 groen, twee keer achter elkaar gedraaid ter controle
-van flakiness. De 8 nieuwe tests i.p.v. de verwachte 6 komen doordat deze
-werkboom tijdens de audit ook elders veranderde (zie de "Methodologisch
-voorbehoud"-alinea in het vorige audit-log-blok — dezelfde instabiliteit deed
-zich hier opnieuw voor, ditmaal in `server/composition/match-lifecycle.mjs`
-zelf, zie hieronder).
+**Status (2026-08-02, derde heraudit): 6/14 rijen geactiveerd** — rijen 1, 2,
+3, 5, 8, 10 (`tests/integration/matrix-row-{01,02,03,05,08,10}-*.test.mjs`,
+direct actief, geen `test.skip`, zelf gedraaid: 6/6 groen). Dit is een DALING
+ten opzichte van de vorige heraudit (10/14) — GEEN heroverweging van eerder
+bewijs, maar een op commitniveau geciteerde, reproduceerbare regressie die
+ná de vorige heraudit is geland: commit `7cc31a8` ("Add DM19:
+setRoomAndMatchPhaseAtomically double CAS + pausedState atomicity") wijzigde
+de signatuur van `server/data/in-memory-store.js`'s
+`setRoomAndMatchPhaseAtomically` naar `(roomId, matchId, { expectedPhase,
+newPhase, pausedState })`, maar `server/composition/match-lifecycle.mjs` roept
+hem op twee plekken (regel 395, 1100) nog aan met de OUDE, positionele vorm
+(`setRoomAndMatchPhaseAtomically(roomId, matchId, nextPhase)`). Elke aanroep
+van `startMatch()` — en dus alles wat daarvan afhangt — werpt daardoor
+`RangeError: setRoomAndMatchPhaseAtomically: pausedState moet null zijn buiten
+de fase "PAUSED" (newPhase was undefined)`. Het eigen team van die migratie
+heeft dit inmiddels ook zelf vastgesteld (commit `0537330`, "INTB-11 — fake
+loopt achter op DM19"). Dit valt buiten de harde grenzen van deze audit
+(`server/composition`/`server/data` zijn niet van dit plan) en is dus NIET
+door deze audit zelf gerepareerd.
 
-Deze heraudit herbeoordeelt de claim uit commit `27f6e4e` ("matchcyclus en
-atomaire locatorclaim", `server/composition/match-lifecycle.mjs`,
-"matrixrij 7, 9, 12 en 14") zelfstandig, niet op gezag van de commitboodschap:
-alle vier die rijen zijn opnieuw, van de grond af, doorlopen tegen de
-daadwerkelijke werkboom (niet tegen een geïsoleerde worktree) en activeren nu
-ook aantoonbaar. Rij 3 activeert bovendien, onafhankelijk van die commit,
-omdat `room-lifecycle.mjs` inmiddels een échte inviteId-hashindex-lookup
-gebruikt (zie rij 3 in de tabel). Rijen 4, 6, 11, 13 blijven geblokkeerd —
-voor elk is opnieuw expliciet gezocht naar het ontbrekende stuk (rate
-limiting, `share:opened`-persistentie, een socket-roomstrategie, een
-broadcast-aanroeper voor de round:progress-throttle) en niets daarvan bleek
-inmiddels aanwezig. Zie de "Audit-log"-sectie onderaan voor de volledige,
-per-rij motivatie en citaten, inclusief het eerdere (5/14) blok.
+Rijen 7, 9, 12 en 14 — in de vorige heraudit geactiveerd met een zelf gedraaide,
+groene test — falen daardoor NU aantoonbaar tegen de actuele werkboom (dezelfde
+`RangeError`, zelf herhaald geverifieerd, inclusief twee polrondes van
+respectievelijk 180 s en 150 s waarin de regressie niet vanzelf oploste). Om te
+bevestigen dat dit puur een aanroepmismatch is en geen verlies van de
+onderliggende functionaliteit, is `server/composition/match-lifecycle.test.mjs`
+en zijn de vier bijbehorende `tests/integration/matrix-row-{07,09,12,14}-*`
+apart gedraaid in een `git worktree` op de OUDER van de regressiecommit
+(`3212dba`, dus vóór `7cc31a8`): daar 29/29 respectievelijk 5/5 groen. Deze
+rijen staan daarom hieronder als "geblokkeerd (regressie)", niet als
+"geblokkeerd" in de oorspronkelijke, prerequisite-ontbrekende zin — zie de
+Audit-log-tabel voor de volledige motivatie per rij.
+
+Rijen 11 en 13 waren de reden voor deze heraudit:
+`server/transport/socket.mjs` (nieuw sinds de vorige heraudit, aangehaakt via
+`server/index.mjs`'s `attachSocketsIfAvailable()`) implementeert daadwerkelijk
+zowel de socket-roomstrategie (rij 11: `roomChannel()`/`emitToRoom()`,
+server-side Socket.IO-rooms zoals ARCHITECTURE.md §Socketstrategie eist) als de
+`round:progress`-throttlebroadcast in de échte `round:answer`-verwerkingsketen
+(rij 13: `maybeEmitRoundProgress()`, aangeroepen vanuit `runEvent()`'s
+`round:answer`-hook). Twee nieuwe, zelf geschreven tests
+(`tests/integration/matrix-row-11-multi-room-socket-isolation.test.mjs`,
+`tests/integration/matrix-row-13-round-progress-throttle-broadcast.test.mjs`)
+bewijzen dit end-to-end over échte WebSockets — MAAR ALLEEN tegen de
+pre-regressie-worktree (`3212dba`): daar 2/2 groen. Tegen de actuele werkboom
+falen ook deze twee tests, om dezelfde `RangeError` (`round:started` komt
+nooit, want `startMatch()` faalt eerder in de keten) — niet om een gebrek in
+de socketlaag zelf. Omdat de harde regel van deze audit is "activeer alleen
+wat een test die je zelf hebt gedraaid, in de VOLLEDIGE suite, aantoonbaar
+groen oplevert", activeren rij 11 en 13 dit keer NIET, ondanks het sterke
+bewijs dat de socketlaag zelf al voldoet. Zodra de regressie is opgelost
+(één aanroep in `match-lifecycle.mjs` aanpassen aan de nieuwe
+poortsignatuur — geen nieuwe functionaliteit) horen beide rijen zonder verdere
+socketwerkzaamheden te activeren; dat is geen aanname maar de conclusie van de
+worktree-verificatie hierboven.
+
+Rijen 4 en 6 blijven geblokkeerd, zie hieronder — beide opnieuw expliciet
+herverifieerd, inclusief de vraag of `server/transport/socket.mjs`'s komst iets
+aan rij 6 verandert (nee: de `share:opened`-case in die laag, regel 966-970,
+logt alleen en muteert niets; er bestaat nog steeds geen enkele
+persistentie-/telfunctie in `server/`).
+
+`npm test` repo-breed vóór deze audit (2026-08-02, vóór het toevoegen van de
+twee nieuwe testbestanden hieronder, ná de hierboven beschreven regressie was
+al geland): **2323/2375 groen, 52 fail.** Ná het toevoegen van
+`matrix-row-11-multi-room-socket-isolation.test.mjs` en
+`matrix-row-13-round-progress-throttle-broadcast.test.mjs` (beide falen tegen
+de huidige werkboom, zoals hierboven gemotiveerd — geen server-/opslagcode
+aangeraakt): **2367/2420 groen, 53 fail.** Van de 52 respectievelijk 53 fails
+zijn er 0 toe te schrijven aan deze audit zelf; ze volgen stuk voor stuk uit de
+hierboven geciteerde regressie (plus een handvol pre-bestaande, niet aan deze
+regressie of dit plan gerelateerde fails in de Redis-adapter-conformancesuite
+van een gelijktijdige, nog lopende sessie — zie het handoff-blok in de opdracht
+van deze audit).
+
+Deze heraudit herbeoordeelt daarmee ALLE 14 rijen opnieuw, niet alleen 11/13:
+rijen 1, 2, 3, 5, 8, 10 blijven aantoonbaar geactiveerd (zelf herhaald,
+geïsoleerd gedraaid: 6/6 groen, geen regressie); rijen 4 en 6 blijven
+geblokkeerd op hun oorspronkelijke, ongewijzigde prerequisite; rijen 7, 9, 12,
+14 zijn GEREGRESSEERD (niet gedeactiveerd op basis van herbeoordeeld bewijs,
+maar op basis van een nieuw, extern gecausaliseerd defect); rijen 11 en 13
+zijn NIET geactiveerd, met sterk bewijs dat ze dat zouden zijn zodra de
+regressie is verholpen. Zie de "Audit-log"-sectie onderaan voor de volledige,
+per-rij motivatie en citaten, inclusief alle eerdere blokken.
 
 Onderdeel van [`README.md`](README.md), fase DT3a, uitgevoerd volgens
 [`prompts/DT3a-integratie-matrix.md`](prompts/DT3a-integratie-matrix.md). Bron:
@@ -215,3 +271,83 @@ alleen via `grep`, maar via echte HTTP-aanroepen.
 Geen statuswijziging voor rij 4/6 — het aantal geactiveerde rijen blijft 10/14.
 Deze aanvulling maakt alleen preciezer wélk deel al werkt en wélk deel nog
 ontbreekt, zodat een volgende audit niet opnieuw vanaf nul hoeft te zoeken.
+
+**Derde heraudit 2026-08-02 ([`DT-R1-heraudit-integratie`](prompts/DT-R1-heraudit-integratie.md)).**
+Aanleiding: `server/transport/socket.mjs` bestaat inmiddels (rijen 11 en 13
+wachtten daar expliciet op). Alle 14 rijen zijn opnieuw, van de grond af,
+gecontroleerd tegen de werkboom zoals die tijdens déze doorloop stond — niet
+tegen de aanname dat rijen 1/2/3/5/7/8/9/10/12/14 nog aantoonbaar zijn omdat
+een vorig blok dat zei.
+
+**Methodologisch voorbehoud — een regressie landde TIJDENS deze audit, niet
+door deze audit.** `npm test` vóór het schrijven van enige nieuwe testcode gaf
+**2323/2375 groen, 52 fail** — al hoger dan de "alleen Redis-adapter"-fails die
+bij de opdracht van deze audit werden aangekondigd. Onderzoek wees commit
+`7cc31a8` aan ("Add DM19: setRoomAndMatchPhaseAtomically double CAS +
+pausedState atomicity", geland vlak vóór deze audit begon): die wijzigt
+`server/data/in-memory-store.js`'s `setRoomAndMatchPhaseAtomically` van
+`(roomId, matchId, newPhase)` naar `(roomId, matchId, { expectedPhase,
+newPhase, pausedState })`, maar `server/composition/match-lifecycle.mjs` roept
+de functie op regel 395 (`applyTransition()`) en regel 1100 (`rematch()`) nog
+aan met de OUDE, positionele vorm. Elke `startMatch()` (en dus elke
+matchcyclus) werpt daardoor `RangeError: setRoomAndMatchPhaseAtomically:
+pausedState moet null zijn buiten de fase "PAUSED" (newPhase was undefined)`,
+geworpen vanuit `server/data/in-memory-store.js:308`, via
+`server/composition/match-lifecycle.mjs:395` (`applyTransition`), via
+`startMatch` (regel 521). Dit is geen instabiliteit van déze audit maar een
+regressie op `main`: bevestigd via `git show HEAD:server/data/in-memory-store.js`
+vs. de ongewijzigde `server/composition/match-lifecycle.mjs` op hetzelfde punt,
+en onafhankelijk bevestigd door het eigen team van die migratie zelf (commit
+`0537330`, "docs(int-b): INTB-11 — fake loopt achter op DM19": "zes tests staan
+rood tegen de fake en groen tegen de adapter"). Buiten de harde grenzen van
+deze audit (`server/composition`/`server/data` zijn niet van dit plan) — dus
+NIET hier gerepareerd. Om te toetsen of dit een voorbijgaande wijziging tijdens
+het schrijven van dit rapport was, is tweemaal gepolld tegen de daadwerkelijke
+werkboom (180 s, daarna nog eens 150 s, in totaal ruim 5,5 minuten, met
+`node --test server/composition/match-lifecycle.test.mjs` als sonde): de
+regressie loste in die tijd niet vanzelf op. Om te bevestigen dat dit puur een
+aanroepmismatch is en geen verlies van de onderliggende functionaliteit is
+daarna een `git worktree add --detach <tmp> 3212dba` gezet — de ouder-commit
+van de regressie, dus vóór `7cc31a8` — en zijn daar zowel
+`server/composition/match-lifecycle.test.mjs` (29/29 groen) als
+`tests/integration/matrix-row-{07,09,12,14}-*.test.mjs` (5/5 groen) opnieuw
+gedraaid: allemaal groen. Dezelfde worktree bevestigde ook dat de twee nieuwe
+tests van déze audit (hieronder, rij 11 en 13) tegen die pre-regressiestand wél
+slagen (2/2 groen) — zie de motivatie bij die rijen.
+
+`npm test` vóór deze audit (vóór het toevoegen van enig nieuw testbestand,
+regressie al geland): **2323/2375 groen, 52 fail.** Ná het toevoegen van de
+twee nieuwe testbestanden (`matrix-row-11-multi-room-socket-isolation.test.mjs`,
+`matrix-row-13-round-progress-throttle-broadcast.test.mjs` — beide falen tegen
+de huidige werkboom door precies de hierboven beschreven regressie, geen
+server-/opslagcode aangeraakt): **2367/2420 groen, 53 fail.** Geen van beide
+runs is "clean" vanwege de regressie hierboven plus een kleine, hier niet
+aangeraakte rest die al bij de opdracht van deze audit als bekend/extern werd
+aangekondigd (Redis-adapter-conformancesuite van een gelijktijdige sessie).
+
+| # | Status | Citaat | Datum |
+| --- | --- | --- | --- |
+| 1 | geactiveerd (ongewijzigd) | `tests/integration/matrix-row-01-create-room-host-not-participating.test.mjs` apart gedraaid tegen de huidige werkboom: groen, geen regressie. Onderliggende code (`server/composition/room-lifecycle.mjs` `createRoom()`) ongewijzigd t.o.v. de vorige heraudit. | 2026-08-02 |
+| 2 | geactiveerd (ongewijzigd) | `tests/integration/matrix-row-02-create-room-host-participating.test.mjs` apart gedraaid: groen, geen regressie. | 2026-08-02 |
+| 3 | geactiveerd (ongewijzigd) | `tests/integration/matrix-row-03-join-via-inviteid-hash-lookup.test.mjs` apart gedraaid: groen, geen regressie. `server/composition/room-lifecycle.mjs` `locateRoom()`/`findRoomByInviteId()` en `store.loadRoomByInviteHash()` ongewijzigd. | 2026-08-02 |
+| 4 | geblokkeerd (ongewijzigd) | Herhaald: `grep -rli "ratelimit" server/` levert nog altijd niets op. Geen enkel bestand in `server/`, inclusief het nieuwe `server/transport/socket.mjs`, implementeert rate limiting. De handshake in `socket.mjs` (regel 627-662) verifieert alleen sessie en protocolversie, geen frequentie. | 2026-08-02 |
+| 5 | geactiveerd (ongewijzigd) | `tests/integration/matrix-row-05-displayname-and-generated-name.test.mjs` apart gedraaid: groen, geen regressie. | 2026-08-02 |
+| 6 | geblokkeerd (ongewijzigd, nu ook expliciet getoetst tegen de nieuwe socketlaag) | `server/transport/socket.mjs` regel 966-970 (`case 'share:opened'`) roept uitsluitend `logSafe('info', 'share geopend', ...)` aan en geeft een lege ack terug — GEEN mutatie, geen store-aanroep. `grep -rn "recordShareOpened\|shareOpenedCount\|persistShareOpened" server/` levert nog steeds niets op. De komst van de socketlaag lost dus precies het ontbrekende stuk uit de Prerequisite-kolom ("plus een `share:opened`-handler") niet op: er is nu wél een bereikbaar `share:opened`-event, maar nog geen persistentie/telling erachter. | 2026-08-02 |
+| 7 | **geblokkeerd (regressie)** | Was geactiveerd in de vorige heraudit met een zelf gedraaide groene test. Nu: `tests/integration/matrix-row-07-full-match-cycle-with-rematch.test.mjs` faalt tegen de huidige werkboom met `RangeError: setRoomAndMatchPhaseAtomically: pausedState moet null zijn buiten de fase "PAUSED" (newPhase was undefined)`, geworpen uit `server/data/in-memory-store.js:308` via `server/composition/match-lifecycle.mjs:395` (`applyTransition`) via `startMatch` (regel 521) — zie het methodologisch voorbehoud hierboven voor de volledige oorzaakketen (commit `7cc31a8`). Tegen de ouder-commit van die regressie (`3212dba`, git worktree) is dezelfde test wél groen: de onderliggende matchcyclus-implementatie is ongewijzigd, alleen de aanroep naar de poort is nu inconsistent. Niet hersteld door deze audit (`server/composition` is niet van dit plan). | 2026-08-02 |
+| 8 | geactiveerd (ongewijzigd) | `tests/integration/matrix-row-08-room-lock-blocks-and-allows-join.test.mjs` apart gedraaid: groen, geen regressie. Raakt `room-lifecycle.mjs`, niet `match-lifecycle.mjs`, dus buiten bereik van de regressie hierboven. | 2026-08-02 |
+| 9 | **geblokkeerd (regressie)** | Zelfde oorzaak als rij 7: `tests/integration/matrix-row-09-late-join-eligibility.test.mjs` (beide testblokken) falen op dezelfde `RangeError` via `startMatch()`. Groen tegen de pre-regressie-worktree (`3212dba`). Niet hersteld door deze audit. | 2026-08-02 |
+| 10 | geactiveerd (ongewijzigd) | `tests/integration/matrix-row-10-kick-revokes-session.test.mjs` apart gedraaid: groen, geen regressie. Raakt `room-lifecycle.mjs`, niet `match-lifecycle.mjs`. | 2026-08-02 |
+| 11 | **niet geactiveerd — geblokkeerd door de regressie, niet door de socketlaag** | `server/transport/socket.mjs` implementeert de socket-roomstrategie die de Prerequisite-kolom eist: `roomChannel(roomId)` (regel 68-70) geeft één Socket.IO-room per game-room; `connection`-handler (regel 664-667) laat elke socket uitsluitend zijn eigen `roomChannel`/`sessionChannel` joinen; elk `room`-serverevent gaat via `emitToRoom()` (regel 372-374, `io.to(roomChannel(roomId))`), nooit naar alle sockets. Nieuw geschreven test `tests/integration/matrix-row-11-multi-room-socket-isolation.test.mjs`: twee gelijktijdig actieve rooms over échte WebSockets, elk met een eigen matchcyclus resp. lock-toggle; controleert zowel event-afwezigheid als afwezigheid van identifiers van de andere room in de ontvangen frames. Tegen de huidige werkboom faalt deze test — niet op een socketprobleem, maar omdat `game:start` in room A dezelfde `RangeError` van rij 7 raakt (`round:started` komt daardoor nooit, dus de rest van het scenario kan niet doorlopen). Tegen de pre-regressie-worktree (`3212dba`, met alleen de testbestanden zelf gekopieerd, geen productiecode gewijzigd) is dezelfde test wél groen: 2/2 (samen met rij 13). Om de harde regel van deze audit ("activeer alleen wat een test die je zelf hebt gedraaid, in de VOLLEDIGE suite tegen de actuele werkboom, aantoonbaar groen oplevert") niet te omzeilen, activeert deze rij dit keer NIET. | 2026-08-02 |
+| 12 | **geblokkeerd (regressie)** | Zelfde oorzaak als rij 7: alle vier testblokken in `tests/integration/matrix-row-12-answer-idempotency.test.mjs` falen op dezelfde `RangeError` via `startMatch()`. Groen tegen de pre-regressie-worktree (`3212dba`). Niet hersteld door deze audit. | 2026-08-02 |
+| 13 | **niet geactiveerd — geblokkeerd door de regressie, niet door de socketlaag** | `server/transport/socket.mjs` `maybeEmitRoundProgress()` (regel 598-613) roept `throttleRoundProgress()` (`server/protocol/throttle-round-progress.mjs`) aan tegen een room-gescopede `throttleStore` en zendt alleen daadwerkelijk uit wanneer die beslissing `allow: true` teruggeeft; de aanroep zit in de échte `round:answer`-verwerkingsketen (`runEvent()`'s `case 'round:answer'`, regel 938-964, roept dit in zijn `after`-hook aan). Nieuw geschreven test `tests/integration/matrix-row-13-round-progress-throttle-broadcast.test.mjs`: vier échte `round:answer`-events van vier spelers op exact hetzelfde servertijdstip leveren precies twee daadwerkelijk ontvangen `round:progress`-broadcasts op (niet vier), en na het doorrollen van het venster (+1200 ms) weer één extra — gemeten op de `serverTime` van de ontvangen envelopes, met een expliciete "geen enkel venster van 1s bevat >2 broadcasts"-toets. Tegen de huidige werkboom faalt deze test om dezelfde reden als rij 11 (`game:start`/`round:started` bereikt de test nooit). Tegen de pre-regressie-worktree (`3212dba`) is dezelfde test wél groen: 2/2 (samen met rij 11). Niet geactiveerd, om dezelfde reden als rij 11. | 2026-08-02 |
+| 14 | **geblokkeerd (regressie)** | Zelfde oorzaak als rij 7: beide testblokken in `tests/integration/matrix-row-14-snapshot-omits-correct-answer.test.mjs` falen op dezelfde `RangeError` via `startMatch()`. Groen tegen de pre-regressie-worktree (`3212dba`). Niet hersteld door deze audit. | 2026-08-02 |
+
+**Wat DT-R5/een volgende heraudit hiermee kan:** de regressie is één
+aanroepmismatch op twee plekken in `server/composition/match-lifecycle.mjs`
+(regel 395 en 1100), niet een ontbrekende functionaliteit. Zodra die twee
+aanroepen zijn omgezet naar de nieuwe `{ expectedPhase, newPhase, pausedState
+}`-vorm (buiten het mandaat van dit plan om zelf te doen), horen rijen 7, 9,
+12 en 14 zonder verdere wijziging weer te activeren, en horen rijen 11 en 13
+— de twee nieuwe, zelf geschreven en tegen de pre-regressiestand bewezen
+groene tests uit deze audit — voor het eerst te activeren, zonder dat de
+socketlaag zelf nog iets hoeft te veranderen.
