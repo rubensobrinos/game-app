@@ -642,3 +642,81 @@ onafhankelijk, en compatibel, eigen tests voor deze builder toegevoegd in
 **Niets van dit hoofdstuk is geïmplementeerd behalve de sleutelbouwer.** Alle
 drie wachten op jullie technisch akkoord — met name INT-A's bevestiging over
 `rotateRoomLocators`-aanroepers voordat die vervalt.
+
+## 14. Reactie op INT-B's `BESLUIT-INTB-locators-en-sessieindex.md` — Deel A en Deel B akkoord, gebouwd (DM17)
+
+**Akkoord op beide delen, ongewijzigd t.o.v. INT-B's voorstel. Gebouwd,
+499/499 tests groen.** Dit vervangt/vult §13's INTB-9- en
+INTB-10-rotatieparagrafen aan met wat er nu daadwerkelijk staat.
+
+### Deel A — `saveRoom` raakt de lookup-indexen nooit meer aan
+
+Akkoord, één-op-één doorgevoerd: `saveRoom` schrijft alleen nog het
+roomdocument. `claimRoomLocatorsAtomically`, `rotateRoomLocators` en
+`releaseRoomLocators` blijven de drie schrijvers — **ik trek mijn eerdere
+aanbeveling in §13 om `rotateRoomLocators` in te trekken hierbij in.** INT-B's
+framing (claim/rotate/release als drie losse levenscyclusgebeurtenissen — een
+speler heeft alleen een schoner beeld nodig van "welke methode hoort bij
+welk moment" dan van "één methode die alles kan") overtuigt me meer dan mijn
+eigen "één schrijfpad, dus samenvoegen"-redenering. Zie de toets aan het
+capability-principe hieronder voor waarom dit toch klopt.
+
+`repository.test.js` #11/#12 (loadRoomByCode/loadRoomByInviteHash) claimen nu
+eerst — precies de 8 plekken die ik in §13 al aankondigde, plus twee nieuwe
+tests (#59-60) die het letterlijke INTB-9-scenario reproduceren tegen de
+GEFIXTE fake (het claimregister wint, `saveRoom` kan niets meer stelen).
+
+**Aan INT-A:** roomcreatie is nu hard tweefasig — eerst
+`claimRoomLocatorsAtomically`, dan pas `saveRoom`. Zonder de claim eerst is de
+room via geen enkele code/inviteHash vindbaar (`loadRoom(roomId)` werkt nog
+wel). Dit moet expliciet in de compositielaag staan.
+
+### Deel B — `loadSessionByTokenHash`, sleutelontwerp en rotatie
+
+Akkoord op alle vier punten:
+
+1. Signatuur blijft `loadSessionByTokenHash(tokenHash)`, geen `roomId` —
+   INT-B's redenering (de lookup ís hoe de server de room leert kennen, een
+   `roomId`-parameter zou circulair zijn) is overtuigender dan wat ik er zelf
+   over had opgeschreven; ik had de vraag niet scherp genoeg gesteld.
+2. `sessionTokenLookupKey(tokenHash)` staat al in `redis-keys.js` (vorige
+   ronde, puur additief).
+3. **TTL: contract vastgelegd zoals voorgesteld — géén touch-on-read.**
+   `loadSessionByTokenHash` muteert niets (was al zo). De daadwerkelijke
+   room-brede refresh die tokenHashes uit `roomSessionsKey(roomId)` leest, is
+   INT-B's adapterwerk — hier alleen bevestigd dat de fake er niet tegenin
+   gaat.
+4. **Rotatie: gebouwd.** `saveSession` geeft nu de vorige `tokenHash`-index-
+   entry vrij in dezelfde synchrone stap als de nieuwe wordt gezet, zodra
+   `tokenHash` verandert t.o.v. de al-opgeslagen sessie — geen nieuwe reverse
+   index nodig, `sessionsByKey` draagt de vorige sessie al. Drie nieuwe tests
+   (#61-63): oude token onvindbaar na rotatie, ongewijzigde token blijft
+   werken (geen onnodige vrijgave), en de eerste save van een sessie crasht
+   niet (geen "vorige" om vrij te geven).
+
+**Nog open, niet mijn bestand:** `DATA-MODEL.md` §Redis-sleutels mist nog de
+`session:token:{tokenHash}`-regel — ik wijzig dat document niet zelf (zie
+§11's precedent, spec-redactie-terrein).
+
+### Toets aan het capability-principe (voorgelegd als besluit #37)
+
+> Elke capability heeft exact één atomair schrijfpad en één atomair
+> intrekpad; bij elke nieuwe capability wordt vastgelegd wie hem uitgeeft, wie
+> hem intrekt en welke operatie dat atomair doet. Een lookup die een
+> ingetrokken capability nog vindt is een bug.
+
+| Capability | Uitgifte | Intrekking | Atomair? |
+| --- | --- | --- | --- |
+| Room-code + inviteHash | `claimRoomLocatorsAtomically` (nieuw) / `rotateRoomLocators` (vervanging) | `releaseRoomLocators` / `rotateRoomLocators` (impliciet, oude kant) | Ja, alle drie — `saveRoom` is sinds DM17 geen vierde schrijver meer |
+| Sessietoken (`tokenHash`) | `saveSession` | `saveSession` (impliciet, bij een gewijzigde `tokenHash`) | Ja, sinds DM17 — vóór DM17 was dit het derde exemplaar van hetzelfde gat |
+| Action-cache-entry (`actionId`) | `saveAcceptedAnswerAtomically` | *(geen — action-cache-entries zijn niet bedoeld om ingetrokken te worden, ze zijn het idempotentiebewijs van een geaccepteerd antwoord; TTL-verval is hun enige einde)* | Ja voor uitgifte; intrekking is hier geen zinvol concept |
+
+Alle drie de room-locator-schrijfpaden waren vóór vandaag met elkaar in
+conflict (claim vs. `saveRoom`); dat is nu één pad. De sessietoken-index had
+geen intrekpad; die heeft er nu een. De action-cache is bewust uitgezonderd:
+"nooit intrekbaar, alleen laten verlopen" is voor die ene capability het
+juiste antwoord, geen gat.
+
+**Toegepast op elke volgende poortwijziging vanaf nu**, zoals gevraagd — dit
+wordt de standaardvraag bij een nieuwe capability, niet iets wat achteraf
+wordt gecontroleerd.

@@ -22,12 +22,12 @@ transcriptie (+ voorstel voor een neutrale module in `HANDOFF.md` §5), en `Roun
 uitgebreid na reconciliatie met de inmiddels herziene `GR4-question-selection.md`.
 Zie [`DM-PROGRESS.md`](DM-PROGRESS.md) §Cijfers voor de volledige lijst.
 
-**Uitgevoerd. Alle zeventien fases (DM2–DM16) staan in `server/data/`, 492/492
-tests groen** (`node --test 'server/data/**/*.test.js'`). DM10–DM16
+**Uitgevoerd. Alle achttien fases (DM2–DM17) staan in `server/data/`, 499/499
+tests groen** (`node --test 'server/data/**/*.test.js'`). DM10–DM17
 (§3 hieronder) zijn een latere ronde, gebouwd als reactie op
 `docs/integration-plan/`'s HANDOFF-bevindingen. **De poort is sinds DM13
-bevroren, met een gevolgd voorstel-proces voor DM14–DM16** — zie `HANDOFF.md`
-§7b. Tijdens de uitvoering van
+bevroren, met een gevolgd voorstel-proces voor DM14–DM17** — zie `HANDOFF.md`
+§7b/§14. Tijdens de uitvoering van
 DM2–DM9 kwam
 [`docs/multiplayer/DECISIONS.md`](../multiplayer/DECISIONS.md) binnen (2 augustus
 2026, bevestigd door de producteigenaar) en loste daarmee checkpoint 4 op:
@@ -135,14 +135,17 @@ gevolgen daarvan.
 | DM14 | `loadSessionByTokenHash` | **Uitgevoerd** — reactie op INT-3 (`HANDOFF.md` §10, formeel voorstel + product-akkoord + gebouwd); deblokkeerde INT-A stap 2 |
 | DM15 | `saveAcceptedAnswerAtomically` geeft `{ replay: boolean }` terug | **Uitgevoerd** — reactie op INT-14 (`HANDOFF.md` §12); contract voor INT-B's Lua-script, geen ack in de replay-tak |
 | DM16 | `rotateRoomLocators` | **Uitgevoerd** — reactie op INTB-5 🔴 (`HANDOFF.md` §9, formeel voorstel + product-akkoord + gebouwd); atomaire wissel, faalt veilig (oude locators blijven geldig bij conflict) |
+| DM17 | `saveRoom` raakt lookup-indexen niet meer aan + sessietoken-rotatie | **Uitgevoerd** — reactie op INT-B's `BESLUIT-INTB-locators-en-sessieindex.md` (`HANDOFF.md` §14), Deel A (INTB-9) + Deel B (INTB-10-rotatie); capability-principe (besluit #37) toegepast en geaudit over alle drie de capabilities |
 
 **Poort bevroren sinds DM13, met een expliciet, gevolgd uitzonderingsproces
-(`HANDOFF.md` §7b).** DM14–DM16 zijn precies via dat proces gegaan: voorstel
-in `HANDOFF.md` → product-akkoord → (impliciet) integrator-akkoord → bouwen,
-in de afgesproken volgorde (§10 → INT-14 → §9). Elke volgende wijziging aan
-`repository.js`'s `DataStore`-contract doorloopt dezelfde stappen.
+(`HANDOFF.md` §7b).** DM14–DM17 zijn precies via dat proces gegaan: voorstel
+→ akkoord (product en/of technisch, per geval) → bouwen. Elke volgende
+wijziging aan `repository.js`'s `DataStore`-contract doorloopt dezelfde
+stappen, nu ook expliciet getoetst aan het capability-principe (besluit #37,
+`HANDOFF.md` §14): elke capability heeft één atomair schrijfpad en één
+atomair intrekpad.
 
-**DM0–DM16 zijn allemaal uitgevoerd — 492/492 tests groen**
+**DM0–DM17 zijn allemaal uitgevoerd — 499/499 tests groen**
 (`node --test 'server/data/**/*.test.js'`). Checkpoint 4 is tijdens de
 uitvoering opgelost door `docs/multiplayer/DECISIONS.md` #21. DM10–DM12 zijn
 gebouwd na een eigen reviewronde die vóór uitvoering drie fundamentele
@@ -152,10 +155,13 @@ kwam via `docs/integration-plan/`'s conformance-suite INTB-4 aan het licht
 (idempotentie in `saveAcceptedAnswerAtomically`) — als eigen fase DM13
 gebouwd, gevalideerd tegen INT-B's eigen (bewust rode) tests, die nu groen
 staan. Daarna DM14–DM16 (`loadSessionByTokenHash` voor INT-3,
-`{ replay: boolean }` voor INT-14, `rotateRoomLocators` voor INTB-5 🔴), elk
-via het voorstel-proces uit §7b: voorstel in `HANDOFF.md`, product-akkoord,
-dan bouwen. **De poort blijft bevroren voor eenzijdige wijzigingen** —
-zie `HANDOFF.md` §7b/§8 voor het volledige, actuele overzicht van wat er nog
+`{ replay: boolean }` voor INT-14, `rotateRoomLocators` voor INTB-5 🔴), en
+DM17 (`saveRoom` raakt de lookup-indexen niet meer aan + sessietoken-rotatie
+— reactie op INT-B's `BESLUIT-INTB-locators-en-sessieindex.md`, `HANDOFF.md`
+§14), elk via het voorstel-proces uit §7b: voorstel, akkoord, dan bouwen.
+**De poort blijft bevroren voor eenzijdige wijzigingen**, nu expliciet
+getoetst aan het capability-principe (besluit #37) —
+zie `HANDOFF.md` §7b/§8/§14 voor het volledige, actuele overzicht van wat er nog
 aan DM gericht staat maar bewust niet gebouwd is. Resterende
 externe wachtpunten: de (b)-ADR-items die de latere Redis/Postgres/token-
 adapterlaag raken (checkpoints 2, 3, 5, 6, 7, 10) — nooit de types of de

@@ -103,22 +103,21 @@ hele claim-machinerie nog steeds voor de code-index (INTB-9, nieuw, hoog).
 Drie voorstellen geschreven, geen enkele geïmplementeerd — wacht op
 gezamenlijk technisch akkoord:
 
-- [ ] INTB-9 — `saveRoom` raakt `roomIdByCode` niet meer aan.
-- [ ] INTB-5 (heropend) — `claimRoomLocatorsAtomically` geeft in dezelfde stap
-  de vorige locators van hetzelfde `roomId` vrij (nieuwe reverse index nodig).
-  **Aanbeveling: `rotateRoomLocators` (DM16) vervalt** — twee schrijfpaden
-  naar dezelfde index is zelf een schending van het capability-principe.
-  Wacht op INT-A's bevestiging dat er nog geen aanroeper tegen
-  `rotateRoomLocators` bouwt.
-- [ ] INTB-10, resterende twee punten — sessie-tokenrotatie (kleine ingreep,
-  geen nieuwe index nodig) en TTL-koppeling (voorstel: contract-only, zoals
-  `refreshRoomLocators`). De sleutelbouwer zelf
-  (`sessionTokenLookupKey`, `redis-keys.js`) staat er al — puur additief,
-  geen akkoord voor nodig gehad.
+- [x] `DM17` (`HANDOFF.md` §14) — reactie op INT-B's
+  `BESLUIT-INTB-locators-en-sessieindex.md`. **Deel A (INTB-9):** `saveRoom`
+  raakt de lookup-indexen niet meer aan; claim/rotate/release blijven de drie
+  schrijvers (eigen eerdere aanbeveling om `rotateRoomLocators` te laten
+  vervallen introk — INT-B's driedelige levenscyclus-framing overtuigt meer).
+  **Deel B (INTB-10-rotatie):** `saveSession` geeft de vorige `tokenHash`-
+  index-entry vrij bij een wijziging, in dezelfde stap; TTL blijft
+  contract-only, geen touch-on-read. Gebouwd en akkoord in `HANDOFF.md` §14,
+  inclusief een capability-audit (besluit #37) over alle drie de
+  capabilities (room-locators, sessietoken, action-cache).
 
-Toegepast op alle drie: het nieuwe standaardcriterium is voortaan "élke
+**Nieuw standaardcriterium, nu formeel toegepast (besluit #37):** élke
 capability heeft één atomair schrijfpad en één atomair intrekpad — een lookup
-die een ingetrokken capability nog vindt is een bug."
+die een ingetrokken capability nog vindt is een bug. Zie `HANDOFF.md` §14
+voor de volledige toets-tabel.
 
 INTB-8 ligt al bij de DT-agent, geen actie hier. INTB-6 (tiebreak) blijft
 terecht open, wacht op GR. Verwacht nog een klein, regulier HANDOFF-item van
@@ -127,8 +126,8 @@ besluit 26) — geen speciale voorrang zodra het binnenkomt.
 
 ## Cijfers
 
-- **DM0–DM16: alle zeventien fases uitgevoerd.** `node --test
-  'server/data/**/*.test.js'` → **492/492 tests groen** (92 suites).
+- **DM0–DM17: alle achttien fases uitgevoerd.** `node --test
+  'server/data/**/*.test.js'` → **499/499 tests groen** (95 suites).
 - Twee reviewrondes volledig verwerkt: [`REVIEW.md`](REVIEW.md) (2 blockers, 10
   hoge bevindingen, vóór DM0/DM1) en
   [`prompts/REVIEW-DM2-DM9.md`](prompts/REVIEW-DM2-DM9.md) (3 blockers, 8 hoge,
