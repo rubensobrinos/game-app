@@ -14,10 +14,10 @@ uitgevoerd — ⛔ geblokkeerd — ⏸️ later.
 | [INTB1a](prompts/INTB1a-conformance-harness.md) | Conformance-harness + de niet-atomaire methoden | ✅ | — |
 | [INTB1b](prompts/INTB1b-atomicity.md) | De 2 atomaire methoden + migratie naar 21 methoden | ✅ | 3 tests bewust rood op **INTB-4** |
 | [INTB2a](prompts/INTB2a-redis-adapter-basis.md) | Verbinding, lifecycle, JSON-documenten met schemaversie | ✅ | 54 tests, 7/7 mutanten |
-| [INTB2b](prompts/INTB2b-poortmethoden.md) | De methoden tegen Redis + TTL-refresh | 🔵 | INTB2a — **INTB-1 is opgelost** |
-| [INTB2c](prompts/INTB2c-lua-atomair-antwoord.md) | Lua-script voor atomair antwoord (#23) | ⛔ | INTB2a |
-| [INTB2d](prompts/INTB2d-atomaire-fasewissel.md) | Atomaire fasewissel Room/Match (#30) | ⛔ | INTB2a |
-| [INTB2e](prompts/INTB2e-aof-herstart.md) | AOF-herstart: rooms overleven een restart | ⛔ | INTB2b–d |
+| [INTB2b](prompts/INTB2b-poortmethoden.md) | De methoden tegen Redis + TTL-refresh | ✅ | 11/11 mutanten |
+| [INTB2c](prompts/INTB2c-lua-atomair-antwoord.md) | Lua-script voor atomair antwoord (#23) | ✅ | 12/12 mutanten, 24 gelijktijdig |
+| [INTB2d](prompts/INTB2d-atomaire-fasewissel.md) | Atomaire fasewissel Room/Match (#30) | ✅ | 9/10, één equivalente mutant |
+| [INTB2e](prompts/INTB2e-aof-herstart.md) | AOF-herstart: rooms overleven een restart | ✅ | 6 verzwakte varianten |
 | [INTB3a](prompts/INTB3a-analytics-writer.md) | Asynchrone, gebufferde analytics-writer | 🔵 | geen |
 | [INTB3b](prompts/INTB3b-privacy-en-restore.md) | Privacy-kanarietest + restore-bewijs | ⛔ | INTB3a |
 | [INTB4a](prompts/INTB4a-dockerfile-en-compose.md) | Dockerfile + `docker compose up` | ⛔ | INTB2/3 |
@@ -55,14 +55,21 @@ INTB2a staat alleen het fundament.
 Conformance-suite: **80/80 groen**. De drie tests die op **INTB-4** rood stonden
 zijn met DM13 groen geworden — ze waren de acceptatietoets van die fix.
 
-## Fundament (INTB2a)
+## De Redis-adapter — INTB2 compleet
 
-| Onderdeel | Status |
-| --- | --- |
-| Verbinding, levenscyclus, herverbindingsbeleid | ✅ 30 tests |
-| Versieerbare documentenvelop | ✅ 24 tests |
-| Guard op de testinstantie | ✅ weigert 6379 en elke externe host |
-| Mutatietest | ✅ 7 van 7 gevangen |
+| Bestand | Tests |
+| --- | ---: |
+| `connection.mjs` — verbinding, levenscyclus, herverbinding | 30 |
+| `documents.mjs` — versieerbare envelop | 24 |
+| `data-store.mjs` — 22 van de 23 poortmethoden | 132 |
+| `aof-restart.test.mjs` — herstart-overleving | 14 |
+| **Totaal** | **200, alles groen** |
+
+Alleen `loadSessionByTokenHash` ontbreekt, geblokkeerd op het sleutelontwerp uit
+**INTB-10**.
+
+Mutatiedekking per fase: 7/7, 11/11, 12/12, 9/10 (één beargumenteerd equivalent)
+en zes verzwakte varianten voor de herstarttest.
 
 ## Rapportageroutine
 
