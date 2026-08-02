@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { shareUrlsFor, joinSourceFor, shareActionsFor, canNewJoinerUse } from './share-actions.mjs';
+import {
+  shareUrlsFor,
+  joinSourceFor,
+  shareActionsFor,
+  canNewJoinerUse,
+  shareOpenedMethodFor,
+} from './share-actions.mjs';
 
 test('1. shareUrlsFor appends ?src=qr and ?src=shared_link, rest of the URL intact', () => {
   const { qrUrl, copyUrl } = shareUrlsFor('https://play.aseso.nl/j/N4x7pQm2K8tW');
@@ -93,4 +99,18 @@ test('13. canNewJoinerUse: game started, late join allowed', () => {
 test('14. canNewJoinerUse(null) and canNewJoinerUse({}) are false, no throw', () => {
   assert.strictEqual(canNewJoinerUse(null), false);
   assert.strictEqual(canNewJoinerUse({}), false);
+});
+
+// DECISIONS.md #18: share:opened.method uses exactly qr|link|native|code.
+test('15. shareOpenedMethodFor maps all four share actions to their DECISIONS.md method value', () => {
+  assert.strictEqual(shareOpenedMethodFor('show-qr'), 'qr');
+  assert.strictEqual(shareOpenedMethodFor('copy-link'), 'link');
+  assert.strictEqual(shareOpenedMethodFor('native-share'), 'native');
+  assert.strictEqual(shareOpenedMethodFor('show-code'), 'code');
+});
+
+test('16. shareOpenedMethodFor with a bogus action is null, no throw', () => {
+  assert.strictEqual(shareOpenedMethodFor('bogus'), null);
+  assert.strictEqual(shareOpenedMethodFor(null), null);
+  assert.strictEqual(shareOpenedMethodFor(undefined), null);
 });

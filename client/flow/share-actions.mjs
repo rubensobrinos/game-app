@@ -69,6 +69,23 @@ export function canNewJoinerUse(roomState) {
   return roomState.allowLateJoin === true;
 }
 
+// DECISIONS.md #18: share:opened.method uses exactly these four values.
+const SHARE_OPENED_METHODS = new Map([
+  ['show-qr', 'qr'],
+  ['copy-link', 'link'],
+  ['native-share', 'native'],
+  ['show-code', 'code'],
+]);
+
+/**
+ * Vertaalt een deelactie naar de `share:opened.method`-waarde voor PROTOCOL.md.
+ * @param {'show-qr' | 'native-share' | 'copy-link' | 'show-code'} action
+ * @returns {'qr' | 'link' | 'native' | 'code' | null}
+ */
+export function shareOpenedMethodFor(action) {
+  return SHARE_OPENED_METHODS.get(action) ?? null;
+}
+
 function appendSrc(joinUrl, src) {
   const separator = joinUrl.includes('?') ? '&' : '?';
   return `${joinUrl}${separator}src=${src}`;

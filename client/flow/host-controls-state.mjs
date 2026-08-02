@@ -12,7 +12,10 @@
  */
 
 const ACTIVE_PHASES = new Set(['COUNTDOWN', 'ROUND_ACTIVE', 'ROUND_RESULT', 'SCOREBOARD']);
-const WAITING_PHASES = new Set(['ROUND_RESULT', 'SCOREBOARD']);
+// One host action per round (DECISIONS.md #1): ROUND_RESULT -> SCOREBOARD is
+// always timer-driven, even under host pacing. The host only acts from
+// SCOREBOARD ("Volgende"), never from ROUND_RESULT.
+const WAITING_PHASES = new Set(['SCOREBOARD']);
 
 /** @param {HostControlContext} context @returns {HostAction[]} */
 export function availableHostActions(context) {

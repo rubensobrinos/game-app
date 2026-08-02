@@ -16,7 +16,7 @@ server state and translate user actions into intents.
 | Module | Responsibility |
 | --- | --- |
 | `route-resolver.mjs` | Path → route type (`home`/`join`/`game`/`host`/`screen`), without ever inferring rights from a URL |
-| `join-state.mjs` | Join flow (QR/link primary, code fallback): name entry → submit → joined/error |
+| `join-state.mjs` | Join flow (QR/link primary, code fallback): preview → name entry → submit → joined/error |
 | `host-setup-state.mjs` | Quick-start / advanced host setup, produces a `POST /api/v1/games` request |
 | `match-phase-state.mjs` | Reflects server-reported match phase; deliberately has no transition-legality table of its own |
 | `reconnect-state.mjs` | Socket reconnect backoff (1/2/4/8/16/30s) and snapshot-request signaling |
@@ -26,7 +26,15 @@ server state and translate user actions into intents.
 | `host-controls-state.mjs` | Which host action is currently valid, and its event payload — no rule stricter than `PROTOCOL.md` |
 | `leave-state.mjs` | Confirm-before-leave flow ahead of `player:leave` |
 
-Each `*.mjs` file has a matching `*.test.mjs` next to it.
+Each `*.mjs` file has a matching `*.test.mjs` next to it. All ten modules were
+revised against [`docs/multiplayer/DECISIONS.md`](../../docs/multiplayer/DECISIONS.md)
+(the binding product decisions, 2 aug 2026) — notably `join-state`'s new preview
+stage, `host-controls-state`'s one-action-per-round rule, and
+`edge-case-messaging`'s confirmed pause-reason list. Teams and spectators
+(originally planned as an 11th module, `team-selection-state.mjs`) are **not**
+built — DECISIONS.md retires both for this MVP; see
+[`docs/game-flow-plan/prompts/GF7-teams-and-spectator.md`](../../docs/game-flow-plan/prompts/GF7-teams-and-spectator.md)
+for the shelved design.
 
 ## Running the tests
 

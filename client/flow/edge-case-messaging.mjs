@@ -14,15 +14,19 @@ export function messageForErrorCode(errorCode) {
     : 'UNKNOWN_ERROR';
 }
 
+// Confirmed reason enum, DECISIONS.md #11: host, host_disconnected, no_answers,
+// server_recovery. The fallback stays for forward-compat with any value a
+// future protocol revision might add.
+const PAUSE_REASON_KEYS = new Map([
+  ['host', 'pause.host'],
+  ['host_disconnected', 'pause.host_disconnected'],
+  ['no_answers', 'pause.no_answers'],
+  ['server_recovery', 'pause.server_recovery'],
+]);
+
 /** @param {string | null | undefined} reason @returns {string} */
 export function messageForPauseReason(reason) {
-  if (reason === 'host_disconnected') {
-    return 'pause.host_disconnected';
-  }
-  if (reason === 'no_answers') {
-    return 'pause.no_answers';
-  }
-  return 'pause.unknown';
+  return PAUSE_REASON_KEYS.get(reason) ?? 'pause.unknown';
 }
 
 /**

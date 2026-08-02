@@ -2,9 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { initialHostSetupState, transition, createRequestFor } from './host-setup-state.mjs';
 
-const GROEPSBATTLE_CONFIG = {
-  preset: 'group_battle',
-  gameTypes: ['flags_mc', 'real_or_fake_flag', 'higher_lower', 'odd_one_out'],
+// DECISIONS.md #31/#32/#35: Groepsbattle and mixed games are not built for
+// this MVP — the quick-start default is single-gameType (flags_mc).
+const DEFAULT_CONFIG = {
+  preset: 'default',
+  gameTypes: ['flags_mc'],
   language: 'nl',
   difficulty: 'normal',
   totalRounds: 10,
@@ -14,9 +16,9 @@ const GROEPSBATTLE_CONFIG = {
   mode: 'individual',
 };
 
-test('1. initialHostSetupState() carries the Groepsbattle preset and hostParticipates: true', () => {
+test('1. initialHostSetupState() carries the confirmed quick-start default and hostParticipates: true', () => {
   const state = initialHostSetupState();
-  assert.deepStrictEqual(state.config, GROEPSBATTLE_CONFIG);
+  assert.deepStrictEqual(state.config, DEFAULT_CONFIG);
   assert.strictEqual(state.hostParticipates, true);
   assert.strictEqual(state.mode, 'quick-start');
   assert.strictEqual(state.status, 'editing');
@@ -35,7 +37,7 @@ test('2. SUBMIT right after init, with no SET_FIELD calls, yields a valid reques
   const submitting = transition(initialHostSetupState(), { type: 'SUBMIT' });
   const request = createRequestFor(submitting);
   assert.deepStrictEqual(request, {
-    config: GROEPSBATTLE_CONFIG,
+    config: DEFAULT_CONFIG,
     hostParticipates: true,
     displayName: null,
   });
@@ -50,13 +52,13 @@ test('3. SET_FIELD(difficulty, hard) then submit: request has difficulty hard, o
   const submitting = transition(edited, { type: 'SUBMIT' });
   const request = createRequestFor(submitting);
   assert.strictEqual(request.config.difficulty, 'hard');
-  assert.deepStrictEqual(request.config, { ...GROEPSBATTLE_CONFIG, difficulty: 'hard' });
+  assert.deepStrictEqual(request.config, { ...DEFAULT_CONFIG, difficulty: 'hard' });
 });
 
 test('4. SET_FIELD with an unknown key is ignored; config is unchanged', () => {
   const initial = initialHostSetupState();
   const state = transition(initial, { type: 'SET_FIELD', key: 'notARealField', value: 'x' });
-  assert.deepStrictEqual(state.config, GROEPSBATTLE_CONFIG);
+  assert.deepStrictEqual(state.config, DEFAULT_CONFIG);
   assert.deepStrictEqual(state, initial);
 });
 
@@ -127,7 +129,7 @@ test('8c. RETRY from error returns to editing, resetting displayName and errorCo
   assert.strictEqual(retried.status, 'editing');
   assert.strictEqual(retried.displayName, null);
   assert.strictEqual(retried.errorCode, null);
-  assert.deepStrictEqual(retried.config, GROEPSBATTLE_CONFIG);
+  assert.deepStrictEqual(retried.config, DEFAULT_CONFIG);
 });
 
 test('9a. createRequestFor during editing (before SUBMIT) is null', () => {
@@ -158,7 +160,7 @@ test('9d. createRequestFor during creating (the intended window) is non-null', (
 test('OPEN_ADVANCED switches mode to advanced without touching config', () => {
   const state = transition(initialHostSetupState(), { type: 'OPEN_ADVANCED' });
   assert.strictEqual(state.mode, 'advanced');
-  assert.deepStrictEqual(state.config, GROEPSBATTLE_CONFIG);
+  assert.deepStrictEqual(state.config, DEFAULT_CONFIG);
 });
 
 test('OPEN_ADVANCED outside editing is ignored, no throw', () => {
@@ -241,5 +243,5 @@ test('createRequestFor does not leak a shared gameTypes array reference', () => 
   const submitting = transition(initialHostSetupState(), { type: 'SUBMIT' });
   const request = createRequestFor(submitting);
   request.config.gameTypes.push('mutated');
-  assert.deepStrictEqual(submitting.config.gameTypes, GROEPSBATTLE_CONFIG.gameTypes);
+  assert.deepStrictEqual(submitting.config.gameTypes, DEFAULT_CONFIG.gameTypes);
 });

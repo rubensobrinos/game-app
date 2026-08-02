@@ -6,12 +6,19 @@
  *
  * @typedef {
  *   | { status: 'idle' }
+ *   | { status: 'previewing', locator: Locator }
  *   | { status: 'name-entry', locator: Locator, suggestedName: string | null, displayName: string | null }
- *   | { status: 'submitting', locator: Locator, displayName: string | null }
+ *   | { status: 'submitting', locator: Locator, suggestedName: string | null, displayName: string | null }
  *   | { status: 'joined', session: object }
- *   | { status: 'error', code: string, locator: Locator }
+ *   | { status: 'error', stage: 'preview' | 'submit', code: string, locator: Locator, suggestedName: string | null }
  * } JoinState
  */
+
+// DECISIONS.md #7 (2 aug 2026, regie-sessie): a pre-join preview endpoint now
+// validates the invite/code and returns a server-generated name suggestion
+// BEFORE `POST /api/v1/games/join`. This resolves what was previously an open
+// spec question (see the retired GF2a note) — the flow now has a real
+// 'previewing' stage between obtaining a locator and showing name-entry.
 
 const NAME_MAX_GRAPHEMES = 20;
 const JOIN_SOURCES = new Set(['qr', 'shared_link', 'unknown']);
@@ -29,8 +36,29 @@ export function transition(state, event) {
   }
 
   switch (event.type) {
-    case 'LOCATOR_READY':
-      return handleLocatorReady(event) ?? state;
+    case 'LOCATOR_OBTAINED':
+      return state.status === 'idle' ? handleLocatorObtained(event) ?? state : state;
+
+    case 'PREVIEW_SUCCEEDED':
+      return state.status === 'previewing'
+        ? {
+            status: 'name-entry',
+            locator: state.locator,
+            suggestedName: typeof event.suggestedName === 'string' ? event.suggestedName : null,
+            displayName: null,
+          }
+        : state;
+
+    case 'PREVIEW_FAILED':
+      return state.status === 'previewing'
+        ? {
+            status: 'error',
+            stage: 'preview',
+            code: normalizeErrorCode(event.code),
+            locator: state.locator,
+            suggestedName: null,
+          }
+        : state;
 
     case 'NAME_CHANGED':
       return state.status === 'name-entry'
@@ -39,7 +67,12 @@ export function transition(state, event) {
 
     case 'SUBMIT':
       return state.status === 'name-entry'
-        ? { status: 'submitting', locator: state.locator, displayName: state.displayName }
+        ? {
+            status: 'submitting',
+            locator: state.locator,
+            suggestedName: state.suggestedName,
+            displayName: state.displayName,
+          }
         : state;
 
     case 'JOIN_SUCCEEDED':
@@ -49,13 +82,17 @@ export function transition(state, event) {
 
     case 'JOIN_FAILED':
       return state.status === 'submitting'
-        ? { status: 'error', code: normalizeErrorCode(event.code), locator: state.locator }
+        ? {
+            status: 'error',
+            stage: 'submit',
+            code: normalizeErrorCode(event.code),
+            locator: state.locator,
+            suggestedName: state.suggestedName,
+          }
         : state;
 
     case 'RETRY':
-      return state.status === 'error'
-        ? { status: 'name-entry', locator: state.locator, suggestedName: null, displayName: null }
-        : state;
+      return handleRetry(state);
 
     default:
       return state;
@@ -63,7 +100,20 @@ export function transition(state, event) {
 }
 
 /**
- * Wat er nu naar de server moet, of null als er niets te versturen valt.
+ * Wat er nu naar het previewendpoint moet, of null. Non-null alleen tijdens
+ * 'previewing' — zelfde in-flight-conventie als `joinRequestFor`.
+ * @param {JoinState} state
+ * @returns {{ inviteId?: string, gameCode?: string } | null}
+ */
+export function previewRequestFor(state) {
+  if (!isJoinState(state) || state.status !== 'previewing') {
+    return null;
+  }
+  return locatorField(state.locator);
+}
+
+/**
+ * Wat er nu naar `POST /api/v1/games/join` moet, of null.
  * @param {JoinState} state
  * @returns {{ inviteId?: string, gameCode?: string, displayName: string | null, joinSource: string } | null}
  */
@@ -73,26 +123,39 @@ export function joinRequestFor(state) {
   }
 
   const { locator, displayName } = state;
-  if (locator.type === 'invite') {
-    return { inviteId: locator.inviteId, displayName, joinSource: locator.joinSource };
-  }
-  if (locator.type === 'code') {
-    return { gameCode: locator.code, displayName, joinSource: 'code' };
-  }
-  return null;
+  const joinSource = locator.type === 'invite' ? locator.joinSource : 'code';
+  return { ...locatorField(locator), displayName, joinSource };
+}
+
+function locatorField(locator) {
+  return locator.type === 'invite' ? { inviteId: locator.inviteId } : { gameCode: locator.code };
 }
 
 function isJoinState(state) {
   return state !== null && typeof state === 'object' && typeof state.status === 'string';
 }
 
-function handleLocatorReady(event) {
+function handleLocatorObtained(event) {
   const locator = normalizeLocator(event.locator);
-  if (locator === null) {
-    return null;
+  return locator === null ? null : { status: 'previewing', locator };
+}
+
+function handleRetry(state) {
+  if (state.status !== 'error') {
+    return state;
   }
-  const suggestedName = typeof event.suggestedName === 'string' ? event.suggestedName : null;
-  return { status: 'name-entry', locator, suggestedName, displayName: null };
+  if (state.stage === 'preview') {
+    return { status: 'previewing', locator: state.locator };
+  }
+  // stage === 'submit': the preview already ran successfully once, so its
+  // suggestion is still valid — only the typed name is cleared, not the whole
+  // flow restarted.
+  return {
+    status: 'name-entry',
+    locator: state.locator,
+    suggestedName: state.suggestedName,
+    displayName: null,
+  };
 }
 
 function normalizeLocator(locator) {
@@ -122,7 +185,7 @@ function sanitizeDisplayName(value) {
 
 // Chosen behavior for >20 graphemes: silently truncate, not reject. JoinState
 // carries no "invalid input" flag, so truncating mirrors the plain <input
-// maxlength> UX this feeds and keeps the state shape unchanged.
+// maxlength> UX this feeds.
 function truncateToGraphemes(value, limit) {
   let result = '';
   let count = 0;

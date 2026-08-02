@@ -71,11 +71,10 @@ function handleRoomState(state, payload) {
     return state;
   }
 
-  // Open spec-vraag (GF3-match-phase-state.md): PROTOCOL.md's voorbeeld-snapshot
-  // toont geen pausedState-veld; we volgen de aanname uit de spec dat een
-  // snapshot tijdens een pauze payload.room.pausedState meestuurt in dezelfde
-  // vorm als DATA-MODEL's Match.pausedState. Onbevestigd door de
-  // PROTOCOL.md-eigenaar — hier bewust niet opgelost, alleen toegepast.
+  // Bevestigd, DECISIONS.md #10 (was een open spec-vraag): snapshot en het
+  // live game:paused-event gebruiken dezelfde volledige pausedState-vorm
+  // (previousPhase, remainingMs, reason, pausedAt). Geen aanname meer, dit is
+  // exact wat hieronder al werd toegepast.
   //
   // matchId: PROTOCOL.md's snapshot-voorbeeld bevat wél degelijk `room.matchId`
   // (in tegenstelling tot wat de oorspronkelijke GF3-tabel suggereerde, die dit

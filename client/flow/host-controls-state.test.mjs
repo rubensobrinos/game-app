@@ -35,9 +35,11 @@ test('4. PAUSED has resume, not pause', () => {
   assert.ok(!actions.includes('pause'));
 });
 
-test('5. host pacing in ROUND_RESULT and SCOREBOARD both have next', () => {
-  assert.ok(availableHostActions(ctx({ pacing: 'host', phase: 'ROUND_RESULT' })).includes('next'));
+// DECISIONS.md #1: one host action per round. ROUND_RESULT -> SCOREBOARD is
+// always timer-driven; the host only acts from SCOREBOARD.
+test('5. host pacing in SCOREBOARD has next; ROUND_RESULT does not', () => {
   assert.ok(availableHostActions(ctx({ pacing: 'host', phase: 'SCOREBOARD' })).includes('next'));
+  assert.ok(!availableHostActions(ctx({ pacing: 'host', phase: 'ROUND_RESULT' })).includes('next'));
 });
 
 test('6. auto pacing in ROUND_RESULT has no next', () => {

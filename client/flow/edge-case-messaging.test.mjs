@@ -29,12 +29,16 @@ test('3. messageForErrorCode(null/undefined/42) falls back, no throw', () => {
   assert.strictEqual(messageForErrorCode(42), 'UNKNOWN_ERROR');
 });
 
-test("4. messageForPauseReason('host_disconnected') and ('no_answers') map to their own keys", () => {
+// DECISIONS.md #11 confirms the full MVP reason enum: host, host_disconnected,
+// no_answers, server_recovery.
+test("4. messageForPauseReason maps all four confirmed reasons to their own keys", () => {
+  assert.strictEqual(messageForPauseReason('host'), 'pause.host');
   assert.strictEqual(messageForPauseReason('host_disconnected'), 'pause.host_disconnected');
   assert.strictEqual(messageForPauseReason('no_answers'), 'pause.no_answers');
+  assert.strictEqual(messageForPauseReason('server_recovery'), 'pause.server_recovery');
 });
 
-test("5. messageForPauseReason(null) and an unconfirmed future reason both fall back", () => {
+test("5. messageForPauseReason(null) and a future, unconfirmed reason both fall back", () => {
   assert.strictEqual(messageForPauseReason(null), 'pause.unknown');
   assert.strictEqual(messageForPauseReason('some_future_reason'), 'pause.unknown');
 });

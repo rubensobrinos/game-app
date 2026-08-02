@@ -1,5 +1,3 @@
-import { GROUP_BATTLE_DEFAULT_GAME_TYPES } from '../../shared/product/quick-start-preset.mjs';
-
 /**
  * @typedef {{
  *   preset: string,
@@ -23,14 +21,24 @@ import { GROUP_BATTLE_DEFAULT_GAME_TYPES } from '../../shared/product/quick-star
  * }} HostSetupState
  */
 
-// Groepsbattle preset (PRODUCT.md §Standaard quick-start preset). `preset` and
-// the gameTypes ids use the snake_case identifiers from DATA-MODEL.md's
-// GameConfiguration example / PROTOCOL.md's POST /api/v1/games example, since
-// PRODUCT.md itself only names the preset and game modes in Dutch prose.
+// Kernflow quick-start default (DECISIONS.md #31/#32/#35, 2 aug 2026,
+// regie-sessie): Groepsbattle and mixed games are NOT built for this MVP —
+// one gameType (flags_mc) only, matching the confirmed "10 vragen over
+// vlaggen" quick-start promise. This supersedes the earlier "4 vs 5
+// spelvormen" PRODUCT.md/DATA-MODEL.md conflict entirely (see the retired
+// GF2b note) — no partial preset survives, so `shared/product/
+// quick-start-preset.mjs`'s GROUP_BATTLE_DEFAULT_GAME_TYPES (4 types) is now
+// stale and intentionally NOT imported here; flagged for its owner rather
+// than edited directly, since only this module consumed it.
+//
+// `preset: 'default'` is a placeholder wire value, not a confirmed contract:
+// DECISIONS.md retires the "group_battle" preset id but doesn't name a
+// replacement — a judgment call pending confirmation, same category as GF8's
+// other open interface questions.
 function defaultHostConfig() {
   return {
-    preset: 'group_battle',
-    gameTypes: [...GROUP_BATTLE_DEFAULT_GAME_TYPES],
+    preset: 'default',
+    gameTypes: ['flags_mc'],
     language: 'nl',
     difficulty: 'normal',
     totalRounds: 10,
@@ -55,7 +63,7 @@ const SETTABLE_CONFIG_KEYS = new Set([
 const NAME_MAX_GRAPHEMES = 20;
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
-/** Start altijd met de Groepsbattle-preset (PRODUCT.md). @returns {HostSetupState} */
+/** Start altijd met de kernflow quick-start default (DECISIONS.md #35). @returns {HostSetupState} */
 export function initialHostSetupState() {
   return {
     mode: 'quick-start',
