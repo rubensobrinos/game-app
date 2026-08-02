@@ -121,8 +121,8 @@ describe('assertImplementsDataStore — contract-sanity-check #1-3', () => {
     delete incomplete.loadRoom;
     assert.throws(() => assertImplementsDataStore(incomplete), TypeError);
   });
-  test('#3 DATA_STORE_METHOD_NAMES bevat 21 methoden (18 uit DM6 + claimRoomLocatorsAtomically/releaseRoomLocators/refreshRoomLocators uit DM10)', () => {
-    assert.strictEqual(DATA_STORE_METHOD_NAMES.length, 21);
+  test('#3 DATA_STORE_METHOD_NAMES bevat 23 methoden (21 t/m DM10 + loadSessionByTokenHash uit DM14/§10 + rotateRoomLocators uit DM16/§9)', () => {
+    assert.strictEqual(DATA_STORE_METHOD_NAMES.length, 23);
   });
 });
 
@@ -654,5 +654,203 @@ describe('saveAcceptedAnswerAtomically — idempotentie en "één antwoord per r
     assert.strictEqual(await store.loadPlayer('room_1', 'p_spook'), null, 'de onbekende speler uit de replay-write is nooit aangemaakt');
     const player = await store.loadPlayer('room_1', 'p_1');
     assert.strictEqual(player.score, 158, 'de echte staat blijft die van de eerste, geslaagde aanroep');
+  });
+});
+
+describe('loadSessionByTokenHash — DM14, §10, reactie op INT-3 #44-47', () => {
+  test('#44 vindt dezelfde sessie als loadSession, rechtstreeks na saveSession (geen aparte claim nodig, in tegenstelling tot inviteHash)', async () => {
+    const store = createInMemoryStore();
+    const session = makeSession({ tokenHash: 'hash_tok_1' });
+    await store.saveSession(session);
+    assert.deepStrictEqual(await store.loadSessionByTokenHash('hash_tok_1'), session);
+  });
+
+  test('#45 een onbekende tokenHash geeft null, geen throw', async () => {
+    const store = createInMemoryStore();
+    assert.strictEqual(await store.loadSessionByTokenHash('nope'), null);
+  });
+
+  test('#46 een herroepen sessie blijft vindbaar via de tokenHash (de aanroeper moet TOKEN_INVALID en SESSION_REVOKED uit elkaar kunnen houden)', async () => {
+    const store = createInMemoryStore();
+    const session = makeSession({ tokenHash: 'hash_tok_1', revoked: true });
+    await store.saveSession(session);
+    const found = await store.loadSessionByTokenHash('hash_tok_1');
+    assert.notStrictEqual(found, null);
+    assert.strictEqual(found.revoked, true);
+  });
+
+  test('#47 twee sessies in verschillende rooms met een eigen tokenHash lekken niet naar elkaar', async () => {
+    const store = createInMemoryStore();
+    const inA = makeSession({ id: 'sess_a', roomId: 'room_a', tokenHash: 'hash_a' });
+    const inB = makeSession({ id: 'sess_b', roomId: 'room_b', tokenHash: 'hash_b' });
+    await store.saveSession(inA);
+    await store.saveSession(inB);
+    assert.deepStrictEqual(await store.loadSessionByTokenHash('hash_a'), inA);
+    assert.deepStrictEqual(await store.loadSessionByTokenHash('hash_b'), inB);
+  });
+});
+
+describe('saveAcceptedAnswerAtomically — returnwaarde { replay: boolean } (DM15, reactie op INT-14) #48-50', () => {
+  test('#48 een geslaagde, nieuwe write levert { replay: false } op', async () => {
+    const store = createInMemoryStore();
+    await store.savePlayer(makePlayer());
+    const result = await store.saveAcceptedAnswerAtomically('room_1', 'match_1', {
+      answer: makeAnswer(),
+      updatedPlayer: { id: 'p_1', score: 158, correctCount: 1, correctResponseTimeMsTotal: 1000 },
+      actionCacheEntry: { actionId: 'act_1', ack: { roundId: 'round_1' } },
+    });
+    assert.deepStrictEqual(result, { replay: false });
+  });
+
+  test('#49 een replay (dezelfde actionId opnieuw) levert { replay: true } op', async () => {
+    const store = createInMemoryStore();
+    await store.savePlayer(makePlayer());
+    const write = {
+      answer: makeAnswer(),
+      updatedPlayer: { id: 'p_1', score: 158, correctCount: 1, correctResponseTimeMsTotal: 1000 },
+      actionCacheEntry: { actionId: 'act_1', ack: { roundId: 'round_1' } },
+    };
+    await store.saveAcceptedAnswerAtomically('room_1', 'match_1', write);
+    const result = await store.saveAcceptedAnswerAtomically('room_1', 'match_1', write);
+    assert.deepStrictEqual(result, { replay: true });
+  });
+
+  test('#50 het INT-14-scenario: een replay ná de "deadline" levert nog steeds { replay: true } op — deze operatie kent geen deadline, dus dat gat kan hier niet meer optreden', async () => {
+    // Deze operatie controleert nooit op tijd — het reconnect/deadline-gat uit
+    // INT-14 zat in de aanroeper (answer-flow.js's stap 4 loopt vóór deze
+    // operatie ooit bereikt wordt), niet hier. Deze test bewijst alleen dat
+    // saveAcceptedAnswerAtomically zelf, geïsoleerd, altijd het correcte
+    // replay-signaal geeft — hoe laat de aanroep ook komt.
+    const store = createInMemoryStore();
+    await store.savePlayer(makePlayer());
+    const write = {
+      answer: makeAnswer(),
+      updatedPlayer: { id: 'p_1', score: 158, correctCount: 1, correctResponseTimeMsTotal: 1000 },
+      actionCacheEntry: { actionId: 'act_1', ack: { roundId: 'round_1' } },
+    };
+    await store.saveAcceptedAnswerAtomically('room_1', 'match_1', write);
+    const muchLaterResult = await store.saveAcceptedAnswerAtomically('room_1', 'match_1', write);
+    assert.deepStrictEqual(muchLaterResult, { replay: true });
+  });
+});
+
+describe('rotateRoomLocators — DM16, §9, reactie op INTB-5 🔴 #51-58', () => {
+  test('#51 rotatie van zowel code als inviteHash slaagt: nieuwe locators werken, oude niet meer', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    const result = await store.rotateRoomLocators({
+      roomId: 'room_1', oldCode: '111111', oldInviteHash: 'hash_1',
+      newCode: '222222', newInviteHash: 'hash_2', ttlSeconds: 14400,
+    });
+    assert.deepStrictEqual(result, { ok: true });
+
+    // Reproductie uit INTB-5, nu met het omgekeerde verwachte resultaat.
+    const viaOldCode = await store.claimRoomLocatorsAtomically({ roomId: 'room_2', code: '111111', inviteHash: 'hash_x', ttlSeconds: 14400 });
+    assert.deepStrictEqual(viaOldCode, { ok: true }, 'de oude code moet na rotatie weer vrij zijn voor een andere room');
+    const viaNewCode = await store.claimRoomLocatorsAtomically({ roomId: 'room_3', code: '222222', inviteHash: 'hash_y', ttlSeconds: 14400 });
+    assert.deepStrictEqual(viaNewCode, { ok: false, conflict: 'code' }, 'de nieuwe code hoort nu aan room_1');
+  });
+
+  test('#52 conflict op de nieuwe code (bezet door een andere roomId): veilige no-op, oude locators blijven geldig', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_2', code: '222222', inviteHash: 'hash_2', ttlSeconds: 14400 });
+
+    const result = await store.rotateRoomLocators({
+      roomId: 'room_1', oldCode: '111111', oldInviteHash: 'hash_1',
+      newCode: '222222', newInviteHash: 'hash_new', ttlSeconds: 14400,
+    });
+    assert.deepStrictEqual(result, { ok: false, conflict: 'code' });
+
+    // Niets veranderd: room_1 bezit de oude locators nog steeds.
+    const reclaim = await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    assert.deepStrictEqual(reclaim, { ok: true }, 'idempotente herclaim bewijst dat room_1 de oude locators nog bezit');
+  });
+
+  test('#53 conflict op de nieuwe inviteHash (bezet door een andere roomId): veilige no-op, ook de code-kant blijft ongewijzigd', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_2', code: '222222', inviteHash: 'hash_2', ttlSeconds: 14400 });
+
+    const result = await store.rotateRoomLocators({
+      roomId: 'room_1', oldCode: '111111', oldInviteHash: 'hash_1',
+      newCode: '333333', newInviteHash: 'hash_2', ttlSeconds: 14400,
+    });
+    assert.deepStrictEqual(result, { ok: false, conflict: 'inviteHash' });
+
+    const newCodeStillFree = await store.claimRoomLocatorsAtomically({ roomId: 'room_3', code: '333333', inviteHash: 'hash_3', ttlSeconds: 14400 });
+    assert.deepStrictEqual(newCodeStillFree, { ok: true }, 'newCode is nooit gezet: de rotatie deed niets, ook niet gedeeltelijk');
+  });
+
+  test('#54 alleen de inviteHash roteert, de code blijft gelijk: geen conflict met de eigen, ongewijzigde code', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    const result = await store.rotateRoomLocators({
+      roomId: 'room_1', oldCode: '111111', oldInviteHash: 'hash_1',
+      newCode: '111111', newInviteHash: 'hash_2', ttlSeconds: 14400,
+    });
+    assert.deepStrictEqual(result, { ok: true });
+
+    const viaOldInvite = await store.claimRoomLocatorsAtomically({ roomId: 'room_2', code: 'x', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    assert.deepStrictEqual(viaOldInvite, { ok: true }, 'de oude inviteHash moet vrij zijn');
+  });
+
+  test('#55 roomId bezit oldCode niet (meer): werpt RangeError, geen enkele write', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    await assert.rejects(
+      () => store.rotateRoomLocators({
+        roomId: 'room_2', oldCode: '111111', oldInviteHash: 'hash_1',
+        newCode: '222222', newInviteHash: 'hash_2', ttlSeconds: 14400,
+      }),
+      RangeError
+    );
+  });
+
+  test('#56 roomId bezit oldInviteHash niet (meer): werpt RangeError, geen enkele write', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    await assert.rejects(
+      () => store.rotateRoomLocators({
+        roomId: 'room_1', oldCode: '111111', oldInviteHash: 'hash_ander',
+        newCode: '222222', newInviteHash: 'hash_2', ttlSeconds: 14400,
+      }),
+      RangeError
+    );
+    // De code-kant is niet aangeraakt, ondanks dat die check wel slaagde.
+    const stillOwned = await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    assert.deepStrictEqual(stillOwned, { ok: true });
+  });
+
+  test('#57 na een geslaagde rotatie is de room via loadRoomByCode/loadRoomByInviteHash vindbaar op de nieuwe locators (eerst rotateRoomLocators, dan saveRoom — zelfde volgorde als bij creatie)', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'hash_1', ttlSeconds: 14400 });
+    await store.saveRoom(makeRoom({ code: '111111' }));
+
+    await store.rotateRoomLocators({
+      roomId: 'room_1', oldCode: '111111', oldInviteHash: 'hash_1',
+      newCode: '222222', newInviteHash: 'hash_2', ttlSeconds: 14400,
+    });
+    await store.saveRoom(makeRoom({ code: '222222' }));
+
+    assert.strictEqual(await store.loadRoomByCode('111111'), null, 'de OUDE code hoort na rotatie niet meer te werken — dit is precies wat INTB-5 repareert');
+    assert.deepStrictEqual(await store.loadRoomByCode('222222'), await store.loadRoom('room_1'));
+    assert.deepStrictEqual(await store.loadRoomByInviteHash('hash_2'), await store.loadRoom('room_1'));
+  });
+
+  test('#58 het letterlijke INTB-5-scenario met rotateRoomLocators erbij: de oude code wijst nergens meer naartoe', async () => {
+    const store = createInMemoryStore();
+    await store.claimRoomLocatorsAtomically({ roomId: 'room_1', code: '111111', inviteHash: 'INV-AAA', ttlSeconds: 14400 });
+    await store.saveRoom(makeRoom({ code: '111111', inviteId: 'INV-AAA' }));
+
+    const result = await store.rotateRoomLocators({
+      roomId: 'room_1', oldCode: '111111', oldInviteHash: 'INV-AAA',
+      newCode: '222222', newInviteHash: 'INV-BBB', ttlSeconds: 14400,
+    });
+    assert.deepStrictEqual(result, { ok: true });
+    await store.saveRoom(makeRoom({ code: '222222', inviteId: 'INV-BBB' }));
+
+    assert.strictEqual(await store.loadRoomByCode('111111'), null);
+    assert.strictEqual(await store.loadRoomByInviteHash('INV-AAA'), null);
   });
 });

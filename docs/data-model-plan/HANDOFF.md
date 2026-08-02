@@ -378,27 +378,33 @@ klein HANDOFF-item: een versieprefix-op-`inviteHash`-voorstel** (dezelfde
 versioneringslijn als de tokens, besluit 26) — behandel dat als regulier
 HANDOFF-item zodra het binnenkomt, geen speciale voorrang.
 
-**Aangekondigd, nog niet ontvangen: een gebundeld poortvoorstel van INT-A
-over de returnwaarde van `saveAcceptedAnswerAtomically`** (het DM13-contract
-uit §7a — momenteel `Promise<void>`). Raakt INT-B's lopende Lua-werk, dus
-**met voorrang boven §9** te behandelen zodra het binnenkomt.
-**Bijgewerkte volgorde: §10 → dit inkomende voorstel → §9.**
+## 12. Aan `integration-plan` — INT-14 beantwoord: `saveAcceptedAnswerAtomically` geeft nu `{ replay: boolean }` terug
 
-## 9. FORMEEL VOORSTEL — wacht op akkoord INT-A + INT-B (poort-bevroren, §7b) — INTB-5: `rotateRoomLocators`
+**Gebouwd (DM15).** Signatuur ongewijzigd (`(roomId, matchId, write)`),
+returntype van `Promise<void>` naar `Promise<{ replay: boolean }>`:
 
-**Product-owner-akkoord binnen: dit voorstel is goedgekeurd.** Formeel
-ingediend bij INT-A en INT-B, conform het bevriezingsproces — nog NIET
-geïmplementeerd, wacht op jullie technische akkoord (product-akkoord is niet
-hetzelfde als integrator-akkoord).
+- idempotentie-tak (bekende `actionId`) → `{ replay: true }`, geen mutatie,
+  nog steeds geen ack in de returnwaarde (gebruik `loadActionCacheEntry` als
+  je die nodig hebt);
+- geslaagde nieuwe write → `{ replay: false }`;
+- `ALREADY_ANSWERED`/onbekende `playerId` blijven excepties, ongewijzigd.
 
-**Afgesproken bouwvolgorde zodra beide integrators akkoord geven: §10 eerst
-(deblokkeert INT-A stap 2, nog niets publiek dus tempo wint daar), direct
-daarna dit item (§9) — vóór er ook maar iets via de tunnel bereikbaar is, want
-dan is een niet-intrekbare uitnodiging een echt securitygat, geen
-theoretisch risico meer.**
+Dit is precies het contract uit jullie voorstel. **INT-B: dit is de
+returnwaarde waar het Lua-script tegen moet bewijzen** — dezelfde suite die
+`server/data/in-memory-store.js` dekt, dekt straks de adapter. Geen ack in de
+replay-tak, zoals al bij DM13 vastgelegd — als daar bezwaar tegen is, graag nu
+en niet ná het Lua-script.
 
-Security gaat voor tempo, dus dit eerst gedocumenteerd. Aan: INT-A, INT-B —
-akkoord nodig vóór implementatie (poort-bevroren, §7b).
+## 9. GEBOUWD (was: formeel voorstel, akkoord product owner) — INTB-5: `rotateRoomLocators`
+
+**Gebouwd (DM16).** Zie de vorige versie van deze sectie voor de volledige
+motivatie (fail-safe bij conflict, eigendomscontrole, cluster-onafhankelijk).
+Zelf gereproduceerd met het letterlijke INTB-5-scenario ná de fix — de oude
+code/inviteHash wijzen nergens meer naartoe (`repository.test.js` #57-58).
+
+**Afgesproken bouwvolgorde: §10 eerst (deblokkeert INT-A stap 2), toen INT-14
+(raakte INT-B's Lua-werk), toen dit item — precies zo uitgevoerd, in die
+volgorde, vóór er iets via de tunnel bereikbaar is.**
 
 ### Wat er moet kunnen
 
@@ -456,17 +462,16 @@ nu al een aanroeper is? Dat bepaalt of dit voorstel meteen bruikbaar is of
 voorlopig alleen het contract vastlegt (zoals `refreshRoomLocators` dat nu
 ook al doet voor TTL).
 
-## 10. FORMEEL VOORSTEL — wacht op akkoord INT-A + INT-B (poort-bevroren, §7b) — INT-3: `loadSessionByTokenHash`
+## 10. GEBOUWD (was: formeel voorstel, akkoord product owner) — INT-3: `loadSessionByTokenHash`
 
-**Product-owner-akkoord binnen: dit voorstel is goedgekeurd.** Formeel
-ingediend bij INT-A en INT-B — nog NIET geïmplementeerd, wacht op jullie
-technische akkoord. **Bouwvolgorde: dit item (§10) eerst zodra beide
-akkoord geven — deblokkeert INT-A stap 2 en er draait nog niets publiek, dus
-tempo wint hier — direct gevolgd door §9 (INTB-5), vóór er iets via de tunnel
-bereikbaar wordt.**
+**Gebouwd (DM14), als eerste van de drie — deblokkeert INT-A stap 2.** Index
+op `tokenHash` rechtstreeks door `saveSession` gevuld (geen chicken-and-egg
+zoals bij `inviteHash`, `Session.tokenHash` staat al op het document sinds
+DM2a). Herroepen sessies blijven vindbaar — de aanroeper onderscheidt
+`TOKEN_INVALID` van `SESSION_REVOKED` zelf, zoals bij `loadSession` al het
+geval was.
 
-Aan: INT-A. Blokkeert INT-A stap 2 (echt transport), dus na INTB-5 het
-duurste openstaande item.
+Aan: INT-A. Blokkeerde INT-A stap 2 (echt transport).
 
 ### Wat er moet kunnen
 

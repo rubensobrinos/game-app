@@ -60,31 +60,37 @@ Legenda: ✅ gebouwd en getest.
 | `types/room-presentation.js` | DM3 | ✅ | 9 |
 | `name-processing.js` | DM4 | ✅ | 34 |
 | `privacy-guard.js` | DM5 | ✅ | 109 |
-| `repository.js` + `in-memory-store.js` | DM6, uitgebreid door DM10/DM11/DM12/DM13 | ✅ | 48 |
-| `answer-flow.js` | DM7, becommentarieerd door DM13 | ✅ | zie `docs/data-model-plan/DM-PROGRESS.md` |
+| `repository.js` + `in-memory-store.js` | DM6, uitgebreid door DM10–DM16 | ✅ | 59 |
+| `answer-flow.js` | DM7, becommentarieerd door DM13/DM15 | ✅ | zie `docs/data-model-plan/DM-PROGRESS.md` |
 | `types/player.js`'s `toStandingPlayerView()` | DM9 | ✅ | zie `docs/data-model-plan/DM-PROGRESS.md` |
 
-**Totaal: 477 tests groen** (`node --test 'server/data/**/*.test.js'`) na
-DM0–DM13. Analytics (DM8) levert bewust geen `server/`-code — dat blijft een
+**Totaal: 492 tests groen** (`node --test 'server/data/**/*.test.js'`) na
+DM0–DM16. Analytics (DM8) levert bewust geen `server/`-code — dat blijft een
 voorstel onder `docs/data-model-plan/proposals/`, niet als runtimecode
 (`REVIEW-DM2-DM9.md` bevinding 11).
 
-**DM10–DM13** (`docs/data-model-plan/HANDOFF.md` §6/§7a) breidden de
-repository-poort uit als reactie op `docs/integration-plan/`'s
+**DM10–DM16** (`docs/data-model-plan/HANDOFF.md` §6/§7a/§9/§10/§12) breidden
+de repository-poort uit als reactie op `docs/integration-plan/`'s
 HANDOFF-bevindingen: `loadRoomByInviteId(inviteId)` →
 `loadRoomByInviteHash(inviteHash)`;
 `claimRoomLocatorsAtomically`/`releaseRoomLocators`/`refreshRoomLocators`
 toegevoegd (atomaire join-code + inviteHash-claim); `saveRound`/`loadAnswer`/
 `loadActionCacheEntry` room-gescoped (bredere signaturen, geen nieuwe velden
 op `Round`/`Answer`); scoreboard op `(roomId, matchId)` i.p.v. alleen
-`matchId`; `saveAcceptedAnswerAtomically` controleert nu idempotentie en "één
-antwoord per ronde" ín de atomaire stap (DM13, reactie op INTB-4). De
+`matchId`; `saveAcceptedAnswerAtomically` controleert idempotentie en "één
+antwoord per ronde" ín de atomaire stap (DM13, reactie op INTB-4) en geeft
+sinds DM15 `{ replay: boolean }` terug in plaats van niets (reactie op
+INT-14); `loadSessionByTokenHash` (DM14, reactie op INT-3, deblokkeerde
+INT-A's stap 2); `rotateRoomLocators` (DM16, reactie op INTB-5 🔴 — een
+geroteerde uitnodiging bleef geldig, nu een atomaire, fail-safe wissel). De
 in-memory fake gebruikt sindsdien geneste Maps in plaats van met een spatie
 samengestelde string-sleutels voor zijn interne, samengestelde identifiers.
 
-**De poort is sinds DM13 bevroren** (`docs/data-model-plan/HANDOFF.md` §7b):
-elke volgende wijziging aan het `DataStore`-contract gaat eerst als
-HANDOFF-voorstel naar INT-A én INT-B, met hun akkoord, vóór implementatie.
+**De poort is sinds DM13 bevroren, met een gevolgd voorstel-proces**
+(`docs/data-model-plan/HANDOFF.md` §7b): elke wijziging aan het
+`DataStore`-contract gaat eerst als HANDOFF-voorstel naar INT-A én INT-B, met
+hun akkoord, vóór implementatie — DM14–DM16 zijn precies zo tot stand
+gekomen.
 
 ## Wat hier bewust niet gebouwd is
 

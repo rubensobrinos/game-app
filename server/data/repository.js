@@ -27,8 +27,10 @@
  * @property {(claim: RoomLocatorClaim) => Promise<{ ok: true } | { ok: false, conflict: 'code' | 'inviteHash' }>} claimRoomLocatorsAtomically
  * @property {(locators: RoomLocatorPair) => Promise<void>} releaseRoomLocators
  * @property {(claim: RoomLocatorClaim) => Promise<void>} refreshRoomLocators
+ * @property {(rotation: RoomLocatorRotation) => Promise<{ ok: true } | { ok: false, conflict: 'code' | 'inviteHash' }>} rotateRoomLocators
  * @property {(roomId: string, sessionId: string) => Promise<import('./types/session').Session|null>} loadSession
  * @property {(session: import('./types/session').Session) => Promise<void>} saveSession
+ * @property {(tokenHash: string) => Promise<import('./types/session').Session|null>} loadSessionByTokenHash
  * @property {(roomId: string, playerId: string) => Promise<import('./types/player').Player|null>} loadPlayer
  * @property {(player: import('./types/player').Player) => Promise<void>} savePlayer
  * @property {(roomId: string) => Promise<import('./types/player').Player[]>} listPlayers
@@ -38,7 +40,7 @@
  * @property {(roomId: string, round: import('./types/round').Round) => Promise<void>} saveRound
  * @property {(roomId: string, matchId: string, roundId: string, playerId: string) => Promise<import('./types/answer').Answer|null>} loadAnswer
  * @property {(roomId: string, matchId: string, newPhase: string) => Promise<void>} setRoomAndMatchPhaseAtomically
- * @property {(roomId: string, matchId: string, write: AcceptedAnswerWrite) => Promise<void>} saveAcceptedAnswerAtomically
+ * @property {(roomId: string, matchId: string, write: AcceptedAnswerWrite) => Promise<{ replay: boolean }>} saveAcceptedAnswerAtomically
  * @property {(roomId: string, actionId: string) => Promise<{ actionId: string, ack: object } | null>} loadActionCacheEntry
  * @property {(roomId: string, matchId: string, limit: number) => Promise<Array<{playerId: string, score: number}>>} getScoreboardTop
  */
@@ -68,24 +70,41 @@
  */
 
 /**
+ * DM16 (§9, reactie op INTB-5 🔴 — geroteerde uitnodiging bleef geldig).
+ * Atomaire wissel: oude locators vrijgeven én nieuwe claimen in één stap, of
+ * geen van beide. `ARCHITECTURE.md` §inviteId eist "direct intrekbaar of
+ * roteerbaar" — twee losse aanroepen (release + claim) zouden een venster
+ * openen waarin de oude locator na een mislukte nieuwe claim toch nog geldig
+ * blijft, en dat is bij "direct intrekbaar" de ergere uitkomst dan een room
+ * die tijdelijk via geen enkele code bereikbaar is. Bij een conflict op de
+ * nieuwe locators gebeurt daarom NIETS — de oude locators blijven geldig
+ * (veilige no-op, geen halve rotatie).
+ * @typedef {{ roomId: string, oldCode: string, oldInviteHash: string, newCode: string, newInviteHash: string, ttlSeconds: number }} RoomLocatorRotation
+ */
+
+/**
  * Alles wat stappen 7–10 van de atomaire antwoordverwerking in ÉÉN mutatie
  * horen te schrijven — inclusief de ack (stap 10), niet als losse latere
  * uitbreiding (REVIEW-DM2-DM9.md bevinding 5). `updatedPlayer` bevat absolute
  * nieuwe waarden, geen delta — de aanroeper (DM7) berekent `player.score +
  * points` zelf en geeft het resultaat door.
  *
- * FOUTCONTRACT van `saveAcceptedAnswerAtomically` (DM13, reactie op INTB-4):
- * idempotentie en "één antwoord per ronde" zitten ÍN deze operatie, niet
- * ervóór — een check in de aanroeper (bijv. `answer-flow.js`'s stap 1/5) dekt
- * geen gelijktijdige aanroepen af.
+ * FOUTCONTRACT van `saveAcceptedAnswerAtomically` (DM13, reactie op INTB-4;
+ * returnwaarde DM15, reactie op INT-14): idempotentie en "één antwoord per
+ * ronde" zitten ÍN deze operatie, niet ervóór — een check in de aanroeper
+ * (bijv. `answer-flow.js`'s stap 1/5) dekt geen gelijktijdige aanroepen af.
  *   - `write.actionCacheEntry.actionId` staat al in de action-cache van deze
- *     room → replay: de aanroep resolvet zonder te muteren, geen ack in de
+ *     room → replay: `{ replay: true }`, geen mutatie, geen ack in de
  *     returnwaarde (de aanroeper gebruikt `loadActionCacheEntry` als hij hem
- *     nodig heeft).
+ *     nodig heeft). Dit signaal laat de aanroeper een replay herkennen zónder
+ *     een eigen, niet-atomaire vooraf-lezing (INT-14: zo'n lezing dekte geen
+ *     gelijktijdigheid en liet een replay ná de deadline ten onrechte op
+ *     `DEADLINE_PASSED` stuklopen, vóórdat deze operatie ooit werd bereikt).
  *   - anders, en er bestaat al een `Answer` voor deze `roundId` + `playerId`
  *     (een andere `actionId`) → werpt een `RangeError` met
  *     `.code === 'ALREADY_ANSWERED'` (zelfde codestring als `resolveAnswer`'s
  *     eigen returncode).
+ *   - anders, geslaagde nieuwe write → `{ replay: false }`.
  *   - onbekende `updatedPlayer.id` → werpt `RangeError` (ongewijzigd).
  * @typedef {{
  *   answer: import('./types/answer').Answer,
@@ -103,8 +122,8 @@
 // "nadrukkelijk niet-uitputtend").
 const DATA_STORE_METHOD_NAMES = Object.freeze([
   'loadRoom', 'saveRoom', 'loadRoomByCode', 'loadRoomByInviteHash',
-  'claimRoomLocatorsAtomically', 'releaseRoomLocators', 'refreshRoomLocators',
-  'loadSession', 'saveSession',
+  'claimRoomLocatorsAtomically', 'releaseRoomLocators', 'refreshRoomLocators', 'rotateRoomLocators',
+  'loadSession', 'saveSession', 'loadSessionByTokenHash',
   'loadPlayer', 'savePlayer', 'listPlayers',
   'loadMatch', 'saveMatch',
   'loadRound', 'saveRound',

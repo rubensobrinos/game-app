@@ -59,6 +59,7 @@ function createInMemoryStore() {
   const roomIdByCode = new Map();
   const roomIdByInviteHash = new Map(); // gevuld door claimRoomLocatorsAtomically, NIET door saveRoom (Room draagt geen inviteHash — zie DM10)
   const sessionsByKey = new Map(); // `${roomId} ${sessionId}` -> Session
+  const roomAndSessionByTokenHash = new Map(); // tokenHash -> { roomId, sessionId } (DM14/§10)
   const playersByKey = new Map(); // `${roomId} ${playerId}` -> Player
   const playerIdsByRoom = new Map(); // roomId -> Set<playerId>
   const matchesByKey = new Map(); // roomId -> Map<matchId, Match>
@@ -136,6 +137,52 @@ function createInMemoryStore() {
     // Contract-only (DM10): de fake heeft geen TTL-aftelling om te verlengen.
   }
 
+  async function rotateRoomLocators({ roomId, oldCode, oldInviteHash, newCode, newInviteHash }) {
+    // DM16 (§9, reactie op INTB-5): atomaire wissel — oude locators vrijgeven
+    // én nieuwe claimen in één stap, of geen van beide. Twee losse aanroepen
+    // (release + claim) zouden een venster openen waarin de room via GEEN
+    // enkele code bereikbaar is, of waarin de oude code na een mislukte
+    // nieuwe claim toch nog geldig blijft — bij "direct intrekbaar"
+    // (ARCHITECTURE.md §inviteId) is dat laatste zelfs de ergere uitkomst.
+    if (roomIdByCode.get(oldCode) !== roomId) {
+      throw new RangeError(
+        `rotateRoomLocators: roomId ${JSON.stringify(roomId)} bezit oldCode ${JSON.stringify(oldCode)} niet (meer)`
+      );
+    }
+    if (roomIdByInviteHash.get(oldInviteHash) !== roomId) {
+      throw new RangeError(
+        `rotateRoomLocators: roomId ${JSON.stringify(roomId)} bezit oldInviteHash ${JSON.stringify(oldInviteHash)} niet (meer)`
+      );
+    }
+
+    // Conflictcontrole vóór enige write. Eigen roomId op newCode/newInviteHash
+    // is geen conflict (bijv. alleen de invite roteert, de code blijft
+    // gelijk) — idempotent, net als claimRoomLocatorsAtomically.
+    const codeOwner = roomIdByCode.get(newCode);
+    if (codeOwner !== undefined && codeOwner !== roomId) {
+      // Veilige no-op: de OUDE locators blijven geldig. Een room die
+      // tijdelijk via geen enkele code bereikbaar is, is erger dan een
+      // rotatie die nog niet gelukt is.
+      return { ok: false, conflict: 'code' };
+    }
+    const inviteOwner = roomIdByInviteHash.get(newInviteHash);
+    if (inviteOwner !== undefined && inviteOwner !== roomId) {
+      return { ok: false, conflict: 'inviteHash' };
+    }
+
+    // Geen conflict: oude vrijgeven, nieuwe zetten, in dezelfde synchrone stap.
+    if (oldCode !== newCode) {
+      roomIdByCode.delete(oldCode);
+    }
+    roomIdByCode.set(newCode, roomId);
+    if (oldInviteHash !== newInviteHash) {
+      roomIdByInviteHash.delete(oldInviteHash);
+    }
+    roomIdByInviteHash.set(newInviteHash, roomId);
+
+    return { ok: true };
+  }
+
   async function loadSession(roomId, sessionId) {
     const session = sessionsByKey.get(`${roomId} ${sessionId}`);
     return session === undefined ? null : deepCopy(session);
@@ -143,6 +190,17 @@ function createInMemoryStore() {
 
   async function saveSession(session) {
     sessionsByKey.set(`${session.roomId} ${session.id}`, deepCopy(session));
+    // DM14 (§10, reactie op INT-3): tokenHash staat al op Session (DM2a) —
+    // geen chicken-and-egg zoals bij inviteHash, dus deze index kan
+    // rechtstreeks door saveSession gevuld worden. Niet leeggemaakt bij
+    // revoked=true: de aanroeper moet "token onbekend" en "token bekend maar
+    // herroepen" uit elkaar kunnen houden (zie loadSessionByTokenHash).
+    roomAndSessionByTokenHash.set(session.tokenHash, { roomId: session.roomId, sessionId: session.id });
+  }
+
+  async function loadSessionByTokenHash(tokenHash) {
+    const located = roomAndSessionByTokenHash.get(tokenHash);
+    return located === undefined ? null : loadSession(located.roomId, located.sessionId);
   }
 
   async function loadPlayer(roomId, playerId) {
@@ -236,9 +294,17 @@ function createInMemoryStore() {
     // van de context en deze aanroep past een tweede, gelijktijdige aanroep
     // op dezelfde, verouderde context) — deze atomaire operatie is de enige
     // plek waar check en write gegarandeerd samenvallen.
+    //
+    // DM15 (INT-14): geeft { replay: boolean } terug in plaats van niets, zodat
+    // de aanroeper een replay kan herkennen zonder een eigen, niet-atomaire
+    // vooraf-lezing (die geen gelijktijdigheid dekt en tot een gemist geval
+    // leidde: een replay ná de deadline werd afgewezen vóórdat deze operatie
+    // ooit werd bereikt). Geen ack in de returnwaarde — ongewijzigd t.o.v.
+    // DM13, de aanroeper gebruikt `loadActionCacheEntry` als hij die nodig
+    // heeft.
     const existingActionCacheEntry = actionCacheByRoom.get(roomId)?.get(write.actionCacheEntry.actionId);
     if (existingActionCacheEntry !== undefined) {
-      return; // replay: resolve zonder te muteren, geen ack teruggeven (zie DM13)
+      return { replay: true }; // resolve zonder te muteren
     }
 
     const playerKey = `${roomId} ${write.updatedPlayer.id}`;
@@ -285,6 +351,8 @@ function createInMemoryStore() {
 
     const actionCacheInRoom = getOrCreateNestedMap(actionCacheByRoom, roomId);
     actionCacheInRoom.set(write.actionCacheEntry.actionId, deepCopy(write.actionCacheEntry));
+
+    return { replay: false };
   }
 
   async function loadActionCacheEntry(roomId, actionId) {
@@ -305,8 +373,8 @@ function createInMemoryStore() {
 
   return {
     loadRoom, saveRoom, loadRoomByCode, loadRoomByInviteHash,
-    claimRoomLocatorsAtomically, releaseRoomLocators, refreshRoomLocators,
-    loadSession, saveSession,
+    claimRoomLocatorsAtomically, releaseRoomLocators, refreshRoomLocators, rotateRoomLocators,
+    loadSession, saveSession, loadSessionByTokenHash,
     loadPlayer, savePlayer, listPlayers,
     loadMatch, saveMatch,
     loadRound, saveRound,

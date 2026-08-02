@@ -84,23 +84,15 @@ zelf gereproduceerd, nog echt open.** Ook: INT-6/INTB-7 (invite-hash) is
 inhoudelijk al opgelost, maar beide statustabellen zijn stale. Drie
 voorstellen geschreven, geen enkele geïmplementeerd (poort-bevroren):
 
-- [ ] `HANDOFF.md` §9 — `rotateRoomLocators` voor INTB-5. **Product-owner-
-  akkoord binnen**, formeel ingediend bij INT-A + INT-B; wacht nu op hun
-  technische akkoord (poort-bevroren).
-- [ ] `HANDOFF.md` §10 — `loadSessionByTokenHash` voor INT-3 (blokkeert
-  INT-A stap 2). **Product-owner-akkoord binnen**, formeel ingediend; wacht op
-  INT-A/INT-B-akkoord.
+- [x] [`DM14`](HANDOFF.md#10-gebouwd-was-formeel-voorstel-akkoord-product-owner--int-3-loadsessionbytokenhash) — `loadSessionByTokenHash` voor INT-3. Gebouwd, deblokkeerde INT-A stap 2.
+- [x] DM15 — `saveAcceptedAnswerAtomically` geeft `{ replay: boolean }` terug, reactie op INT-14 (`HANDOFF.md` §12). Gebouwd; contract voor INT-B's Lua-script.
+- [x] [`DM16`](HANDOFF.md#9-gebouwd-was-formeel-voorstel-akkoord-product-owner--intb-5-rotateroomlocators) — `rotateRoomLocators` voor INTB-5 🔴. Gebouwd, in de afgesproken volgorde als laatste — zelf gereproduceerd dat het letterlijke INTB-5-scenario nu klopt (`repository.test.js` #57-58).
 - [x] `HANDOFF.md` §11 — eenregelig voorstel aan spec-redactie voor INT-9
   (`deadlineGraceMs`-documentatie, geen poortwijziging). **Akkoord en
   ingediend** — geen INT-A/INT-B-akkoord nodig, geen poortwijziging.
 
-**Bouwvolgorde, bijgewerkt:** §10 eerst (deblokkeert INT-A stap 2, niets
-publiek dus tempo wint) → **een aankomend, nog niet ontvangen gebundeld
-poortvoorstel van INT-A over de returnwaarde van
-`saveAcceptedAnswerAtomically`** (met voorrang boven §9 behandelen zodra het
-binnenkomt — raakt INT-B's lopende Lua-werk) → §9 (moet af vóór er iets via
-de tunnel bereikbaar is). Nog niets van dit voorstel gezien; alleen de
-aankondiging.
+**Bouwvolgorde uitgevoerd zoals afgesproken: §10 → INT-14 → §9.** Alle drie
+gebouwd in één ronde, 15 nieuwe tests (#44-58), 492/492 groen.
 
 INTB-8 ligt al bij de DT-agent, geen actie hier. INTB-6 (tiebreak) blijft
 terecht open, wacht op GR. Verwacht nog een klein, regulier HANDOFF-item van
@@ -109,8 +101,8 @@ besluit 26) — geen speciale voorrang zodra het binnenkomt.
 
 ## Cijfers
 
-- **DM0–DM13: alle veertien fases uitgevoerd.** `node --test
-  'server/data/**/*.test.js'` → **477/477 tests groen** (89 suites).
+- **DM0–DM16: alle zeventien fases uitgevoerd.** `node --test
+  'server/data/**/*.test.js'` → **492/492 tests groen** (92 suites).
 - Twee reviewrondes volledig verwerkt: [`REVIEW.md`](REVIEW.md) (2 blockers, 10
   hoge bevindingen, vóór DM0/DM1) en
   [`prompts/REVIEW-DM2-DM9.md`](prompts/REVIEW-DM2-DM9.md) (3 blockers, 8 hoge,
