@@ -7,9 +7,9 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 
 | # | Voor | Status | Onderwerp |
 | --- | --- | --- | --- |
-| UI-1 | INT-A | 🔵 open | Bevestig het transport-interfacecontract vóórdat UI verder bouwt |
+| UI-1 | INT-A | ✅ opgelost | Bevestig het transport-interfacecontract vóórdat UI verder bouwt |
 | UI-2 | UI (zelf) | 🔵 open | Pauze-overlay met reden bouwen, uiterlijk bij UI5 |
-| UI-3 | INT-A / ARCHITECTURE | 🔵 open | Hoe worden `client/flow/` en `shared/` aan de browser geserveerd? |
+| UI-3 | INT-A / ARCHITECTURE | ✅ opgelost | Hoe worden `client/flow/` en `shared/` aan de browser geserveerd? |
 
 ---
 
@@ -89,6 +89,33 @@ Tot een van deze drie is bevestigd, blijft elk UI-scherm op 🔵/🟡 in
 `UI-PROGRESS.md` — nooit ✅, want dat vereist sowieso een echte server, niet
 alleen een bevestigd contract.
 
+### ✅ Antwoord ontvangen — optie 2, vier correcties
+
+INT-A heeft geantwoord in
+[`docs/integration-plan/transport-contract-response.md`](../integration-plan/transport-contract-response.md):
+grotendeels akkoord, met vier correcties. Alle vier zijn verwerkt in
+`transport.mjs` (contract) en `transport-mock.mjs` (implementatie + tests):
+
+1. `createGame(request)` i.p.v. `createGame(config)` — `request` bevat
+   `{ config, hostParticipates, displayName }`, symmetrisch met `joinGame`.
+2. `connect(sessionToken, handlers)` i.p.v. `connect(sessionToken, onEvent)` —
+   `handlers` bevat zowel `onEvent` als `onStatus`
+   (`'connecting'|'connected'|'disconnected'`), nodig voor
+   `client/flow/reconnect-state.mjs`.
+3. `send()` verwerpt ook bij een formele `{ ok: false }`-ack, met dezelfde
+   `Error`+`.code`-vorm als de REST-functies — al zo geïmplementeerd, geen
+   functionele wijziging nodig.
+4. `actionId` blijft van de UI; bij een retry hoort dezelfde `actionId`
+   hergebruikt te worden (geen interfacewijziging, alleen een gedragsafspraak).
+   Zie `HANDOFF.md` INT-14 voor een apart, bekend poortprobleem hierbij — geen
+   UI-omweg voor bouwen.
+
+Twee losstaande punten blijven bewust open, maar blokkeren UI niet: de exacte
+responsvorm van `previewInvite` (INT-8) en de drieledige `preset`-waarde
+(`'group_battle'`/`'default'`/`'quick_start'`, INT-11) — beide bij PR belegd.
+UI3 kan hierop door; een latere aanpassing aan die twee velden raakt naar
+verwachting alleen `transport-mock.mjs`, niet de schermen zelf.
+
 ---
 
 ## UI-2 — pauze-overlay met reden bouwen
@@ -149,3 +176,19 @@ werkt zolang de repo-root wordt geserveerd. Maar:
 
 Zodra dit is bevestigd, kan `index.html` de bijbehorende `<base>`-tag of
 absolute paden krijgen — nu zou dat alleen een aanname vastklikken.
+
+### ✅ Antwoord ontvangen — route 1, INT-A regelt het in stap 2
+
+INT-A kiest route 1: twee extra statische mappings (`/client/*` → `client/`,
+`/shared/*` → `shared/`) naast de bestaande `frontend`-regel, geen kopieer-/
+symlinkstap. Zijn Fastify-entrypoint (stap 2) serveert dit rechtstreeks;
+`caddy/Caddyfile`/`nginx/default.conf` volgen bij INT-B's verpakking.
+
+Verwerkt in `frontend/index.html`: `<base href="/" />` plus absolute paden
+(`/css/base.css`, `/js/app.mjs`), zodat deep links (`/j/{inviteId}`,
+`/game/{code}`, `/host/{code}`) hun assets correct oplossen. `transport-mock.mjs`'s
+import van `shared/content` blijft bewust relatief (`../../shared/content/index.mjs`)
+— dat komt onder de `/shared/*`-mapping op hetzelfde pad uit als een absoluut
+pad zou doen, en blijft daarnaast rechtstreeks bruikbaar onder `node:test`
+(een absoluut `/shared/...`-specifier breekt daar, want Node interpreteert een
+leidende `/` als bestandssysteemroot, niet als serverorigin).
