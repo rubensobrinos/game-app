@@ -206,7 +206,7 @@ Geen losse categorieën — een tabelgedreven fixture-set met exacte rijen. Elke
   bij deze pure fasetransitie.
 - Nieuwe dependencies, inclusief TypeScript. Gebruik `node:test` en `node:assert`
   met JSDoc voor typering.
-- Meer dan 5 bestanden of 400 regels in één keer (CLAUDE.md-autonomiegrens); splits
+- Meer dan 15 bestanden of 5.000 regels in één keer (CLAUDE.md-autonomiegrens); splits
   zo nodig in meerdere commits (bijv. reducer + tests apart).
 
 ### Opleveren

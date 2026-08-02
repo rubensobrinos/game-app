@@ -32,7 +32,7 @@ vormen, ik bepaal ze niet.
    ingebouwde `node:test`, `node:assert` en `node:crypto` — geen `deps`-goedkeuring
    nodig. Fastify, Socket.IO, TypeScript en een Redis-client komen pas ter sprake bij
    de stap die ze daadwerkelijk nodig heeft (zie Fasering, AR6).
-4. **Autonomie-limieten blijven gelden.** Max 5 bestanden en 400 regels per actie
+4. **Autonomie-limieten blijven gelden.** Max 15 bestanden en 5.000 regels per actie
    (CLAUDE.md). Elke fase hieronder past daar bewust binnen; grotere fases worden
    gesplitst.
 5. **`DEPLOYMENT-AND-TESTING.md` is niet mijn terrein.** Containers, Compose,
