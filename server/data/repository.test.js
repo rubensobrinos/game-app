@@ -500,3 +500,159 @@ describe('saveRound/loadAnswer/loadActionCacheEntry — room-scoping (DM11) #34-
     assert.strictEqual(await store.loadMatch('room', '1 match'), null);
   });
 });
+
+describe('saveAcceptedAnswerAtomically — idempotentie en "één antwoord per ronde" ÍN de atomaire operatie (DM13, reactie op INTB-4) #39-43', () => {
+  test('#39 dezelfde actionId een tweede keer resolvet zonder te muteren, ook met een hogere score in de herhaling', async () => {
+    const store = createInMemoryStore();
+    await store.savePlayer(makePlayer());
+    const eerste = {
+      answer: makeAnswer(),
+      updatedPlayer: { id: 'p_1', score: 158, correctCount: 1, correctResponseTimeMsTotal: 1000 },
+      actionCacheEntry: { actionId: 'act_1', ack: { roundId: 'round_1' } },
+    };
+    await store.saveAcceptedAnswerAtomically('room_1', 'match_1', eerste);
+
+    // Zelfde actionId, maar met een hogere score — zoals een dubbel
+    // afgeleverde socketboodschap eruitziet nadat de aanroeper op verouderde
+    // spelerstand heeft gerekend.
+    const herhaling = {
+      answer: makeAnswer({ points: 200 }),
+      updatedPlayer: { id: 'p_1', score: 358, correctCount: 2, correctResponseTimeMsTotal: 2000 },
+      actionCacheEntry: { actionId: 'act_1', ack: { roundId: 'round_1' } },
+    };
+    await assert.doesNotReject(() => store.saveAcceptedAnswerAtomically('room_1', 'match_1', herhaling));
+
+    const player = await store.loadPlayer('room_1', 'p_1');
+    assert.strictEqual(player.score, 158, 'eindscore blijft 158 — de herhaling mag er geen 358 van maken');
+    assert.strictEqual(player.correctCount, 1);
+    assert.strictEqual(player.correctResponseTimeMsTotal, 1000);
+    assert.deepStrictEqual(await store.loadAnswer('room_1', 'match_1', 'round_1', 'p_1'), eerste.answer);
+    assert.deepStrictEqual(await store.getScoreboardTop('room_1', 'match_1', 10), [{ playerId: 'p_1', score: 158 }]);
+    assert.deepStrictEqual(await store.loadActionCacheEntry('room_1', 'act_1'), eerste.actionCacheEntry);
+  });
+
+  test('#40 een tweede, ANDERE actionId voor dezelfde speler in dezelfde ronde wordt afgewezen (RangeError, code ALREADY_ANSWERED), niets van de afgewezen inzending landt', async () => {
+    const store = createInMemoryStore();
+    await store.savePlayer(makePlayer());
+    const eerste = {
+      answer: makeAnswer(),
+      updatedPlayer: { id: 'p_1', score: 158, correctCount: 1, correctResponseTimeMsTotal: 1000 },
+      actionCacheEntry: { actionId: 'act_1', ack: { roundId: 'round_1' } },
+    };
+    await store.saveAcceptedAnswerAtomically('room_1', 'match_1', eerste);
+
+    const tweede = {
+      answer: makeAnswer({ actionId: 'act_2' }),
+      updatedPlayer: { id: 'p_1', score: 358, correctCount: 2, correctResponseTimeMsTotal: 2000 },
+      actionCacheEntry: { actionId: 'act_2', ack: { roundId: 'round_1' } },
+    };
+    await assert.rejects(async () => {
+      try {
+        await store.saveAcceptedAnswerAtomically('room_1', 'match_1', tweede);
+      } catch (err) {
+        assert.strictEqual(err.code, 'ALREADY_ANSWERED');
+        throw err;
+      }
+    }, RangeError);
+
+    const player = await store.loadPlayer('room_1', 'p_1');
+    assert.strictEqual(player.score, 158);
+    assert.strictEqual(player.correctCount, 1);
+    assert.strictEqual(player.correctResponseTimeMsTotal, 1000);
+    assert.deepStrictEqual(await store.loadAnswer('room_1', 'match_1', 'round_1', 'p_1'), eerste.answer);
+    assert.deepStrictEqual(await store.getScoreboardTop('room_1', 'match_1', 10), [{ playerId: 'p_1', score: 158 }]);
+    assert.strictEqual(await store.loadActionCacheEntry('room_1', 'act_2'), null, 'de ack van de afgewezen inzending mag niet bestaan');
+  });
+
+  test('#41 dezelfde speler in twee VERSCHILLENDE rondes: allebei geaccepteerd, scores tellen op (regressiebewijs: geen overblokkering)', async () => {
+    const store = createInMemoryStore();
+    await store.savePlayer(makePlayer());
+    const rondeEen = {
+      answer: makeAnswer({ roundId: 'round_1', actionId: 'act_1' }),
+      updatedPlayer: { id: 'p_1', score: 100, correctCount: 1, correctResponseTimeMsTotal: 1000 },
+      actionCacheEntry: { actionId: 'act_1', ack: { roundId: 'round_1' } },
+    };
+    const rondeTwee = {
+      answer: makeAnswer({ roundId: 'round_2', actionId: 'act_2' }),
+      updatedPlayer: { id: 'p_1', score: 220, correctCount: 2, correctResponseTimeMsTotal: 2000 },
+      actionCacheEntry: { actionId: 'act_2', ack: { roundId: 'round_2' } },
+    };
+    await store.saveAcceptedAnswerAtomically('room_1', 'match_1', rondeEen);
+    await store.saveAcceptedAnswerAtomically('room_1', 'match_1', rondeTwee);
+
+    const player = await store.loadPlayer('room_1', 'p_1');
+    assert.strictEqual(player.score, 220);
+    assert.deepStrictEqual(await store.loadAnswer('room_1', 'match_1', 'round_1', 'p_1'), rondeEen.answer);
+    assert.deepStrictEqual(await store.loadAnswer('room_1', 'match_1', 'round_2', 'p_1'), rondeTwee.answer);
+  });
+
+  test('#42 volledig scenario: retry (replay) + afgewezen tweede inzending + geldige volgende ronde -> eindscore precies 220, niet 320/420 (rechtstreeks ontleend aan INT-B\'s eigen INTB-4-scenario)', async () => {
+    const store = createInMemoryStore();
+    await store.savePlayer(makePlayer());
+
+    const rondeEen = {
+      answer: makeAnswer({ roundId: 'round_1', actionId: 'act_1' }),
+      updatedPlayer: { id: 'p_1', score: 120, correctCount: 1, correctResponseTimeMsTotal: 2000 },
+      actionCacheEntry: { actionId: 'act_1', ack: { roundId: 'round_1' } },
+    };
+    await store.saveAcceptedAnswerAtomically('room_1', 'match_1', rondeEen);
+
+    // Retry van diezelfde actie: replay, geen mutatie.
+    await store.saveAcceptedAnswerAtomically('room_1', 'match_1', {
+      answer: makeAnswer({ roundId: 'round_1', actionId: 'act_1', points: 200 }),
+      updatedPlayer: { id: 'p_1', score: 320, correctCount: 2, correctResponseTimeMsTotal: 5000 },
+      actionCacheEntry: { actionId: 'act_1', ack: { roundId: 'round_1' } },
+    });
+
+    // Tweede, andere actie in DEZELFDE ronde: afgewezen.
+    await store.saveAcceptedAnswerAtomically('room_1', 'match_1', {
+      answer: makeAnswer({ roundId: 'round_1', actionId: 'act_2', points: 200 }),
+      updatedPlayer: { id: 'p_1', score: 320, correctCount: 2, correctResponseTimeMsTotal: 6000 },
+      actionCacheEntry: { actionId: 'act_2', ack: { roundId: 'round_1' } },
+    }).catch(() => {
+      // Al vastgelegd door #40 dat dit een RangeError met code ALREADY_ANSWERED
+      // is; deze test gaat alleen over de eindstand.
+    });
+
+    // Ronde 2, geaccepteerd: 120 + 100 = 220. Dit MOET tellen.
+    const rondeTwee = {
+      answer: makeAnswer({ roundId: 'round_2', actionId: 'act_3', points: 100 }),
+      updatedPlayer: { id: 'p_1', score: 220, correctCount: 2, correctResponseTimeMsTotal: 5000 },
+      actionCacheEntry: { actionId: 'act_3', ack: { roundId: 'round_2' } },
+    };
+    await store.saveAcceptedAnswerAtomically('room_1', 'match_1', rondeTwee);
+
+    const player = await store.loadPlayer('room_1', 'p_1');
+    assert.strictEqual(player.score, 220, 'eindscore is 120 (ronde 1) + 100 (ronde 2) — niet 320, niet 420');
+    assert.deepStrictEqual(await store.getScoreboardTop('room_1', 'match_1', 10), [{ playerId: 'p_1', score: 220 }]);
+    assert.deepStrictEqual(await store.loadAnswer('room_1', 'match_1', 'round_1', 'p_1'), rondeEen.answer, 'ronde 1 draagt nog steeds het eerste antwoord');
+    assert.deepStrictEqual(await store.loadAnswer('room_1', 'match_1', 'round_2', 'p_1'), rondeTwee.answer);
+    assert.strictEqual(await store.loadActionCacheEntry('room_1', 'act_2'), null, 'de ack van de afgewezen tweede inzending');
+  });
+
+  test('#43 idempotentie gaat vóór de playerId-check: een replay resolvet zelfs als de write een niet-bestaande playerId noemt', async () => {
+    const store = createInMemoryStore();
+    await store.savePlayer(makePlayer());
+    const eerste = {
+      answer: makeAnswer(),
+      updatedPlayer: { id: 'p_1', score: 158, correctCount: 1, correctResponseTimeMsTotal: 1000 },
+      actionCacheEntry: { actionId: 'act_1', ack: { roundId: 'round_1' } },
+    };
+    await store.saveAcceptedAnswerAtomically('room_1', 'match_1', eerste);
+
+    // Zelfde actionId, maar nu met een playerId die niet bestaat. Zou de
+    // playerId-check vóór de idempotentiecheck komen, dan zou dit een
+    // RangeError geven in plaats van een stille replay — de ordening in de
+    // Beslissing van DM13 is dus geen toeval maar getest gedrag.
+    const herhalingMetOnbekendeSpeler = {
+      answer: makeAnswer({ playerId: 'p_spook' }),
+      updatedPlayer: { id: 'p_spook', score: 999, correctCount: 9, correctResponseTimeMsTotal: 9000 },
+      actionCacheEntry: { actionId: 'act_1', ack: { roundId: 'round_1' } },
+    };
+    await assert.doesNotReject(() => store.saveAcceptedAnswerAtomically('room_1', 'match_1', herhalingMetOnbekendeSpeler));
+
+    assert.strictEqual(await store.loadPlayer('room_1', 'p_spook'), null, 'de onbekende speler uit de replay-write is nooit aangemaakt');
+    const player = await store.loadPlayer('room_1', 'p_1');
+    assert.strictEqual(player.score, 158, 'de echte staat blijft die van de eerste, geslaagde aanroep');
+  });
+});

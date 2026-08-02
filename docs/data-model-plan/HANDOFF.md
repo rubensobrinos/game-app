@@ -227,6 +227,83 @@ verwacht en al door jullie eigen commentaar geannoteerd:
   antwoord. Voorgesteld als kandidaat-volgende-fase (`DM13`), nog niet
   geschreven.
 
+## 7a. Aan `integration-plan` (INT-B) — INTB-4 beantwoord
+
+[`prompts/DM13-answer-idempotency-in-atomic-write.md`](prompts/DM13-answer-idempotency-in-atomic-write.md),
+gebouwd. `saveAcceptedAnswerAtomically` controleert nu, ín de atomaire
+operatie en vóór elke write:
+
+1. Idempotentie eerst: `write.actionCacheEntry.actionId` al in de
+   action-cache van deze room → **resolve zonder te muteren** (geen ack in de
+   returnwaarde — gebruik `loadActionCacheEntry` als je hem nodig hebt).
+2. Dan pas de bestaande playerId-check (ongewijzigd).
+3. Dan "al beantwoord": een ANDERE `actionId` voor een al-beantwoorde
+   `roundId`+`playerId` → **`RangeError` met `.code === 'ALREADY_ANSWERED'`**
+   (zelfde codestring als `resolveAnswer`'s eigen returncode).
+
+Signatuur/returntype ongewijzigd (`Promise<void>`). `answer-flow.js` is
+functioneel ongewijzigd; zijn eigen stap 1/5-checks zijn nu expliciet
+gedocumenteerd als snelpad, niet als bron van waarheid — **een aanroeper moet
+een `ALREADY_ANSWERED`-worp van `saveAcceptedAnswerAtomically` afvangen en
+naar dezelfde protocolrespons vertalen, ook wanneer `resolveAnswer` zelf al
+`ok:true, replay:false` teruggaf** (dat is precies het race-scenario dat deze
+fase dichtzet).
+
+Geverifieerd tegen jullie eigen suite: vóór deze fase 77/80 groen (3 bewust
+rode `INTB-4`-tests); erna 80/80 groen, **zonder dat een testbody in
+`data-store-conformance.mjs` is aangeraakt** — dat bestand blijft van jullie.
+
+## 7b. Poort-bevroren vanaf nu — governance-notitie
+
+**Instructie ontvangen (regie), geldig vanaf nu:** de poort (`repository.js`'s
+`DataStore`-contract) is twee keer op één dag gewijzigd (DM10–DM12, DM13)
+terwijl zowel INT-A als INT-B er live tegenaan bouwen. **Vanaf nu bevroren:**
+elke volgende wijziging aan de poort — nieuwe methode, gewijzigde signatuur,
+gewijzigd foutcontract van een bestaande methode — gaat eerst als een
+HANDOFF-voorstel naar zowel INT-A als INT-B, met hun akkoord, vóórdat er iets
+geïmplementeerd wordt. Geen drive-by-uitbreidingen meer, ook niet als de
+motivatie sterk is (zoals bij DM13's ontdekking tijdens de bouw van DM10–12).
+
+**Conformance-dekking geverifieerd (op verzoek):** alle 21 methoden in
+`DATA_STORE_METHOD_NAMES` — inclusief alle DM10–DM12-toevoegingen
+(`claimRoomLocatorsAtomically`, `releaseRoomLocators`, `refreshRoomLocators`,
+`loadRoomByInviteHash`, de room-gescoped `saveRound`/`loadAnswer`/
+`loadActionCacheEntry`) — komen voor in
+`server/data/adapters/data-store-conformance.mjs` en worden daar daadwerkelijk
+uitgevoerd (geen `.skip` meer over). 80/80 tests groen na DM13. Geen
+dekkingsgat gevonden op het moment van dit antwoord.
+
+**Nieuw gesignaleerd, NIET opgepakt (conform de bevriezing hierboven).** Een
+volledige doorloop van beide HANDOFF-bestanden (2 augustus 2026, ná DM13) laat
+zien dat er meer aan DM gericht is dan alleen INTB-4/INTB-6 — hieronder de
+volledige inventaris, niets van gebouwd:
+
+- **INTB-5 🔴 (hoog — securitygevolg, geen hygiëne):** een geroteerde
+  uitnodiging blijft geldig. Dit is de enige 🔴 in de hele inventaris en
+  verdient waarschijnlijk voorrang zodra het voorstelproces loopt.
+- **INT-3 (aan DM, blokkeert INT-A stap 2):** de poort kan een bearer token
+  niet naar een sessie herleiden.
+- **INT-6 (aan DM) + INTB-7 (aan DM) — vermoedelijk hetzelfde punt vanuit twee
+  kanten, zoals INT-1/INTB-2 dat waren:** beide gaan over
+  `loadRoomByInviteId`/hash. **Let op:** INTB-7's tekst is inmiddels stale —
+  hij beschrijft nog de situatie van vóór DM10 (`loadRoomByInviteId(inviteId)`,
+  ruwe waarde) en stelt voor dat de ADAPTER intern hasht. DM10 koos het
+  omgekeerde (de aanroeper hasht, de poort ziet nooit de rauwe capability) en
+  INT-B's eigen conformance-suite bouwt daar al tegenaan
+  (`loadRoomByInviteHash`). Dit moet worden rechtgetrokken zodra het
+  voorstelproces INT-6/INTB-7 oppakt, anders spreken de twee HANDOFF-bestanden
+  elkaar tegen.
+- **INT-7 (aan DM):** geen conditionele of partiële write op de poort.
+- **INT-9 (aan DM):** tegenstrijdige `deadlineGraceMs`.
+- **INTB-8 (aan DM + eigenaar `tests/fixtures/`):** gedeelde testfixtures
+  produceren ongeldige documenten.
+- **INT-4 (cc DM, primair CT):** contentcontract mist
+  `validOptionIds`/`resultDetails`. Niet blokkerend, niet primair mijn item.
+
+Al deze items volgen vanaf nu het nieuwe proces (HANDOFF-voorstel eerst,
+akkoord van INT-A én INT-B, dan pas implementatie) — ook INT-3 en INTB-5,
+ondanks hun urgentie/severity-markering.
+
 ## 7. Klein, buiten scope van DM10/11/12 — genoteerd, niet opgepakt
 
 `sessionsByKey`/`playersByKey` in `in-memory-store.js` gebruiken nog steeds

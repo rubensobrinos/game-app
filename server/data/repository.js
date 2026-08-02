@@ -73,6 +73,20 @@
  * uitbreiding (REVIEW-DM2-DM9.md bevinding 5). `updatedPlayer` bevat absolute
  * nieuwe waarden, geen delta — de aanroeper (DM7) berekent `player.score +
  * points` zelf en geeft het resultaat door.
+ *
+ * FOUTCONTRACT van `saveAcceptedAnswerAtomically` (DM13, reactie op INTB-4):
+ * idempotentie en "één antwoord per ronde" zitten ÍN deze operatie, niet
+ * ervóór — een check in de aanroeper (bijv. `answer-flow.js`'s stap 1/5) dekt
+ * geen gelijktijdige aanroepen af.
+ *   - `write.actionCacheEntry.actionId` staat al in de action-cache van deze
+ *     room → replay: de aanroep resolvet zonder te muteren, geen ack in de
+ *     returnwaarde (de aanroeper gebruikt `loadActionCacheEntry` als hij hem
+ *     nodig heeft).
+ *   - anders, en er bestaat al een `Answer` voor deze `roundId` + `playerId`
+ *     (een andere `actionId`) → werpt een `RangeError` met
+ *     `.code === 'ALREADY_ANSWERED'` (zelfde codestring als `resolveAnswer`'s
+ *     eigen returncode).
+ *   - onbekende `updatedPlayer.id` → werpt `RangeError` (ongewijzigd).
  * @typedef {{
  *   answer: import('./types/answer').Answer,
  *   updatedPlayer: { id: string, score: number, correctCount: number, correctResponseTimeMsTotal: number },

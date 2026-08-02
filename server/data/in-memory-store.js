@@ -227,11 +227,40 @@ function createInMemoryStore() {
   }
 
   async function saveAcceptedAnswerAtomically(roomId, matchId, write) {
+    // DM13 (docs/data-model-plan/prompts/DM13-answer-idempotency-in-atomic-write.md),
+    // reactie op INTB-4: idempotentie EERST, vóór de playerId-check en vóór
+    // "al beantwoord" — een replay van een eerder geslaagde actie moet
+    // hetzelfde resultaat geven, ook als er ondertussen iets anders in de
+    // room is veranderd (zelfde principe als answer-flow.js's stap 1). De
+    // check in answer-flow.js dekt geen concurrency af (tussen het inlezen
+    // van de context en deze aanroep past een tweede, gelijktijdige aanroep
+    // op dezelfde, verouderde context) — deze atomaire operatie is de enige
+    // plek waar check en write gegarandeerd samenvallen.
+    const existingActionCacheEntry = actionCacheByRoom.get(roomId)?.get(write.actionCacheEntry.actionId);
+    if (existingActionCacheEntry !== undefined) {
+      return; // replay: resolve zonder te muteren, geen ack teruggeven (zie DM13)
+    }
+
     const playerKey = `${roomId} ${write.updatedPlayer.id}`;
     const existingPlayer = playersByKey.get(playerKey);
     if (existingPlayer === undefined) {
       throw new RangeError(`saveAcceptedAnswerAtomically: unknown playerId ${JSON.stringify(write.updatedPlayer.id)} for roomId ${JSON.stringify(roomId)}`);
     }
+
+    // Eén antwoord per speler per ronde (DATA-MODEL.md stap 5): een ANDERE
+    // actionId voor een al-beantwoorde ronde wordt afgewezen, nooit stilzwijgend
+    // overschreven — de idempotentiecheck hierboven ving de exact-dezelfde-
+    // actionId-situatie al af.
+    const existingAnswer = answersByKey.get(roomId)?.get(matchId)?.get(write.answer.roundId)?.get(write.answer.playerId);
+    if (existingAnswer !== undefined) {
+      throw Object.assign(
+        new RangeError(
+          `saveAcceptedAnswerAtomically: player ${JSON.stringify(write.answer.playerId)} already has an answer for round ${JSON.stringify(write.answer.roundId)}`
+        ),
+        { code: 'ALREADY_ANSWERED' }
+      );
+    }
+
     // Alle vier kandidaat-writes eerst voorbereiden, dan pas committen — zelfde
     // alles-of-niets-principe als setRoomAndMatchPhaseAtomically. Dit bewijst
     // alleen dat DEZE (single-threaded, in-memory) uitvoering atomair is; geen

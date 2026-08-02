@@ -60,25 +60,31 @@ Legenda: ✅ gebouwd en getest.
 | `types/room-presentation.js` | DM3 | ✅ | 9 |
 | `name-processing.js` | DM4 | ✅ | 34 |
 | `privacy-guard.js` | DM5 | ✅ | 109 |
-| `repository.js` + `in-memory-store.js` | DM6, uitgebreid door DM10/DM11/DM12 | ✅ | 43 |
-| `answer-flow.js` | DM7 | ✅ | zie `docs/data-model-plan/DM-PROGRESS.md` |
+| `repository.js` + `in-memory-store.js` | DM6, uitgebreid door DM10/DM11/DM12/DM13 | ✅ | 48 |
+| `answer-flow.js` | DM7, becommentarieerd door DM13 | ✅ | zie `docs/data-model-plan/DM-PROGRESS.md` |
 | `types/player.js`'s `toStandingPlayerView()` | DM9 | ✅ | zie `docs/data-model-plan/DM-PROGRESS.md` |
 
-**Totaal: 472 tests groen** (`node --test 'server/data/**/*.test.js'`) na
-DM0–DM12. Analytics (DM8) levert bewust geen `server/`-code — dat blijft een
+**Totaal: 477 tests groen** (`node --test 'server/data/**/*.test.js'`) na
+DM0–DM13. Analytics (DM8) levert bewust geen `server/`-code — dat blijft een
 voorstel onder `docs/data-model-plan/proposals/`, niet als runtimecode
 (`REVIEW-DM2-DM9.md` bevinding 11).
 
-**DM10–DM12** (`docs/data-model-plan/HANDOFF.md` §6) breidden de repository-
-poort uit als reactie op `docs/integration-plan/`'s HANDOFF-bevindingen:
-`loadRoomByInviteId(inviteId)` → `loadRoomByInviteHash(inviteHash)`;
+**DM10–DM13** (`docs/data-model-plan/HANDOFF.md` §6/§7a) breidden de
+repository-poort uit als reactie op `docs/integration-plan/`'s
+HANDOFF-bevindingen: `loadRoomByInviteId(inviteId)` →
+`loadRoomByInviteHash(inviteHash)`;
 `claimRoomLocatorsAtomically`/`releaseRoomLocators`/`refreshRoomLocators`
 toegevoegd (atomaire join-code + inviteHash-claim); `saveRound`/`loadAnswer`/
 `loadActionCacheEntry` room-gescoped (bredere signaturen, geen nieuwe velden
 op `Round`/`Answer`); scoreboard op `(roomId, matchId)` i.p.v. alleen
-`matchId`. De in-memory fake gebruikt sindsdien geneste Maps in plaats van met
-een spatie samengestelde string-sleutels voor zijn interne, samengestelde
-identifiers.
+`matchId`; `saveAcceptedAnswerAtomically` controleert nu idempotentie en "één
+antwoord per ronde" ín de atomaire stap (DM13, reactie op INTB-4). De
+in-memory fake gebruikt sindsdien geneste Maps in plaats van met een spatie
+samengestelde string-sleutels voor zijn interne, samengestelde identifiers.
+
+**De poort is sinds DM13 bevroren** (`docs/data-model-plan/HANDOFF.md` §7b):
+elke volgende wijziging aan het `DataStore`-contract gaat eerst als
+HANDOFF-voorstel naar INT-A én INT-B, met hun akkoord, vóór implementatie.
 
 ## Wat hier bewust niet gebouwd is
 

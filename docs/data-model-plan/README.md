@@ -22,10 +22,11 @@ transcriptie (+ voorstel voor een neutrale module in `HANDOFF.md` §5), en `Roun
 uitgebreid na reconciliatie met de inmiddels herziene `GR4-question-selection.md`.
 Zie [`DM-PROGRESS.md`](DM-PROGRESS.md) §Cijfers voor de volledige lijst.
 
-**Uitgevoerd. Alle dertien fases (DM2–DM12) staan in `server/data/`, 472/472
-tests groen** (`node --test 'server/data/**/*.test.js'`). DM10–DM12
+**Uitgevoerd. Alle veertien fases (DM2–DM13) staan in `server/data/`, 477/477
+tests groen** (`node --test 'server/data/**/*.test.js'`). DM10–DM13
 (§3 hieronder) zijn een latere ronde, gebouwd als reactie op
-`docs/integration-plan/`'s HANDOFF-bevindingen. Tijdens de uitvoering van
+`docs/integration-plan/`'s HANDOFF-bevindingen. **De poort is sinds DM13
+bevroren** — zie `HANDOFF.md` §7b. Tijdens de uitvoering van
 DM2–DM9 kwam
 [`docs/multiplayer/DECISIONS.md`](../multiplayer/DECISIONS.md) binnen (2 augustus
 2026, bevestigd door de producteigenaar) en loste daarmee checkpoint 4 op:
@@ -129,16 +130,24 @@ gevolgen daarvan.
 | DM10 | Atomaire room-locator-claim (code + inviteHash) | **Uitgevoerd** — [`prompts/DM10-room-locator-claim.md`](prompts/DM10-room-locator-claim.md); reactie op `docs/integration-plan/HANDOFF.md` INT-1 + `HANDOFF-INTB.md` INTB-2, beantwoord in `HANDOFF.md` §6 |
 | DM12 | `getScoreboardTop` expliciet op (roomId, matchId) keyen | **Uitgevoerd** — [`prompts/DM12-scoreboard-room-scoping.md`](prompts/DM12-scoreboard-room-scoping.md); reactie op `docs/integration-plan/HANDOFF-INTB.md` INTB-3, beantwoord in `HANDOFF.md` §6 |
 | DM11 | Room-scoping op `Round`/`Answer` + action-cache-lookup | **Uitgevoerd** — [`prompts/DM11-room-scoped-round-answer.md`](prompts/DM11-room-scoped-round-answer.md); reactie op `docs/integration-plan/HANDOFF-INTB.md` INTB-1 (alleen signaturen verbreden, geen nieuwe velden op `Round`/`Answer`), beantwoord in `HANDOFF.md` §6; neemt ook `DECISIONS.md` #30-documentatie mee |
+| DM13 | Idempotentie + "één antwoord per ronde" ín de atomaire schrijfactie | **Uitgevoerd** — [`prompts/DM13-answer-idempotency-in-atomic-write.md`](prompts/DM13-answer-idempotency-in-atomic-write.md); reactie op `docs/integration-plan/HANDOFF-INTB.md` INTB-4, beantwoord in `HANDOFF.md` §7a; INT-B's drie bewust-rode conformance-tests staan nu groen zonder dat hun testbody is aangeraakt |
 
-**DM0–DM12 zijn allemaal uitgevoerd — 472/472 tests groen**
+**Poort bevroren vanaf DM13 (`HANDOFF.md` §7b).** Elke volgende wijziging aan
+`repository.js`'s `DataStore`-contract gaat eerst als HANDOFF-voorstel naar
+INT-A én INT-B, met hun akkoord, vóór implementatie.
+
+**DM0–DM13 zijn allemaal uitgevoerd — 477/477 tests groen**
 (`node --test 'server/data/**/*.test.js'`). Checkpoint 4 is tijdens de
 uitvoering opgelost door `docs/multiplayer/DECISIONS.md` #21. DM10–DM12 zijn
 gebouwd na een eigen reviewronde die vóór uitvoering drie fundamentele
 contractproblemen vond en corrigeerde (zie de "Herzien na een eigen
 reviewronde"-secties in de betreffende promptbestanden). Tijdens de bouw
-kwam via `docs/integration-plan/`'s conformance-suite een nieuw, ongerelateerd
-item aan het licht (INTB-4 — idempotentie in `saveAcceptedAnswerAtomically`),
-bewust NIET in deze ronde meegenomen — zie `HANDOFF.md` §6. Resterende
+kwam via `docs/integration-plan/`'s conformance-suite INTB-4 aan het licht
+(idempotentie in `saveAcceptedAnswerAtomically`) — als eigen fase DM13
+gebouwd, gevalideerd tegen INT-B's eigen (bewust rode) tests, die nu groen
+staan. **De poort is sinds DM13 bevroren voor eenzijdige wijzigingen** —
+zie `HANDOFF.md` §7b voor het volledige, actuele overzicht van wat er nog
+aan DM gericht staat maar bewust niet gebouwd is. Resterende
 externe wachtpunten: de (b)-ADR-items die de latere Redis/Postgres/token-
 adapterlaag raken (checkpoints 2, 3, 5, 6, 7, 10) — nooit de types of de
 domeinlogica hier. Zie [`DM-PROGRESS.md`](DM-PROGRESS.md) voor de volledige

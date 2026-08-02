@@ -70,23 +70,27 @@ Resterende, echt externe wachtpunten: de (b)-ADR-items die de adapterlaag raken
 `DECISIONS.md` #22–26 heeft de meeste daarvan al principieel beslist, maar de
 daadwerkelijke connectiecode is een aparte, latere fase (`deps`/`prod`).
 
-**Nieuw, nog niet opgepakt: INTB-4.** `docs/integration-plan/HANDOFF-INTB.md`
-meldt dat `saveAcceptedAnswerAtomically` in de fake idempotentie en "één
-antwoord per speler per ronde" niet afdwingt (`answer-flow.js`'s check dekt
-geen concurrency af). Ontdekt tijdens de bouw van DM10–DM12, bewust niet
-meegenomen — verdient een eigen voorstelronde (kandidaat `DM13`). Zie
-`HANDOFF.md` §6.
+- [x] [`DM13`](prompts/DM13-answer-idempotency-in-atomic-write.md) — uitgevoerd, reactie op INTB-4
+
+**Poort bevroren vanaf DM13.** Elke volgende wijziging aan `repository.js`'s
+`DataStore`-contract gaat eerst als HANDOFF-voorstel naar INT-A én INT-B, met
+hun akkoord, vóór implementatie — zie `HANDOFF.md` §7b voor de volledige,
+actuele inventaris van wat er aan DM gericht staat maar (bewust) nog niet
+gebouwd is, waaronder één 🔴-item (INTB-5, security).
 
 ## Cijfers
 
-- **DM0–DM12: alle dertien fases uitgevoerd.** `node --test
-  'server/data/**/*.test.js'` → **472/472 tests groen** (88 suites).
+- **DM0–DM13: alle veertien fases uitgevoerd.** `node --test
+  'server/data/**/*.test.js'` → **477/477 tests groen** (89 suites).
 - Twee reviewrondes volledig verwerkt: [`REVIEW.md`](REVIEW.md) (2 blockers, 10
   hoge bevindingen, vóór DM0/DM1) en
   [`prompts/REVIEW-DM2-DM9.md`](prompts/REVIEW-DM2-DM9.md) (3 blockers, 8 hoge,
   3 middelhoge, vóór uitvoering van DM2–DM9). Een derde reviewronde (eigen,
   vóór uitvoering) op DM10–DM12 vond drie fundamentele contractproblemen —
   zie de "Herzien na een eigen reviewronde"-secties in die promptbestanden.
+  DM13's contractvorm is geverifieerd tegen INT-B's eigen, onafhankelijk
+  geschreven conformance-tests (77/80 → 80/80 groen, zonder hun testbody aan
+  te raken).
 - Eén productbesluitronde ([`docs/multiplayer/DECISIONS.md`](../multiplayer/DECISIONS.md),
   2 augustus 2026) tijdens uitvoering verwerkt — zie boven.
 - [`HANDOFF.md`](HANDOFF.md) heeft zes beantwoorde/voorgestelde secties richting

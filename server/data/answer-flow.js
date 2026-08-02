@@ -40,6 +40,14 @@ const { validateAnswer } = require('../rules/validators');
  */
 function resolveAnswer(ctx) {
   // Stap 1 (was stap 4 in DATA-MODEL.md): actionId/idempotentie, EERST.
+  // Snelpad, geen bron van waarheid meer sinds DM13: deze check draait op
+  // context die vóór deze aanroep is ingelezen en dekt dus geen gelijktijdige
+  // aanroep af. repository.js's saveAcceptedAnswerAtomically doet dezelfde
+  // controle (en de "al beantwoord"-controle van stap 5 hieronder) opnieuw,
+  // atomair met de write — dat is de garantie. Een aanroeper kan dus, ook na
+  // een `ok:true, replay:false` hier, alsnog een `ALREADY_ANSWERED`-worp van
+  // de atomaire operatie krijgen (het race-scenario) en moet die naar
+  // dezelfde protocolrespons vertalen.
   if (
     ctx.existingActionCacheEntry !== null &&
     ctx.existingActionCacheEntry.actionId === ctx.actionId
@@ -85,7 +93,9 @@ function resolveAnswer(ctx) {
     return { ok: false, code: 'DEADLINE_PASSED' };
   }
 
-  // Stap 5: reeds bestaand antwoord.
+  // Stap 5: reeds bestaand antwoord. Zelfde snelpad-kanttekening als stap 1
+  // hierboven (DM13) — saveAcceptedAnswerAtomically herhaalt deze controle
+  // atomair met de write.
   if (ctx.existingAnswerForRound !== null) {
     return { ok: false, code: 'ALREADY_ANSWERED' };
   }
