@@ -1,0 +1,644 @@
+// De Redis-adapter van de DataStore-poort (server/data/repository.js) — INTB2b.
+//
+// Twintig van de drieëntwintig poortmethoden draaien hier tegen echte Redis.
+// De drie die ontbreken zijn geen vergeten werk maar apart belegd:
+//
+// (De poort is tijdens dit werk twee keer uitgebreid: DM14/§10
+// `loadSessionByTokenHash` en DM16/§9 `rotateRoomLocators`. De tweede is
+// gebouwd — het is een locator-lifecyclemethode en die horen bij dit item; de
+// eerste kán niet, zie hieronder.)
+//
+//   * `loadSessionByTokenHash` -> GEBLOKKEERD op de sleutelcatalogus. DM14/§10
+//     heeft deze methode aan de poort toegevoegd terwijl `redis-keys.js` (en
+//     `DATA-MODEL.md` §Redis-sleutels) geen sleutel voor een tokenHash kent, en
+//     de signatuur geen `roomId` draagt. Zie de uitgebreide noot bij de functie
+//     zelf voor wat er precies nodig is; het is dezelfde klasse blokkade als
+//     INTB-1 was.
+//   * `saveAcceptedAnswerAtomically` -> INTB2c. Bij aanvang van dit item
+//     geblokkeerd: het gebundelde poortvoorstel van INT-A zou deze methode een
+//     expliciete returnwaarde geven, en een Lua-script schrijven tegen een
+//     contract dat nog beweegt levert een tweede mening over idempotentie op.
+//     TIJDENS DIT WERK IS DIE BLOKKADE OPGEHEVEN: DM15 (reactie op INT-14) legt
+//     in `repository.js` `{ replay: boolean }` vast, inclusief het foutcontract.
+//     INTB2c kan dus gebouwd worden; het valt alleen buiten de scope die deze
+//     opdracht meekreeg.
+//   * `setRoomAndMatchPhaseAtomically` -> INTB2d.
+//
+// Alle drie werpen `NotImplementedError` met de verwijzing erin, en staan ook in
+// `UNIMPLEMENTED_METHODS` hieronder. Dat laatste is er met opzet: de INTB2b-
+// prompt waarschuwt dat placeholderfuncties `assertImplementsDataStore` laten
+// slagen terwijl de adapter niet af is. Die shapecheck kan dat niet zien — een
+// werpende functie is nog steeds een functie — dus is er een tweede, expliciete
+// manier om het wél te zien, in plaats van te vertrouwen op wie het commentaar
+// leest.
+//
+// WAT DEZE ADAPTER NIET ZELF VERZINT:
+//   * sleutels komen uit `server/data/redis-keys.js` — hier wordt geen enkele
+//     sleutelnaam samengesteld, ook niet in Lua (elke sleutel gaat als KEYS[i]
+//     naar binnen, wat meteen clusterveilig is);
+//   * de TTL komt uit `server/data/ttl.js`;
+//   * de serialisatie komt uit `./documents.mjs` (versie-envelop, DECISIONS #22);
+//   * de verbinding komt uit `./connection.mjs`.
+//
+// DE TTL-REFRESHMATRIX, en waar hij ophoudt (`ttl.js` noemt dit expliciet als
+// open punt, DATA-MODEL.md §TTL zegt alleen "roomkern, indexes en relevante
+// matchkeys"):
+//
+//   * ELKE schrijfactie ververst de TTL van de roomkern (`room:{roomId}`) én
+//     van alle room-brede sleutels die uit `roomId` alleen af te leiden zijn:
+//     de sessions- en players-hashes, de action-cache en de revoked-sessions.
+//     Een `EXPIRE` op een niet-bestaande sleutel is een no-op, dus dit maakt
+//     nooit iets aan. Dit is het antwoord op "een room die nog gespeeld wordt
+//     mag niet verlopen omdat alleen het matchdocument werd aangeraakt".
+//   * Een match-gescopeerde schrijfactie ververst daarbovenop de matchkey, de
+//     scoreboardkey en de sleutel die hij zelf schrijft.
+//   * De code-index (`room:code:{code}`) beweegt mee met `saveRoom` — daar is
+//     de code bekend — en met claim/refresh van de locators.
+//   * De invite-index (`room:invite:{inviteHash}`) kan ALLEEN via de
+//     locator-lifecycle worden ververst. Een `Room` draagt een plat `inviteId`,
+//     geen hash (DM10), dus geen enkele andere schrijfactie kán die sleutel
+//     kennen. Dat is precies waarom DM10 `refreshRoomLocators` heeft
+//     toegevoegd; het is de aangewezen keep-alive voor beide locators en niet
+//     iets dat deze adapter erbij mag verzinnen.
+//
+// DECISIONS #28: ESM, `.mjs`.
+
+import { documentCodec } from './documents.mjs';
+
+// `server/data/*.js` is CommonJS; de named imports hieronder werken ongewijzigd
+// via Node's CJS-interop, net als in data-store-conformance.mjs.
+import {
+  actionCacheKey,
+  answersKey,
+  matchKey,
+  revokedSessionsKey,
+  roomCodeLookupKey,
+  roomInviteLookupKey,
+  roomKey,
+  roomPlayersKey,
+  roomSessionsKey,
+  roomsActiveKey,
+  roundKey,
+  scoreboardKey,
+} from '../../redis-keys.js';
+import { ROOM_TTL_SECONDS } from '../../ttl.js';
+import { assertRoomShape } from '../../types/room.js';
+import { assertSessionShape } from '../../types/session.js';
+import { assertPlayerShape } from '../../types/player.js';
+import { assertMatchShape } from '../../types/match.js';
+import { assertRoundShape } from '../../types/round.js';
+
+/**
+ * De poortmethoden die deze adapter BEWUST niet implementeert, met het item dat
+ * ze afmaakt. Machineleesbaar, zodat een samensteller (INT-A) kan controleren
+ * of de adapter compleet genoeg is voor wat hij van plan is — in plaats van dat
+ * `assertImplementsDataStore` groen geeft op functies die alleen maar werpen.
+ */
+export const UNIMPLEMENTED_METHODS = Object.freeze({
+  saveAcceptedAnswerAtomically: 'INTB2c',
+  setRoomAndMatchPhaseAtomically: 'INTB2d',
+  loadSessionByTokenHash: 'GEBLOKKEERD — geen sleutel in redis-keys.js (zie hieronder)',
+});
+
+/** Foutklasse van de twee nog niet gebouwde methoden. Stabiel om op te matchen. */
+export class NotImplementedError extends Error {
+  /**
+   * @param {string} methodName
+   * @param {string} item
+   * @param {string} why
+   */
+  constructor(methodName, item, why) {
+    super(`${methodName} is in deze adapter nog niet geïmplementeerd — dat is ${item}. ${why}`);
+    this.name = 'NotImplementedError';
+    /** @type {string} */
+    this.code = 'NOT_IMPLEMENTED';
+    /** @type {string} */
+    this.method = methodName;
+    /** @type {string} */
+    this.item = item;
+  }
+}
+
+// --------------------------------------------------------------------------
+// Lua. Drie van de vier scripts hieronder bestaan omdat een lees gevolgd door
+// een schrijf over twee netwerkbeurten precies het venster is waarin twee
+// rooms dezelfde join-code krijgen (HANDOFF-item INTB-2). Geen enkele sleutel
+// wordt in Lua samengesteld: alles komt als KEYS[i] binnen.
+// --------------------------------------------------------------------------
+
+/**
+ * Claimt code en invite-hash SAMEN of geen van beide (DM10-beslissing 1).
+ * KEYS: [codeIndex, inviteIndex]. ARGV: [roomId, ttlSeconds].
+ * Retourneert 'ok' | 'code' | 'inviteHash'.
+ *
+ * Volgorde van de twee conflictcontroles is vast (code eerst, DM10 stap 2) en
+ * gebeurt VOORDAT er iets geschreven wordt: een implementatie die de vrije helft
+ * alvast wegschrijft en pas daarna de andere controleert, lekt een code die
+ * niemand meer kan claimen en meldt dat nergens.
+ */
+const CLAIM_LOCATORS_LUA = `
+local roomId = ARGV[1]
+local ttl = ARGV[2]
+local codeOwner = redis.call('GET', KEYS[1])
+local inviteOwner = redis.call('GET', KEYS[2])
+if codeOwner == roomId and inviteOwner == roomId then
+  redis.call('EXPIRE', KEYS[1], ttl)
+  redis.call('EXPIRE', KEYS[2], ttl)
+  return 'ok'
+end
+if codeOwner and codeOwner ~= roomId then return 'code' end
+if inviteOwner and inviteOwner ~= roomId then return 'inviteHash' end
+redis.call('SET', KEYS[1], roomId, 'EX', ttl)
+redis.call('SET', KEYS[2], roomId, 'EX', ttl)
+return 'ok'
+`;
+
+/**
+ * Geeft beide locators vrij, of geen van beide (DM10-beslissing 7).
+ * KEYS: [codeIndex, inviteIndex]. ARGV: [roomId]. Retourneert 1 of 0.
+ */
+const RELEASE_LOCATORS_LUA = `
+local roomId = ARGV[1]
+if redis.call('GET', KEYS[1]) == roomId and redis.call('GET', KEYS[2]) == roomId then
+  redis.call('DEL', KEYS[1], KEYS[2])
+  return 1
+end
+return 0
+`;
+
+/**
+ * Verlengt beide locators, en meteen de room-brede sleutels: een refresh is het
+ * signaal "deze room leeft nog".
+ * KEYS: [codeIndex, inviteIndex, ...roomScope]. ARGV: [roomId, locatorTtl, roomTtl].
+ * Retourneert 1 (bezit bevestigd) of 0 (niet de eigenaar -> RangeError).
+ */
+const REFRESH_LOCATORS_LUA = `
+local roomId = ARGV[1]
+if redis.call('GET', KEYS[1]) ~= roomId or redis.call('GET', KEYS[2]) ~= roomId then return 0 end
+redis.call('EXPIRE', KEYS[1], ARGV[2])
+redis.call('EXPIRE', KEYS[2], ARGV[2])
+for i = 3, #KEYS do redis.call('EXPIRE', KEYS[i], ARGV[3]) end
+return 1
+`;
+
+/**
+ * Wisselt beide locators in één stap (DM16/§9, reactie op INTB-5): oud
+ * vrijgeven én nieuw claimen, of geen van beide.
+ * KEYS: [oudeCodeIndex, oudeInviteIndex, nieuweCodeIndex, nieuweInviteIndex].
+ * ARGV: [roomId, ttlSeconds].
+ * Retourneert 'ok' | 'code' | 'inviteHash' | 'not-owner-code' | 'not-owner-inviteHash'.
+ *
+ * De vergelijking `KEYS[1] ~= KEYS[3]` is de sleutelversie van `oldCode !==
+ * newCode`: roteert alleen de invite, dan mag de code-sleutel niet eerst
+ * gewist en daarna herschreven worden — dat zou een venster openen waarin de
+ * room via geen enkele code bereikbaar is, precies wat dit script voorkomt.
+ */
+const ROTATE_LOCATORS_LUA = `
+local roomId = ARGV[1]
+local ttl = ARGV[2]
+if redis.call('GET', KEYS[1]) ~= roomId then return 'not-owner-code' end
+if redis.call('GET', KEYS[2]) ~= roomId then return 'not-owner-inviteHash' end
+local codeOwner = redis.call('GET', KEYS[3])
+if codeOwner and codeOwner ~= roomId then return 'code' end
+local inviteOwner = redis.call('GET', KEYS[4])
+if inviteOwner and inviteOwner ~= roomId then return 'inviteHash' end
+if KEYS[1] ~= KEYS[3] then redis.call('DEL', KEYS[1]) end
+if KEYS[2] ~= KEYS[4] then redis.call('DEL', KEYS[2]) end
+redis.call('SET', KEYS[3], roomId, 'EX', ttl)
+redis.call('SET', KEYS[4], roomId, 'EX', ttl)
+return 'ok'
+`;
+
+/**
+ * Schrijft een ronde alleen als de match bestaat — de integriteitscontrole die
+ * DM11 bewust heeft behouden (een ronde mag geen wees worden). Als script en
+ * niet als EXISTS-gevolgd-door-SET, want daartussen past het verdwijnen van de
+ * match.
+ * KEYS: [matchKey, roundKey, ...refresh]. ARGV: [document, ttlSeconds].
+ * Retourneert 1 of 0.
+ */
+const SAVE_ROUND_LUA = `
+if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
+redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[2])
+for i = 3, #KEYS do redis.call('EXPIRE', KEYS[i], ARGV[2]) end
+return 1
+`;
+
+/**
+ * @param {unknown} value
+ * @param {string} name
+ * @returns {number}
+ */
+function assertPositiveInteger(value, name) {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new TypeError(`${name} moet een positief geheel getal zijn, kreeg: ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
+/**
+ * Bouwt een DataStore die tegen Redis praat.
+ *
+ * @param {object} options
+ * @param {{ getClient: () => object }} options.connection - uit `./connection.mjs`.
+ *   Er wordt per aanroep opnieuw `getClient()` gedaan en geen client
+ *   vastgehouden: na een herverbinding is de oude client dood, en een adapter
+ *   die hem bewaart praat tegen een socket die niemand meer leest.
+ * @param {number} [options.ttlSeconds] - room-TTL. Standaard `ROOM_TTL_SECONDS`
+ *   uit `ttl.js`; de parameter bestaat voor tests, niet om er in productie een
+ *   eigen getal in te zetten.
+ * @param {object} [options.codec] - documentcodec, standaard `documentCodec`.
+ * @returns {import('../../repository').DataStore}
+ */
+export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS, codec = documentCodec } = {}) {
+  if (typeof connection?.getClient !== 'function') {
+    throw new TypeError('createRedisDataStore verwacht een `connection` met getClient() (zie ./connection.mjs).');
+  }
+  assertPositiveInteger(ttlSeconds, 'ttlSeconds');
+  const ttl = String(ttlSeconds);
+
+  function client() {
+    return connection.getClient();
+  }
+
+  /**
+   * De room-brede sleutels die uit `roomId` alleen zijn af te leiden. Elke
+   * schrijfactie ververst ze; zie de refreshmatrix bovenaan dit bestand.
+   * @param {string} roomId
+   * @returns {string[]}
+   */
+  function roomScopeKeys(roomId) {
+    return [
+      roomKey(roomId),
+      roomSessionsKey(roomId),
+      roomPlayersKey(roomId),
+      actionCacheKey(roomId),
+      revokedSessionsKey(roomId),
+    ];
+  }
+
+  /**
+   * Zet de TTL-refresh van de room-scope (plus eventuele extra sleutels) op een
+   * MULTI-keten. Alles in dezelfde transactie als de schrijfactie zelf: een
+   * document dat wél landt terwijl de TTL-refresh eromheen uitblijft, is een
+   * room die middenin een potje verdwijnt.
+   * @param {object} chain
+   * @param {string} roomId
+   * @param {string[]} [extraKeys]
+   */
+  function refreshTtl(chain, roomId, extraKeys = []) {
+    for (const key of [...roomScopeKeys(roomId), ...extraKeys]) {
+      chain.expire(key, ttlSeconds);
+    }
+    return chain;
+  }
+
+  // ----------------------------------------------------------------------
+  // Room
+  // ----------------------------------------------------------------------
+
+  /** @param {string} roomId */
+  async function loadRoom(roomId) {
+    return codec.decode('room', await client().get(roomKey(roomId)));
+  }
+
+  /** @param {import('../../types/room').Room} room */
+  async function saveRoom(room) {
+    // Vormcontrole op de SCHRIJFkant, zoals documents.mjs aankondigt: de codec
+    // valideert bewust niet, "die controle hoort bij de poortmethode in
+    // INTB2b". Alleen bij het schrijven, want een leescontrole zou een document
+    // dat er al staat onleesbaar maken in plaats van het probleem bij de bron
+    // te leggen.
+    assertRoomShape(room);
+    const chain = client().multi();
+    chain.set(roomKey(room.id), codec.encode('room', room), { EX: ttlSeconds });
+    // De code-index beweegt mee met saveRoom (INTB-5: een index die naar een
+    // oude toestand blijft wijzen is een capability-lek). De invite-index kan
+    // dat niet — Room draagt geen hash — en loopt via de locator-lifecycle.
+    chain.set(roomCodeLookupKey(room.code), room.id, { EX: ttlSeconds });
+    chain.sAdd(roomsActiveKey(), room.id);
+    refreshTtl(chain, room.id);
+    await chain.exec();
+  }
+
+  /** @param {string} code */
+  async function loadRoomByCode(code) {
+    const roomId = await client().get(roomCodeLookupKey(code));
+    return roomId === null ? null : loadRoom(roomId);
+  }
+
+  /** @param {string} inviteHash */
+  async function loadRoomByInviteHash(inviteHash) {
+    const roomId = await client().get(roomInviteLookupKey(inviteHash));
+    return roomId === null ? null : loadRoom(roomId);
+  }
+
+  // ----------------------------------------------------------------------
+  // Room-locators (DM10)
+  // ----------------------------------------------------------------------
+
+  /** @param {import('../../repository').RoomLocatorClaim} claim */
+  async function claimRoomLocatorsAtomically({ roomId, code, inviteHash, ttlSeconds: claimTtl }) {
+    assertPositiveInteger(claimTtl, 'RoomLocatorClaim.ttlSeconds');
+    const outcome = await client().eval(CLAIM_LOCATORS_LUA, {
+      keys: [roomCodeLookupKey(code), roomInviteLookupKey(inviteHash)],
+      arguments: [roomId, String(claimTtl)],
+    });
+    if (outcome === 'ok') return { ok: true };
+    if (outcome === 'code' || outcome === 'inviteHash') return { ok: false, conflict: outcome };
+    throw new Error(`claimRoomLocatorsAtomically: onverwacht scriptresultaat ${JSON.stringify(outcome)}`);
+  }
+
+  /** @param {import('../../repository').RoomLocatorPair} pair */
+  async function releaseRoomLocators({ roomId, code, inviteHash }) {
+    await client().eval(RELEASE_LOCATORS_LUA, {
+      keys: [roomCodeLookupKey(code), roomInviteLookupKey(inviteHash)],
+      arguments: [roomId],
+    });
+  }
+
+  /** @param {import('../../repository').RoomLocatorClaim} claim */
+  async function refreshRoomLocators({ roomId, code, inviteHash, ttlSeconds: claimTtl }) {
+    assertPositiveInteger(claimTtl, 'RoomLocatorClaim.ttlSeconds');
+    const owned = await client().eval(REFRESH_LOCATORS_LUA, {
+      keys: [roomCodeLookupKey(code), roomInviteLookupKey(inviteHash), ...roomScopeKeys(roomId)],
+      arguments: [roomId, String(claimTtl), ttl],
+    });
+    if (owned !== 1) {
+      throw new RangeError(
+        `refreshRoomLocators: roomId ${JSON.stringify(roomId)} bezit niet (meer) beide locators — ` +
+          'een refresh op een claim die je niet bezit is een programmeerfout of een teken dat de claim al gestolen is.'
+      );
+    }
+  }
+
+  /** @param {import('../../repository').RoomLocatorRotation} rotation */
+  async function rotateRoomLocators({ roomId, oldCode, oldInviteHash, newCode, newInviteHash, ttlSeconds: rotationTtl }) {
+    assertPositiveInteger(rotationTtl, 'RoomLocatorRotation.ttlSeconds');
+    const outcome = await client().eval(ROTATE_LOCATORS_LUA, {
+      keys: [
+        roomCodeLookupKey(oldCode),
+        roomInviteLookupKey(oldInviteHash),
+        roomCodeLookupKey(newCode),
+        roomInviteLookupKey(newInviteHash),
+      ],
+      arguments: [roomId, String(rotationTtl)],
+    });
+    if (outcome === 'ok') return { ok: true };
+    if (outcome === 'code' || outcome === 'inviteHash') return { ok: false, conflict: outcome };
+    if (outcome === 'not-owner-code') {
+      throw new RangeError(
+        `rotateRoomLocators: roomId ${JSON.stringify(roomId)} bezit oldCode ${JSON.stringify(oldCode)} niet (meer)`
+      );
+    }
+    if (outcome === 'not-owner-inviteHash') {
+      throw new RangeError(
+        `rotateRoomLocators: roomId ${JSON.stringify(roomId)} bezit oldInviteHash ${JSON.stringify(oldInviteHash)} niet (meer)`
+      );
+    }
+    throw new Error(`rotateRoomLocators: onverwacht scriptresultaat ${JSON.stringify(outcome)}`);
+  }
+
+  // ----------------------------------------------------------------------
+  // Session
+  // ----------------------------------------------------------------------
+
+  /**
+   * @param {string} roomId
+   * @param {string} sessionId
+   */
+  async function loadSession(roomId, sessionId) {
+    return codec.decode('session', await client().hGet(roomSessionsKey(roomId), sessionId));
+  }
+
+  /** @param {import('../../types/session').Session} session */
+  async function saveSession(session) {
+    assertSessionShape(session);
+    const chain = client().multi();
+    chain.hSet(roomSessionsKey(session.roomId), session.id, codec.encode('session', session));
+    // GEEN tokenHash-index — zie loadSessionByTokenHash hieronder. De fake vult
+    // hem hier wél (DM14/§10); dat verschil is bekend en gemeld, niet vergeten.
+    refreshTtl(chain, session.roomId);
+    await chain.exec();
+  }
+
+  /**
+   * NIET IMPLEMENTEERBAAR MET DE HUIDIGE SLEUTELCATALOGUS — dezelfde klasse
+   * blokkade als INTB-1, één laag lager.
+   *
+   * DM14/§10 heeft deze methode aan de poort toegevoegd met de redenering "de
+   * index kan gewoon door `saveSession` gevuld worden, net zoals `saveRoom` dat
+   * al voor `roomIdByCode` doet". Dat klopt voor de fake, want daar is een index
+   * een `Map` die je ter plekke verzint. Voor Redis klopt het niet: `saveRoom`
+   * kan `roomIdByCode` vullen omdat `room:code:{code}` in `redis-keys.js` én in
+   * `DATA-MODEL.md` §Redis-sleutels staat. Er is geen equivalent voor een
+   * tokenHash, en de signatuur draagt geen `roomId`, dus er is ook geen bestaande
+   * sleutel waar de lookup onder zou kunnen hangen.
+   *
+   * De twee uitwegen die er NIET zijn:
+   *   * zelf een sleutelnaam samenstellen — dat is precies wat `redis-keys.js`
+   *     centraliseert, en een tweede plek met sleutelkennis is hoe patronen
+   *     stilletjes uit elkaar gaan lopen;
+   *   * een globale `SCAN` over alle `room:*:sessions` — dat schaalt niet en het
+   *     verbergt het probleem in plaats van het op te lossen (de INTB2b-prompt
+   *     sluit die noodoplossing expliciet uit).
+   *
+   * WAT ER NODIG IS, concreet genoeg om over te nemen:
+   *   1. `redis-keys.js`: een builder, bijvoorbeeld
+   *      `sessionTokenLookupKey(tokenHash)` -> `session:token:{tokenHash}`, met
+   *      dezelfde `assertSegment`-behandeling als de rest.
+   *   2. `DATA-MODEL.md` §Redis-sleutels: dezelfde regel, met de waarde erbij.
+   *      Eén sleutel is genoeg als de waarde room én sessie draagt; twee losse
+   *      sleutels betekent een tweede dual-write-pad, en dat is precies wat
+   *      DECISIONS #30 elders verbiedt.
+   *   3. Een TTL-uitspraak: de room-TTL (de sessie leeft niet langer dan zijn
+   *      room), ververst door `saveSession` net als de rest van de room-scope.
+   *   4. Een uitspraak over ROTATIE, die in het voorstel ontbreekt: krijgt een
+   *      sessie een nieuw token, dan blijft de oude hash naar diezelfde sessie
+   *      wijzen — een tweede geldige capability naast de nieuwe. Dat is
+   *      letterlijk INTB-5 nog een keer, nu voor sessietokens. De fake heeft dit
+   *      gat vandaag ook (`roomAndSessionByTokenHash` wordt nooit opgeruimd);
+   *      daar valt het niet op omdat niets het opmerkt.
+   *
+   * Zolang 1 en 2 er niet zijn, werpt deze methode. Een `SCAN`-noodoplossing
+   * hier zou groen opleveren en het besluit onzichtbaar maken.
+   */
+  async function loadSessionByTokenHash() {
+    throw new NotImplementedError(
+      'loadSessionByTokenHash',
+      UNIMPLEMENTED_METHODS.loadSessionByTokenHash,
+      'DM14/§10 voegde deze methode toe zonder bijbehorende sleutel in redis-keys.js/DATA-MODEL.md, en de ' +
+        'signatuur draagt geen roomId. Zie het commentaar bij deze functie voor wat er nodig is.'
+    );
+  }
+
+  // ----------------------------------------------------------------------
+  // Player
+  // ----------------------------------------------------------------------
+
+  /**
+   * @param {string} roomId
+   * @param {string} playerId
+   */
+  async function loadPlayer(roomId, playerId) {
+    return codec.decode('player', await client().hGet(roomPlayersKey(roomId), playerId));
+  }
+
+  /** @param {import('../../types/player').Player} player */
+  async function savePlayer(player) {
+    assertPlayerShape(player);
+    const chain = client().multi();
+    chain.hSet(roomPlayersKey(player.roomId), player.id, codec.encode('player', player));
+    refreshTtl(chain, player.roomId);
+    await chain.exec();
+  }
+
+  /**
+   * GEEN VOLGORDEGARANTIE, en dat is geen slordigheid: `room:{roomId}:players`
+   * is een Redis-hash en `HGETALL` levert de velden in de volgorde die de
+   * hash-implementatie toevallig aanhoudt. De poort belooft ook niets — de
+   * conformance-suite sorteert daarom zelf op id. Hier alsnog sorteren zou een
+   * garantie afgeven die de fake niet heeft en die aanroepers stilzwijgend
+   * gaan gebruiken.
+   * @param {string} roomId
+   */
+  async function listPlayers(roomId) {
+    const stored = await client().hGetAll(roomPlayersKey(roomId));
+    return Object.values(stored).map((raw) => codec.decode('player', raw));
+  }
+
+  // ----------------------------------------------------------------------
+  // Match
+  // ----------------------------------------------------------------------
+
+  /**
+   * @param {string} roomId
+   * @param {string} matchId
+   */
+  async function loadMatch(roomId, matchId) {
+    return codec.decode('match', await client().get(matchKey(roomId, matchId)));
+  }
+
+  /** @param {import('../../types/match').Match} match */
+  async function saveMatch(match) {
+    assertMatchShape(match);
+    const chain = client().multi();
+    chain.set(matchKey(match.roomId, match.id), codec.encode('match', match), { EX: ttlSeconds });
+    refreshTtl(chain, match.roomId, [scoreboardKey(match.roomId, match.id)]);
+    await chain.exec();
+  }
+
+  // ----------------------------------------------------------------------
+  // Round
+  // ----------------------------------------------------------------------
+
+  /**
+   * @param {string} roomId
+   * @param {string} matchId
+   * @param {string} roundId
+   */
+  async function loadRound(roomId, matchId, roundId) {
+    return codec.decode('round', await client().get(roundKey(roomId, matchId, roundId)));
+  }
+
+  /**
+   * @param {string} roomId
+   * @param {import('../../types/round').Round} round
+   */
+  async function saveRound(roomId, round) {
+    assertRoundShape(round);
+    const match = matchKey(roomId, round.matchId);
+    const written = await client().eval(SAVE_ROUND_LUA, {
+      keys: [
+        match,
+        roundKey(roomId, round.matchId, round.id),
+        match,
+        scoreboardKey(roomId, round.matchId),
+        ...roomScopeKeys(roomId),
+      ],
+      arguments: [codec.encode('round', round), ttl],
+    });
+    if (written !== 1) {
+      throw new RangeError(
+        `saveRound: no known match ${JSON.stringify(round.matchId)} in room ${JSON.stringify(roomId)} (save the Match first)`
+      );
+    }
+  }
+
+  // ----------------------------------------------------------------------
+  // Answer / action-cache / scoreboard — leeskant
+  //
+  // De schrijfkant van alle drie loopt via saveAcceptedAnswerAtomically en is
+  // dus INTB2c. Deze drie lezers zijn wél af: ze hebben geen enkele
+  // afhankelijkheid van hoe dat script er straks uitziet, want de sleutels en
+  // de envelop liggen al vast.
+  // ----------------------------------------------------------------------
+
+  /**
+   * @param {string} roomId
+   * @param {string} matchId
+   * @param {string} roundId
+   * @param {string} playerId
+   */
+  async function loadAnswer(roomId, matchId, roundId, playerId) {
+    return codec.decode('answer', await client().hGet(answersKey(roomId, matchId, roundId), playerId));
+  }
+
+  /**
+   * @param {string} roomId
+   * @param {string} actionId
+   */
+  async function loadActionCacheEntry(roomId, actionId) {
+    return codec.decode('action-cache-entry', await client().hGet(actionCacheKey(roomId), actionId));
+  }
+
+  /**
+   * @param {string} roomId
+   * @param {string} matchId
+   * @param {number} limit
+   */
+  async function getScoreboardTop(roomId, matchId, limit) {
+    // `slice(0, limit)` in de fake levert bij limit <= 0 een lege lijst; ZRANGE
+    // met stop = -1 zou juist ALLES teruggeven. Zonder deze afhandeling is
+    // `limit: 0` het verschil tussen "niets" en "het hele scoreboard".
+    if (!Number.isFinite(limit) || limit < 1) return [];
+    const rows = await client().zRangeWithScores(scoreboardKey(roomId, matchId), 0, Math.floor(limit) - 1, {
+      REV: true,
+    });
+    return rows.map((row) => ({ playerId: row.value, score: row.score }));
+  }
+
+  // ----------------------------------------------------------------------
+  // De twee die hier niet thuishoren
+  // ----------------------------------------------------------------------
+
+  async function setRoomAndMatchPhaseAtomically() {
+    throw new NotImplementedError(
+      'setRoomAndMatchPhaseAtomically',
+      UNIMPLEMENTED_METHODS.setRoomAndMatchPhaseAtomically,
+      'Room.phase en Match.phase moeten in één mutatie (DECISIONS #30); dat Lua-script is een eigen item.'
+    );
+  }
+
+  async function saveAcceptedAnswerAtomically() {
+    throw new NotImplementedError(
+      'saveAcceptedAnswerAtomically',
+      UNIMPLEMENTED_METHODS.saveAcceptedAnswerAtomically,
+      'Deze adapter is gebouwd terwijl het contract nog openstond (het gebundelde poortvoorstel van INT-A). ' +
+        'Dat voorstel is inmiddels geland — DM15 (reactie op INT-14) legt in repository.js { replay: boolean } ' +
+        'vast — dus de blokkade is weg en INTB2c kan gebouwd worden.'
+    );
+  }
+
+  return {
+    loadRoom, saveRoom, loadRoomByCode, loadRoomByInviteHash,
+    claimRoomLocatorsAtomically, releaseRoomLocators, refreshRoomLocators, rotateRoomLocators,
+    loadSession, saveSession, loadSessionByTokenHash,
+    loadPlayer, savePlayer, listPlayers,
+    loadMatch, saveMatch,
+    loadRound, saveRound,
+    loadAnswer,
+    setRoomAndMatchPhaseAtomically, saveAcceptedAnswerAtomically,
+    loadActionCacheEntry, getScoreboardTop,
+  };
+}
