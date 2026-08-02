@@ -168,5 +168,20 @@ hash)`), poortmethoden blijven ongewijzigd. Zie `HANDOFF.md` §15.
 - Analytics (DM8) blijft bewust een voorstel onder
   [`proposals/`](proposals/), geen `server/`-code.
 
-*Laatst bijgewerkt: na uitvoering van DM10–DM12 (reactie op
-`docs/integration-plan/`'s HANDOFF-bevindingen INT-1/INTB-1/INTB-2/INTB-3).*
+*Laatst bijgewerkt: na uitvoering van DM19 (reactie op INT-16).*
+
+## Status: rustend
+
+Alle bekende, aan DM gerichte werk is óf uitgevoerd (DM0–DM19, 509/509 tests
+groen) óf expliciet extern belegd — geen van de openstaande punten wacht op
+een beslissing van DM zelf:
+
+- **`HANDOFF.md` §15** (versieprefix `inviteHash`/`tokenHash`) — wacht extern,
+  geadresseerd bij **AR + INT-B**.
+- **INTB-6** (tiebreak `getScoreboardTop`) — wacht extern, geadresseerd bij
+  **GR**.
+- **INTB-8** (testfixtures) — wacht extern, geadresseerd bij **de DT-agent**.
+
+Geen van deze drie heeft een vervolgactie van DM nodig totdat de genoemde
+eigenaar heeft gereageerd. **Domein rustend — heropstart begint bij
+`DM-PROGRESS.md`.**

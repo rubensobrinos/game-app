@@ -362,9 +362,9 @@ worden bijgewerkt** — geen actie van mij nodig behalve deze melding.
 | INTB-3 | DM | ✅ opgelost (DM12) — tabel klopt |
 | INTB-4 | DM | ✅ opgelost (DM13) — **INT-B's tabel is stale** (zegt nog "🔵 open, 3 tests rood"); geverifieerd 80/80 groen, inclusief die drie |
 | INTB-5 | DM | 🔴 **echt open** — zie hierboven, voorstel in §9 |
-| INTB-6 | DM+GR | 🔵 open, terecht — tiebreak-eigenaarschap is een echte GR-vraag, niet iets ik alleen kan beslissen |
+| INTB-6 | DM+GR | 🔵 **wacht extern, geadresseerd bij GR** — tiebreak-eigenaarschap is een echte GR-vraag, niet iets ik alleen kan beslissen |
 | INTB-7 | DM | ✅ inhoudelijk opgelost, detailtekst stale — zie hierboven |
-| INTB-8 | DM+fixtures-eigenaar | 🔵 open, terecht, **ligt al bij de DT-agent** (bevestigd) — geen actie hier |
+| INTB-8 | DM+fixtures-eigenaar | 🔵 **wacht extern, geadresseerd bij de DT-agent** (bevestigd) — geen actie hier |
 | INT-3 | DM | 🔵 open, terecht, blokkeert INT-A stap 2 — voorstel in §10 |
 | INT-6 | DM | ✅ inhoudelijk opgelost, **INT-A's tabel is stale** — zie hierboven |
 | INT-7 | DM | 🔵 open, terecht — geen conditionele/partiële write op de poort. Nog niet als voorstel uitgewerkt (niet in de prioriteitsvolgorde van dit antwoord); INT-A's eigen stopgap (`touchRoom()`/`setRoomLocked()` geïsoleerd) houdt het risico binnen één proces intussen klein |
@@ -778,6 +778,9 @@ last van `assertSegment`.
 
 Nog niets van dit voorstel geïmplementeerd — wacht op bevestiging dat de
 tweesegment-aanpak de juiste is, dan bouw ik de key-builder-wijziging.
+
+**Status: wacht extern, geadresseerd bij AR + INT-B.** Geen actie van mij
+totdat een van beide (of beide) akkoord geeft op de tweesegment-aanpak.
 
 ## 16. INT-16 — akkoord, met één verduidelijking. Nog niet gebouwd.
 
