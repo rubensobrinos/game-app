@@ -18,8 +18,8 @@
 		# CSP: de bestaande app gebruikt inline scripts/styles en canvas;
 		# aanscherpen kan pas na een echte inventarisatie van index.html.
 		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'"
-		# HSTS pas ná succesvolle publieke HTTPS-test activeren:
-		# Strict-Transport-Security "max-age=31536000"
+		# HSTS actief sinds 2 aug 2026 — publieke 4G-test door producteigenaar geslaagd.
+		Strict-Transport-Security "max-age=31536000"
 		-Server
 	}
 

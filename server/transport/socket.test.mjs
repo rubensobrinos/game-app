@@ -7,10 +7,12 @@
 //
 // WAAROM GEEN `socket.io-client`: die package staat NIET in package.json en
 // staat ook niet in node_modules — alleen `socket.io` (server) staat er. De
-// opdracht verbood nieuwe dependencies, dus is de client hieronder met Node's
-// ingebouwde `WebSocket` (Node >= 22) opgebouwd. Zie het handoff-item: zodra
-// `socket.io-client` als devDependency is toegevoegd, kan `createTestClient`
-// door één import worden vervangen.
+// opdracht verbood nieuwe dependencies, dus is de client met Node's ingebouwde
+// `WebSocket` (Node >= 22) opgebouwd. Hij stond eerder in dit bestand en woont
+// nu in `tests/integration/support/socket-io-test-client.mjs`, zodat de
+// transport-ketentest daar dezelfde client gebruikt in plaats van een tweede te
+// bouwen. Zie het handoff-item: zodra `socket.io-client` als devDependency is
+// toegevoegd, kan `createTestClient` door één import worden vervangen.
 //
 // GEEN WALL-CLOCK-AFHANKELIJKHEID IN DE ASSERTIES: `context.now` is een
 // handmatig verzette klok en de servertimers lopen via een geïnjecteerde
@@ -24,6 +26,7 @@ import { createInMemoryStore } from '../data/in-memory-store.js';
 import { createContext } from '../composition/context.mjs';
 import { createRoom, joinRoom } from '../composition/room-lifecycle.mjs';
 import { ALL_ERROR_CODES } from '../protocol/error-codes.mjs';
+import { createTestClient } from '../../tests/integration/support/socket-io-test-client.mjs';
 import { attachSocketServer, roomChannel, sessionChannel, toPublicErrorCode } from './socket.mjs';
 
 const FIXED_NOW = 1_754_136_000_000;
@@ -85,152 +88,6 @@ function makeManualScheduler() {
       return timers.size;
     },
   };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Minimale Socket.IO-client over Node's ingebouwde WebSocket
-// ─────────────────────────────────────────────────────────────────────────────
-
-const ENGINE_OPEN = '0';
-const ENGINE_PING = '2';
-const ENGINE_PONG = '3';
-const ENGINE_MESSAGE = '4';
-const SIO_CONNECT = '0';
-const SIO_EVENT = '2';
-const SIO_ACK = '3';
-const SIO_CONNECT_ERROR = '4';
-
-/**
- * Verbindt als Socket.IO-client. Resolvet zodra de server de CONNECT
- * bevestigt; rejectet met `error.data` zodra de server de handshake weigert.
- *
- * @param {number} port
- * @param {object} auth - gaat als `socket.handshake.auth` de server in
- */
-function createTestClient(port, auth) {
-  return new Promise((resolve, reject) => {
-    const socket = new WebSocket(`ws://127.0.0.1:${port}/socket.io/?EIO=4&transport=websocket`);
-    /** @type {Array<{ event: string, envelope: object }>} */
-    const received = [];
-    /** @type {Set<(entry: { event: string, envelope: object }) => void>} */
-    const watchers = new Set();
-    /** @type {Map<number, (value: object) => void>} */
-    const pendingAcks = new Map();
-    let nextAckId = 0;
-    let settled = false;
-
-    const client = {
-      received,
-      /** Verstuurt een clientevent zonder ack te vragen. */
-      emit(event, body) {
-        socket.send(`${ENGINE_MESSAGE}${SIO_EVENT}${JSON.stringify([event, body])}`);
-      },
-      /** Verstuurt een clientevent en wacht op de ack-envelope. */
-      emitWithAck(event, body) {
-        const id = nextAckId++;
-        return new Promise((resolveAck) => {
-          pendingAcks.set(id, resolveAck);
-          socket.send(`${ENGINE_MESSAGE}${SIO_EVENT}${id}${JSON.stringify([event, body])}`);
-        });
-      },
-      /** Wacht tot een serverevent met deze naam binnenkomt (of is binnengekomen). */
-      waitFor(event, predicate = () => true) {
-        const existing = received.find((entry) => entry.event === event && predicate(entry.envelope));
-        if (existing !== undefined) {
-          return Promise.resolve(existing.envelope);
-        }
-        return new Promise((resolveEvent, rejectEvent) => {
-          const timer = setTimeout(() => {
-            watchers.delete(watcher);
-            rejectEvent(new Error(`timeout wachtend op "${event}"`));
-          }, 4000);
-          const watcher = (entry) => {
-            if (entry.event !== event || !predicate(entry.envelope)) return;
-            clearTimeout(timer);
-            watchers.delete(watcher);
-            resolveEvent(entry.envelope);
-          };
-          watchers.add(watcher);
-        });
-      },
-      eventsNamed(event) {
-        return received.filter((entry) => entry.event === event);
-      },
-      close() {
-        try {
-          socket.close();
-        } catch {
-          // Al dicht; niets te doen.
-        }
-      },
-    };
-
-    socket.addEventListener('message', (message) => {
-      const data = typeof message.data === 'string' ? message.data : String(message.data);
-      const engineType = data[0];
-
-      if (engineType === ENGINE_OPEN) {
-        socket.send(`${ENGINE_MESSAGE}${SIO_CONNECT}${JSON.stringify(auth)}`);
-        return;
-      }
-      if (engineType === ENGINE_PING) {
-        socket.send(ENGINE_PONG);
-        return;
-      }
-      if (engineType !== ENGINE_MESSAGE) {
-        return;
-      }
-
-      const body = data.slice(1);
-      const socketIoType = body[0];
-      const rest = body.slice(1);
-
-      if (socketIoType === SIO_CONNECT) {
-        settled = true;
-        resolve(client);
-        return;
-      }
-      if (socketIoType === SIO_CONNECT_ERROR) {
-        settled = true;
-        const parsed = rest.length > 0 ? JSON.parse(rest) : {};
-        socket.close();
-        reject(Object.assign(new Error('connect_error'), { data: parsed.data ?? parsed }));
-        return;
-      }
-      if (socketIoType === SIO_EVENT) {
-        // Een server→client event kan een ack-id-prefix dragen; die vragen we
-        // niet aan, maar we slaan hem voor de zekerheid over.
-        const withoutAckId = rest.replace(/^\d+/, '');
-        const [event, envelope] = JSON.parse(withoutAckId);
-        const entry = { event, envelope };
-        received.push(entry);
-        for (const watcher of [...watchers]) {
-          watcher(entry);
-        }
-        return;
-      }
-      if (socketIoType === SIO_ACK) {
-        const match = /^\d+/.exec(rest);
-        const id = Number(match[0]);
-        const args = JSON.parse(rest.slice(match[0].length));
-        pendingAcks.get(id)?.(args[0]);
-        pendingAcks.delete(id);
-      }
-    });
-
-    socket.addEventListener('error', () => {
-      if (!settled) {
-        settled = true;
-        reject(new Error('websocket-fout tijdens verbinden'));
-      }
-    });
-    socket.addEventListener('close', () => {
-      if (!settled) {
-        settled = true;
-        reject(new Error('verbinding gesloten vóór CONNECT'));
-      }
-    });
-  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

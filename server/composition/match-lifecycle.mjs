@@ -31,10 +31,13 @@
 //    de modulekop van state-machine.js, "Kennis van roundIndex/totalRounds/
 //    scoreboardFrequency zit bewust bij de aanroeper"), maar de reducer
 //    beslist of die bestemming mag.
-// 2. `Match.phase` wordt uitsluitend geschreven door
-//    `setRoomAndMatchPhaseAtomically` (besluit 30). Elke andere `saveMatch()`
-//    in dit bestand laat `phase` ongemoeid op de waarde die al in de store
-//    staat, zodat er nooit een niet-atomair dual-write-pad ontstaat.
+// 2. `Match.phase` EN `Match.pausedState` worden uitsluitend geschreven door
+//    `setRoomAndMatchPhaseAtomically` (besluit 30 + DM19). Elke andere
+//    `saveMatch()` in dit bestand laat beide velden ongemoeid op de waarde die
+//    al in de store staat, zodat er nooit een niet-atomair dual-write-pad
+//    ontstaat. Vóór DM19 schreef de compositie `pausedState` in een eigen
+//    `saveMatch` vlak vóór de fasewissel; dat was precies het pad dat INT-16
+//    aankaartte en het is hier weg.
 // 3. `correctAnswer` gaat het Round-document in en verlaat deze module nooit
 //    vóór `endRound` (besluit 20). `startRound` en `buildSnapshot` bouwen hun
 //    publieke payload via een expliciete allowlist, niet via een spread.
@@ -79,6 +82,68 @@ const CODES = Object.freeze({
 for (const code of Object.values(CODES)) {
   if (!ALL_ERROR_CODES.has(code)) {
     throw new Error(`match-lifecycle: foutcode "${code}" ontbreekt in ALL_ERROR_CODES`);
+  }
+}
+
+/**
+ * INTERNE uitkomst, bewust GEEN gepubliceerde foutcode (INT-7).
+ *
+ * Een timergedreven overgang die de dubbele compare-and-set van
+ * `setRoomAndMatchPhaseAtomically` verliest, is geen fout: iemand anders — een
+ * host die `game:finish` stuurde terwijl de fasepomp naar SCOREBOARD wilde —
+ * heeft de fase al verder gezet. De winnaar blijft staan, de pomp stopt
+ * stilletjes en er gaat GEEN foutcode naar een client. Deze code bestaat
+ * alleen om die stille stop intern zichtbaar te maken (de transportlaag logt
+ * hem; zijn `toPublicErrorCode()` maakt er `INVALID_PHASE` van mocht hij ooit
+ * tóch richting een client lopen — zelfde vangnet als voor
+ * `INVALID_PAUSE_STATE`, besluit 12).
+ *
+ * Hij staat daarom expliciet NIET in `ALL_ERROR_CODES`; die assertie hieronder
+ * is het slot op de deur.
+ */
+export const PHASE_RACE_LOST = 'PHASE_RACE_LOST';
+if (ALL_ERROR_CODES.has(PHASE_RACE_LOST)) {
+  throw new Error(`match-lifecycle: "${PHASE_RACE_LOST}" is intern en mag geen gepubliceerde foutcode zijn`);
+}
+
+/**
+ * Wie de overgang heeft aangevraagd. Dit is de ENIGE as waarlangs deze module
+ * beslist wat een verloren compare-and-set betekent (INT-7):
+ *
+ *   - **Hostactie** — de host drukte een knop op een scherm dat inmiddels
+ *     achterhaald is. Hij hoort een nette, gepubliceerde foutcode terug te
+ *     krijgen (`INVALID_PHASE`: "de game staat niet in de fase die je dacht"),
+ *     zodat de client een verse snapshot ophaalt. Geen nieuwe foutcode — deze
+ *     bestaande betekent exact dit.
+ *   - **Servergedreven** — de fasepomp of een herstelpad. Niemand wacht op een
+ *     ack, dus een verloren race is geen foutmelding maar een stille stop
+ *     (`PHASE_RACE_LOST`, intern).
+ *
+ * De volledigheidscontrole bij module-load is opzet: komt er een achtste
+ * eventtype bij, dan faalt dit bestand meteen in plaats van dat het nieuwe
+ * type stilzwijgend in de verkeerde emmer valt.
+ */
+const HOST_EVENT_TYPES = Object.freeze(new Set([
+  EVENT_TYPES.HOST_START,
+  EVENT_TYPES.HOST_NEXT,
+  EVENT_TYPES.HOST_PAUSE,
+  EVENT_TYPES.HOST_RESUME,
+  EVENT_TYPES.HOST_FINISH,
+  // `game:rematch` is bewust GEEN state-machine-event (zie `rematch()`: de
+  // machine kent geen uitgang uit FINISHED), maar het is wél een hostknop en
+  // hoort bij een verloren race dus dezelfde behandeling te krijgen. Alleen
+  // dáárvoor staat dit label hier; `EVENT_TYPES` blijft ongemoeid.
+  'HOST_REMATCH',
+]));
+const SERVER_EVENT_TYPES = Object.freeze(new Set([
+  EVENT_TYPES.TIMER_ELAPSED,
+  EVENT_TYPES.RECOVERY_RESUME,
+]));
+for (const type of Object.values(EVENT_TYPES)) {
+  if (HOST_EVENT_TYPES.has(type) === SERVER_EVENT_TYPES.has(type)) {
+    throw new Error(
+      `match-lifecycle: eventtype "${type}" is niet eenduidig geclassificeerd als hostactie of servergedreven`,
+    );
   }
 }
 
@@ -135,6 +200,33 @@ function fail(code) {
 /** @param {object} value @returns {{ ok: true, value: object }} */
 function succeed(value) {
   return { ok: true, value };
+}
+
+/**
+ * Het antwoord op een verloren dubbele compare-and-set van
+ * `setRoomAndMatchPhaseAtomically` (INT-7).
+ *
+ * De store heeft NIETS gemuteerd — de fase die er staat is die van de winnaar,
+ * en die blijft staan. Wat er terugkomt hangt uitsluitend af van wie de
+ * overgang aanvroeg (zie `HOST_EVENT_TYPES`): een hostactie krijgt de
+ * gepubliceerde `INVALID_PHASE` zodat de client een verse snapshot kan halen,
+ * een servergedreven overgang de interne `PHASE_RACE_LOST` die nooit een client
+ * bereikt.
+ *
+ * `conflict` is diagnostiek voor de aanroeper/logs, geen wire-payload: het
+ * protocol kent geen veld waarin dit terechtkomt, en de transportlaag geeft
+ * alleen `code` door.
+ *
+ * @param {string} eventType
+ * @param {string} expectedPhase de fase die de compositie las vlak vóór de CAS
+ * @param {string} actualPhase `Match.phase` op het moment van de CAS (besluit 30)
+ */
+function phaseConflict(eventType, expectedPhase, actualPhase) {
+  return {
+    ok: false,
+    code: HOST_EVENT_TYPES.has(eventType) ? CODES.INVALID_PHASE : PHASE_RACE_LOST,
+    conflict: { eventType, expectedPhase, actualPhase },
+  };
 }
 
 /**
@@ -231,6 +323,13 @@ async function loadRoomAndMatch(context, roomId, { requireMatch = true } = {}) {
  * echte, gelijktijdige store een concurrent `phase`-update kan overschrijven.
  * `phase` wordt hier NOOIT gewijzigd — dat pad loopt uitsluitend via
  * `setRoomAndMatchPhaseAtomically`.
+ *
+ * RESTGAT (INT-7, niet opgelost door DM19). Dat "nooit gewijzigd" geldt ten
+ * opzichte van de `room` die de AANROEPER heeft ingelezen. Verzet iemand anders
+ * tussendoor de fase, dan schrijft deze functie de oude fase terug. De CAS
+ * hieronder beschermt de fase-overgang zelf, niet deze bijschrijving; daarom
+ * roept elke aanroeper hem aan met een room die zo vers mogelijk is en staat
+ * hij nooit ná de atomaire operatie zonder herlaadstap.
  */
 async function saveRoomFields(context, room, fields) {
   const updated = { ...room, ...fields, phase: room.phase };
@@ -354,18 +453,24 @@ function transitionPatch(match, fromPhase, toPhase, now) {
  * De enige plek die een fase wisselt. Legaliteit komt volledig uit
  * `transition()`; deze functie doet daarna alleen de schrijfvolgorde.
  *
- * SCHRIJFVOLGORDE. `saveMatch` gaat eerst en laat `phase` ongemoeid; daarna
- * flipt `setRoomAndMatchPhaseAtomically` Room én Match in één operatie
- * (besluit 30). Zo schrijft nooit iets anders dan die ene atomaire operatie
- * een fase, en is de enige zichtbare tussentoestand "oude fase, nieuwe
- * boekhouding".
+ * SCHRIJFVOLGORDE. Eerst de BOEKHOUDING (`roundIndex`, `roundIds`,
+ * `usedQuestionKeys`, `finishedAt`) via `saveMatch`, met `phase` én
+ * `pausedState` ongemoeid; daarna flipt `setRoomAndMatchPhaseAtomically` in
+ * ÉÉN operatie `Room.phase`, `Match.phase` en `Match.pausedState`
+ * (besluit 30 + DM19). Zo schrijft nooit iets anders dan die ene atomaire
+ * operatie een fase, en is de enige zichtbare tussentoestand "oude fase, nieuwe
+ * boekhouding". Valt er niets te boekhouden — een pauze en een hervatting zijn
+ * precies dat geval — dan blijft die `saveMatch` volledig achterwege en is de
+ * atomaire operatie de ENIGE schrijfactie van de hele overgang.
  *
- * GAT — `setRoomAndMatchPhaseAtomically(roomId, matchId, newPhase)` draagt
- * geen `pausedState`, terwijl een pauze fase én pausedState tegelijk zet. Die
- * twee gaan hier dus in twee schrijfacties. Zie het handoff-item; hier niet
- * omheen gebouwd met een eigen atomair pad.
+ * COMPARE-AND-SET (DM19). `expectedPhase` is `match.phase`: exact de fase die
+ * hierboven is ingelezen en die de reducer zojuist heeft beoordeeld — niet een
+ * opnieuw afgeleide waarde, want dan bewaakt de CAS niets. Verliest hij, dan
+ * heeft de store niets gemuteerd en beslist `phaseConflict()` wat de aanroeper
+ * hoort te zien (INT-7).
  *
- * @returns {{ ok: true, value: { match: object, previousPhase: string } } | { ok: false, code: string }}
+ * @returns {{ ok: true, value: { match: object, previousPhase: string } }
+ *   | { ok: false, code: string, conflict?: object }}
  */
 async function applyTransition(context, { room, match, event, extraPatch = {} }) {
   const now = context.now();
@@ -380,19 +485,34 @@ async function applyTransition(context, { room, match, event, extraPatch = {} })
   }
 
   const nextPhase = result.state.phase;
-  const patch = {
-    ...transitionPatch(match, match.phase, nextPhase, now),
-    ...extraPatch,
-    pausedState: result.state.pausedState,
-  };
+  const nextPausedState = result.state.pausedState;
+  // De boekhouding rond de fase — bewust ZONDER `pausedState`: dat veld gaat
+  // sinds DM19 mee in de atomaire operatie en mag hier niet nog eens geschreven
+  // worden (dat was het dual-write-pad van INT-16).
+  const bookkeeping = { ...transitionPatch(match, match.phase, nextPhase, now), ...extraPatch };
 
-  // Het vangnet keurt het EINDRESULTAAT, inclusief de fase die de atomaire
-  // operatie zo gaat zetten.
-  const committed = { ...match, ...patch, phase: nextPhase };
+  // Het vangnet keurt het EINDRESULTAAT, inclusief de fase en de pausedState
+  // die de atomaire operatie zo gaat zetten.
+  const committed = { ...match, ...bookkeeping, phase: nextPhase, pausedState: nextPausedState };
   assertMatchShape(committed);
 
-  await context.store.saveMatch({ ...match, ...patch, phase: match.phase });
-  await context.store.setRoomAndMatchPhaseAtomically(room.id, match.id, nextPhase);
+  if (Object.keys(bookkeeping).length > 0) {
+    await context.store.saveMatch({
+      ...match,
+      ...bookkeeping,
+      phase: match.phase,
+      pausedState: match.pausedState,
+    });
+  }
+
+  const applied = await context.store.setRoomAndMatchPhaseAtomically(room.id, match.id, {
+    expectedPhase: match.phase,
+    newPhase: nextPhase,
+    pausedState: nextPausedState,
+  });
+  if (!applied.ok) {
+    return phaseConflict(event.type, match.phase, applied.actualPhase);
+  }
 
   return succeed({ match: committed, previousPhase: match.phase });
 }
@@ -1042,6 +1162,27 @@ export async function finishMatch(context, { roomId } = {}) {
  * Besluit 5: een speler met `left: true` telt niet automatisch mee en wordt
  * hier dus niet gereset of gereactiveerd.
  *
+ * SCHRIJFVOLGORDE (DM19/INT-7). Het nieuwe Match-document wordt opgeslagen in
+ * de fase die de room op dit moment DRAAGT (FINISHED), niet alvast in LOBBY:
+ * regel 2 van de modulekop geldt ook voor een vers document, en de dubbele
+ * compare-and-set eist dat `Room.phase` én `Match.phase` allebei
+ * `expectedPhase` dragen. De atomaire operatie zet daarna beide in één stap op
+ * LOBBY — dat is meteen de enige plek waar de fase van de nieuwe match ooit
+ * wordt geschreven.
+ *
+ * Die operatie gaat daarom ook VÓÓR de spelerreset en vóór het verzetten van
+ * `Room.currentMatchId`. Verliest hij de race — twee hosttabs die tegelijk op
+ * "opnieuw" drukken — dan blijft er niets anders achter dan een Match-document
+ * waar niemand naar wijst: de winnende rematch houdt zijn room, zijn
+ * `currentMatchId` en zijn spelers. Andersom (eerst resetten en `currentMatchId`
+ * verzetten, dan pas de CAS) zou de verliezer de room naar zijn eigen dode
+ * match laten wijzen terwijl de winnaar `Room.phase` al op LOBBY heeft gezet —
+ * een room die daarna nergens meer uit komt.
+ *
+ * `saveRoomFields` schrijft het hele Room-document en zou de zojuist gezette
+ * fase overschrijven met de fase uit de al ingelezen kopie; het herlaadt de
+ * room daarom eerst (zie ook de waarschuwing bij `saveRoomFields` zelf).
+ *
  * @param {import('./context.mjs').Context} context
  * @param {{ roomId: string }} params
  */
@@ -1057,12 +1198,15 @@ export async function rematch(context, { roomId } = {}) {
   }
 
   const now = context.now();
+  const expectedPhase = match.phase;
   const source = contentSourceFor(context, room);
   const next = {
     id: createId(context, 'match'),
     roomId,
     sequence: match.sequence + 1,
-    phase: PHASES.LOBBY,
+    // De fase die de room NU draagt; de atomaire operatie hieronder maakt er
+    // LOBBY van, samen met `Room.phase`.
+    phase: expectedPhase,
     startedAt: now,
     finishedAt: null,
     roundIndex: 0,
@@ -1074,8 +1218,25 @@ export async function rematch(context, { roomId } = {}) {
     rendererVersion: source.rendererVersion,
     gameType: matchGameType(room, match),
   };
-  assertMatchShape(next);
+  assertMatchShape({ ...next, phase: PHASES.LOBBY });
   await context.store.saveMatch(next);
+
+  const applied = await context.store.setRoomAndMatchPhaseAtomically(roomId, next.id, {
+    expectedPhase,
+    newPhase: PHASES.LOBBY,
+    pausedState: null,
+  });
+  if (!applied.ok) {
+    // `game:rematch` is een hostactie: de host krijgt een gepubliceerde code
+    // terug en zijn client haalt een verse snapshot op. `next` blijft als
+    // ongerefereerd document achter; de room zelf is onaangeroerd.
+    return phaseConflict('HOST_REMATCH', expectedPhase, applied.actualPhase);
+  }
+
+  // Herladen: de room in `loaded` draagt nog de fase van vóór de atomaire
+  // operatie, en `saveRoomFields` schrijft het hele document.
+  const flipped = await context.store.loadRoom(roomId);
+  await saveRoomFields(context, flipped, { currentMatchId: next.id, lastActivityAt: now });
 
   const players = await context.store.listPlayers(roomId);
   const reset = [];
@@ -1095,9 +1256,6 @@ export async function rematch(context, { roomId } = {}) {
     await context.store.savePlayer(fresh);
     reset.push(fresh.id);
   }
-
-  await saveRoomFields(context, room, { currentMatchId: next.id, lastActivityAt: now });
-  await context.store.setRoomAndMatchPhaseAtomically(roomId, next.id, PHASES.LOBBY);
 
   return succeed({
     matchId: next.id,

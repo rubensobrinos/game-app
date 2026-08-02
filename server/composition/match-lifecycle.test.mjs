@@ -24,6 +24,7 @@ import { assertSessionShape } from '../data/types/session.js';
 import { validateRoundStartedPayload } from '../protocol/server-events-round-lifecycle.mjs';
 import { validateRoundEndedPayload } from '../protocol/server-events-scoring.mjs';
 import { assertNoActiveRoundAnswerLeak, validateSnapshotShape } from '../protocol/snapshot-shape.mjs';
+import { ALL_ERROR_CODES } from '../protocol/error-codes.mjs';
 import { createContext, createId, createSessionToken } from './context.mjs';
 import { joinRoom, resolveGameConfiguration } from './room-lifecycle.mjs';
 import {
@@ -33,6 +34,7 @@ import {
   endRound,
   finishMatch,
   getScoreboard,
+  PHASE_RACE_LOST,
   rematch,
   resolveEligibleFromRound,
   resolveNextPhase,
@@ -1378,4 +1380,275 @@ test('bij auto-tempo mag ROUND_RESULT de tussenstand wél overslaan', async () =
   assert.equal(next.value.phase, 'COUNTDOWN', 'zonder tussenstand loopt auto-tempo rechtstreeks door');
   assert.equal(next.value.roundNumber, 2);
   assert.equal(next.value.phaseEndsAt, clock.value + COUNTDOWN_SECONDS * 1000);
+});
+
+// ─── DM19 / INT-7 — dubbele compare-and-set en de verloren race ─────────────
+//
+// De poort `setRoomAndMatchPhaseAtomically(roomId, matchId, { expectedPhase,
+// newPhase, pausedState })` doet sinds DM19 een dubbele compare-and-set en
+// schrijft `pausedState` in dezelfde stap. Deze vier tests dekken de kant van
+// de COMPOSITIE: geeft ze de fase mee die ze daadwerkelijk gelezen heeft, doet
+// ze bij een verloren race het juiste per aanroepplek, en is de losse
+// `saveMatch` voor een pauze echt verdwenen.
+
+/**
+ * Legt elke poortaanroep vast, inclusief de fase die op dát moment ÉCHT in de
+ * store staat — net zoals de actioncachetest de volgorde van de poortaanroepen
+ * vastlegt. Levert het echte gedrag door; instrumentatie, geen fake.
+ */
+function recordPhasePortCalls(store) {
+  const seen = [];
+  const real = store.setRoomAndMatchPhaseAtomically;
+  store.setRoomAndMatchPhaseAtomically = async (roomId, matchId, arg) => {
+    const roomBefore = await store.loadRoom(roomId);
+    const matchBefore = await store.loadMatch(roomId, matchId);
+    const result = await real(roomId, matchId, arg);
+    seen.push({
+      expectedPhase: arg.expectedPhase,
+      newPhase: arg.newPhase,
+      pausedState: arg.pausedState,
+      roomPhaseInStore: roomBefore.phase,
+      matchPhaseInStore: matchBefore.phase,
+      ok: result.ok,
+    });
+    return result;
+  };
+  return { seen, restore: () => { store.setRoomAndMatchPhaseAtomically = real; } };
+}
+
+/**
+ * Laat ÉÉN andere schrijver de race winnen: vlak vóór de eerstvolgende
+ * poortaanroep van de compositie zet deze wrapper de fase al op `winnerPhase`,
+ * en pas daarna gaat de aanroep van de compositie naar de echte poort. Die
+ * loopt dan tegen een echte mismatch aan — geen verzonnen `{ ok: false }`.
+ */
+function loseNextPhaseRace(store, { winnerPhase, winnerMatchId = null }) {
+  const real = store.setRoomAndMatchPhaseAtomically;
+  let raced = false;
+  store.setRoomAndMatchPhaseAtomically = async (roomId, matchId, arg) => {
+    if (!raced) {
+      raced = true;
+      const winner = await real(roomId, winnerMatchId ?? matchId, {
+        expectedPhase: arg.expectedPhase,
+        newPhase: winnerPhase,
+        pausedState: null,
+      });
+      assert.deepEqual(winner, { ok: true }, 'de winnaar van de race moet zelf wél slagen');
+    }
+    return real(roomId, matchId, arg);
+  };
+  return { restore: () => { store.setRoomAndMatchPhaseAtomically = real; } };
+}
+
+test('DM19: elke geslaagde overgang geeft de fase mee die de compositie ook echt gelezen heeft', async () => {
+  const harness = makeHarness();
+  const { context, store, clock } = harness;
+  const { roomId } = await seedRoom(harness, {
+    extraPlayers: 1,
+    roomConfig: { pacing: 'host', totalRounds: 2 },
+  });
+
+  const { seen, restore } = recordPhasePortCalls(store);
+
+  const started = await startMatch(context, { roomId });
+  assert.equal(started.ok, true, JSON.stringify(started));
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  const round = await startRound(context, { roomId });
+  assert.equal(round.ok, true, JSON.stringify(round));
+  const doc = await loadRoundDoc(harness, roomId, started.value.matchId, round.value.roundId);
+  clock.set(doc.endsAt);
+  assert.equal((await endRound(context, { roomId })).ok, true);
+  clock.advance(5000);
+  assert.equal((await advancePhase(context, { roomId, event: { type: 'TIMER_ELAPSED' } })).ok, true);
+
+  assert.deepEqual(
+    seen.map((call) => call.newPhase),
+    ['COUNTDOWN', 'ROUND_ACTIVE', 'ROUND_RESULT', 'SCOREBOARD'],
+  );
+  for (const call of seen) {
+    assert.equal(call.ok, true, JSON.stringify(call));
+    // DE KERN: `expectedPhase` is de fase die op het moment van de aanroep in
+    // de store stond — aan BEIDE kanten van de dubbele compare-and-set. Was het
+    // een opnieuw afgeleide waarde, dan bewaakte de CAS niets.
+    assert.equal(call.expectedPhase, call.matchPhaseInStore, JSON.stringify(call));
+    assert.equal(call.expectedPhase, call.roomPhaseInStore, JSON.stringify(call));
+    // Buiten PAUSED gaat er nooit een pausedState mee (de poort zou werpen).
+    assert.equal(call.pausedState, null, JSON.stringify(call));
+  }
+  // En elke opeenvolgende aanroep verwacht precies wat de vorige heeft gezet.
+  for (let index = 1; index < seen.length; index += 1) {
+    assert.equal(seen[index].expectedPhase, seen[index - 1].newPhase);
+  }
+
+  restore();
+});
+
+test('INT-7: een timergedreven overgang die de race verliest stopt stil en levert geen foutcode op', async () => {
+  const harness = makeHarness();
+  const { context, store, clock } = harness;
+  const { roomId } = await seedRoom(harness, {
+    extraPlayers: 1,
+    roomConfig: { pacing: 'host', totalRounds: 2 },
+  });
+  const started = await startMatch(context, { roomId });
+  const matchId = started.value.matchId;
+
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  const round = await startRound(context, { roomId });
+  const doc = await loadRoundDoc(harness, roomId, matchId, round.value.roundId);
+  clock.set(doc.endsAt);
+  assert.equal((await endRound(context, { roomId })).ok, true);
+
+  // De host stuurt `game:finish` terwijl de fasepomp naar SCOREBOARD wil.
+  const race = loseNextPhaseRace(store, { winnerPhase: 'FINISHED' });
+  clock.advance(5000);
+  const lost = await advancePhase(context, { roomId, event: { type: 'TIMER_ELAPSED' } });
+  race.restore();
+
+  assert.equal(lost.ok, false, JSON.stringify(lost));
+  assert.equal(lost.code, PHASE_RACE_LOST);
+  // GEEN foutcode voor een client: `PHASE_RACE_LOST` is bewust niet
+  // gepubliceerd, dus er is niets dat de wire kan halen.
+  assert.equal(ALL_ERROR_CODES.has(lost.code), false, 'een verloren race mag geen wire-foutcode zijn');
+  assert.notEqual(lost.code, 'INVALID_PHASE');
+  // Wel intern zichtbaar: wie won, en wat er verwacht werd.
+  assert.deepEqual(lost.conflict, {
+    eventType: 'TIMER_ELAPSED',
+    expectedPhase: 'ROUND_RESULT',
+    actualPhase: 'FINISHED',
+  });
+
+  // De winnaar blijft staan — de verliezer heeft niets overschreven.
+  assert.equal((await store.loadRoom(roomId)).phase, 'FINISHED');
+  assert.equal((await store.loadMatch(roomId, matchId)).phase, 'FINISHED');
+});
+
+test('INT-7: een hostactie die de race verliest krijgt INVALID_PHASE terug', async () => {
+  const harness = makeHarness();
+  const { context, store, clock } = harness;
+  const { roomId } = await seedRoom(harness, {
+    extraPlayers: 1,
+    roomConfig: { pacing: 'host', totalRounds: 4 },
+  });
+  const started = await startMatch(context, { roomId });
+  const matchId = started.value.matchId;
+
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  const round = await startRound(context, { roomId });
+  const doc = await loadRoundDoc(harness, roomId, matchId, round.value.roundId);
+  clock.set(doc.endsAt);
+  assert.equal((await endRound(context, { roomId })).ok, true);
+  clock.advance(5000);
+  const scoreboard = await advancePhase(context, { roomId, event: { type: 'TIMER_ELAPSED' } });
+  assert.equal(scoreboard.value.phase, 'SCOREBOARD');
+
+  // De host drukt op "volgende" op een scherm dat al achterhaald is: iemand
+  // anders heeft de match intussen afgesloten.
+  const race = loseNextPhaseRace(store, { winnerPhase: 'FINISHED' });
+  clock.advance(1000);
+  const lost = await advancePhase(context, { roomId, event: { type: 'HOST_NEXT' } });
+  race.restore();
+
+  assert.equal(lost.ok, false, JSON.stringify(lost));
+  assert.equal(lost.code, 'INVALID_PHASE', 'geen nieuwe foutcode: deze betekent precies dit');
+  assert.equal(ALL_ERROR_CODES.has(lost.code), true, 'de host moet een gepubliceerde code krijgen');
+  assert.deepEqual(lost.conflict, {
+    eventType: 'HOST_NEXT',
+    expectedPhase: 'SCOREBOARD',
+    actualPhase: 'FINISHED',
+  });
+  assert.equal((await store.loadRoom(roomId)).phase, 'FINISHED');
+  assert.equal((await store.loadMatch(roomId, matchId)).phase, 'FINISHED');
+
+  // Zelfde behandeling voor `game:rematch`: ook een hostknop, ook een
+  // gepubliceerde code. De tweede hosttab las FINISHED en drukt op "opnieuw"
+  // terwijl de eerste tab de room al naar LOBBY heeft gebracht; de verliezer
+  // laat room, spelers en de lopende match ongemoeid en laat alleen een
+  // ongerefereerd Match-document achter.
+  const scoresBefore = (await store.listPlayers(roomId)).map((player) => [player.id, player.score]);
+  const rematchRace = loseNextPhaseRace(store, { winnerPhase: 'LOBBY', winnerMatchId: matchId });
+  const lostRematch = await rematch(context, { roomId });
+  rematchRace.restore();
+
+  assert.equal(lostRematch.ok, false, JSON.stringify(lostRematch));
+  assert.equal(lostRematch.code, 'INVALID_PHASE');
+  assert.equal(lostRematch.conflict.eventType, 'HOST_REMATCH');
+  assert.equal(lostRematch.conflict.expectedPhase, 'FINISHED');
+  const roomAfter = await store.loadRoom(roomId);
+  assert.equal(roomAfter.currentMatchId, matchId, 'de room wijst nog naar de match van de winnaar');
+  assert.equal(roomAfter.phase, 'LOBBY', 'de fase van de winnaar staat er nog');
+  assert.deepEqual(
+    (await store.listPlayers(roomId)).map((player) => [player.id, player.score]),
+    scoresBefore,
+    'een verloren rematch heeft geen enkele speler gereset',
+  );
+});
+
+test('DM19: een pauze zet fase én pausedState in ÉÉN poortaanroep — de losse saveMatch is weg', async () => {
+  const harness = makeHarness();
+  const { context, store, clock } = harness;
+  const { roomId } = await seedRoom(harness, { extraPlayers: 1 });
+  const started = await startMatch(context, { roomId });
+  const matchId = started.value.matchId;
+
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  const round = await startRound(context, { roomId });
+  const doc = await loadRoundDoc(harness, roomId, matchId, round.value.roundId);
+
+  // Instrumentatie op de poort, net als bij de actioncachetest: legt vast WELKE
+  // schrijfacties een pauze veroorzaakt. Vóór DM19 stond hier eerst een
+  // `saveMatch` met de nieuwe `pausedState` en pas daarna de fasewissel — het
+  // niet-atomaire dual-write-pad dat INT-16 aankaartte.
+  const calls = [];
+  const realSaveMatch = store.saveMatch;
+  const realPort = store.setRoomAndMatchPhaseAtomically;
+  store.saveMatch = async (match) => {
+    calls.push({ call: 'saveMatch', phase: match.phase, pausedState: match.pausedState });
+    return realSaveMatch(match);
+  };
+  store.setRoomAndMatchPhaseAtomically = async (rid, mid, arg) => {
+    calls.push({ call: 'setRoomAndMatchPhaseAtomically', ...arg });
+    return realPort(rid, mid, arg);
+  };
+
+  clock.advance(4000);
+  const pausedAt = clock.value;
+  const paused = await advancePhase(context, { roomId, event: { type: 'HOST_PAUSE', reason: 'host' } });
+  assert.equal(paused.ok, true, JSON.stringify(paused));
+
+  const expectedPausedState = {
+    previousPhase: 'ROUND_ACTIVE',
+    remainingMs: doc.endsAt - pausedAt,
+    reason: 'host',
+    pausedAt,
+  };
+  assert.deepEqual(calls, [{
+    call: 'setRoomAndMatchPhaseAtomically',
+    expectedPhase: 'ROUND_ACTIVE',
+    newPhase: 'PAUSED',
+    pausedState: expectedPausedState,
+  }], 'een pauze is precies één schrijfactie: fase + pausedState samen');
+  assert.deepEqual((await store.loadMatch(roomId, matchId)).pausedState, expectedPausedState);
+  assert.equal((await store.loadRoom(roomId)).phase, 'PAUSED');
+
+  // En de hervatting net zo: pausedState terug naar null in dezelfde stap.
+  calls.length = 0;
+  clock.advance(9000);
+  const resumed = await advancePhase(context, { roomId, event: { type: 'HOST_RESUME' } });
+  assert.equal(resumed.ok, true, JSON.stringify(resumed));
+  assert.deepEqual(calls, [{
+    call: 'setRoomAndMatchPhaseAtomically',
+    expectedPhase: 'PAUSED',
+    newPhase: 'ROUND_ACTIVE',
+    pausedState: null,
+  }]);
+  assert.equal((await store.loadMatch(roomId, matchId)).pausedState, null);
+  assert.equal(
+    calls.filter((entry) => entry.call === 'saveMatch').length,
+    0,
+    'geen enkele losse saveMatch meer rond een fasewissel met pausedState',
+  );
+
+  store.saveMatch = realSaveMatch;
+  store.setRoomAndMatchPhaseAtomically = realPort;
 });
