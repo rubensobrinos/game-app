@@ -98,12 +98,12 @@ const PROTOCOL_ERROR_CODES = Object.freeze({
   INVALID_PHASE: 'INVALID_PHASE',
 });
 
-// Codes die deze module zelf introduceert en die NOG NIET in PROTOCOL.md staan.
-// De client kan ze niet vertalen, dus de protocol-adapter (AR5/AR6) mag ze niet
-// ongefilterd doorsturen zolang dat zo is. OPEN VERZOEK aan de PROTOCOL.md-
-// eigenaar: `INVALID_PAUSE_STATE` toevoegen aan de foutcodelijst, of aangeven dat
-// payloadfouten onder `INVALID_PHASE` moeten vallen. Zie
-// docs/architecture-plan/README.md, "Openstaande besluiten".
+// Codes die deze module zelf introduceert en die BEWUST niet in PROTOCOL.md staan.
+// docs/multiplayer/DECISIONS.md besluit 12: `INVALID_PAUSE_STATE` blijft intern en
+// wordt niet als wire-foutcode gepubliceerd. De client heeft er dus geen vertaling
+// voor. De protocol-adapter (AR5/AR6) MOET deze codes daarom afvangen en op een
+// gepubliceerde code afbeelden voordat er iets naar een client gaat — nooit
+// ongefilterd doorsturen. Dit is geen open punt meer; het is een vaste eis.
 const INTERNAL_ERROR_CODES = Object.freeze({
   INVALID_PAUSE_STATE: 'INVALID_PAUSE_STATE',
 });
