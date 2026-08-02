@@ -32,18 +32,35 @@ zie `docs/data-model-plan/README.md` §6 checkpoint 1).
 
 ## Modules
 
-Gebouwd (zie [`docs/data-model-plan/DM-PROGRESS.md`](../../docs/data-model-plan/DM-PROGRESS.md)
-voor de actuele status per `DATA-MODEL.md`-sectie):
+Legenda: ✅ gebouwd en getest — ⬜ prompt klaar, nog niet gebouwd (wacht op
+akkoord, zie [`docs/data-model-plan/DM-PROGRESS.md`](../../docs/data-model-plan/DM-PROGRESS.md)
+§Cijfers). Status hieronder is de daadwerkelijke stand van dit bestandensysteem,
+niet een planningsintentie.
 
-- `redis-keys.js` — pure Redis-key-builders met invoervalidatie (DM1).
-- `ttl.js` — `ROOM_TTL_SECONDS` (DM1).
+| Module | DM-fase | Status | Tests | Omschrijving |
+| --- | --- | --- | --- | --- |
+| `redis-keys.js` | DM1 | ✅ | 65 | Pure Redis-key-builders met invoervalidatie |
+| `ttl.js` | DM1 | ✅ | 1 | `ROOM_TTL_SECONDS` |
+| `types/game-configuration.js` | DM2a | ⬜ | — | Prompt klaar: [`prompts/DM2a-…`](../../docs/data-model-plan/prompts/DM2a-game-configuration-and-session.md) |
+| `types/session.js` | DM2a | ⬜ | — | Prompt klaar, zelfde bestand als hierboven |
+| `types/room-core.js` | DM2b | ⬜ | — | Prompt klaar: [`prompts/DM2b-room.md`](../../docs/data-model-plan/prompts/DM2b-room.md); `contentVersion`/`rendererVersion` blijven expliciet pending achter checkpoint 4 |
+| `types/game-types.js` | DM3 | ⬜ | — | Gedeeld hulptype, onderdeel van de DM3-prompt |
+| `types/player.js` | DM3 | ⬜ | — | Prompt klaar: [`prompts/DM3-…`](../../docs/data-model-plan/prompts/DM3-player-match-round-answer-presentation.md) |
+| `types/match.js` | DM3 | ⬜ | — | Zelfde prompt |
+| `types/round.js` | DM3 | ⬜ | — | Zelfde prompt, incl. `toActiveRoundSnapshot()` |
+| `types/answer.js` | DM3 | ⬜ | — | Zelfde prompt |
+| `types/room-presentation.js` | DM3 | ⬜ | — | Zelfde prompt |
+| `name-processing.js` | DM4 | ⬜ | — | Prompt klaar: [`prompts/DM4-name-processing.md`](../../docs/data-model-plan/prompts/DM4-name-processing.md) |
+| `privacy-guard.js` | DM5 | ⬜ | — | Prompt klaar: [`prompts/DM5-privacy-guard.md`](../../docs/data-model-plan/prompts/DM5-privacy-guard.md) |
+| `repository.js` | DM6 | ⬜ | — | Prompt klaar: [`prompts/DM6-repository-port.md`](../../docs/data-model-plan/prompts/DM6-repository-port.md) |
+| `in-memory-store.js` | DM6 | ⬜ | — | Zelfde prompt, testfake |
+| `answer-flow.js` | DM7 | ⬜ | — | Prompt klaar: [`prompts/DM7-answer-flow.md`](../../docs/data-model-plan/prompts/DM7-answer-flow.md) |
 
-Nog te bouwen (prompts klaar, zie
-[`docs/data-model-plan/prompts/README.md`](../../docs/data-model-plan/prompts/README.md)):
-`types/game-configuration.js`, `types/session.js`, `types/room-core.js`,
-`types/game-types.js`, `types/player.js`, `types/match.js`, `types/round.js`,
-`types/answer.js`, `types/room-presentation.js`, `name-processing.js`,
-`privacy-guard.js`, `repository.js`, `in-memory-store.js`, `answer-flow.js`.
+Alle negen DM2–DM9-prompts zijn geschreven én onafhankelijk herzien
+([`prompts/REVIEW-DM2-DM9.md`](../../docs/data-model-plan/prompts/REVIEW-DM2-DM9.md)),
+maar nog niet uitgevoerd — uitvoering wacht op akkoord (zie
+[`docs/data-model-plan/README.md`](../../docs/data-model-plan/README.md) §10).
 
-`analytics/` levert in deze fase geen `server/`-code — dat blijft een voorstel
-onder `docs/data-model-plan/proposals/` (DM8), bewust nog niet als runtimecode.
+`analytics/` levert in deze fase geen `server/`-code — DM8 blijft een voorstel
+onder `docs/data-model-plan/prompts/DM8-analytics-proposal.md`, bewust nog niet
+als runtimecode.
