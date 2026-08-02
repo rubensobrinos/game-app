@@ -8,6 +8,18 @@ export const nl = Object.freeze({
   'app.title': 'Vlaggenquiz',
   'scaffold.ready': 'Frontend-scaffold gereed — schermen volgen in UI1–UI5.',
 
+  // — UI1-sleutels (Home + Preview/join) —
+  'home.title': 'Vlaggenquiz',
+  'home.quickStart': 'Snel starten',
+  'home.codeSubmit': 'Meedoen met code',
+  'home.codeInvalid': 'Vul een code van 6 cijfers in',
+  'join.title': 'Meedoen',
+  'join.previewing': 'Bezig met ophalen…',
+  'join.submitting': 'Bezig met meedoen…',
+  'join.submit': 'Meedoen',
+  'join.retry': 'Opnieuw proberen',
+  'join.joined': 'Meegedaan!',
+
   // — UI3/UI4-sleutels (toegevoegd door CT/regie-agent, zie HANDOFF-UI) —
   'game.round': 'Ronde',
   'game.sending': 'Versturen…',
