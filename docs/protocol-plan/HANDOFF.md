@@ -64,7 +64,60 @@ bestaan:
 **Status: beantwoord voor de huidige MVP.** De historische vragen blijven hierboven
 traceerbaar; vervolgimplementatie volgt de centrale besluitregistratie.
 
-## 4. Informationeel — geen actie nodig
+## 4. Aan wie `server/composition/` bouwt — open ontwerpvraag over `rendererVersion`
+
+**PR9** (`PROTOCOL.md` bijgewerkt naar `docs/multiplayer/DECISIONS.md`) voegt een
+algemeen, top-level `rendererVersion`-veld toe aan `round:started`, naast het
+al bestaande `contentVersion`, voor **elke** `gameType` (`DECISIONS.md`, punt 21:
+"`contentVersion` en `rendererVersion` zijn canoniek en onveranderlijk op
+`Match`; roundpayloads dragen ze mee voor clients").
+
+`server/rules/question-selection.js` genereert voor `real_or_fake_flag`'s
+`"generated"`-variant al een eigen, geneste `rendererVersion` binnen
+`publicQuestionPayload` (zie `selectRealOrFakeFlagQuestion`, de
+`{ rendererVersion, ...spec } = generateFlagSpec(seed)`-destructuring). **Open
+vraag, niet zelf beslist:** is dat geneste veld dezelfde waarde als het nieuwe
+top-level `round:started.rendererVersion` (Match-breed, voor elke ronde en elk
+`gameType` gelijk), of wordt het geneste veld overbodig zodra het top-level
+veld bestaat?
+
+Dit raakt jullie laag omdat de composition-laag degene is die de
+`Match`-brede `rendererVersion` en de per-ronde `publicQuestionPayload` samen
+tot één `round:started`-payload samenvoegt — wij (protocol-plan) valideren
+alleen de vorm, niet waar de waarde vandaan komt. `PROTOCOL.md` §Voorbeeld
+`round:started` documenteert beide velden voorlopig naast elkaar, zonder een
+kant te kiezen (zie de "Open ontwerpvraag"-alinea onder het
+`real_or_fake_flag`-voorbeeld). **Gevraagd:** bevestig of weerleg of beide
+velden gelijk moeten zijn, of dat het geneste veld op termijn vervalt — tot
+die keuze gemaakt is, blijven beide velden bestaan en neemt `PR11` (bestaande
+validators bijwerken) geen aanname over de relatie tussen beide over.
+
+## 4b. Aan `integration-plan` — reactie op INT-2, INT-8, INT-11
+
+Alle drie aan `PR` toegewezen punten uit
+[`docs/integration-plan/HANDOFF.md`](../integration-plan/HANDOFF.md) zijn
+verwerkt:
+
+- **INT-2 (`Match.sequence` in de snapshot):** ✅ opgelost. `room.matchSequence`
+  toegevoegd aan `PROTOCOL.md` §State-snapshot en aan
+  `snapshot-shape.mjs`'s `validateSnapshotRoom` (integer ≥ 1, bron
+  `DATA-MODEL.md`'s `Match.sequence`).
+- **INT-8 (`PR10` week af van de gebouwde `previewInvite()`):** ✅ opgelost.
+  `PROTOCOL.md` §`GET /api/v1/games/preview` en `server/protocol/preview-endpoint.mjs`
+  zijn herzien naar het daadwerkelijke, al gebouwde contract: uitsluitend
+  `inviteId` (geen `gameCode`-variant meer), en de volledige respons
+  (`roomId`, `suggestedName`, `phase`, `locked`, `allowLateJoin`, `playerCount`,
+  `maxPlayers`) in plaats van de eerdere kale `{ suggestedName }`. De
+  `playerCount`/`maxPlayers`-blootstelling (waar een eerdere versie van dit
+  plan expliciet tegen was) is bevestigd door de mens die `PROTOCOL.md`
+  accordeert.
+- **INT-11 (`preset` loopt drie kanten op):** ✅ opgelost voor `PROTOCOL.md`.
+  Canoniek vastgesteld op `"quick_start"` (was `"group_battle"`, achterhaald
+  sinds besluit 31). `client/flow/host-setup-state.mjs`'s `'default'` moet nog
+  hierop worden aangepast — dat is `game-flow-plan`'s kant, niet hier
+  opgelost.
+
+## 5. Informationeel — geen actie nodig
 
 - **`shared/product/hard-rules.mjs`/`mvp-scope-guard.mjs` gezien** —
   `product-plan`'s [`data-model-and-protocol-interface-proposal.md`](../product-plan/data-model-and-protocol-interface-proposal.md)

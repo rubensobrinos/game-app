@@ -313,6 +313,9 @@ het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert
 **Host-tempo, pauzes en randgevallen**
 1. Room-TTL-verlopen (4 uur) heeft geen eigen foutcode — hergebruikt dit impliciet
    `GAME_NOT_FOUND`, of komt er een aparte code? Blokkeert een deel van PR2.
+   > **Beantwoord door `DECISIONS.md`, punt 2, 2 aug 2026:** "Een verlopen
+   > room-TTL wordt extern `GAME_NOT_FOUND`." Geen aparte foutcode. Verwerkt in
+   > `PROTOCOL.md` §Foutcodes (PR9).
 2. `game:paused.reason` is een vrije string, geen enum. Minstens vier situaties
    delen dit veld: host-disconnect na 60 s → auto-tempo, 3 opeenvolgende lege
    rondes → host krijgt "Doorgaan"/"Beëindigen", expliciete hostpauze, én — uit
@@ -334,15 +337,38 @@ het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert
    `game:paused`-*event* diezelfde volledige vorm of alleen `reason`/`previousPhase`?
    Plus: wat is de volledige, officiële lijst mogelijke `reason`-waarden (geen
    enum in `PROTOCOL.md`, alleen één voorbeeldwaarde `"host"` in `DATA-MODEL.md`)?
+   > **Beantwoord door `DECISIONS.md`, punt 10 en 11, 2 aug 2026:** "Snapshot en
+   > live `game:paused` gebruiken dezelfde volledige `pausedState`-vorm:
+   > `previousPhase`, `remainingMs`, `reason`, `pausedAt`." En: "De
+   > MVP-pauzeredenen zijn `host`, `host_disconnected`, `no_answers` en
+   > `server_recovery`. Clients houden een generieke fallback voor onbekende
+   > waarden." Beide deelvragen (a) en (b) zijn dus gelijk beantwoord: dezelfde
+   > volledige vorm in snapshot én live event. Verwerkt in `PROTOCOL.md`
+   > §State-snapshot en §Server → client events (PR9).
 3. Geen proactief `eligible`-veld (bv. in `round:started` of `self`) voor late
    joiners die pas vanaf een volgende ronde mogen meedoen — nu alleen reactief via
    `PLAYER_NOT_ELIGIBLE` na een poging. Blokkeert volledige dekking van PR4/PR5.
+   > **Beantwoord door `DECISIONS.md`, punt 3, 2 aug 2026:** "De client krijgt
+   > proactief de antwoordgerechtigdheid van de eigen speler te zien, bij
+   > voorkeur via `eligibleFromRound`. Servervalidatie blijft leidend." Verwerkt
+   > in `PROTOCOL.md` §State-snapshot als `self.eligibleFromRound` (integer ≥ 1)
+   > (PR9).
 4. `POST /leave` specificeert niet of dit de `sessionToken` intrekt. Als dat wel zo
    is, botst dat met de reactivatie-binnen-TTL die elders wordt verondersteld. Er is
    ook geen "verlaten"-statusveld in scoreboard/`game:finished`. Blokkeert een deel
    van PR3 en PR5.
+   > **Beantwoord door `DECISIONS.md`, punt 4, 2 aug 2026:** "Vrijwillig
+   > verlaten zet `left: true` maar trekt het sessietoken niet in. Een kick,
+   > expliciete intrekking of TTL-verloop kan dat wel doen." Verwerkt in
+   > `PROTOCOL.md` §REST-endpoints (`POST /leave`) (PR9). Het
+   > "verlaten"-statusveld in scoreboard/`game:finished` zelf blijft een
+   > `DATA-MODEL.md`/`GAME-RULES.md`-kwestie, niet hier opgelost.
 5. `joinUrl`-constructie (basis-URL + `inviteId`) staat nergens gespecificeerd —
    waar komt de basis-URL vandaan (config/env)? Relevant voor PR3.
+   > **Beantwoord door `DECISIONS.md`, punt 6, 2 aug 2026:** "`joinUrl` gebruikt
+   > één serverconfiguratiewaarde, `PUBLIC_APP_URL`." De precieze
+   > samenvoeging met `inviteId` is een implementatiedetail van het latere
+   > serverproces, niet van dit vormplan.
 6. `joinSource`/`share:opened.method` (incl. `"native"`) hebben geen gedocumenteerd
    pad naar de Postgres-analytics-aggregaten. Niet blokkerend voor schema-validatie
    in PR3, wel voor een latere analytics-fase buiten dit plan. Daarnaast kent
@@ -355,11 +381,19 @@ het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert
    `method` vooralsnog ongewijzigd (3 waarden); of `method` een vierde waarde
    krijgt die `joinSource` spiegelt, is aan de `PROTOCOL.md`-eigenaar om te
    beslissen.
+   > **Beantwoord door `DECISIONS.md`, punt 18, 2 aug 2026:** "`share:opened.method`
+   > wordt gelijkgetrokken met de vier herkomsten: `qr | link | native | code`."
+   > Verwerkt in `PROTOCOL.md` §Client → server events (PR9). Het
+   > analytics-aggregatiepad zelf (Postgres) blijft buiten dit plan.
 
 **Sessies, rollen, teams, spectators**
 7. `session:revoked` heeft geen duidelijk triggerend scenario — kick heeft al
    `session:kicked`, TTL-verval loopt vermoedelijk via REST-foutcodes. Onduidelijk
    wat dit event in de praktijk verstuurt. Relevant voor PR5.
+   > **Beantwoord door `DECISIONS.md`, punt 17, 2 aug 2026:** "`session:revoked`
+   > is voor expliciete server-/beheerintrekking. Kick gebruikt
+   > `session:kicked`; vrijwillig verlaten en TTL-verval gebruiken het event
+   > niet." Verwerkt in `PROTOCOL.md` §Server → client events (PR9).
 8. Geen enkel protocol-oppervlak voor teams (event, `team`-veld in
    join/state/scoreboard, foutcode), terwijl "individueel of teams" al als
    live-configoptie elders wordt genoemd. Buiten scope tot dit is toegevoegd aan de
@@ -378,6 +412,12 @@ het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert
    nieuw serverevent, `room:player-changed`-uitbreiding, of alleen de
    eerstvolgende snapshot — inclusief idempotentie bij een dubbele poging en het
    signaal bij automatische indeling zonder voorafgaande clientactie).
+   > **Niet nu bouwen — bewuste scope-keuze, geen opgeloste vraag.**
+   > `DECISIONS.md`, punt 8, 2 aug 2026: "Teams worden nu niet gebouwd. Er
+   > wordt geen teamkeuzecontract, teammodel of teamscoring aan de huidige MVP
+   > toegevoegd." De drie hierboven geschetste contractopties blijven
+   > onbeslist en zijn niet door dit besluit beantwoord — ze zijn simpelweg
+   > uit de huidige realisatiescope gehaald (zie ook punt 33).
 9. Spectatorroute (`/screen/{code}`) heeft geen rol naast `host`/`player` en geen
    beschreven auth/subscribe-mechanisme voor read-only events.
    **Concreet gemaakt door `game-flow-plan`'s
@@ -387,6 +427,12 @@ het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert
    of een apart read-only kanaal), en welke velden uit snapshot/events moeten
    voor een spectator worden weg-geprojecteerd (bv. individuele antwoorden of
    namen)?
+   > **Niet nu bouwen — bewuste scope-keuze, geen opgeloste vraag.**
+   > `DECISIONS.md`, punt 9, 2 aug 2026: "Spectators worden nu niet gebouwd. Er
+   > wordt geen spectatorrol, -token of -projectie aan de huidige MVP
+   > toegevoegd." De drie deelvragen hierboven blijven onbeslist en zijn niet
+   > door dit besluit beantwoord — ze zijn uit de huidige realisatiescope
+   > gehaald (zie ook punt 33).
 
 **Vraaginhoud en scoring — grensvlak met GAME-RULES.md**
 10. `question`-payloadvorm is alleen voor multiple-choice uitgewerkt; de andere vier
@@ -394,14 +440,32 @@ het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert
     gespecificeerde vraag-payload. PR4/PR5 valideren voorlopig alleen wat gedocumenteerd
     is en markeren de rest als geblokkeerd op een interfacevoorstel (vergelijkbaar
     met `game-rules-plan`'s GR7).
+    > **Beantwoord door `DECISIONS.md`, punt 20, 2 aug 2026:** "Alle vijf
+    > vraagsoorten krijgen een discriminated `question`-payload op basis van
+    > `gameType`. `correctAnswer` staat nooit in `round:started`." Verwerkt in
+    > `PROTOCOL.md` §Voorbeeld `round:started` (PR9), met de daadwerkelijke
+    > `publicQuestionPayload`-vorm uit `server/rules/question-selection.js`
+    > voor alle vijf spelvormen (niet langer alleen multiple-choice).
 11. "Verdeling" (antwoordverdeling) in `round:ended` heeft geen genoemde eigenaar:
     protocol-aggregatie over ruwe antwoorden, of een GAME-RULES-outputveld? Moet
     worden vastgesteld vóór PR5 dit veld bindend valideert.
+    > **Beantwoord door `DECISIONS.md`, punt 14, 2 aug 2026:** "De rules/service-
+    > laag berekent antwoordverdelingen; het protocol transporteert en
+    > valideert alleen de uitkomst." Verwerkt in `PROTOCOL.md` §Server → client
+    > events, `round:ended` (PR9).
 12. Deadlinegrace (≤250 ms, uit GAME-RULES.md) versus `DEADLINE_PASSED`: wordt een
     laat antwoord al vóór de protocollaag geweigerd, of alleen binnen de
     scoreberekening geaccepteerd-maar-zonder-bonus? Deze grens is niet expliciet en
     moet worden vastgelegd vóór PR4's `round:answer`-validator "te laat" definitief
     afhandelt.
+    > **Beantwoord door `DECISIONS.md`, punt 13, 2 aug 2026:** "Antwoorden
+    > worden tot en met 250 ms na de deadline aan de rules-laag aangeboden.
+    > Binnen grace kan een antwoord correct zijn, maar krijgt het nooit
+    > tijdbonus. Na grace volgt `DEADLINE_PASSED`." Niet verwerkt in deze PR9
+    > (buiten de expliciete scope van dit promptbestand, dat alleen §Foutcodes,
+    > §REST-endpoints, §State-snapshot, §Client → server events, §Server →
+    > client events en §Voorbeeld `round:started` wijzigt); relevant voor een
+    > latere `round:answer`-validatorpas.
 13. **Grotendeels beantwoord** door `data-model-plan`'s
     [`HANDOFF.md` §2](../data-model-plan/HANDOFF.md): `roundNumber = Match.roundIndex + 1`
     (voorstel, `roundIndex` is 0-based) en `countdownEndsAt` wordt bewust **niet** een
@@ -412,6 +476,12 @@ het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert
     velden als vorm-check meenemen (`roundNumber: number`, `countdownEndsAt: number`
     in de betreffende payloads), maar niet aannemen dat de afgeleide-waarde-aanname
     al bindend bevestigd is.
+    > **Nu bindend bevestigd door `DECISIONS.md`, punt 16, 2 aug 2026:**
+    > "Publiek `roundNumber` is 1-based: `Match.roundIndex + 1`.
+    > `countdownEndsAt` is vluchtig en wordt bij de transitie berekend, niet
+    > persistent opgeslagen." De eerdere onzekerheid ("nog open... wacht op
+    > bevestiging") is hiermee weggenomen. Verwerkt in `PROTOCOL.md` §Voorbeeld
+    > `round:started` (PR9).
 14. **Grotendeels beantwoord** door `data-model-plan`'s
     [`HANDOFF.md` §3](../data-model-plan/HANDOFF.md): `game:rematch` reset
     **dezelfde** `Player`-record in place (geen nieuw record — `Player` is room-scoped,
@@ -421,11 +491,25 @@ het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert
     `left: true` had in de vórige match automatisch weer mee in de rematch-roster, of
     blijft die als "verlaten" staan tot een nieuwe join? `GAME-FLOW.md` §11 gaat over
     vrijwillig verlaten binnen één match, niet expliciet over het rematch-geval.
+    > **De resterende deelvraag is beantwoord door `DECISIONS.md`, punt 5,
+    > 2 aug 2026:** "Een speler met `left: true` telt niet automatisch mee in
+    > een rematch; opnieuw joinen/reactiveren is vereist." Dit was niet in
+    > scope voor `PROTOCOL.md` zelf te wijzigen (het raakt vooral
+    > `DATA-MODEL.md`/`GAME-RULES.md`-gedrag), dus geen `PROTOCOL.md`-tekst
+    > gewijzigd in PR9.
 15. De gedeelde content-module (`COUNTRIES`, `COUNTRY_FACTS`, `checkAnswer`, e.d.)
     bestaat nog niet als importeerbaar package — de bestaande `data/*.js`-bestanden
     zijn browser-globals zonder `module.exports`. Zolang dat niet is opgelost, kan
     "client en server delen dezelfde `contentVersion`" in PR7 alleen op vórm getest
     worden, niet op daadwerkelijke gelijkheid.
+    > **Gedeeltelijk beantwoord door `DECISIONS.md`, punt 29, 2 aug 2026:**
+    > "De gedeelde contentmodule komt onder `shared/content/` en wordt de
+    > gedeelde bron voor genormaliseerde content, `contentVersion` en
+    > deterministische gegenereerde content." De **locatie** en eigenaarschap
+    > zijn hiermee vastgelegd; de daadwerkelijke extractie/bouw van die module
+    > is nog niet gebeurd, dus de kern van dit blokkade-punt (PR7 test alleen
+    > vorm, niet gelijkheid) blijft vooralsnog staan. Geen `PROTOCOL.md`-tekst
+    > gewijzigd in PR9 (buiten scope van deze fase).
 16. `GET /api/v1/time` heeft geen eigen foutcode voor een misvormde response —
     ontdekt tijdens PR3: dit endpoint valt buiten alle vier Foutcodes-categorieën
     (geen room, geen sessie, geen ronde). `validateTimeResponse`
@@ -436,6 +520,13 @@ het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert
     `code`. Blokkeert een nette, betekenisvolle foutcode voor dit endpoint totdat
     de `PROTOCOL.md`-eigenaar hier een keuze in maakt (nieuwe code, of expliciet
     hergebruik van een bestaande).
+    > **Beantwoord door `DECISIONS.md`, punt 19, 2 aug 2026:** "Een lokaal
+    > misvormde `/time`-response gebruikt een lokale
+    > `INVALID_SERVER_RESPONSE`; dit wordt geen nieuwe wire-foutcode."
+    > Bevestigt dus expliciet géén nieuwe wire-foutcode toe te voegen aan
+    > `PROTOCOL.md` — `PROTOCOL.md` §Foutcodes blijft ongewijzigd op dit punt
+    > (PR9 voegt bewust geen `INVALID_SERVER_RESPONSE` toe, zie ook de
+    > `INVALID_PAUSE_STATE`-parallel bij punt 12).
 17. Naamsuggestie vóór join ontbreekt als servercontract. `GAME-FLOW.md` beschrijft
     de volgorde *scan QR → inviteId gevalideerd → naamveld met reeds voorgestelde
     willekeurige naam → [Meedoen] → sessie aangemaakt*, wat een validatie-/
@@ -449,6 +540,14 @@ het stil is, en leg de vraag hier neer voor de mens die `PROTOCOL.md` accordeert
     blokkerend voor PR3 (dat valideert alleen het bestaande `POST /games/join`),
     wel relevant zodra deze vraag beantwoord is — een nieuw endpoint zou een eigen
     PR3-achtige validatorfase nodig hebben.
+    > **Beantwoord door `DECISIONS.md`, punt 7, 2 aug 2026:** "Er komt een
+    > licht pre-join-previewendpoint dat de invite valideert en een
+    > servergegenereerde naamsuggestie levert vóór `POST /games/join`." Lezing
+    > (a) is dus gekozen. Verwerkt in `PROTOCOL.md` als nieuwe subsectie
+    > `GET /api/v1/games/preview` vóór `POST /games/join` (PR9), met het
+    > eenduidige contract (geen `valid`-veld) dat `prompts/PR10-preview-endpoint.md`
+    > na revisie vastlegt; de validatormodule zelf (`preview-endpoint.mjs`) is
+    > een aparte fase (PR10).
 
 ## Wat hier expliciet buiten valt
 

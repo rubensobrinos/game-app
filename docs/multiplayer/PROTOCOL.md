@@ -2,6 +2,17 @@
 
 **Protocolversie:** `v1`
 
+> **PR9-update (2 augustus 2026), op basis van `DECISIONS.md`:** deze revisie
+> maakt een aantal velden verplicht (`self.eligibleFromRound`, de volledige
+> `room.pausedState`-vorm) die er voorheen niet waren. Dat is **geen** zuiver
+> additieve, wire-compatibele wijziging — een verplicht nieuw veld voldoet niet
+> aan oudere `v1`-payloads die het niet kennen. Dit is contractueel strenger,
+> niet additief. `protocolVersion` blijft niettemin op `v1`, omdat dit protocol
+> nog niet publiek is uitgerold: er bestaat nog geen externe client die hierdoor
+> breekt. Vóór een publieke compatibiliteitsgarantie moet een volgende
+> contractwijziging met eenzelfde effect opnieuw expliciet worden afgewogen
+> (nieuwe versie versus geaccepteerde strengere `v1`).
+
 Transport:
 
 - HTTPS voor create, join en snapshots;
@@ -114,13 +125,20 @@ Request:
 ```json
 {
   "config": {
-    "preset": "group_battle",
+    "preset": "quick_start",
     "language": "nl"
   },
   "hostParticipates": true,
   "displayName": null
 }
 ```
+
+`preset` canoniek vastgesteld op `"quick_start"` (was `"group_battle"`, achterhaald
+sinds besluit 31 de Groepsbattle-naamgeving schrapte terwijl besluit 35 de
+kernflow behoudt). Dit is de waarde die de compositielaag al gebruikt
+(`server/composition/room-lifecycle.mjs`); `client/flow/host-setup-state.mjs`'s
+`'default'` moet hierop worden aangepast (`docs/integration-plan/HANDOFF.md`,
+INT-11).
 
 Response:
 
@@ -139,6 +157,54 @@ Response:
 ```
 
 Wanneer `hostParticipates = false` zijn `playerId` en `effectiveName` `null`.
+
+### `GET /api/v1/games/preview`
+
+Licht pre-join-previewendpoint: valideert de invite en levert een
+servergegenereerde naamsuggestie vóór `POST /games/join` (`DECISIONS.md`,
+punt 7).
+
+**Uitsluitend `inviteId`** — geen `gameCode`-variant. Dit wijkt af van een eerdere
+versie van deze sectie (die ook `gameCode` en een kale `{ suggestedName }`-respons
+voorstelde); dat contract is vervangen door de daadwerkelijk gebouwde en geteste
+`previewInvite()` in de compositielaag, om te voorkomen dat er twee afwijkende
+contracten naast elkaar bestaan (`docs/integration-plan/HANDOFF.md`, INT-8):
+
+```http
+GET /api/v1/games/preview?inviteId=<inviteId>
+```
+
+Succesrespons:
+
+```json
+{
+  "roomId": "room_01J...",
+  "suggestedName": "Vlugge Vos",
+  "phase": "LOBBY",
+  "locked": false,
+  "allowLateJoin": true,
+  "playerCount": 23,
+  "maxPlayers": 100
+}
+```
+
+Foutcodes:
+
+- ongeldige `inviteId` (verkeerd formaat): `INVITE_INVALID`;
+- syntactisch geldige maar onbekende of verlopen `inviteId`: `GAME_NOT_FOUND`
+  (dezelfde code als een verlopen room-TTL, zie §Foutcodes).
+
+Grenzen:
+
+- de respons onthult **geen** spelersnamen of hostgegevens — `playerCount` (een
+  aantal, geen namenlijst) en de overige roomstatusvelden hierboven zijn bewust
+  wél opgenomen, gelijk aan de al gebouwde compositielaag;
+- `GAME_NOT_FOUND` lekt geen extra roomdetails;
+- `suggestedName` volgt dezelfde naamlimiet als bij join (maximaal 20 zichtbare
+  tekens, zie §Inputveiligheid);
+- preview maakt **geen** sessie of speler aan — de respons bevat dus nooit
+  `sessionToken` of `playerId`; de uiteindelijke, unieke naam wordt pas door
+  `POST /games/join` bepaald en kan afwijken bij een botsing.
 
 ### `POST /api/v1/games/join`
 
@@ -186,7 +252,10 @@ Volledige actuele snapshot. Vereist geldige sessietoken.
 
 ### `POST /api/v1/games/{code}/leave`
 
-Vrijwillig verlaten. Vereist spelerrol.
+Vrijwillig verlaten. Vereist spelerrol. Dit trekt het `sessionToken` **niet**
+in — reactivatie binnen de TTL door opnieuw te joinen blijft mogelijk. Een
+kick, expliciete server-/beheerintrekking of TTL-verval kunnen het token wel
+intrekken (zie `session:kicked`/`session:revoked`).
 
 ### `GET /api/v1/time`
 
@@ -215,7 +284,9 @@ Minimale structuur:
     "joinUrl": "https://play.aseso.nl/j/N4x7pQm2K8tW",
     "playerCount": 23,
     "config": {},
-    "matchId": "match_01J..."
+    "matchId": "match_01J...",
+    "matchSequence": 2,
+    "pausedState": null
   },
   "self": {
     "roles": ["player"],
@@ -223,7 +294,8 @@ Minimale structuur:
     "effectiveName": "Ruben",
     "score": 600,
     "position": 7,
-    "answeredCurrentRound": false
+    "answeredCurrentRound": false,
+    "eligibleFromRound": 1
   },
   "currentRound": {},
   "scoreboard": {
@@ -232,6 +304,36 @@ Minimale structuur:
   }
 }
 ```
+
+`self.eligibleFromRound` is een **integer ≥ 1**: het 1-based `roundNumber`
+vanaf wanneer de speler speelgerechtigd is (relevant voor late joiners).
+Servervalidatie via `PLAYER_NOT_ELIGIBLE` blijft leidend; dit veld is alleen
+voor proactieve clientweergave (`DECISIONS.md`, punt 3).
+
+`room.matchSequence` is `Match.sequence` uit `DATA-MODEL.md` (integer ≥ 1,
+ordent matches binnen een room totaal). Toegevoegd om drie samenhangende
+problemen op te lossen die alleen op `serverTime` ordenen niet dekt: een
+snapshot van een vórige match die nieuwere state kan overschrijven bij een
+gelijke `serverTime`, een niet-gedetecteerde `matchId`-terugkeer, en het
+ontbreken van een matchwissel-signaal bij `game:rematch-started` (client moet
+score/streak/rondetimer resetten — `GAME-FLOW.md` §12). Clients ordenen eerst op
+`matchSequence`, dan pas op `serverTime` binnen die match
+(`docs/integration-plan/HANDOFF.md`, INT-2).
+
+`room.pausedState` is `null` wanneer de room niet gepauzeerd is. Gepauzeerd
+heeft het de volledige vorm, gelijk aan het live `game:paused`-event (zie
+§Server → client events):
+
+```json
+{
+  "previousPhase": "ROUND_ACTIVE",
+  "remainingMs": 12500,
+  "reason": "host",
+  "pausedAt": 1785623412000
+}
+```
+
+(`DECISIONS.md`, punt 10.)
 
 Een snapshot bevat nooit het correcte antwoord van een actieve ronde.
 
@@ -250,7 +352,11 @@ Een snapshot bevat nooit het correcte antwoord van een actieve ronde.
 | `player:rename` | player | `{ displayName }` | alleen lobby, maximaal eenmaal |
 | `player:leave` | player | `{}` | actieve sessie |
 | `round:answer` | player | zie hieronder | ronde actief, speelgerechtigd, niet eerder geantwoord |
-| `share:opened` | host/player | `{ method: "qr" \| "link" \| "native" }` | analytics, mag falen zonder UX-effect |
+| `share:opened` | host/player | `{ method: "qr" \| "link" \| "native" \| "code" }` | analytics, mag falen zonder UX-effect |
+
+`share:opened.method` is gelijkgetrokken met de vier herkomsten uit
+`POST /games/join`'s `joinSource` (`DECISIONS.md`, punt 18): `qr`, `link`,
+`native` en `code` (handmatige codeweergave).
 
 ### `round:answer`
 
@@ -324,22 +430,210 @@ deadline en bonus.
 | `room:player-changed` | room | count + join/leave/rename/kick-delta |
 | `room:lock-changed` | room | `locked` |
 | `game:started` | room | `matchId`, `totalRounds`, `countdownEndsAt` |
-| `game:paused` | room | reden, vorige fase |
+| `game:paused` | room | volledige `pausedState` (zie hieronder) |
 | `game:resumed` | room | nieuwe countdown/tijden |
-| `round:started` | room | vraag, opties, tijden |
+| `round:started` | room | vraag, opties, tijden, `contentVersion`, `rendererVersion` |
 | `round:answer-accepted` | één speler | `roundId` |
 | `round:progress` | room | `answeredCount`, `eligiblePlayerCount` |
-| `round:ended` | room + persoonlijke velden | correct antwoord, verdeling, eigen punten |
+| `round:ended` | room + persoonlijke velden | correct antwoord, antwoordverdeling, eigen punten |
 | `scoreboard:updated` | room + persoonlijke velden | top 5, eigen positie |
 | `game:finished` | room + persoonlijke velden | podium, eigen samenvatting |
 | `game:rematch-started` | room | nieuwe `matchId`, lobby-state |
 | `session:kicked` | één sessie | reden |
-| `session:revoked` | één sessie | reden |
+| `session:revoked` | één sessie | reden (zie hieronder) |
 | `error` | relevante sessie | foutcode + veilige metadata |
 
 `round:progress` wordt maximaal tweemaal per seconde gebroadcast.
 
+### `game:paused`
+
+Draagt dezelfde volledige `pausedState`-vorm als de snapshot (`DECISIONS.md`,
+punt 10):
+
+```json
+{
+  "event": "game:paused",
+  "eventId": "evt_01J...",
+  "serverTime": 1785623412000,
+  "payload": {
+    "previousPhase": "ROUND_ACTIVE",
+    "remainingMs": 12500,
+    "reason": "host",
+    "pausedAt": 1785623412000
+  }
+}
+```
+
+`reason` is een van vier MVP-waarden (`DECISIONS.md`, punt 11):
+
+- `host` — expliciete hostpauze;
+- `host_disconnected` — host raakte de verbinding kwijt;
+- `no_answers` — opeenvolgende rondes zonder antwoorden;
+- `server_recovery` — een serverherstart die actieve rooms automatisch
+  pauzeert.
+
+Clients houden een generieke fallback voor onbekende `reason`-waarden, zodat
+een latere vijfde reden geen harde clientfout veroorzaakt.
+
+### `session:revoked`
+
+Uitsluitend voor expliciete server-/beheerintrekking van een sessietoken
+(`DECISIONS.md`, punt 17). Een kick gebruikt in plaats daarvan
+`session:kicked`; vrijwillig verlaten (`POST /leave`) en TTL-verval gebruiken
+géén van beide events — die zijn zichtbaar via respectievelijk `left: true` en
+een nieuwe `GAME_NOT_FOUND`/`TOKEN_EXPIRED`-afwijzing bij de eerstvolgende
+aanroep, niet via een gepusht event.
+
+### `round:ended`
+
+De rules-/servicelaag berekent de antwoordverdeling; het protocol
+transporteert en valideert alleen de uitkomstvorm (`DECISIONS.md`, punt 14).
+De verdeling bevat **geen** `resultDetails`-achtige velden (bijv. de rauwe
+metriekwaarde van `higher_lower`, of `majorityContinent`/`minorityContinent`
+van `odd_one_out`) die tijdens de ronde al naar `round:started` hadden mogen
+lekken — die velden mogen pas hier, ná afloop van de ronde, meegaan.
+
 ## Voorbeeld `round:started`
+
+Vijf voorbeelden, één per `gameType`, in de daadwerkelijke
+`publicQuestionPayload`-vorm uit `server/rules/question-selection.js`
+(`selectFlagsMcQuestion`, `selectCapitalsMcQuestion`,
+`selectRealOrFakeFlagQuestion`, `selectHigherLowerQuestion`,
+`selectOddOneOutQuestion`) — niet een verzonnen presentatievorm. `correctAnswer`
+staat **nooit** in `round:started`; die gaat pas mee in `round:ended`, in de
+vormen die `DECISIONS.md`, punt 15, bevestigt.
+
+Elk voorbeeld toont ook het nieuwe, algemene top-level `rendererVersion`-veld,
+naast het al bestaande `contentVersion` — beide canoniek en onveranderlijk op
+`Match`, meegestuurd met elke roundpayload voor **elke** `gameType`
+(`DECISIONS.md`, punt 21), niet alleen voor `real_or_fake_flag`.
+
+### `flags_mc`
+
+```json
+{
+  "event": "round:started",
+  "eventId": "evt_01J...",
+  "serverTime": 1785623411900,
+  "payload": {
+    "matchId": "match_01J...",
+    "roundId": "round_03",
+    "roundNumber": 3,
+    "totalRounds": 10,
+    "gameType": "flags_mc",
+    "contentVersion": "2026.08.1",
+    "rendererVersion": "flag-renderer-1",
+    "question": {
+      "targetIso2": "FR",
+      "optionIso2s": ["FR", "DE", "IT", "ES"]
+    },
+    "startsAt": 1785623412000,
+    "endsAt": 1785623427000
+  }
+}
+```
+
+`correctAnswer` (alleen in `round:ended`): `{ "optionId": "FR" }`.
+
+### `capitals_mc`
+
+Dezelfde `question`-vorm als `flags_mc` (`targetIso2` + `optionIso2s`) — de
+hoofdstad zelf komt uit de gedeelde contentmodule, niet uit de payloadvorm:
+
+```json
+{
+  "event": "round:started",
+  "eventId": "evt_01J...",
+  "serverTime": 1785623411900,
+  "payload": {
+    "matchId": "match_01J...",
+    "roundId": "round_04",
+    "roundNumber": 4,
+    "totalRounds": 10,
+    "gameType": "capitals_mc",
+    "contentVersion": "2026.08.1",
+    "rendererVersion": "flag-renderer-1",
+    "question": {
+      "targetIso2": "NL",
+      "optionIso2s": ["NL", "BE", "DE", "PT"]
+    },
+    "startsAt": 1785623412000,
+    "endsAt": 1785623427000
+  }
+}
+```
+
+`correctAnswer` (alleen in `round:ended`): `{ "optionId": "NL" }`.
+
+### `real_or_fake_flag`
+
+Twee subvarianten van `question`, afhankelijk van `kind`. `"real"` verwijst
+naar een echt land:
+
+```json
+{
+  "event": "round:started",
+  "eventId": "evt_01J...",
+  "serverTime": 1785623411900,
+  "payload": {
+    "matchId": "match_01J...",
+    "roundId": "round_05",
+    "roundNumber": 5,
+    "totalRounds": 10,
+    "gameType": "real_or_fake_flag",
+    "contentVersion": "2026.08.1",
+    "rendererVersion": "flag-renderer-1",
+    "question": { "kind": "real", "iso2": "IT" },
+    "startsAt": 1785623412000,
+    "endsAt": 1785623427000
+  }
+}
+```
+
+`correctAnswer`: `{ "choice": "real" }`.
+
+`"generated"` draagt een gegenereerde vlagspec:
+
+```json
+{
+  "event": "round:started",
+  "eventId": "evt_01J...",
+  "serverTime": 1785623411900,
+  "payload": {
+    "matchId": "match_01J...",
+    "roundId": "round_06",
+    "roundNumber": 6,
+    "totalRounds": 10,
+    "gameType": "real_or_fake_flag",
+    "contentVersion": "2026.08.1",
+    "rendererVersion": "flag-renderer-1",
+    "question": {
+      "kind": "generated",
+      "seed": "fx_91b2c3a0",
+      "rendererVersion": "flag-renderer-1",
+      "spec": {
+        "pattern": "nordic",
+        "palette": ["#003082", "#FFFFFF", "#CE1126"]
+      }
+    },
+    "startsAt": 1785623412000,
+    "endsAt": 1785623427000
+  }
+}
+```
+
+`correctAnswer`: `{ "choice": "fake" }`.
+
+**Open ontwerpvraag, niet zelf beslist:** `question-selection.js` geeft de
+`generated`-variant al een eigen, geneste `rendererVersion` binnen
+`publicQuestionPayload` (zichtbaar in het voorbeeld hierboven). Is dat dezelfde
+waarde als het nieuwe top-level `round:started.rendererVersion` (Match-breed,
+voor elke ronde en elk `gameType` gelijk), of wordt het geneste veld
+overbodig zodra het top-level veld bestaat? Voorgelegd aan wie de
+composition-laag bouwt (`server/composition/`); tot een antwoord er is,
+blijven beide velden zoals hierboven getoond naast elkaar bestaan.
+
+### `higher_lower`
 
 ```json
 {
@@ -351,22 +645,14 @@ deadline en bonus.
     "roundId": "round_07",
     "roundNumber": 7,
     "totalRounds": 10,
-    "gameType": "real_or_fake_flag",
+    "gameType": "higher_lower",
     "contentVersion": "2026.08.1",
+    "rendererVersion": "flag-renderer-1",
     "question": {
-      "promptKey": "btnRealOrFakePrompt",
-      "image": {
-        "kind": "generated_flag",
-        "seed": "fx_91b2",
-        "rendererVersion": "flag-renderer-1",
-        "spec": {
-          "pattern": "nordic",
-          "palette": ["#003082", "#FFFFFF", "#CE1126"]
-        }
-      },
-      "options": [
-        { "optionId": "real", "labelKey": "btnReal" },
-        { "optionId": "fake", "labelKey": "btnFake" }
+      "metric": "population",
+      "sides": [
+        { "side": 0, "iso2": "DE" },
+        { "side": 1, "iso2": "PT" }
       ]
     },
     "startsAt": 1785623412000,
@@ -375,7 +661,51 @@ deadline en bonus.
 }
 ```
 
-De juiste optie is niet afleidbaar uit ID, volgorde, URL, seed of metadata.
+`correctAnswer`: `{ "side": 0 }`. De rauwe metriekwaarden (`values` binnen
+`resultDetails` in `question-selection.js`) komen **niet** in `round:started`
+terecht — die gaan pas mee in `round:ended`.
+
+### `odd_one_out`
+
+```json
+{
+  "event": "round:started",
+  "eventId": "evt_01J...",
+  "serverTime": 1785623411900,
+  "payload": {
+    "matchId": "match_01J...",
+    "roundId": "round_08",
+    "roundNumber": 8,
+    "totalRounds": 10,
+    "gameType": "odd_one_out",
+    "contentVersion": "2026.08.1",
+    "rendererVersion": "flag-renderer-1",
+    "question": {
+      "cards": [
+        { "cardIndex": 0, "iso2": "FR" },
+        { "cardIndex": 1, "iso2": "DE" },
+        { "cardIndex": 2, "iso2": "IT" },
+        { "cardIndex": 3, "iso2": "NL" }
+      ]
+    },
+    "startsAt": 1785623412000,
+    "endsAt": 1785623427000
+  }
+}
+```
+
+`correctAnswer`: `{ "cardIndex": 3 }`. `majorityContinent`/`minorityContinent`
+(binnen `resultDetails` in `question-selection.js`) komen **niet** in
+`round:started` terecht — die gaan pas mee in `round:ended`.
+
+---
+
+Bij geen van de vijf vormen is de juiste optie afleidbaar uit ID, volgorde,
+URL, seed of metadata.
+
+Publiek `roundNumber` is 1-based (`Match.roundIndex + 1`); `countdownEndsAt`
+(in `game:started`) is vluchtig en wordt bij de transitie berekend, geen
+opgeslagen veld (`DECISIONS.md`, punt 16).
 
 ## Foutcodes
 
@@ -388,6 +718,9 @@ De juiste optie is niet afleidbaar uit ID, volgorde, URL, seed of metadata.
 - `LATE_JOIN_DISABLED`
 - `ROOM_LOCKED`
 - `CODE_RATE_LIMITED`
+
+`GAME_NOT_FOUND` is ook het externe resultaat van een verlopen room-TTL (4 uur);
+daarvoor bestaat geen aparte foutcode (`DECISIONS.md`, punt 2).
 
 ### Autorisatie
 
