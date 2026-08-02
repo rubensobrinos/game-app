@@ -671,6 +671,47 @@ if (!probe.ok) {
       assert.deepStrictEqual((await client().keys('*')).sort(), before, 'de wissel maakt geen sleutels aan');
     });
 
+    it('een match zonder room werpt over de ROOM en maakt geen roomdocument aan', async () => {
+      // De conformance-test "een onbekend roomId werpt RangeError" kan de
+      // roomcontrole niet los bewijzen: bij een onbekend roomId bestaat óók de
+      // matchsleutel niet (`room:{roomId}:match:{matchId}`), dus een adapter
+      // die alléén de match controleert komt daar met de juiste foutklasse en
+      // de verkeerde reden doorheen. `saveMatch` stelt geen room verplicht, dus
+      // deze toestand is echt arrangeerbaar — en dan moet de roomcontrole zelf
+      // aan het werk.
+      await fresh();
+      await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+
+      await assert.rejects(
+        () => store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED'),
+        (error) => {
+          assert.ok(error instanceof RangeError, `verwachtte RangeError, kreeg ${error?.name}: ${error?.message}`);
+          assert.match(error.message, /unknown roomId/, 'de fout hoort de ROOM te noemen, niet de match');
+          return true;
+        }
+      );
+
+      assert.strictEqual(await client().get(roomKey('room_a')), null, 'er mag geen room uit het niets ontstaan');
+      assert.deepStrictEqual(await store.loadMatch('room_a', 'match_1'), makeMatch({ phase: 'ROUND_ACTIVE' }));
+    });
+
+    it('een room zonder match werpt over de MATCH en laat de room ongemoeid', async () => {
+      await fresh();
+      await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
+
+      await assert.rejects(
+        () => store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED'),
+        (error) => {
+          assert.ok(error instanceof RangeError, `verwachtte RangeError, kreeg ${error?.name}: ${error?.message}`);
+          assert.match(error.message, /unknown matchId/, 'de fout hoort de MATCH te noemen');
+          return true;
+        }
+      );
+
+      assert.deepStrictEqual(await store.loadRoom('room_a'), makeRoom({ phase: 'LOBBY' }));
+      assert.strictEqual(await client().get(matchKey('room_a', 'match_1')), null);
+    });
+
     it('een gelijktijdige schrijfactie tussen lees en wissel wordt niet overschreven — de operatie leest opnieuw', async () => {
       // De documenten worden buiten Redis omgezet (zie SET_PHASE_LUA), dus er
       // zit per definitie een lees vóór de schrijf. Zonder compare-and-set in

@@ -254,6 +254,16 @@ return 1
  * hetzelfde script: `EXISTS` gevolgd door `SET` over twee netwerkbeurten laat
  * bij een onbekende match precies de half bijgewerkte toestand achter die #30
  * verbiedt.
+ *
+ * Dat die twee `if not …`-regels bovendien REDUNDANT zijn ten opzichte van de
+ * compare-and-set, is bekend en geen reden ze weg te halen: een verdwenen
+ * sleutel is nooit gelijk aan het verwachte document, dus zonder deze regels
+ * levert hetzelfde geval 'stale' op en komt de aanroeper via een herlezing bij
+ * dezelfde `RangeError` uit — alleen vijf pogingen later en met een fout die
+ * "er wordt te veel gelijktijdig geschreven" zegt in plaats van "die match
+ * bestaat niet". De mutatietest bij dit item bevestigt dat: het weghalen van
+ * alleen deze twee regels verandert geen enkel testresultaat. Ze staan er voor
+ * de juiste diagnose op de eerste poging.
  */
 const SET_PHASE_LUA = `
 local room = redis.call('GET', KEYS[1])
