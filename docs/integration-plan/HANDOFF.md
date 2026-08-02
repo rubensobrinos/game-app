@@ -23,6 +23,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INT-11 | PR | 🔵 open | `preset`-waarde loopt drie kanten op; het is een wire-veld |
 | INT-15 | DM + **INT-B** | 🔴 **hoog, nu beslissen** | `(roomId, tokenHash)` zou de socket-handshake onbouwbaar maken — input voor INTB-9/10 |
 | INT-16 | DM + **INT-B** | 🟠 ter akkoord | Crash-atomaire fasewissel: fase + projectie + `pausedState` in één operatie, met verwachte oude fase |
+| INT-17 | PR | 🔴 **hoog** | `GET /games/{code}/state` geeft 500 in de lobby — elke reconnect loopt hierdoor |
 | INT-12 | PD | 🔵 open | `shared/product/quick-start-preset.mjs` is stale naast een nieuwere variant |
 
 ---
@@ -587,3 +588,54 @@ INT-B bouwt het Lua-script voor `saveAcceptedAnswerAtomically`. De fasewissel kr
 er een van dezelfde vorm. Wordt dit ná dat werk besloten, dan is het een tweede
 herschrijving van atomaire code — precies wat bij INT-14 net is voorkomen door op tijd
 te melden.
+
+---
+
+## INT-17 — `GET /games/{code}/state` geeft 500 in de lobby; elke reconnect loopt hierdoor
+
+**Voor:** PR (eigenaar `snapshot-shape.mjs`). **Ernst:** hoog.
+**Bevestigd door:** DT (onafhankelijk gevonden) en INT-A (gereproduceerd).
+
+### Reproductie
+
+```
+POST /api/v1/games  { config: { preset: 'quick_start', language: 'nl' },
+                      hostParticipates: true, displayName: 'Host' }   → 201
+GET  /api/v1/games/{gameCode}/state   met de host-bearer                → 500 INTERNAL_ERROR
+```
+
+### Oorzaak
+
+`buildSnapshot` levert vóór de eerste match `matchId: null` en `matchSequence: null`.
+`validateSnapshotShape` eist `matchId` als niet-lege string en `matchSequence` als
+integer ≥ 1. De REST-laag keurt de respons daarom af en geeft 500 in plaats van een
+ongeldige snapshot door te geven — dat deel werkt zoals bedoeld. Het gat zit in de
+shape: er is geen lobby-variant.
+
+### Waarom dit zwaarder weegt dan een lobby-detail
+
+**Elke reconnect loopt door dit endpoint** (`PROTOCOL.md` §Reconnect stap 5: "Na
+verbinding vraagt client altijd een snapshot"). En de lobby is statistisch juist
+waar reconnects gebeuren: mensen wachten tot anderen joinen, telefoons vallen in
+slaap, er wordt van app gewisseld om de QR door te sturen. Het endpoint is dus
+kapot op het moment dat het het vaakst wordt aangeroepen.
+
+Succescriterium 6 uit `PRODUCT.md` — "refresh of korte netwerkuitval herstelt binnen
+5 seconden" — is in de lobby niet haalbaar zolang dit staat.
+
+### Voorstel
+
+Laat `snapshot-shape.mjs` een lobby-snapshot toe: `matchId: null` en
+`matchSequence: null` geldig wanneer `room.phase === 'LOBBY'` en er nog geen match
+is. De overige velden blijven onverkort verplicht.
+
+Alternatief dat ik afraad: de compositie een placeholder-`matchId` laten verzinnen.
+Dan liegt de snapshot over het bestaan van een match, en `snapshot-precedence`
+ordent straks op `matchSequence` — een verzonnen waarde zou daar echte schade doen.
+
+### Wat INT-A doet tot dit is opgelost
+
+De keten-test over echt verkeer pint dit gedrag **expliciet vast** met een test die
+de 500 vastlegt en een verwijzing naar dit item, inclusief de opdracht de assertie
+naar 200 om te draaien zodra de shape-fix landt. Er komt geen omweg in de
+compositie of de transportlaag, en stap 2 wordt niet groen gemeld op dit endpoint.

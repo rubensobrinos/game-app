@@ -48,6 +48,19 @@ voor dezelfde waarheid lopen gegarandeerd uit elkaar.
 genummerd item in de HANDOFF van je plan en ga verder met wat wél kan. Een
 omweg verbergt het probleem precies zolang tot het duur is.
 
+**Een verificatie is pas bewijs als het happy path ook echt gelopen heeft.**
+Twee keer op één dag ging dit mis, allebei op dezelfde manier: de negatieve
+controle slaagde omdat het positieve geval nooit had plaatsgevonden. Eerst een
+handshake-probe waarin álle verbindingen werden geweigerd — óók de geldige,
+doordat de auth verkeerd genest was — waarna "geen token in de logs" niets
+bewees. Daarna een lekcontrole waarvan de `POST /games` een 400 gaf, zodat er
+nooit een sessietoken bestond om te kunnen lekken.
+
+Assert daarom eerst dat de opzet is gelukt (`statusCode === 201`, er ís een
+token, de verbinding stáát) en pas daarna wat je wilde toetsen. Een test die
+groen wordt omdat er niets gebeurde, is erger dan geen test: hij geeft
+zekerheid zonder dekking.
+
 Zie ook: `devkit policy --json` voor machine-leesbare autonomy-limieten.
 
 ## Repo-eigen autonomy-overrides
