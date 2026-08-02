@@ -13,7 +13,7 @@ is het leesbare overzicht.
 
 ### Integratie en opslag
 
-- De Redis-adapter ondersteunt twintig van de drieëntwintig repositorymethoden;
+- De Redis-adapter ondersteunt eenentwintig van de drieëntwintig repositorymethoden;
   de resterende poort-/indexvragen staan in de INT-B-handoff.
 
 ## [2026-08-02]
@@ -22,6 +22,8 @@ is het leesbare overzicht.
 
 - Een dependencyvrije multiplayerfrontend onder `frontend/` toegevoegd, met
   route-/viewswitching, tijdsync, i18n, transportcontract en geteste mocktransport.
+- Deep links en browserimports aangesloten op de statische `/client/*`- en
+  `/shared/*`-routes; gameplay-, tussenstand- en podiummodellen toegevoegd.
 - Clientflow uitgebreid voor preview-join, bevestigde pauzeredenen en één
   hostactie per ronde.
 - UI- en integratiehandoffs toegevoegd voor de echte transportlaag en verdere
@@ -50,9 +52,14 @@ is het leesbare overzicht.
 
 - Fase-state-machine, roomcodes, snapshotprecedentie en servertijdhelpers gebouwd.
 - Room-, sessie- en matchlevenscyclus als compositielaag toegevoegd.
+- REST-, Socket.IO- en statische frontendroutes samengebracht in het
+  serverentrypoint, inclusief veilige socketopruiming en room-brede join-/leave-/
+  kickmeldingen.
 - Datamodelmodules, in-memory repository en atomaire opslagcontracten uitgevoerd.
 - Room-locators, rounds, answers en scoreboards room-scoped gemaakt.
 - Antwoord-idempotentie en one-answer-per-round in de atomaire schrijfpoort geborgd.
+- Atomaire Redis-fasewissels voor `Room.phase` en `Match.phase` gebouwd en met
+  race-, TTL- en onderbrekingsscenario's afgedekt.
 
 ### Testen en infrastructuur
 
