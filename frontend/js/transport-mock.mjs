@@ -1,0 +1,1001 @@
+// transport-mock.mjs — UI0.
+//
+// TIJDELIJKE, in-memory stand-in voor de echte `Transport` (INT-A, stap 2).
+// Dit is GEEN tweede protocolimplementatie: bij twijfel over een
+// responsvorm is `docs/multiplayer/PROTOCOL.md` leidend, niet wat hier het
+// handigst mockt. Alles hieronder draait single-process, in het geheugen van
+// één browsertab (of één Node-proces bij handmatig testen) — er is geen
+// netwerk, geen persistentie, en dus ook geen ondersteuning voor het
+// twee-browsertabs-scenario uit UI1a's Definition of Done (dat vereist de
+// echte transportlaag, zie UI-PROGRESS.md).
+//
+// Wat dit wél biedt, genoeg om UI1–UI5 lokaal te kunnen doorklikken:
+//   - één room in geheugen per `createMockTransport()`-instantie;
+//   - een vaste, korte `flags_mc`-vraagreeks opgebouwd uit `getCountryPool()`;
+//   - een fake "socket" — een interne callback-lijst per sessie, geen
+//     WebSocket — die bij elke serverfase-overgang een event afvuurt
+//     (LOBBY -> COUNTDOWN -> ROUND_ACTIVE -> ROUND_RESULT -> SCOREBOARD ->
+//     ... -> FINISHED), op dezelfde envelope-vorm als PROTOCOL.md beschrijft.
+//
+// Bewuste keuzes die UI0-scaffold.md niet dicteert (zie ook het eindrapport):
+//   - de vraagreeks is vast (niet willekeurig) en kort (5 rondes, niet de
+//     10 van FLAGS_MC_QUICK_START_DEFAULT) zodat een handmatige doorloop
+//     snel is; `config.totalRounds` van de aanroeper wordt genegeerd;
+//   - rondetijden zijn kort (enkele seconden) om hetzelfde doel te dienen —
+//     dit is geen uitspraak over de echte serverpacing;
+//   - dit bestand importeert bewust NIET uit `client/flow/`: die modules
+//     interpreteren serverevents vanuit het perspectief van de client, terwijl
+//     deze mock zelf de server-kant van het protocol naspeelt (legaliteit van
+//     acties, faseovergangen). Alleen `shared/content` en `shared/product`
+//     worden hergebruikt, zoals het voorbeeld in de opdracht ook aangeeft.
+
+import { CONTENT_VERSION, getCountryPool } from '../../shared/content/index.mjs';
+
+const RENDERER_VERSION = 'flag-renderer-1'; // zelfde placeholder-waarde als PROTOCOL.md's voorbeelden.
+const GAME_TYPE = 'flags_mc';
+const MAX_PLAYERS = 100;
+const QUESTION_COUNT = 5;
+const NAME_MAX_GRAPHEMES = 20;
+
+// `joinSource` enum uit PROTOCOL.md, §`POST /api/v1/games/join`.
+const JOIN_SOURCES = new Set(['qr', 'shared_link', 'code', 'unknown']);
+
+// Rondetiming — kort gehouden voor handmatig doorklikken, zie bovenstaande
+// documentatie. Geen protocolvereiste.
+const COUNTDOWN_MS = 1200;
+const ROUND_ACTIVE_MS = 8000;
+const ROUND_RESULT_MS = 2500;
+const SCOREBOARD_AUTO_ADVANCE_MS = 2500;
+
+// Simuleert een niet-triviale klokafwijking, zodat `fetchServerTime()` +
+// `estimateServerOffset()` ook in de mock iets zinnigs meten in plaats van
+// altijd exact 0.
+const SIMULATED_SERVER_SKEW_MS = 400;
+
+const NAME_ADJECTIVES = ['Vlugge', 'Slimme', 'Dappere', 'Rustige', 'Gouden', 'Wakkere'];
+const NAME_NOUNS = ['Vos', 'Uil', 'Leeuw', 'Reiger', 'Das', 'Havik'];
+
+// Zelfde patroon als client/flow/join-state.mjs en
+// client/flow/host-setup-state.mjs: telt grapheme clusters, niet UTF-16 code
+// units, zodat een emoji of combining character nooit doormidden wordt geknipt.
+const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+class ProtocolError extends Error {
+  constructor(code, message) {
+    super(message ?? code);
+    this.name = 'ProtocolError';
+    this.code = code;
+  }
+}
+
+/**
+ * Bouwt een nieuwe, onafhankelijke mock-`Transport`. Elke aanroep krijgt zijn
+ * eigen room in geheugen (geen module-globale state) — precies genoeg om
+ * `createGame` -> `previewInvite` -> `joinGame` -> ... binnen één pagina/
+ * proces te doorlopen.
+ *
+ * @returns {import('./transport.mjs').Transport}
+ */
+export function createMockTransport() {
+  /** @type {Room | null} */
+  let room = null;
+
+  return {
+    createGame,
+    previewInvite,
+    joinGame,
+    fetchState,
+    leaveGame,
+    fetchServerTime,
+    connect,
+  };
+
+  // ---- REST-achtige functies -------------------------------------------
+
+  async function createGame(config) {
+    const safeConfig = config !== null && typeof config === 'object' ? config : {};
+    const hostParticipates = safeConfig.hostParticipates !== false;
+    const requestedDisplayName = normalizeDisplayName(safeConfig.displayName);
+
+    room = buildRoom(safeConfig.config);
+
+    const sessionToken = randomToken();
+    const roles = hostParticipates ? ['host', 'player'] : ['host'];
+    let playerId = null;
+    let effectiveName = null;
+
+    if (hostParticipates) {
+      playerId = randomId('p');
+      effectiveName = finalizeName(requestedDisplayName);
+      addPlayer(room, playerId, effectiveName);
+    }
+
+    room.sessions.set(sessionToken, { roles, playerId, actionCache: new Map() });
+
+    return {
+      roomId: room.roomId,
+      gameCode: room.gameCode,
+      inviteId: room.inviteId,
+      joinUrl: room.joinUrl,
+      sessionToken,
+      roles,
+      playerId,
+      effectiveName,
+      state: buildSnapshot(room, sessionToken),
+    };
+  }
+
+  async function previewInvite(inviteId) {
+    if (typeof inviteId !== 'string' || !/^[A-Za-z0-9_-]+$/.test(inviteId)) {
+      throw new ProtocolError('INVITE_INVALID', `Malformed inviteId: ${String(inviteId)}`);
+    }
+    if (room === null || room.inviteId !== inviteId) {
+      throw new ProtocolError('GAME_NOT_FOUND', 'No room for this inviteId.');
+    }
+
+    return {
+      roomId: room.roomId,
+      suggestedName: generateSuggestedName(),
+      phase: room.phase,
+      locked: room.locked,
+      allowLateJoin: room.allowLateJoin,
+      playerCount: countActivePlayers(room),
+      maxPlayers: MAX_PLAYERS,
+    };
+  }
+
+  async function joinGame(request) {
+    const safeRequest = request !== null && typeof request === 'object' ? request : {};
+    validateJoinRequest(safeRequest);
+    const target = resolveRoomLocator(safeRequest);
+    if (target === null) {
+      throw new ProtocolError('GAME_NOT_FOUND', 'No room for this inviteId/gameCode.');
+    }
+    if (target.locked) {
+      throw new ProtocolError('ROOM_LOCKED', 'Room is locked.');
+    }
+    if (countActivePlayers(target) >= MAX_PLAYERS) {
+      throw new ProtocolError('GAME_FULL', 'Room is full.');
+    }
+    if (target.phase !== 'LOBBY' && !target.allowLateJoin) {
+      throw new ProtocolError('LATE_JOIN_DISABLED', 'Game already started, late join disabled.');
+    }
+
+    const playerId = randomId('p');
+    const effectiveName = finalizeName(normalizeDisplayName(safeRequest.displayName), target);
+    addPlayer(target, playerId, effectiveName);
+
+    const sessionToken = randomToken();
+    target.sessions.set(sessionToken, { roles: ['player'], playerId, actionCache: new Map() });
+
+    broadcast(target, 'room:player-changed', {
+      playerCount: countActivePlayers(target),
+      delta: { type: 'join', playerId, effectiveName },
+    });
+
+    return {
+      roomId: target.roomId,
+      gameCode: target.gameCode,
+      sessionToken,
+      roles: ['player'],
+      playerId,
+      effectiveName,
+      state: buildSnapshot(target, sessionToken),
+    };
+  }
+
+  async function fetchState(code, sessionToken) {
+    const { targetRoom, session } = requireSession(code, sessionToken);
+    return buildSnapshot(targetRoom, sessionToken, session);
+  }
+
+  async function leaveGame(code, sessionToken) {
+    const { targetRoom, session } = requireSession(code, sessionToken);
+    if (!session.roles.includes('player') || session.playerId === null) {
+      throw new ProtocolError('NOT_PLAYER', 'Session has no player role to leave with.');
+    }
+    const player = targetRoom.players.get(session.playerId);
+    if (player !== undefined) {
+      player.active = false;
+    }
+    broadcast(targetRoom, 'room:player-changed', {
+      playerCount: countActivePlayers(targetRoom),
+      delta: { type: 'leave', playerId: session.playerId },
+    });
+  }
+
+  async function fetchServerTime() {
+    return { serverTime: Date.now() + SIMULATED_SERVER_SKEW_MS };
+  }
+
+  // ---- Fake "socket" ------------------------------------------------------
+
+  function connect(sessionToken, onEvent) {
+    if (room === null || !room.sessions.has(sessionToken) || typeof onEvent !== 'function') {
+      // Geen geldige sessie om aan te koppelen: lever een inert paar functies
+      // terug in plaats van te gooien — `connect()` zelf is synchroon en
+      // heeft in het echte contract geen foutpad; elke `send()` op deze
+      // connectie faalt alsnog met TOKEN_INVALID.
+      return {
+        send: async () => {
+          throw new ProtocolError('TOKEN_INVALID', 'connect() called with an unknown sessionToken.');
+        },
+        close() {},
+      };
+    }
+
+    const listener = { onEvent };
+    room.listeners.set(sessionToken, listener);
+
+    // Zelfde gewoonte als een reconnect (PROTOCOL.md §Reconnect, punt 5): de
+    // net verbonden sessie krijgt meteen een volledige snapshot, in plaats
+    // van te wachten op de eerstvolgende faseovergang.
+    queueMicrotask(() => {
+      if (room !== null && room.listeners.get(sessionToken) === listener) {
+        emit(listener, 'room:state', buildSnapshot(room, sessionToken));
+      }
+    });
+
+    return {
+      send: (event, actionId, payload) => handleSend(sessionToken, event, actionId, payload),
+      close() {
+        if (room !== null) {
+          room.listeners.delete(sessionToken);
+        }
+      },
+    };
+  }
+
+  async function handleSend(sessionToken, event, actionId, payload) {
+    if (room === null) {
+      throw new ProtocolError('GAME_NOT_FOUND', 'No room exists.');
+    }
+    const session = room.sessions.get(sessionToken);
+    if (session === undefined) {
+      throw new ProtocolError('TOKEN_INVALID', 'Unknown sessionToken.');
+    }
+
+    // PROTOCOL.md basisregel 5 + §Event-envelope "Ack": een retry met
+    // dezelfde `actionId` retourneert dezelfde logische ack (of dezelfde
+    // fout) zonder de mutatie opnieuw uit te voeren. Idempotentie is
+    // gekoppeld aan een matchende `actionId`, niet aan payload-gelijkheid —
+    // een nieuwe `actionId` met dezelfde inhoud voert de handler gewoon
+    // opnieuw uit (en kan dus terecht op bv. ALREADY_ANSWERED stuiten).
+    const cacheKey = typeof actionId === 'string' && actionId.length > 0 ? actionId : null;
+    if (cacheKey !== null) {
+      const cached = session.actionCache.get(cacheKey);
+      if (cached !== undefined) {
+        if (cached.ok) {
+          return cached.ack;
+        }
+        throw cached.error;
+      }
+    }
+
+    try {
+      const ack = await runAction();
+      if (cacheKey !== null) {
+        session.actionCache.set(cacheKey, { ok: true, ack });
+      }
+      return ack;
+    } catch (error) {
+      if (cacheKey !== null) {
+        session.actionCache.set(cacheKey, { ok: false, error });
+      }
+      throw error;
+    }
+
+    async function runAction() {
+      const safePayload = payload !== null && typeof payload === 'object' ? payload : {};
+      const isHost = session.roles.includes('host');
+      const isPlayer = session.roles.includes('player') && session.playerId !== null;
+
+      switch (event) {
+        case 'game:start':
+          requireRole(isHost, 'NOT_HOST');
+          return ackWith(startGame(room));
+
+        case 'game:pause':
+          requireRole(isHost, 'NOT_HOST');
+          return ackWith(pauseGame(room, safePayload));
+
+        case 'game:resume':
+          requireRole(isHost, 'NOT_HOST');
+          return ackWith(resumeGame(room));
+
+        case 'game:next':
+          requireRole(isHost, 'NOT_HOST');
+          return ackWith(advanceOnHostCue(room));
+
+        case 'game:lock':
+          requireRole(isHost, 'NOT_HOST');
+          return ackWith(setLocked(room, safePayload.locked === true));
+
+        case 'game:kick':
+          requireRole(isHost, 'NOT_HOST');
+          return ackWith(kickPlayer(room, safePayload.playerId));
+
+        case 'game:finish':
+          requireRole(isHost, 'NOT_HOST');
+          return ackWith(finishGame(room));
+
+        case 'game:rematch':
+          requireRole(isHost, 'NOT_HOST');
+          return ackWith(rematch(room));
+
+        case 'player:rename':
+          requireRole(isPlayer, 'NOT_PLAYER');
+          return ackWith(renamePlayer(room, session.playerId, safePayload.displayName));
+
+        case 'player:leave':
+          requireRole(isPlayer, 'NOT_PLAYER');
+          await leaveGame(room.gameCode, sessionToken);
+          return ackWith({});
+
+        case 'round:answer':
+          requireRole(isPlayer, 'NOT_PLAYER');
+          return ackWith(submitAnswer(room, session.playerId, safePayload));
+
+        case 'share:opened':
+          // Analytics-only, mag falen zonder UX-effect (PROTOCOL.md) — hier
+          // altijd een no-op succes.
+          return ackWith({});
+
+        default:
+          throw new ProtocolError('UNSUPPORTED_EVENT', `Unknown client event: ${String(event)}`);
+      }
+
+      function ackWith(resultPayload) {
+        return { actionId, ok: true, serverTime: Date.now(), payload: resultPayload ?? {} };
+      }
+    }
+  }
+
+  // ---- Room-opbouw en helpers ---------------------------------------------
+
+  function buildRoom(config) {
+    const safeRoomConfig = config !== null && typeof config === 'object' ? config : {};
+    const gameCode = randomGameCode();
+    const inviteId = randomInviteId();
+    return {
+      roomId: randomId('room'),
+      gameCode,
+      inviteId,
+      joinUrl: buildJoinUrl(inviteId),
+      phase: 'LOBBY',
+      locked: false,
+      allowLateJoin: safeRoomConfig.allowLateJoin !== false,
+      pacing: safeRoomConfig.pacing === 'host' ? 'host' : 'auto',
+      config: safeRoomConfig,
+      matchId: randomId('match'),
+      matchSequence: 1,
+      pausedState: null,
+      players: new Map(),
+      sessions: new Map(),
+      listeners: new Map(),
+      questions: buildQuestionSequence(),
+      roundIndex: -1,
+      currentRound: null,
+      pendingTimers: new Set(),
+    };
+  }
+
+  function resolveRoomLocator(request) {
+    if (room === null) {
+      return null;
+    }
+    if (typeof request.inviteId === 'string' && request.inviteId === room.inviteId) {
+      return room;
+    }
+    if (typeof request.gameCode === 'string' && request.gameCode === room.gameCode) {
+      return room;
+    }
+    return null;
+  }
+
+  function requireSession(code, sessionToken) {
+    if (room === null || room.gameCode !== code) {
+      throw new ProtocolError('GAME_NOT_FOUND', 'No room for this code.');
+    }
+    const session = room.sessions.get(sessionToken);
+    if (session === undefined) {
+      throw new ProtocolError('TOKEN_INVALID', 'Unknown sessionToken.');
+    }
+    return { targetRoom: room, session };
+  }
+
+  function requireRole(hasRole, code) {
+    if (!hasRole) {
+      throw new ProtocolError(code, `Action not permitted for this session (${code}).`);
+    }
+  }
+
+  // ---- Rondelogica ----------------------------------------------------------
+
+  function startGame(target) {
+    if (target.phase !== 'LOBBY') {
+      throw new ProtocolError('INVALID_PHASE', 'game:start requires phase LOBBY.');
+    }
+    if (countActivePlayers(target) < 1) {
+      throw new ProtocolError('INVALID_PHASE', 'game:start requires at least one player.');
+    }
+
+    target.phase = 'COUNTDOWN';
+    const countdownEndsAt = Date.now() + COUNTDOWN_MS;
+    broadcast(target, 'game:started', {
+      matchId: target.matchId,
+      totalRounds: target.questions.length,
+      countdownEndsAt,
+    });
+
+    scheduleTimer(target, COUNTDOWN_MS, () => startRound(target, 0));
+    return {};
+  }
+
+  function startRound(target, index) {
+    if (target.phase === 'FINISHED') {
+      return;
+    }
+    const question = target.questions[index];
+    if (question === undefined) {
+      return finishGame(target);
+    }
+
+    target.roundIndex = index;
+    for (const player of target.players.values()) {
+      player.answeredCurrentRound = false;
+    }
+
+    const startsAt = Date.now() + 250;
+    const endsAt = startsAt + ROUND_ACTIVE_MS;
+    target.currentRound = {
+      roundId: `round_${String(index + 1).padStart(2, '0')}`,
+      roundNumber: index + 1,
+      totalRounds: target.questions.length,
+      question,
+      startsAt,
+      endsAt,
+      answers: new Map(),
+    };
+    target.phase = 'ROUND_ACTIVE';
+
+    broadcast(target, 'round:started', {
+      matchId: target.matchId,
+      roundId: target.currentRound.roundId,
+      roundNumber: target.currentRound.roundNumber,
+      totalRounds: target.currentRound.totalRounds,
+      gameType: GAME_TYPE,
+      contentVersion: CONTENT_VERSION,
+      rendererVersion: RENDERER_VERSION,
+      question,
+      startsAt,
+      endsAt,
+    });
+
+    scheduleTimer(target, endsAt - Date.now(), () => endRound(target, index));
+  }
+
+  function submitAnswer(target, playerId, payload) {
+    if (target.phase !== 'ROUND_ACTIVE' || target.currentRound === null) {
+      throw new ProtocolError('ROUND_NOT_ACTIVE', 'No active round to answer.');
+    }
+    if (typeof payload.roundId !== 'string' || payload.roundId !== target.currentRound.roundId) {
+      throw new ProtocolError('INVALID_ANSWER_FORMAT', 'roundId does not match the active round.');
+    }
+    const player = target.players.get(playerId);
+    if (player === undefined || !player.active) {
+      throw new ProtocolError('PLAYER_NOT_ELIGIBLE', 'Player is not part of this round.');
+    }
+    const currentRoundNumber = target.roundIndex + 1; // 1-based, zie eligibleFromRound.
+    if (currentRoundNumber < player.eligibleFromRound) {
+      throw new ProtocolError('PLAYER_NOT_ELIGIBLE', 'Player joined after this round started.');
+    }
+    if (player.answeredCurrentRound) {
+      throw new ProtocolError('ALREADY_ANSWERED', 'Player already answered this round.');
+    }
+    if (payload.answer === null || typeof payload.answer !== 'object' || typeof payload.answer.optionId !== 'string') {
+      throw new ProtocolError('INVALID_ANSWER_FORMAT', 'flags_mc expects { optionId }.');
+    }
+
+    player.answeredCurrentRound = true;
+    target.currentRound.answers.set(playerId, payload.answer.optionId);
+
+    const isCorrect = payload.answer.optionId === target.currentRound.question.targetIso2;
+    if (isCorrect) {
+      player.score += 100;
+    }
+
+    emitToSession(target, playerId, 'round:answer-accepted', { roundId: target.currentRound.roundId });
+    broadcast(target, 'round:progress', {
+      answeredCount: target.currentRound.answers.size,
+      eligiblePlayerCount: countActivePlayers(target),
+    });
+
+    return { roundId: target.currentRound.roundId };
+  }
+
+  function endRound(target, index) {
+    if (target.phase !== 'ROUND_ACTIVE' || target.currentRound === null) {
+      return;
+    }
+    const { question, answers, roundId } = target.currentRound;
+    const correctAnswer = { optionId: question.targetIso2 };
+    const distribution = buildDistribution(question.optionIso2s, answers);
+
+    target.phase = 'ROUND_RESULT';
+    broadcastPersonalized(target, 'round:ended', (playerId) => ({
+      roundId,
+      correctAnswer,
+      distribution,
+      selfCorrect: playerId !== null && answers.get(playerId) === correctAnswer.optionId,
+      selfScore: playerId !== null ? (target.players.get(playerId)?.score ?? null) : null,
+    }));
+
+    scheduleTimer(target, ROUND_RESULT_MS, () => showScoreboard(target));
+  }
+
+  function showScoreboard(target) {
+    if (target.phase !== 'ROUND_RESULT') {
+      return;
+    }
+    target.phase = 'SCOREBOARD';
+    const ranked = rankPlayers(target);
+    broadcastPersonalized(target, 'scoreboard:updated', (playerId) => ({
+      top: ranked.slice(0, 5).map(toScoreboardEntry),
+      self: playerId !== null ? toScoreboardEntry(findRanked(ranked, playerId)) : null,
+    }));
+
+    if (target.pacing === 'auto') {
+      scheduleTimer(target, SCOREBOARD_AUTO_ADVANCE_MS, () => advanceFromScoreboard(target));
+    }
+    // pacing === 'host': wacht op een expliciete `game:next` (zie advanceOnHostCue).
+  }
+
+  function advanceOnHostCue(target) {
+    if (target.phase !== 'SCOREBOARD') {
+      throw new ProtocolError('INVALID_PHASE', 'game:next requires phase SCOREBOARD.');
+    }
+    advanceFromScoreboard(target);
+    return {};
+  }
+
+  function advanceFromScoreboard(target) {
+    if (target.phase !== 'SCOREBOARD') {
+      return;
+    }
+    const nextIndex = target.roundIndex + 1;
+    if (nextIndex < target.questions.length) {
+      startRound(target, nextIndex);
+    } else {
+      finishGame(target);
+    }
+  }
+
+  function finishGame(target) {
+    target.phase = 'FINISHED';
+    target.currentRound = null;
+    const ranked = rankPlayers(target);
+    broadcastPersonalized(target, 'game:finished', (playerId) => ({
+      podium: ranked.slice(0, 5).map(toScoreboardEntry),
+      self: playerId !== null ? toScoreboardEntry(findRanked(ranked, playerId)) : null,
+    }));
+    return {};
+  }
+
+  function pauseGame(target, payload) {
+    const pausableActivePhases = new Set(['COUNTDOWN', 'ROUND_ACTIVE', 'ROUND_RESULT', 'SCOREBOARD']);
+    if (!pausableActivePhases.has(target.phase)) {
+      throw new ProtocolError('INVALID_PHASE', 'game:pause requires an active game.');
+    }
+    const remainingMs =
+      target.phase === 'ROUND_ACTIVE' && target.currentRound !== null
+        ? Math.max(0, target.currentRound.endsAt - Date.now())
+        : null;
+    target.pausedState = {
+      previousPhase: target.phase,
+      remainingMs,
+      reason: typeof payload.reason === 'string' ? payload.reason : 'host',
+      pausedAt: Date.now(),
+    };
+    target.phase = 'PAUSED';
+    clearTimers(target);
+    broadcast(target, 'game:paused', target.pausedState);
+    return {};
+  }
+
+  function resumeGame(target) {
+    if (target.phase !== 'PAUSED' || target.pausedState === null) {
+      throw new ProtocolError('INVALID_PHASE', 'game:resume requires phase PAUSED.');
+    }
+    const { previousPhase, remainingMs } = target.pausedState;
+    target.phase = previousPhase;
+    target.pausedState = null;
+
+    broadcast(target, 'game:resumed', { phase: previousPhase });
+
+    if (previousPhase === 'ROUND_ACTIVE' && target.currentRound !== null) {
+      const newEndsAt = Date.now() + (remainingMs ?? ROUND_ACTIVE_MS);
+      target.currentRound.endsAt = newEndsAt;
+      scheduleTimer(target, newEndsAt - Date.now(), () => endRound(target, target.roundIndex));
+    } else if (previousPhase === 'COUNTDOWN') {
+      scheduleTimer(target, COUNTDOWN_MS, () => startRound(target, 0));
+    } else if (previousPhase === 'SCOREBOARD' && target.pacing === 'auto') {
+      scheduleTimer(target, SCOREBOARD_AUTO_ADVANCE_MS, () => advanceFromScoreboard(target));
+    }
+    return {};
+  }
+
+  function setLocked(target, locked) {
+    target.locked = locked;
+    broadcast(target, 'room:lock-changed', { locked });
+    return {};
+  }
+
+  function kickPlayer(target, playerId) {
+    if (typeof playerId !== 'string' || !target.players.has(playerId)) {
+      throw new ProtocolError('INVALID_ANSWER_FORMAT', 'Unknown playerId.');
+    }
+    const player = target.players.get(playerId);
+    player.active = false;
+    for (const [sessionToken, session] of target.sessions) {
+      if (session.playerId === playerId) {
+        emitToSessionToken(target, sessionToken, 'session:kicked', { reason: 'host' });
+      }
+    }
+    broadcast(target, 'room:player-changed', {
+      playerCount: countActivePlayers(target),
+      delta: { type: 'kick', playerId },
+    });
+    return {};
+  }
+
+  function renamePlayer(target, playerId, displayName) {
+    if (target.phase !== 'LOBBY') {
+      throw new ProtocolError('INVALID_PHASE', 'player:rename only allowed in LOBBY.');
+    }
+    const player = target.players.get(playerId);
+    if (player === undefined) {
+      throw new ProtocolError('NOT_PLAYER', 'Unknown player.');
+    }
+    if (player.hasRenamed) {
+      throw new ProtocolError('INVALID_PHASE', 'player:rename allowed at most once.');
+    }
+    player.effectiveName = finalizeName(normalizeDisplayName(displayName), target);
+    player.hasRenamed = true;
+    broadcast(target, 'room:player-changed', {
+      playerCount: countActivePlayers(target),
+      delta: { type: 'rename', playerId, effectiveName: player.effectiveName },
+    });
+    return { effectiveName: player.effectiveName };
+  }
+
+  function rematch(target) {
+    if (target.phase !== 'FINISHED') {
+      throw new ProtocolError('INVALID_PHASE', 'game:rematch requires phase FINISHED.');
+    }
+    target.phase = 'LOBBY';
+    target.matchId = randomId('match');
+    target.matchSequence += 1;
+    target.roundIndex = -1;
+    target.currentRound = null;
+    for (const player of target.players.values()) {
+      player.score = 0;
+      player.answeredCurrentRound = false;
+    }
+    broadcast(target, 'game:rematch-started', { matchId: target.matchId });
+    return {};
+  }
+
+  // ---- Broadcast / events -------------------------------------------------
+
+  function broadcast(target, event, payload) {
+    for (const listener of target.listeners.values()) {
+      emit(listener, event, payload);
+    }
+  }
+
+  function broadcastPersonalized(target, event, buildPayloadForPlayerId) {
+    for (const [sessionToken, listener] of target.listeners) {
+      const session = target.sessions.get(sessionToken);
+      const playerId = session?.playerId ?? null;
+      emit(listener, event, buildPayloadForPlayerId(playerId));
+    }
+  }
+
+  function emitToSession(target, playerId, event, payload) {
+    for (const [sessionToken, session] of target.sessions) {
+      if (session.playerId === playerId) {
+        emitToSessionToken(target, sessionToken, event, payload);
+      }
+    }
+  }
+
+  function emitToSessionToken(target, sessionToken, event, payload) {
+    const listener = target.listeners.get(sessionToken);
+    if (listener !== undefined) {
+      emit(listener, event, payload);
+    }
+  }
+
+  function emit(listener, event, payload) {
+    listener.onEvent({
+      event,
+      eventId: randomId('evt'),
+      serverTime: Date.now(),
+      payload,
+    });
+  }
+
+  function scheduleTimer(target, delayMs, callback) {
+    const handle = setTimeout(() => {
+      target.pendingTimers.delete(handle);
+      callback();
+    }, Math.max(0, delayMs));
+    target.pendingTimers.add(handle);
+  }
+
+  function clearTimers(target) {
+    for (const handle of target.pendingTimers) {
+      clearTimeout(handle);
+    }
+    target.pendingTimers.clear();
+  }
+}
+
+// ---- Snapshot-opbouw (State-snapshot, PROTOCOL.md) -------------------------
+
+function buildSnapshot(room, sessionToken, sessionArg) {
+  const session = sessionArg ?? room.sessions.get(sessionToken);
+  const player = session?.playerId != null ? room.players.get(session.playerId) : undefined;
+  const ranked = rankPlayers(room);
+
+  return {
+    protocolVersion: 'v1',
+    serverTime: Date.now(),
+    room: {
+      code: room.gameCode,
+      phase: room.phase,
+      locked: room.locked,
+      allowLateJoin: room.allowLateJoin,
+      joinUrl: room.joinUrl,
+      playerCount: countActivePlayers(room),
+      config: room.config,
+      matchId: room.matchId,
+      matchSequence: room.matchSequence,
+      pausedState: room.pausedState,
+    },
+    self:
+      session === undefined
+        ? null
+        : {
+            roles: session.roles,
+            playerId: session.playerId,
+            effectiveName: player?.effectiveName ?? null,
+            score: player?.score ?? 0,
+            position: player !== undefined ? findRankIndex(ranked, session.playerId) + 1 : null,
+            answeredCurrentRound: player?.answeredCurrentRound ?? false,
+            eligibleFromRound: player?.eligibleFromRound ?? 1,
+          },
+    currentRound:
+      room.currentRound === null
+        ? {}
+        : {
+            roundId: room.currentRound.roundId,
+            roundNumber: room.currentRound.roundNumber,
+            totalRounds: room.currentRound.totalRounds,
+            gameType: GAME_TYPE,
+            contentVersion: CONTENT_VERSION,
+            rendererVersion: RENDERER_VERSION,
+            question: room.currentRound.question,
+            startsAt: room.currentRound.startsAt,
+            endsAt: room.currentRound.endsAt,
+          },
+    scoreboard: {
+      top: ranked.slice(0, 5).map(toScoreboardEntry),
+      self: player !== undefined ? toScoreboardEntry(findRanked(ranked, session.playerId)) : {},
+    },
+  };
+}
+
+// ---- Vraagreeks -------------------------------------------------------------
+
+function buildQuestionSequence() {
+  const pool = getCountryPool();
+  const count = Math.min(QUESTION_COUNT, pool.length);
+  const questions = [];
+
+  for (let i = 0; i < count; i += 1) {
+    const target = pool[i];
+    const distractors = [];
+    for (let offset = 1; distractors.length < 3 && offset < pool.length; offset += 1) {
+      const candidate = pool[(i + offset) % pool.length];
+      if (candidate.iso2 !== target.iso2) {
+        distractors.push(candidate);
+      }
+    }
+    const optionIso2s = shuffle([target, ...distractors].map((entry) => entry.iso2.toUpperCase()));
+    questions.push({ targetIso2: target.iso2.toUpperCase(), optionIso2s });
+  }
+
+  return questions;
+}
+
+function shuffle(array) {
+  const result = array.slice();
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+// PROTOCOL.md, §`POST /api/v1/games/join`: het request draagt "precies één
+// locator" (inviteId óf gameCode) en een optionele `joinSource` uit een vaste
+// enum. Geen van beide velden wordt vandaag door een apart wire-foutcode voor
+// "malformed join request" gedekt (zie §Foutcodes) — `INVITE_INVALID` is de
+// dichtstbijzijnde bestaande code binnen de join-foutcodefamilie ("Room en
+// join") die al specifiek over een verkeerd gevormde locator/joinaanvraag
+// gaat (`previewInvite()` gebruikt 'm al voor een verkeerd gevormde
+// `inviteId`), dus die wordt hier hergebruikt in plaats van een nieuwe code
+// te verzinnen.
+function validateJoinRequest(request) {
+  const inviteIdPresent = request.inviteId !== undefined && request.inviteId !== null;
+  const gameCodePresent = request.gameCode !== undefined && request.gameCode !== null;
+
+  if (inviteIdPresent && gameCodePresent) {
+    throw new ProtocolError('INVITE_INVALID', 'Provide exactly one of inviteId or gameCode, not both.');
+  }
+  if (!inviteIdPresent && !gameCodePresent) {
+    throw new ProtocolError('INVITE_INVALID', 'Provide exactly one of inviteId or gameCode.');
+  }
+  if (inviteIdPresent && typeof request.inviteId !== 'string') {
+    throw new ProtocolError('INVITE_INVALID', 'inviteId must be a string.');
+  }
+  if (gameCodePresent && typeof request.gameCode !== 'string') {
+    throw new ProtocolError('INVITE_INVALID', 'gameCode must be a string.');
+  }
+  if (request.joinSource !== undefined && !JOIN_SOURCES.has(request.joinSource)) {
+    throw new ProtocolError('INVITE_INVALID', 'joinSource must be one of qr|shared_link|code|unknown.');
+  }
+}
+
+function buildDistribution(optionIso2s, answers) {
+  const counts = new Map(optionIso2s.map((iso2) => [iso2, 0]));
+  for (const optionId of answers.values()) {
+    counts.set(optionId, (counts.get(optionId) ?? 0) + 1);
+  }
+  return optionIso2s.map((optionId) => ({ optionId, count: counts.get(optionId) ?? 0 }));
+}
+
+// ---- Spelers / scorebord ------------------------------------------------
+
+function addPlayer(room, playerId, effectiveName) {
+  room.players.set(playerId, {
+    playerId,
+    effectiveName,
+    score: 0,
+    active: true,
+    answeredCurrentRound: false,
+    hasRenamed: false,
+    eligibleFromRound: room.roundIndex < 0 ? 1 : room.roundIndex + 2,
+    joinedAt: Date.now(),
+  });
+}
+
+function countActivePlayers(room) {
+  let count = 0;
+  for (const player of room.players.values()) {
+    if (player.active) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function rankPlayers(room) {
+  return [...room.players.values()]
+    .filter((player) => player.active)
+    .sort((a, b) => b.score - a.score || a.joinedAt - b.joinedAt);
+}
+
+function findRankIndex(ranked, playerId) {
+  return ranked.findIndex((player) => player.playerId === playerId);
+}
+
+function findRanked(ranked, playerId) {
+  return ranked.find((player) => player.playerId === playerId);
+}
+
+function toScoreboardEntry(player) {
+  if (player === undefined) {
+    return {};
+  }
+  return { playerId: player.playerId, effectiveName: player.effectiveName, score: player.score };
+}
+
+// ---- Naam- en ID-generatie ------------------------------------------------
+
+function normalizeDisplayName(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.normalize('NFKC').trim();
+  return trimmed.length === 0 ? null : truncateToGraphemes(trimmed, NAME_MAX_GRAPHEMES);
+}
+
+// Zelfde patroon als client/flow/join-state.mjs en
+// client/flow/host-setup-state.mjs's `truncateToGraphemes`: telt
+// grapheme-clusters via Intl.Segmenter, niet UTF-16 code units, zodat een
+// emoji of combining character nooit doormidden wordt geknipt.
+function truncateToGraphemes(value, limit) {
+  let result = '';
+  let count = 0;
+  for (const { segment } of graphemeSegmenter.segment(value)) {
+    if (count >= limit) {
+      break;
+    }
+    result += segment;
+    count += 1;
+  }
+  return result;
+}
+
+function generateSuggestedName() {
+  const adjective = NAME_ADJECTIVES[Math.floor(Math.random() * NAME_ADJECTIVES.length)];
+  const noun = NAME_NOUNS[Math.floor(Math.random() * NAME_NOUNS.length)];
+  return `${adjective} ${noun}`;
+}
+
+// Lost botsingen met een reeds gebruikte naam in dezelfde room op door een
+// volgnummer toe te voegen — de server bepaalt de uiteindelijke, unieke naam
+// pas bij join (PROTOCOL.md, §preview-endpoint "Grenzen").
+function finalizeName(requestedName, room) {
+  const base = requestedName ?? generateSuggestedName();
+  if (room === undefined) {
+    return base;
+  }
+  const used = new Set([...room.players.values()].map((player) => player.effectiveName));
+  if (!used.has(base)) {
+    return base;
+  }
+  let suffix = 2;
+  while (used.has(`${base} ${suffix}`)) {
+    suffix += 1;
+  }
+  return `${base} ${suffix}`;
+}
+
+function randomToken() {
+  return `tok_${randomHex(24)}`;
+}
+
+function randomId(prefix) {
+  return `${prefix}_${randomHex(12)}`;
+}
+
+function randomInviteId() {
+  return randomHex(12);
+}
+
+function randomGameCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function randomHex(length) {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, length);
+  }
+  let result = '';
+  while (result.length < length) {
+    result += Math.random().toString(16).slice(2);
+  }
+  return result.slice(0, length);
+}
+
+function buildJoinUrl(inviteId) {
+  const origin =
+    typeof window !== 'undefined' && window.location !== undefined
+      ? window.location.origin
+      : 'http://localhost:8000';
+  return `${origin}/j/${inviteId}`;
+}
