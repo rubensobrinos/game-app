@@ -52,6 +52,10 @@
 		reverse_proxy game-server:3000
 	}
 
+	handle /samen {
+		reverse_proxy game-server:3000
+	}
+
 	# Assets van de multiplayer-frontend (frontend/ is de root van de
 	# game-server; deze prefixen bestaan niet in de singleplayer):
 	handle /css/* {

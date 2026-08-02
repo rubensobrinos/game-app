@@ -221,3 +221,16 @@ voor alle bestaande klassen (btn-primary/secondary, field-input, gameplay-*,
 scoreboard-*, podium-*). Gebruik bij UI2 en verder dezelfde klassen/tokens;
 schermspecifieke layout blijft van jou. Wijkt een scherm visueel af van de
 singleplayer, dan is het niet af — hoe groen de tests ook zijn.
+
+---
+
+## UI-6 — route `/samen` = multiplayer-home (producteigenaar, 2 aug 2026)
+
+De ingang naar multiplayer op play.aseso.nl wordt een kaart "🎉 Samen spelen"
+in het singleplayer-menu (gebouwd in `public-mode.js`, verborgen achter
+`SHOW_MULTIPLAYER = false` tot livegang). Die linkt naar **`/samen`**.
+Actie UI: leer `route-resolver`/`view-switcher` de route `/samen` → view
+`home` (de multiplayer-home met Snel starten + code-invoer). Actie INT-A:
+neem `/samen` op in de deep-link-fallback van de statische serving (zelfde
+behandeling als `/j/*`/`/game/*`). Caddy routeert `/samen` al naar de
+game-server.

@@ -25,6 +25,35 @@
 
   var isPublicHost = PUBLIC_HOSTNAMES.indexOf(window.location.hostname) !== -1;
 
+  /**
+   * Multiplayer-ingang. Op false tot de multiplayer live is (keten-test groen
+   * + tegencontrole + Caddy-routering actief) — dan is dit ÉÉN regel omzetten.
+   * Route: /samen → multiplayer-home (HANDOFF-UI-6).
+   */
+  var SHOW_MULTIPLAYER = false;
+
+  function addMultiplayerCard() {
+    if (!SHOW_MULTIPLAYER) return;
+    var grid = document.querySelector('#screen-menu .game-grid');
+    if (!grid || document.getElementById('btn-multiplayer')) return;
+
+    var card = document.createElement('button');
+    card.id = 'btn-multiplayer';
+    card.className = 'game-card';
+    var icon = document.createElement('span');
+    icon.className = 'game-icon';
+    icon.textContent = '🎉';
+    var name = document.createElement('span');
+    name.className = 'game-name';
+    name.textContent = 'Samen spelen';
+    card.appendChild(icon);
+    card.appendChild(name);
+    card.addEventListener('click', function () {
+      window.location.href = '/samen';
+    });
+    grid.insertBefore(card, grid.firstChild);
+  }
+
   function hideBrandGames() {
     if (!isPublicHost) return;
     BRAND_GAME_BUTTON_IDS.forEach(function (id) {
@@ -72,6 +101,7 @@
 
   function init() {
     hideBrandGames();
+    addMultiplayerCard();
     addShareButton();
   }
 
