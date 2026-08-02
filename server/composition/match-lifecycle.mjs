@@ -74,6 +74,7 @@ const CODES = Object.freeze({
   NOT_PLAYER: 'NOT_PLAYER',
   TOKEN_INVALID: 'TOKEN_INVALID',
   UNSUPPORTED_EVENT: 'UNSUPPORTED_EVENT',
+  ALREADY_ANSWERED: 'ALREADY_ANSWERED',
 });
 for (const code of Object.values(CODES)) {
   if (!ALL_ERROR_CODES.has(code)) {
@@ -161,8 +162,8 @@ function rankablePlayers(players) {
 }
 
 /**
- * De contentbron voor deze room. TIJDELIJK tot CT1: zodra `shared/content/`
- * bestaat is dit één andere import (zie de kop van ./content-source.mjs).
+ * De contentbron voor deze room: `./content-source.mjs`, dat sinds CT1 de
+ * echte pool uit `shared/content/` gebruikt (geen stub meer).
  *
  * `contentVersion` is verplicht op de context omdat besluit 21 hem canoniek en
  * ONVERANDERLIJK op `Match` maakt: een stilzwijgende default zou een verzonnen
@@ -676,13 +677,41 @@ export async function startRound(context, { roomId } = {}) {
 /**
  * Verwerkt één antwoord (`round:answer`).
  *
- * Alle beslissingen — idempotentie, sessie/speler, ronde actief,
- * speelgerechtigdheid, deadline + grace (besluit 13), reeds geantwoord,
- * geldigheid en punten — komen uit `resolveAnswer()` in
+ * Sessie/speler, ronde actief, speelgerechtigdheid, deadline + grace
+ * (besluit 13), geldigheid en punten komen uit `resolveAnswer()` in
  * server/data/answer-flow.js, dat op zijn beurt server/rules/scoring.js en
- * server/rules/validators.js gebruikt. Deze functie laadt de context, roept
- * die resolutie aan en voert de beschreven write uit via
- * `saveAcceptedAnswerAtomically` (besluit 23). Er wordt hier niets herbeslist.
+ * server/rules/validators.js gebruikt. Er wordt hier niets herbeslist.
+ *
+ * IDEMPOTENTIE IS EIGENDOM VAN DE POORT (DM13). `saveAcceptedAnswerAtomically`
+ * handhaaft het contract zelf, atomair met de write: bij dezelfde `actionId`
+ * lost hij stil op zonder te muteren, bij een ANDERE `actionId` voor een al
+ * beantwoorde ronde werpt hij een `RangeError` met `code: 'ALREADY_ANSWERED'`.
+ * Deze functie doet daarom geen voorcontrole meer — `existingAnswerForRound`
+ * en `existingActionCacheEntry` gaan bewust als `null` de resolutie in. Twee
+ * plekken die hetzelfde bewaken maken de poort niet de enige waarheid, en een
+ * controle vóór de write dekt geen gelijktijdigheid: tussen het inlezen van de
+ * context en de write past een tweede, gelijktijdige aanroep.
+ *
+ * DAAROM LEZEN NA DE WRITE, NIET CONTROLEREN ERVOOR. De ack komt uit
+ * `loadActionCacheEntry(roomId, actionId)` ná de write: bij een verse write
+ * staat daar de eigen entry, bij een replay die van de oorspronkelijke
+ * aanroep. In beide gevallen de juiste ack, zonder dat vooraf bekend hoeft te
+ * zijn welk geval het is. Dezelfde redenering geldt voor de persoonlijke
+ * velden: die komen uit het opgeslagen Answer-document en het opgeslagen
+ * Player-document, niet uit de zojuist berekende (en bij een replay
+ * weggegooide) `write`.
+ *
+ * Het `replay`-label is het enige dat niet uit de poort kán komen: zowel de
+ * stille replay-tak als een verse write geven `undefined` terug en laten
+ * dezelfde store-inhoud achter. Daarvoor staat er één lezing vóór de write —
+ * die niets bewaakt en niets afkort, alleen benoemt. Zie het handoff-item.
+ *
+ * GAT — de poort dekt één geval NIET dat de oude voorcontrole wél ving: een
+ * replay die pas ná de deadline + grace binnenkomt, of nadat de ronde niet
+ * meer ACTIVE is. `resolveAnswer()` wijst die af met `DEADLINE_PASSED` /
+ * `ROUND_NOT_ACTIVE` en de poort komt er niet meer aan te pas, terwijl
+ * PROTOCOL.md §Idempotentie "zelfde actionId: zelfde ack" belooft. Zie het
+ * handoff-item; hier bewust GEEN tweede vangnet omheen gebouwd.
  *
  * `clientAnsweredAt` is diagnostiek (GAME-RULES.md: "clienttijd wordt alleen
  * voor diagnostiek meegestuurd") en gaat NIET de scoring in; servertijd is
@@ -726,6 +755,7 @@ export async function submitAnswer(context, {
     return fail(CODES.TOKEN_INVALID);
   }
 
+  const receivedAt = context.now();
   const resolved = resolveAnswer({
     session,
     player,
@@ -734,31 +764,57 @@ export async function submitAnswer(context, {
     round,
     answer,
     actionId,
-    receivedAt: context.now(),
+    receivedAt,
     deadlineGraceMs: room.config.deadlineGraceMs,
-    existingAnswerForRound: await context.store.loadAnswer(roomId, match.id, round.id, playerId),
-    existingActionCacheEntry: await context.store.loadActionCacheEntry(roomId, actionId),
+    // DM13: de poort bewaakt idempotentie, deze laag niet meer. Beide
+    // snelpaden in answer-flow.js krijgen daarom niets om op te vallen.
+    existingAnswerForRound: null,
+    existingActionCacheEntry: null,
   });
 
   if (!resolved.ok) {
     return fail(toWireCode(resolved.code));
   }
-  if (resolved.replay) {
-    // Zelfde actionId: zelfde ack, GEEN herverwerking en geen enkele write.
-    return succeed({ ack: resolved.ack, replay: true, clientAnsweredAt });
+
+  // LABEL, GEEN CONTROLE. Deze lezing beslist niets: ze gaat de resolutie niet
+  // in, kort niets af en houdt geen write tegen — de poort hieronder doet dat.
+  // Ze bepaalt uitsluitend hoe het resultaat HEET. Slaagt de write terwijl er
+  // al een antwoord lag, dan kan dat alleen de stille replay-tak van de poort
+  // zijn geweest (een ander actionId op een al beantwoorde ronde werpt), dus
+  // `replay` is daarmee exact af te leiden zonder de idempotentie zelf te
+  // bewaken. De poort kent geen returnwaarde die dit verklapt — zie het
+  // handoff-item; hier geen tweede vangnet, alleen een naam voor het geval.
+  const answerBeforeWrite = await context.store.loadAnswer(roomId, match.id, round.id, playerId);
+
+  try {
+    await context.store.saveAcceptedAnswerAtomically(roomId, match.id, resolved.write);
+  } catch (error) {
+    // Een andere actionId voor een al beantwoorde ronde. De poort werpt; naar
+    // buiten is dat een gewone resultaatcode, geen exception.
+    if (error !== null && typeof error === 'object' && error.code === CODES.ALREADY_ANSWERED) {
+      return fail(CODES.ALREADY_ANSWERED);
+    }
+    throw error;
   }
 
-  await context.store.saveAcceptedAnswerAtomically(roomId, match.id, resolved.write);
+  // Lezen ná de write: dit is de opgeslagen waarheid, of onze eigen write nu
+  // is geland (vers) of stil is opgelost (replay met dezelfde actionId).
+  const cached = await context.store.loadActionCacheEntry(roomId, actionId);
+  const stored = await context.store.loadAnswer(roomId, match.id, round.id, playerId);
+  const storedPlayer = await context.store.loadPlayer(roomId, playerId);
+
   return succeed({
-    ack: resolved.write.actionCacheEntry.ack,
-    replay: false,
+    ack: cached.ack,
+    // Lag er al een antwoord én slaagde de write toch, dan heeft de poort
+    // stil opgelost: dit was een replay van dezelfde actionId.
+    replay: answerBeforeWrite !== null,
     clientAnsweredAt,
     // Persoonlijke velden voor de aanroeper; NIET onderdeel van de ack, zodat
     // een replay exact dezelfde ack kan teruggeven (PROTOCOL.md §Idempotentie).
-    correct: resolved.write.answer.correct,
-    points: resolved.write.answer.points,
-    responseTimeMs: resolved.write.answer.responseTimeMs,
-    score: resolved.write.updatedPlayer.score,
+    correct: stored.correct,
+    points: stored.points,
+    responseTimeMs: stored.responseTimeMs,
+    score: storedPlayer.score,
   });
 }
 

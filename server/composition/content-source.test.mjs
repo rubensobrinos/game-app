@@ -1,12 +1,16 @@
-// Tests voor de TIJDELIJKE contentstub. Toetsen de VORM van het contract uit
-// docs/integration-plan/content-interface-request.md, niet de inhoud van de
-// pool — die verdwijnt met CT1.
+// Tests voor de contentbron van de compositielaag. Toetsen de VORM van het
+// contract uit docs/integration-plan/content-interface-request.md en de
+// bedrading naar de ECHTE pool uit `shared/content/` (CT1) — geen stub meer.
+// Over de INHOUD van de pool doet dit bestand geen uitspraken die verder gaan
+// dan het ContentEntry-contract; die inhoud is eigendom van CT.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { CONTENT_VERSION, getCountryPool, mapRoomDifficulty } from '../../shared/content/index.mjs';
 import { assertRoundShape } from '../data/types/round.js';
-import { createContentSource, normalizeDifficulty, STUB_COUNTRY_POOL } from './content-source.mjs';
+import * as contentSourceModule from './content-source.mjs';
+import { createContentSource } from './content-source.mjs';
 
 /** Deterministische PRNG (mulberry32) — geen Math.random in de tests. */
 function seededRandom(seed) {
@@ -46,11 +50,31 @@ test('contentVersion en rendererVersion zijn onveranderlijk op de bron (besluit 
   assert.equal(source.rendererVersion, 'r-9');
 });
 
-test('normalizeDifficulty vertaalt de configuratieschaal naar de poolschaal', () => {
-  assert.equal(normalizeDifficulty('normal'), 'medium');
-  assert.equal(normalizeDifficulty('normaal'), 'medium');
-  assert.equal(normalizeDifficulty('medium'), 'medium');
-  assert.equal(normalizeDifficulty('easy'), 'easy');
+test('de moeilijkheidsvertaling komt uit mapRoomDifficulty, niet uit een eigen mapping', () => {
+  // Er is geen tweede mapping meer in deze module; `normalizeDifficulty` is met
+  // CT1 verdwenen (CONTENT-POOL-INTERFACE.md §Gotcha 2).
+  assert.equal(contentSourceModule.normalizeDifficulty, undefined);
+  assert.equal(contentSourceModule.mapRoomDifficulty, mapRoomDifficulty);
+
+  // De room-difficulty "normal" landt aantoonbaar op de content-tier "medium":
+  // dezelfde poolgrootte als een expliciete "medium", en dat is exact het
+  // aantal medium-entries in de echte pool.
+  const mediumEntries = getCountryPool().filter((entry) => entry.difficulty === 'medium').length;
+  assert.equal(makeSource({ difficulty: 'normal' }).poolSize('flags_mc'), mediumEntries);
+  assert.equal(makeSource({ difficulty: 'medium' }).poolSize('flags_mc'), mediumEntries);
+  assert.equal(
+    makeSource({ difficulty: 'easy' }).poolSize('flags_mc'),
+    getCountryPool().filter((entry) => entry.difficulty === 'easy').length,
+  );
+  // Onbekende waarden worden niet stil doorgemapt maar geworpen — door
+  // shared/content, niet door een eigen controle hier.
+  assert.throws(() => makeSource({ difficulty: 'normaal' }), RangeError);
+});
+
+test('CONTENT_VERSION komt ongewijzigd uit shared/content door', () => {
+  assert.equal(contentSourceModule.CONTENT_VERSION, CONTENT_VERSION);
+  // Geen stille default: besluit 21 wil dat de samenstelwortel de versie pint.
+  assert.equal(makeSource().contentVersion, 'stub-content-1');
 });
 
 test('alleen flags_mc is gevuld; de andere Golf 1-vormen geven poolSize 0', () => {
@@ -118,10 +142,16 @@ test('een andere seed levert een andere vraag op; dezelfde seed dezelfde', () =>
   assert.notDeepEqual(a, c);
 });
 
-test('de pool volgt de ContentEntry-vorm uit CONTENT-POOL-INTERFACE.md', () => {
-  const codes = new Set(STUB_COUNTRY_POOL.map((entry) => entry.iso2));
-  assert.equal(codes.size, STUB_COUNTRY_POOL.length, 'iso2 moet uniek zijn over de hele pool');
-  for (const entry of STUB_COUNTRY_POOL) {
+test('de echte pool volgt de ContentEntry-vorm uit CONTENT-POOL-INTERFACE.md', () => {
+  const pool = getCountryPool();
+  // Eigenschappen van de ECHTE pool, geen stubinhoud: diep bevroren (muteren
+  // kan een lopende match nooit stil beïnvloeden) en unieke iso2-sleutels.
+  assert.ok(Object.isFrozen(pool));
+  assert.ok(Object.isFrozen(pool[0]));
+  assert.ok(pool.length > 200, 'de volledige landenpool, niet een handvol stubentries');
+  const codes = new Set(pool.map((entry) => entry.iso2));
+  assert.equal(codes.size, pool.length, 'iso2 moet uniek zijn over de hele pool');
+  for (const entry of pool) {
     assert.match(entry.iso2, /^[a-z]{2}$/);
     assert.ok(['easy', 'medium', 'hard', 'extreme'].includes(entry.difficulty));
     assert.equal(typeof entry.continent, 'string');

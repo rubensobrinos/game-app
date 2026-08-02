@@ -690,6 +690,74 @@ test('matrixrij 12: nieuwe actionId met GEwijzigde inhoud geeft ALREADY_ANSWERED
   assert.equal(stored.actionId, 'act_fout');
 });
 
+test('matrixrij 12: de ack komt ná de write uit de actioncache van de poort, niet uit een voorcontrole', async () => {
+  const harness = makeHarness();
+  const { context, store, clock } = harness;
+  const { roomId, players } = await seedRoom(harness, { extraPlayers: 1 });
+  const started = await startMatch(context, { roomId });
+
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  const round = await startRound(context, { roomId });
+  const doc = await loadRoundDoc(harness, roomId, started.value.matchId, round.value.roundId);
+
+  // Instrumentatie op de poort: legt de VOLGORDE vast waarin de compositie hem
+  // raadpleegt. Sinds DM13 mag de actioncache pas ná de atomaire write worden
+  // gelezen — een leesactie ervóór zou een voorcontrole zijn.
+  const calls = [];
+  const realLoadActionCacheEntry = store.loadActionCacheEntry;
+  const realSave = store.saveAcceptedAnswerAtomically;
+  store.loadActionCacheEntry = async (...args) => {
+    calls.push('loadActionCacheEntry');
+    return realLoadActionCacheEntry(...args);
+  };
+  store.saveAcceptedAnswerAtomically = async (...args) => {
+    calls.push('saveAcceptedAnswerAtomically');
+    return realSave(...args);
+  };
+
+  clock.advance(1000);
+  const first = await submitAnswer(context, {
+    roomId, playerId: players[0].playerId, roundId: doc.id,
+    answer: { optionId: doc.correctAnswer.optionId }, actionId: 'act_cache',
+  });
+  assert.equal(first.ok, true, JSON.stringify(first));
+  assert.equal(first.value.replay, false);
+  assert.deepEqual(calls, ['saveAcceptedAnswerAtomically', 'loadActionCacheEntry']);
+
+  // De ack die de aanroeper kreeg staat letterlijk zo in de actioncache.
+  const entry = await realLoadActionCacheEntry(roomId, 'act_cache');
+  assert.deepEqual(entry.ack, first.value.ack);
+
+  calls.length = 0;
+  clock.advance(2500);
+  const replay = await submitAnswer(context, {
+    roomId, playerId: players[0].playerId, roundId: doc.id,
+    answer: { optionId: doc.correctAnswer.optionId }, actionId: 'act_cache',
+  });
+  assert.equal(replay.ok, true, JSON.stringify(replay));
+  assert.equal(replay.value.replay, true);
+  assert.deepEqual(replay.value.ack, first.value.ack, 'een replay geeft exact dezelfde ack');
+  assert.deepEqual(calls, ['saveAcceptedAnswerAtomically', 'loadActionCacheEntry']);
+  // De poort loste stil op: de opgeslagen entry is nog steeds die van de
+  // oorspronkelijke aanroep en de persoonlijke velden komen uit de store.
+  assert.deepEqual(await realLoadActionCacheEntry(roomId, 'act_cache'), entry);
+  assert.equal(replay.value.points, first.value.points);
+  assert.equal(replay.value.responseTimeMs, first.value.responseTimeMs);
+  assert.equal(replay.value.score, first.value.score);
+
+  // Herkomstbewijs: een gemanipuleerde actioncache verandert de ack die de
+  // aanroeper terugkrijgt — hij wordt dus daaruit gelezen en niet herberekend.
+  store.loadActionCacheEntry = async () => ({ actionId: 'act_cache', ack: { roundId: 'uit-de-actioncache' } });
+  const spoofed = await submitAnswer(context, {
+    roomId, playerId: players[0].playerId, roundId: doc.id,
+    answer: { optionId: doc.correctAnswer.optionId }, actionId: 'act_cache',
+  });
+  assert.deepEqual(spoofed.value.ack, { roundId: 'uit-de-actioncache' });
+
+  store.loadActionCacheEntry = realLoadActionCacheEntry;
+  store.saveAcceptedAnswerAtomically = realSave;
+});
+
 // ─── Matrixrij 14 — snapshot lekt nooit correctAnswer ───────────────────────
 
 test('matrixrij 14: snapshot van een actieve ronde bevat op geen enkel niveau correctAnswer', async () => {
