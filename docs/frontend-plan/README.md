@@ -6,7 +6,7 @@ prefix `UI`. Dit document zet die opdracht om in kleinere, uitvoerbare stappen e
 verandert er verder niets aan.
 
 Zie [`UI-PROGRESS.md`](UI-PROGRESS.md) voor de voortgang per scherm en
-`HANDOFF-UI.md` (aangemaakt zodra het eerste gat zich voordoet) voor
+[`HANDOFF-UI.md`](HANDOFF-UI.md) voor
 contractvragen aan andere eigenaren.
 
 ## Uitgangspunten

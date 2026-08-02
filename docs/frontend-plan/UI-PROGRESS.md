@@ -27,9 +27,16 @@ Bijgewerkt: 2026-08-02. Legenda (vast, uit `UI1-multiplayer-ui.md`):
 - [ ] UI0 uitvoeren: scaffold + mock-transportlaag.
 - [ ] UI1–UI5 uitvoeren, elk handmatig geverifieerd tegen de mock (en later de
       echte server).
-- [ ] Afstemmen met INT-A over het echte aansluitpunt zodra stap 2 er is
-      (`docs/integration-plan/HANDOFF.md`); mock-transportlaag vervangen.
+- [x] UI-1 ingediend bij INT-A (`HANDOFF-UI.md`): bevestig het
+      transport-interfacecontract vóórdat er verder tegen gebouwd wordt.
+      **🔵 open, wacht op antwoord.**
+- [ ] Afstemmen met INT-A over het echte aansluitpunt zodra stap 2 er is en
+      UI-1 beantwoord is; mock-transportlaag vervangen (één import-wijziging
+      in `frontend/js/app.mjs`, mits UI-1 akkoord is).
 - [ ] Definition of done UI1a: twee browsertabs spelen een volledige match.
+- [ ] **Herinnering voor UI2:** QR-vendorkeuze (bibliotheek, licentie,
+      herkomst) expliciet melden zodra UI2 wordt uitgevoerd — niet alleen in
+      de prompt laten staan.
 
 ## Bekende blockers
 
