@@ -51,6 +51,15 @@
  * sleutels als waarden ín een hash; ze krijgen dezelfde envelop, want een
  * `Session`-vorm kan net zo goed veranderen als een `Room`-vorm en een tweede
  * serialisatiemechanisme naast dit ene is een gegarandeerde inconsistentie.
+ *
+ * `session-token-index` is de WAARDE onder `session:token:{tokenHash}`
+ * (BESLUIT-INTB-locators-en-sessieindex.md, deel B): het paar
+ * `{ roomId, sessionId }` en verder niets. Hij staat hier en niet als kale
+ * string omdat de kop van dit bestand dat zelf voorschrijft — "indexes … mogen
+ * wél Redis-structuren gebruiken; de wáárden daarin zijn opnieuw enveloppen uit
+ * dit bestand". `room:code:{code}` en `room:invite:{inviteHash}` dragen een
+ * kale `roomId` en zijn daarmee geen tegenvoorbeeld: één ondoorzichtige string
+ * heeft geen vorm die kan verschuiven, een paar wél.
  */
 export const DOCUMENT_TYPES = Object.freeze([
   'room',
@@ -60,6 +69,7 @@ export const DOCUMENT_TYPES = Object.freeze([
   'player',
   'answer',
   'action-cache-entry',
+  'session-token-index',
 ]);
 
 /**
@@ -79,6 +89,7 @@ export const CURRENT_SCHEMA_VERSIONS = Object.freeze({
   player: 1,
   answer: 1,
   'action-cache-entry': 1,
+  'session-token-index': 1,
 });
 
 /**

@@ -31,12 +31,13 @@
 //    staan: het bewijst dat de lezers op de sleutels uit `redis-keys.js` kijken,
 //    onafhankelijk van wat het Lua-script daar neerzet.
 //
-//    `loadSessionByTokenHash` (DM14/§10) is tijdens INTB2b aan de poort
-//    toegevoegd en is een andersoortige blokkade: er bestaat geen Redis-sleutel
-//    voor een tokenHash. De conformance-suite kent die methode nog niet, dus hij
-//    veroorzaakt daar geen rood — alleen `assertImplementsDataStore` ziet hem, en
-//    die slaagt omdat de stub een functie is. Zie het blok "bewust niet
-//    geïmplementeerd" onderaan.
+//    `loadSessionByTokenHash` (DM14/§10) was tijdens INTB2b een andersoortige
+//    blokkade: er bestond geen Redis-sleutel voor een tokenHash, en de suite
+//    kende de methode nog niet, dus hij veroorzaakte daar geen rood — alleen
+//    `assertImplementsDataStore` zag hem, en die slaagde omdat de stub een
+//    functie is. `sessionTokenLookupKey` bestaat inmiddels en INTB2f heeft hem
+//    gebouwd; de conformance-suite legt zijn gedrag nu vast (blok `Session`) en
+//    sectie 4c hieronder de sleutel, de TTL-koppeling en de rotatie-opruiming.
 //
 // TESTINSTANTIE: uitsluitend `redis://127.0.0.1:6380` via `test-redis.mjs`.
 // Anders dan bij INTB2a SCHRIJVEN deze tests wél, dus draait alles in de
@@ -56,7 +57,7 @@
 import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { assertImplementsDataStore } from '../../repository.js';
+import { DATA_STORE_METHOD_NAMES, assertImplementsDataStore } from '../../repository.js';
 import {
   actionCacheKey,
   answersKey,
@@ -69,13 +70,14 @@ import {
   roomsActiveKey,
   roundKey,
   scoreboardKey,
+  sessionTokenLookupKey,
 } from '../../redis-keys.js';
 import { ROOM_TTL_SECONDS } from '../../ttl.js';
 import { assertAnswerShape } from '../../types/answer.js';
 import { runDataStoreConformance } from '../data-store-conformance.mjs';
 import { createRedisConnection } from './connection.mjs';
 import { encodeDocument } from './documents.mjs';
-import { createRedisDataStore, NotImplementedError, UNIMPLEMENTED_METHODS } from './data-store.mjs';
+import { createRedisDataStore, UNIMPLEMENTED_METHODS } from './data-store.mjs';
 import { TEST_REDIS_DATABASE, acquireRedisTestLock, probeTestRedis, testConnectionConfig } from './test-redis.mjs';
 
 // Het slot vóór de eerste verbinding: zie de noot in de kop.
@@ -254,11 +256,16 @@ if (!probe.ok) {
       );
     });
 
-    it('de code-index bevat het roomId en de room staat in rooms:active', async () => {
+    it('saveRoom zet de room in rooms:active en raakt GEEN lookup-index aan (INTB-11)', async () => {
+      // De conformance-suite legt het waarneembare gedrag vast (`loadRoomByCode`
+      // vindt niets na een `saveRoom` zonder claim). Hier staat de sleutel zelf:
+      // een implementatie die de index wél schrijft maar hem daarna toevallig
+      // ook weer opruimt, zou daar doorheen komen en hier niet.
       await fresh();
       await store.saveRoom(makeRoom());
 
-      assert.strictEqual(await client().get(roomCodeLookupKey('AAA111')), 'room_a');
+      assert.strictEqual(await client().get(roomCodeLookupKey('AAA111')), null, 'saveRoom is geen schrijver van de code-index');
+      assert.strictEqual(await client().get(roomInviteLookupKey('invitehash_a')), null);
       assert.ok(await client().sIsMember(roomsActiveKey(), 'room_a'));
     });
 
@@ -294,12 +301,17 @@ if (!probe.ok) {
       }
     }
 
-    it('saveRoom zet de room-TTL uit ttl.js op de roomkern én de code-index', async () => {
+    it('saveRoom zet de room-TTL uit ttl.js op de roomkern; de code-index heeft zijn eigen claim-TTL', async () => {
+      // De twee TTL's staan bewust los: de roomkern loopt op `ttl.js`, de
+      // lookup-indexen op de `ttlSeconds` van de claim (die is een vangnet voor
+      // een creatie die halverwege sneuvelt, en hoort dus korter te kunnen zijn).
+      // Sinds INTB-11 is `saveRoom` sowieso geen schrijver meer van de index.
       await fresh();
       await store.saveRoom(makeRoom());
+      await store.claimRoomLocatorsAtomically(LOCATOR_CLAIM);
 
       assert.strictEqual(await client().ttl(roomKey('room_a')), ROOM_TTL_SECONDS);
-      assert.strictEqual(await client().ttl(roomCodeLookupKey('AAA111')), ROOM_TTL_SECONDS);
+      assert.strictEqual(await client().ttl(roomCodeLookupKey('AAA111')), LOCATOR_CLAIM.ttlSeconds);
     });
 
     it('elke schrijfactie ververst de TTL van de roomkern, ook als ze de room niet aanraakt', async () => {
@@ -412,6 +424,222 @@ if (!probe.ok) {
         RangeError
       );
       assert.ok((await client().ttl(roomCodeLookupKey('AAA111'))) <= 5, 'de TTL hoort onaangeraakt te zijn');
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // 4c. De sessietoken-index (INTB2f).
+  //
+  // Het GEDRAG staat in de conformance-suite (blok `Session`): vindbaar op de
+  // hash, rotatie trekt de oude in, geen touch-on-read. Hier staat wat die suite
+  // per definitie niet kan zien, en precies dat zijn de drie dingen die het
+  // besluit (BESLUIT-INTB-locators-en-sessieindex.md, deel B) vastlegt:
+  //
+  //   1. DE SLEUTELNAAM DRAAGT DE HASH, NOOIT HET TOKEN. Een Redis-keyname mag
+  //      de capability niet tonen — dezelfde redenering als bij
+  //      `roomInviteLookupKey(inviteHash)`. Een adapter die het ruwe token in de
+  //      sleutel zet levert exact dezelfde lookups op en lekt in elke
+  //      `KEYS *`, elke slowlog en elke `MONITOR`-sessie een geldig token.
+  //   2. DE INDEX DRAAGT HET PAAR EN VERDER NIETS. Geen sessiegegevens, zodat er
+  //      één plek is waar een sessie echt staat.
+  //   3. DE TTL BEWEEGT MEE MET DE ROOM. De index is een GLOBALE sleutel, dus de
+  //      room-brede refresh kan hem niet op naam vinden; hij wordt opgehaald uit
+  //      `room:{roomId}:sessions`. Verloopt hij eerder dan de room, dan verliest
+  //      een speler zijn reconnectrecht midden in een potje.
+  // ------------------------------------------------------------------
+  describe('Redis-adapter — sessietoken-index (INTB2f)', () => {
+    async function expireSoon(...keys) {
+      for (const key of keys) {
+        assert.ok(await client().expire(key, 5), `sleutel ${key} bestaat niet`);
+      }
+    }
+
+    it('de index staat onder session:token:{tokenHash} en draagt alleen roomId + sessionId', async () => {
+      await fresh();
+      await store.saveSession(makeSession({ tokenHash: 'hash_1' }));
+
+      const raw = await client().get(sessionTokenLookupKey('hash_1'));
+      assert.strictEqual(raw, await client().get('session:token:hash_1'), 'de sleutel komt uit redis-keys.js');
+      const envelope = JSON.parse(raw);
+      assert.deepStrictEqual(Object.keys(envelope).sort(), ['documentType', 'payload', 'schemaVersion']);
+      assert.strictEqual(envelope.documentType, 'session-token-index');
+      assert.deepStrictEqual(
+        envelope.payload,
+        { roomId: 'room_a', sessionId: 'session_1' },
+        'de index is een verwijzing, geen tweede kopie van de sessie'
+      );
+    });
+
+    it('geen enkele sleutel bevat het RUWE token — alleen de hash', async () => {
+      // Het scherpste van de drie punten hierboven, en het enige dat je aan de
+      // returnwaarden niet kunt zien: een adapter die `session:token:{token}`
+      // schrijft, slaagt voor élke gedragstest en lekt ondertussen een geldige
+      // capability in de sleutelruimte.
+      await fresh();
+      // Twee losse literals, geen afgeleide: `hash` mag `token` als tekst niet
+      // bevatten, anders zou de filter hieronder ook aanslaan op de correcte
+      // implementatie en bewijst hij niets.
+      const token = 'RUWTOKEN32BYTESNOOITINEENKEY';
+      const hash = 'a3f9c1e8b27d4056';
+      await store.saveSession(makeSession({ tokenHash: hash }));
+      // De sessie draagt het token nergens; hij bestaat alleen bij de client.
+      // Waar hij in Redis zou opduiken, is in de sleutelnaam van de index.
+      const keys = await client().keys('*');
+      assert.ok(keys.length > 0, 'er moet iets geschreven zijn, anders bewijst deze test niets');
+      assert.deepStrictEqual(
+        keys.filter((key) => key.includes(token) || key.includes(token.toLowerCase())),
+        [],
+        'een Redis-keyname mag het token zelf nooit dragen'
+      );
+      assert.ok(keys.includes(sessionTokenLookupKey(hash)), 'de hash-variant hoort er wél te staan');
+      assert.ok(
+        keys.includes(`session:token:${hash}`),
+        'en hij staat precies onder het patroon uit redis-keys.js'
+      );
+    });
+
+    it('de index draagt de room-TTL uit ttl.js', async () => {
+      await fresh();
+      await store.saveSession(makeSession({ tokenHash: 'hash_1' }));
+
+      assert.strictEqual(await client().ttl(sessionTokenLookupKey('hash_1')), ROOM_TTL_SECONDS);
+    });
+
+    it('ELKE schrijfactie in de room ververst de token-indexen van ALLE sessies erin', async () => {
+      // De koppeling waar het besluit om vraagt, en de reden dat `saveSession`
+      // niet genoeg is: een room waarin alleen antwoorden binnenkomen schrijft
+      // geen sessies meer, terwijl de spelers wel degelijk aanwezig zijn. Zonder
+      // deze refresh verlopen hun token-indexen terwijl de room doorspeelt, en
+      // dan faalt de eerstvolgende reconnect op een token dat nog geldig ís.
+      const indexen = [sessionTokenLookupKey('hash_1'), sessionTokenLookupKey('hash_2')];
+      for (const [wat, schrijf] of [
+        ['saveRoom', () => store.saveRoom(makeRoom())],
+        ['savePlayer', () => store.savePlayer(makePlayer())],
+        ['saveMatch', () => store.saveMatch(makeMatch())],
+        ['saveRound', async () => {
+          await store.saveMatch(makeMatch());
+          await expireSoon(...indexen);
+          await store.saveRound('room_a', makeRound());
+        }],
+        ['saveSession (andere sessie)', () => store.saveSession(makeSession({ id: 'session_3', tokenHash: 'hash_3' }))],
+        ['refreshRoomLocators', async () => {
+          await store.claimRoomLocatorsAtomically(LOCATOR_CLAIM);
+          await expireSoon(...indexen);
+          await store.refreshRoomLocators(LOCATOR_CLAIM);
+        }],
+        ['setRoomAndMatchPhaseAtomically', async () => {
+          await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
+          await store.saveMatch(makeMatch({ phase: 'LOBBY' }));
+          await expireSoon(...indexen);
+          await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+            expectedPhase: 'LOBBY', newPhase: 'SCOREBOARD', pausedState: null,
+          });
+        }],
+        ['saveAcceptedAnswerAtomically', async () => {
+          await store.savePlayer(makePlayer());
+          await expireSoon(...indexen);
+          await store.saveAcceptedAnswerAtomically('room_a', 'match_1', {
+            answer: makeAnswer(),
+            updatedPlayer: { id: 'player_1', score: 120, correctCount: 1, correctResponseTimeMsTotal: 2000 },
+            actionCacheEntry: { actionId: 'action_1', ack: { roundId: 'round_1' } },
+          });
+        }],
+      ]) {
+        await fresh();
+        await store.saveSession(makeSession({ id: 'session_1', tokenHash: 'hash_1' }));
+        await store.saveSession(makeSession({ id: 'session_2', tokenHash: 'hash_2' }));
+        await expireSoon(...indexen);
+
+        await schrijf();
+
+        for (const key of indexen) {
+          assert.strictEqual(
+            await client().ttl(key),
+            ROOM_TTL_SECONDS,
+            `${wat} hoort de TTL van ${key} te verversen`
+          );
+        }
+      }
+    });
+
+    it('een rotatie laat geen verweesde indexsleutel achter', async () => {
+      // De conformance-suite ziet dat de oude hash niets meer oplevert. Hier
+      // staat de sterkere eis: de SLEUTEL is weg, niet alleen leeggemaakt of
+      // naar een verlopen waarde gezet. Een achtergebleven sleutel is een
+      // capability die er nog steeds is zolang iemand hem kan lezen.
+      await fresh();
+      await store.saveSession(makeSession({ tokenHash: 'hash_oud' }));
+      await store.saveSession(makeSession({ tokenHash: 'hash_nieuw' }));
+
+      assert.strictEqual(await client().exists(sessionTokenLookupKey('hash_oud')), 0, 'de oude index hoort verwijderd te zijn');
+      assert.strictEqual(await client().exists(sessionTokenLookupKey('hash_nieuw')), 1);
+      assert.deepStrictEqual(
+        (await client().keys('session:token:*')).sort(),
+        [sessionTokenLookupKey('hash_nieuw')],
+        'precies één index per sessie'
+      );
+    });
+
+    it('de rotatie-opruiming en de nieuwe index landen in ÉÉN opdracht — nooit halverwege', async () => {
+      // De opruiming van de oude en het zetten van de nieuwe zitten in hetzelfde
+      // script. Een implementatie die er twee netwerkbeurten van maakt, laat
+      // precies het venster open waarin BEIDE tokens geldig zijn (of, andersom,
+      // geen van beide). Meetbaar via het aantal schrijvende opdrachten dat de
+      // adapter de deur uit doet.
+      await fresh();
+      await store.saveSession(makeSession({ tokenHash: 'hash_oud' }));
+
+      /** @type {string[]} */
+      const commando = [];
+      const spion = createRedisDataStore({
+        connection: {
+          getClient: () => ({
+            hGet: (key, field) => client().hGet(key, field),
+            hVals: (key) => client().hVals(key),
+            multi: () => { commando.push('multi'); return client().multi(); },
+            eval: (script, options) => { commando.push('eval'); return client().eval(script, options); },
+            del: (...keys) => { commando.push('del'); return client().del(...keys); },
+            set: (...args) => { commando.push('set'); return client().set(...args); },
+            hSet: (...args) => { commando.push('hSet'); return client().hSet(...args); },
+          }),
+        },
+      });
+
+      await spion.saveSession(makeSession({ tokenHash: 'hash_nieuw' }));
+
+      assert.deepStrictEqual(commando, ['eval'], 'de hele wissel hoort één server-side uitvoering te zijn');
+      assert.strictEqual(await client().get(sessionTokenLookupKey('hash_oud')), null);
+      assert.strictEqual((await store.loadSessionByTokenHash('hash_nieuw')).id, 'session_1');
+    });
+
+    it('een lookup verlengt NIETS — geen touch-on-read', async () => {
+      // Bewust vastgelegd, want "even verversen bij elke geslaagde lookup" is de
+      // voor de hand liggende implementatie. Ze werkt voor een actief gebruikt
+      // token en laat juist de stille speler vallen: wie langer dan de TTL niet
+      // reconnect, verliest zijn sessie terwijl de room nog leeft — en reconnect
+      // is precies waar deze lookup voor bestaat.
+      await fresh();
+      await store.saveSession(makeSession({ tokenHash: 'hash_1' }));
+      await expireSoon(sessionTokenLookupKey('hash_1'), roomSessionsKey('room_a'));
+
+      assert.notStrictEqual(await store.loadSessionByTokenHash('hash_1'), null, 'de lookup hoort gewoon te slagen');
+
+      assert.ok(
+        (await client().ttl(sessionTokenLookupKey('hash_1'))) <= 5,
+        'een lookup is geen activiteit: de TTL-koppeling loopt via de room-brede refresh'
+      );
+      assert.ok((await client().ttl(roomSessionsKey('room_a'))) <= 5, 'en al helemaal niet via de sessions-hash');
+    });
+
+    it('een index die naar een verdwenen sessie wijst levert null op, geen halve sessie', async () => {
+      // De sessions-hash kan verlopen terwijl de index er nog staat (twee
+      // sleutels, twee TTL-klokken die niet op dezelfde milliseconde aflopen).
+      // Dat is "onbekend token", niet "kapot".
+      await fresh();
+      await store.saveSession(makeSession({ tokenHash: 'hash_1' }));
+      await client().del(roomSessionsKey('room_a'));
+
+      assert.strictEqual(await store.loadSessionByTokenHash('hash_1'), null);
     });
   });
 
@@ -618,11 +846,26 @@ if (!probe.ok) {
   // wat er van de opslag overblijft als de uitvoering wordt onderbroken.
   // ------------------------------------------------------------------
   describe('Redis-adapter — setRoomAndMatchPhaseAtomically', () => {
+    /**
+     * Room en Match op DEZELFDE fase: sinds DM19 is dat de enige toestand
+     * waarin de dubbele compare-and-set een overgang toelaat. Een scheve
+     * fixture zou hier `{ ok: false }` opleveren en dan test dit blok de
+     * fixture in plaats van de adapter.
+     */
     async function arrangePhaseFixture() {
       await fresh();
       await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
-      await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+      await store.saveMatch(makeMatch({ phase: 'LOBBY' }));
     }
+
+    /** De DM19-transitie vanuit de fixture hierboven. */
+    function toPhase(newPhase, { expectedPhase = 'LOBBY', pausedState = null } = {}) {
+      return { expectedPhase, newPhase, pausedState };
+    }
+
+    const PAUSED_STATE = {
+      previousPhase: 'ROUND_ACTIVE', remainingMs: 7000, reason: 'host_paused', pausedAt: T + 8000,
+    };
 
     it('ververst de room-scope, de matchkey en het scoreboard — een fasewissel is activiteit', async () => {
       await arrangePhaseFixture();
@@ -636,7 +879,7 @@ if (!probe.ok) {
         assert.ok(await client().expire(key, 5), `sleutel ${key} bestaat niet`);
       }
 
-      await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'SCOREBOARD');
+      await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', toPhase('SCOREBOARD'));
 
       for (const key of [
         roomKey('room_a'), roomSessionsKey('room_a'), roomPlayersKey('room_a'),
@@ -655,7 +898,7 @@ if (!probe.ok) {
       // opslag zelf, zodat de oorzaak zichtbaar is en niet alleen het gevolg.
       await arrangePhaseFixture();
 
-      await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED');
+      await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', toPhase('FINISHED'));
 
       const roomEnvelope = JSON.parse(await client().get(roomKey('room_a')));
       const matchEnvelope = JSON.parse(await client().get(matchKey('room_a', 'match_1')));
@@ -675,7 +918,7 @@ if (!probe.ok) {
       await arrangePhaseFixture();
       const before = (await client().keys('*')).sort();
 
-      await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'PAUSED');
+      await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', toPhase('PAUSED', { pausedState: PAUSED_STATE }));
 
       assert.deepStrictEqual((await client().keys('*')).sort(), before, 'de wissel maakt geen sleutels aan');
     });
@@ -692,7 +935,7 @@ if (!probe.ok) {
       await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
 
       await assert.rejects(
-        () => store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED'),
+        () => store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', toPhase('FINISHED', { expectedPhase: 'ROUND_ACTIVE' })),
         (error) => {
           assert.ok(error instanceof RangeError, `verwachtte RangeError, kreeg ${error?.name}: ${error?.message}`);
           assert.match(error.message, /unknown roomId/, 'de fout hoort de ROOM te noemen, niet de match');
@@ -709,7 +952,7 @@ if (!probe.ok) {
       await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
 
       await assert.rejects(
-        () => store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED'),
+        () => store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', toPhase('FINISHED')),
         (error) => {
           assert.ok(error instanceof RangeError, `verwachtte RangeError, kreeg ${error?.name}: ${error?.message}`);
           assert.match(error.message, /unknown matchId/, 'de fout hoort de MATCH te noemen');
@@ -743,12 +986,13 @@ if (!probe.ok) {
               }
               return value;
             },
+            hVals: (key) => client().hVals(key),
             eval: (script, options) => client().eval(script, options),
           }),
         },
       });
 
-      await raced.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED');
+      await raced.setRoomAndMatchPhaseAtomically('room_a', 'match_1', toPhase('FINISHED'));
 
       assert.strictEqual(ingegrepen, true, 'het venster is echt geraakt, anders bewijst deze test niets');
       const room = await store.loadRoom('room_a');
@@ -820,6 +1064,7 @@ if (!probe.ok) {
             connection: {
               getClient: () => ({
                 get: (key) => victim.getClient().get(key),
+                hVals: (key) => victim.getClient().hVals(key),
                 expire: (key, seconds) => victim.getClient().expire(key, seconds),
                 set: (key, value, options) => {
                   const pending = victim.getClient().set(key, value, options);
@@ -836,7 +1081,7 @@ if (!probe.ok) {
           });
 
           const bezig = victimStore
-            .setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'FINISHED')
+            .setRoomAndMatchPhaseAtomically('room_a', 'match_1', toPhase('FINISHED'))
             .then(() => 'geland', () => 'onbekend');
           if (moment === 'tijdens') {
             if (vertragingMs > 0) await new Promise((resolve) => setTimeout(resolve, vertragingMs));
@@ -1124,6 +1369,7 @@ if (!probe.ok) {
         connection: {
           getClient: () => ({
             hGet: (key, field) => client().hGet(key, field),
+            hVals: (key) => client().hVals(key),
             eval: (script, options) => { gebruikt.push('eval'); return client().eval(script, options); },
             evalSha: (sha, options) => { gebruikt.push('evalSha'); return client().evalSha(sha, options); },
           }),
@@ -1176,6 +1422,7 @@ if (!probe.ok) {
               }
               return value;
             },
+            hVals: (key) => client().hVals(key),
             eval: (script, options) => client().eval(script, options),
             evalSha: (sha, options) => client().evalSha(sha, options),
           }),
@@ -1200,6 +1447,7 @@ if (!probe.ok) {
             // Levert een geldig, maar NOOIT actueel spelerdocument: de
             // compare-and-set in het script kan dus per definitie niet slagen.
             hGet: async () => encodeDocument('player', makePlayer({ score: 999 })),
+            hVals: (key) => client().hVals(key),
             eval: (script, options) => client().eval(script, options),
             evalSha: (sha, options) => client().evalSha(sha, options),
           }),
@@ -1352,41 +1600,44 @@ if (!probe.ok) {
   });
 
   // ------------------------------------------------------------------
-  // 7. De methode die hier NIET hoort.
+  // 7. De stand van zaken van de adapter, machineleesbaar.
+  //
+  // Dit blok heette "de methode die hier NIET hoort" en legde vast wát er nog
+  // ontbrak. Er ontbreekt niets meer; het blok blijft staan omdat "niets
+  // ontbreekt" precies zo'n uitspraak is die een samensteller moet kunnen
+  // aflezen — en omdat een lege `UNIMPLEMENTED_METHODS` alleen betekenis heeft
+  // als iets hem controleert.
   // ------------------------------------------------------------------
-  describe('Redis-adapter — bewust niet geïmplementeerd', () => {
-    it('UNIMPLEMENTED_METHODS noemt exact de ene resterende methode en haar blokkade', () => {
-      assert.deepStrictEqual(Object.keys(UNIMPLEMENTED_METHODS).sort(), ['loadSessionByTokenHash']);
-      // INTB2d heeft `setRoomAndMatchPhaseAtomically` gebouwd en INTB2c
-      // `saveAcceptedAnswerAtomically`; de lijst hoort met de adapter mee te
-      // krimpen, anders is hij een verouderd briefje in plaats van een
-      // machineleesbare stand van zaken.
-      assert.strictEqual(UNIMPLEMENTED_METHODS.setRoomAndMatchPhaseAtomically, undefined);
-      assert.strictEqual(UNIMPLEMENTED_METHODS.saveAcceptedAnswerAtomically, undefined);
+  describe('Redis-adapter — stand van zaken', () => {
+    it('UNIMPLEMENTED_METHODS is leeg: elke poortmethode draait tegen echte Redis', () => {
+      assert.deepStrictEqual(Object.keys(UNIMPLEMENTED_METHODS), []);
+      // De drie die hier ooit stonden, elk met het item dat ze heeft afgemaakt.
+      // Ze staan met naam genoemd zodat een terugval ("even een stub erin")
+      // hier opvalt en niet pas als een samensteller een lege lijst gelooft.
+      assert.strictEqual(UNIMPLEMENTED_METHODS.setRoomAndMatchPhaseAtomically, undefined, 'INTB2d');
+      assert.strictEqual(UNIMPLEMENTED_METHODS.saveAcceptedAnswerAtomically, undefined, 'INTB2c');
+      assert.strictEqual(UNIMPLEMENTED_METHODS.loadSessionByTokenHash, undefined, 'INTB2f');
     });
 
-    it('loadSessionByTokenHash werpt en noemt de ontbrekende sleutel, in plaats van een globale SCAN te doen', async () => {
-      // DM14/§10 zette deze methode op de poort met de aanname dat saveSession
-      // de index "gewoon" kan vullen. Dat kan tegen een Map, niet tegen Redis:
-      // er is geen sleutel voor een tokenHash en de signatuur draagt geen
-      // roomId. Een SCAN over room:*:sessions zou hier groen opleveren en het
-      // besluit onzichtbaar maken — vandaar deze test.
+    it('elke naam uit DATA_STORE_METHOD_NAMES is aanroepbaar zonder NOT_IMPLEMENTED', async () => {
+      // `assertImplementsDataStore` ziet alleen dát er een functie staat (zie de
+      // test hieronder). Deze controle is de tegenhanger: geen enkele methode
+      // mag nog een `code: 'NOT_IMPLEMENTED'`-fout opleveren. Ze worden met
+      // opzet met kansloze argumenten aangeroepen — het gaat om de FOUTSOORT,
+      // niet om een geslaagde aanroep.
       await fresh();
-      await store.saveSession(makeSession({ tokenHash: 'hash_1' }));
-
-      await assert.rejects(
-        () => store.loadSessionByTokenHash('hash_1'),
-        (error) => {
-          assert.ok(error instanceof NotImplementedError);
-          assert.match(error.message, /redis-keys\.js/);
-          return true;
+      const created = createRedisDataStore({ connection });
+      for (const methodName of DATA_STORE_METHOD_NAMES) {
+        try {
+          await created[methodName]('room_a', 'x', 'y', 'z');
+        } catch (error) {
+          assert.notStrictEqual(
+            /** @type {{code?: string}} */ (error)?.code,
+            'NOT_IMPLEMENTED',
+            `${methodName} werpt nog NOT_IMPLEMENTED`
+          );
         }
-      );
-      // En saveSession heeft geen index-sleutel aangemaakt die er niet hoort te zijn.
-      assert.deepStrictEqual(
-        (await client().keys('*')).filter((key) => key.includes('token')),
-        []
-      );
+      }
     });
 
     it('assertImplementsDataStore slaagt — en dat is precies waarom UNIMPLEMENTED_METHODS bestaat', () => {
@@ -1427,9 +1678,14 @@ if (!probe.ok) {
       // zo goed in als "deze methode is er nog niet".
       await fresh();
       await store.saveRoom(makeRoom({ phase: 'LOBBY' }));
-      await store.saveMatch(makeMatch({ phase: 'ROUND_ACTIVE' }));
+      await store.saveMatch(makeMatch({ phase: 'LOBBY' }));
 
-      await assert.doesNotReject(() => store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', 'SCOREBOARD'));
+      assert.deepStrictEqual(
+        await store.setRoomAndMatchPhaseAtomically('room_a', 'match_1', {
+          expectedPhase: 'LOBBY', newPhase: 'SCOREBOARD', pausedState: null,
+        }),
+        { ok: true }
+      );
 
       assert.strictEqual((await store.loadRoom('room_a')).phase, 'SCOREBOARD');
       assert.strictEqual((await store.loadMatch('room_a', 'match_1')).phase, 'SCOREBOARD');

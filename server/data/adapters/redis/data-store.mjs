@@ -1,36 +1,31 @@
 // De Redis-adapter van de DataStore-poort (server/data/repository.js) —
-// INTB2b, uitgebreid met de atomaire fasewissel in INTB2d en de atomaire
-// antwoordverwerking in INTB2c.
+// INTB2b, uitgebreid met de atomaire fasewissel in INTB2d, de atomaire
+// antwoordverwerking in INTB2c en de sessietoken-index in INTB2f.
 //
-// Tweeëntwintig van de drieëntwintig poortmethoden draaien hier tegen echte
-// Redis. De ene die ontbreekt is geen vergeten werk maar geblokkeerd:
+// ALLE DRIEËNTWINTIG poortmethoden draaien hier tegen echte Redis;
+// `UNIMPLEMENTED_METHODS` hieronder is daarom leeg. Dat was het niet:
 //
-// (De poort is tijdens INTB2b twee keer uitgebreid: DM14/§10
-// `loadSessionByTokenHash` en DM16/§9 `rotateRoomLocators`. De tweede is
-// gebouwd — het is een locator-lifecyclemethode en die horen bij dat item; de
-// eerste kán niet, zie hieronder.)
+//   * `setRoomAndMatchPhaseAtomically` stond hier geblokkeerd en is in INTB2d
+//     gebouwd (zie `SET_PHASE_LUA` en de functie zelf, inclusief wat er bij een
+//     onderbroken uitvoering wél en niet gegarandeerd is); DM19 heeft hem
+//     daarna verbreed met een dubbele compare-and-set en `pausedState`.
+//   * `saveAcceptedAnswerAtomically` stond hier geblokkeerd op een bewegend
+//     contract; DM15 (reactie op INT-14) legt dat contract vast in
+//     `repository.js` (§FOUTCONTRACT) en INTB2c heeft hem gebouwd — zie
+//     `SAVE_ANSWER_LUA`.
+//   * `loadSessionByTokenHash` (DM14/§10) stond geblokkeerd op de
+//     SLEUTELCATALOGUS: er was geen sleutel voor een tokenHash en de signatuur
+//     draagt geen `roomId`. `sessionTokenLookupKey(tokenHash)` bestaat inmiddels
+//     in `redis-keys.js` en
+//     `docs/integration-plan/BESLUIT-INTB-locators-en-sessieindex.md` (deel B)
+//     legt waarde, TTL-koppeling en rotatiegedrag vast. Gebouwd in INTB2f; zie
+//     `SAVE_SESSION_LUA` en de twee functies zelf.
 //
-//   * `loadSessionByTokenHash` -> GEBLOKKEERD op de sleutelcatalogus. DM14/§10
-//     heeft deze methode aan de poort toegevoegd terwijl `redis-keys.js` (en
-//     `DATA-MODEL.md` §Redis-sleutels) geen sleutel voor een tokenHash kent, en
-//     de signatuur geen `roomId` draagt. Zie de uitgebreide noot bij de functie
-//     zelf voor wat er precies nodig is; het is dezelfde klasse blokkade als
-//     INTB-1 was.
-//
-// `setRoomAndMatchPhaseAtomically` stond hier ook; die is in INTB2d gebouwd
-// (zie `SET_PHASE_LUA` en de functie zelf, inclusief wat er bij een onderbroken
-// uitvoering wél en niet gegarandeerd is). `saveAcceptedAnswerAtomically` stond
-// hier ook, geblokkeerd op een bewegend contract; DM15 (reactie op INT-14) legt
-// dat contract inmiddels vast in `repository.js` (§FOUTCONTRACT) en INTB2c heeft
-// hem gebouwd — zie `SAVE_ANSWER_LUA` en de functie zelf.
-//
-// De ene resterende methode werpt `NotImplementedError` met de verwijzing erin,
-// en staat ook in `UNIMPLEMENTED_METHODS` hieronder. Dat laatste is er met
-// opzet: de INTB2b-prompt waarschuwt dat placeholderfuncties
-// `assertImplementsDataStore` laten slagen terwijl de adapter niet af is. Die
-// shapecheck kan dat niet zien — een werpende functie is nog steeds een functie
-// — dus is er een tweede, expliciete manier om het wél te zien, in plaats van te
-// vertrouwen op wie het commentaar leest.
+// `UNIMPLEMENTED_METHODS` blijft bestaan, leeg: de INTB2b-prompt waarschuwt dat
+// placeholderfuncties `assertImplementsDataStore` laten slagen terwijl de
+// adapter niet af is. Die shapecheck kan dat niet zien — een werpende functie is
+// nog steeds een functie — dus is er een tweede, machineleesbare manier om het
+// wél te zien. Een lege lijst is een uitspraak, geen restant.
 //
 // WAT DEZE ADAPTER NIET ZELF VERZINT:
 //   * sleutels komen uit `server/data/redis-keys.js` — hier wordt geen enkele
@@ -52,14 +47,22 @@
 //     mag niet verlopen omdat alleen het matchdocument werd aangeraakt".
 //   * Een match-gescopeerde schrijfactie ververst daarbovenop de matchkey, de
 //     scoreboardkey en de sleutel die hij zelf schrijft.
-//   * De code-index (`room:code:{code}`) beweegt mee met `saveRoom` — daar is
-//     de code bekend — en met claim/refresh van de locators.
-//   * De invite-index (`room:invite:{inviteHash}`) kan ALLEEN via de
-//     locator-lifecycle worden ververst. Een `Room` draagt een plat `inviteId`,
-//     geen hash (DM10), dus geen enkele andere schrijfactie kán die sleutel
-//     kennen. Dat is precies waarom DM10 `refreshRoomLocators` heeft
-//     toegevoegd; het is de aangewezen keep-alive voor beide locators en niet
-//     iets dat deze adapter erbij mag verzinnen.
+//   * De twee LOOKUP-INDEXEN van een room (`room:code:{code}` en
+//     `room:invite:{inviteHash}`) worden uitsluitend door de locator-lifecycle
+//     geschreven én ververst: `claimRoomLocatorsAtomically`,
+//     `rotateRoomLocators` en `releaseRoomLocators` (+ `refreshRoomLocators`
+//     als keep-alive). `saveRoom` raakt ze NIET aan — zie het besluit in
+//     `docs/integration-plan/BESLUIT-INTB-locators-en-sessieindex.md`, deel A,
+//     en de noot bij `saveRoom` zelf.
+//   * De SESSIETOKEN-INDEXEN (`session:token:{tokenHash}`) zijn globale
+//     sleutels: ze zijn niet uit `roomId` af te leiden, dus de room-brede
+//     refresh kán ze niet op naam vinden. Ze worden daarom per refresh
+//     OPGEHAALD uit `room:{roomId}:sessions` (elke `Session` draagt zijn eigen
+//     `tokenHash`) en meegenomen in dezelfde EXPIRE-ronde. Dat kost één extra
+//     lezing per schrijfactie en geen enkele extra schrijfweg naar de index —
+//     het alternatief, "touch-on-read" bij elke geslaagde lookup, laat een
+//     stille speler zijn reconnectrecht verliezen terwijl zijn room nog leeft
+//     (besluit deel B).
 //
 // DECISIONS #28: ESM, `.mjs`.
 
@@ -82,6 +85,7 @@ import {
   roomsActiveKey,
   roundKey,
   scoreboardKey,
+  sessionTokenLookupKey,
 } from '../../redis-keys.js';
 import { ROOM_TTL_SECONDS } from '../../ttl.js';
 import { assertRoomShape } from '../../types/room.js';
@@ -96,29 +100,14 @@ import { assertAnswerShape } from '../../types/answer.js';
  * ze afmaakt. Machineleesbaar, zodat een samensteller (INT-A) kan controleren
  * of de adapter compleet genoeg is voor wat hij van plan is — in plaats van dat
  * `assertImplementsDataStore` groen geeft op functies die alleen maar werpen.
+ *
+ * LEEG sinds INTB2f: er is geen enkele poortmethode meer die hier werpt. De
+ * constante blijft staan (en wordt getest) omdat "niets ontbreekt" een uitspraak
+ * is die een samensteller moet kunnen aflezen; hem weghalen zou een volgende
+ * blokkade weer onzichtbaar maken tot iemand het commentaar leest.
+ * @type {Readonly<Record<string, string>>}
  */
-export const UNIMPLEMENTED_METHODS = Object.freeze({
-  loadSessionByTokenHash: 'GEBLOKKEERD — geen sleutel in redis-keys.js (zie hieronder)',
-});
-
-/** Foutklasse van de nog niet gebouwde methode(n). Stabiel om op te matchen. */
-export class NotImplementedError extends Error {
-  /**
-   * @param {string} methodName
-   * @param {string} item
-   * @param {string} why
-   */
-  constructor(methodName, item, why) {
-    super(`${methodName} is in deze adapter nog niet geïmplementeerd — dat is ${item}. ${why}`);
-    this.name = 'NotImplementedError';
-    /** @type {string} */
-    this.code = 'NOT_IMPLEMENTED';
-    /** @type {string} */
-    this.method = methodName;
-    /** @type {string} */
-    this.item = item;
-  }
-}
+export const UNIMPLEMENTED_METHODS = Object.freeze({});
 
 // --------------------------------------------------------------------------
 // Lua. De meeste scripts hieronder bestaan omdat een lees gevolgd door een
@@ -209,6 +198,58 @@ if KEYS[1] ~= KEYS[3] then redis.call('DEL', KEYS[1]) end
 if KEYS[2] ~= KEYS[4] then redis.call('DEL', KEYS[2]) end
 redis.call('SET', KEYS[3], roomId, 'EX', ttl)
 redis.call('SET', KEYS[4], roomId, 'EX', ttl)
+return 'ok'
+`;
+
+/**
+ * Schrijft een sessie én zijn tokenhash-index in ÉÉN ondeelbare stap, en ruimt
+ * de VORIGE tokenhash-index van diezelfde sessie in dezelfde stap op
+ * (BESLUIT-INTB-locators-en-sessieindex.md, deel B, §Rotatie).
+ *
+ * KEYS:
+ *   [1] sessions-hash  `room:{roomId}:sessions`
+ *   [2] NIEUWE index   `session:token:{nieuweTokenHash}`
+ *   [3] OUDE index     `session:token:{vorigeTokenHash}` — of, als er niets op
+ *       te ruimen valt, EXACT dezelfde sleutel als KEYS[2]
+ *   [4..] de sleutels waarvan de TTL mee moet (room-scope + de token-indexen van
+ *       de andere sessies in deze room)
+ * ARGV: [1] sessionId, [2] VERWACHT opgeslagen sessiedocument ('' = er stond
+ *       niets), [3] nieuw sessiedocument, [4] indexwaarde `{roomId, sessionId}`,
+ *       [5] ttlSeconds.
+ * Retourneert 'ok' | 'stale'.
+ *
+ * WAAROM DE OPRUIMING HIER ZIT EN NIET IN EEN TWEEDE AANROEP: krijgt een sessie
+ * een nieuw token, dan blijft de oude hash zonder deze `DEL` naar diezelfde
+ * sessie wijzen — een tweede geldige capability naast de nieuwe. Dat is
+ * letterlijk INTB-5 nog een keer (geroteerde locators die geldig bleven) en
+ * INTB-9 nog een keer (een index die de claim van de vorige eigenaar niet
+ * introk). Een `DEL` in een aparte netwerkbeurt laat precies het venster open
+ * waarin het oude token nog werkt terwijl het nieuwe al is uitgegeven — en bij
+ * een intrekking is dat de ergere helft om te verliezen.
+ *
+ * `KEYS[3] ~= KEYS[2]` is dezelfde sleutelvergelijking als in
+ * `ROTATE_LOCATORS_LUA`: slaat de aanroeper dezelfde sessie opnieuw op met
+ * DEZELFDE tokenhash, dan mag de index niet eerst gewist en daarna herschreven
+ * worden — dat zou een venster openen waarin een geldig token nergens naartoe
+ * wijst.
+ *
+ * COMPARE-AND-SET op het opgeslagen sessiedocument, om dezelfde reden als in
+ * `SET_PHASE_LUA`: de vorige tokenhash is alleen te kennen door het document
+ * eerst te LEZEN, en het decoderen daarvan gebeurt in JavaScript met dezelfde
+ * codec als elke andere schrijfactie (`cjson` pompt een domeindocument niet
+ * verliesvrij rond). Tussen die lees en dit script past een tweede
+ * `saveSession`; zonder deze vergelijking zou de operatie diens index laten
+ * staan en zijn document overschrijven — een tokenhash die naar niets meer
+ * verwijst of, erger, een oude die blijft leven.
+ */
+const SAVE_SESSION_LUA = `
+local stored = redis.call('HGET', KEYS[1], ARGV[1])
+if not stored then stored = '' end
+if stored ~= ARGV[2] then return 'stale' end
+if KEYS[3] ~= KEYS[2] then redis.call('DEL', KEYS[3]) end
+redis.call('HSET', KEYS[1], ARGV[1], ARGV[3])
+redis.call('SET', KEYS[2], ARGV[4], 'EX', ARGV[5])
+for i = 4, #KEYS do redis.call('EXPIRE', KEYS[i], ARGV[5]) end
 return 'ok'
 `;
 
@@ -390,6 +431,14 @@ const PHASE_SWAP_ATTEMPTS = 5;
 const ANSWER_WRITE_ATTEMPTS = 5;
 
 /**
+ * Idem voor `saveSession`. De tweede schrijver is hier zeldzaam — één sessie
+ * hoort bij één client — maar niet onmogelijk: een reconnect en een
+ * tokenrotatie kunnen elkaar kruisen. Vijf pogingen, om dezelfde reden als
+ * hierboven eindig.
+ */
+const SESSION_WRITE_ATTEMPTS = 5;
+
+/**
  * Herkent het antwoord van Redis op een `EVALSHA` waarvan het script niet (meer)
  * in de scriptcache staat. Op de melding matchen en niet op een foutklasse: de
  * client levert hier een generieke `SimpleError`, en `NOSCRIPT` is de stabiele,
@@ -455,6 +504,37 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
   }
 
   /**
+   * De token-indexsleutels van ALLE sessies in deze room.
+   *
+   * `session:token:{tokenHash}` is een GLOBALE sleutel — hij is niet uit
+   * `roomId` af te leiden, dus `roomScopeKeys` kán hem niet opleveren en de
+   * room-brede TTL-refresh zou hem stilzwijgend overslaan. Dan verloopt de index
+   * terwijl de sessie nog leeft, en verliest een speler zijn reconnectrecht
+   * midden in een potje.
+   *
+   * De uitweg uit het besluit (deel B, §TTL): de hashes staan al ergens, namelijk
+   * op de `Session` zelf in `room:{roomId}:sessions`. Eén extra lezing per
+   * schrijfactie, geen tweede plek waar de koppeling sessie -> tokenhash wordt
+   * bijgehouden — en dus ook geen tweede plek die uit de pas kan lopen.
+   *
+   * Een lege of ontbrekende hash levert een lege lijst op; `HVALS` op een
+   * niet-bestaande sleutel is geen fout.
+   * @param {string} roomId
+   * @returns {Promise<string[]>}
+   */
+  async function sessionTokenIndexKeys(roomId) {
+    const stored = await client().hVals(roomSessionsKey(roomId));
+    const keys = [];
+    for (const raw of stored) {
+      const session = /** @type {{tokenHash?: string}|null} */ (codec.decode('session', raw));
+      if (typeof session?.tokenHash === 'string' && session.tokenHash.length > 0) {
+        keys.push(sessionTokenLookupKey(session.tokenHash));
+      }
+    }
+    return keys;
+  }
+
+  /**
    * Zet de TTL-refresh van de room-scope (plus eventuele extra sleutels) op een
    * MULTI-keten. Alles in dezelfde transactie als de schrijfactie zelf: een
    * document dat wél landt terwijl de TTL-refresh eromheen uitblijft, is een
@@ -487,14 +567,28 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
     // dat er al staat onleesbaar maken in plaats van het probleem bij de bron
     // te leggen.
     assertRoomShape(room);
+    // GEEN LOOKUP-INDEXEN. `saveRoom` schrijft het roomdocument en `rooms:active`
+    // en verder niets (BESLUIT-INTB-locators-en-sessieindex.md, deel A, akkoord).
+    //
+    // Vóór dat besluit zette deze methode `room:code:{code}` op `room.id`, en dat
+    // was een tweede, ONGECONTROLEERDE weg naar dezelfde index als
+    // `claimRoomLocatorsAtomically` — hij ging langs elke claimcontrole heen. Het
+    // waarneembare gevolg: de lookup-index wijst naar B terwijl het claimregister
+    // A als eigenaar kent, dus een speler die de code intypt komt in de verkeerde
+    // room en een derde room krijgt een conflict op een code die van niemand meer
+    // is. Voor de invite-kant bestond dat gat nooit, want een `Room` draagt het
+    // platte `inviteId` en de index draait op de hash; nu geldt hetzelfde voor de
+    // code-kant.
+    //
+    // Roomcreatie is daarmee expliciet TWEEFASIG: eerst claimen, dan opslaan. Een
+    // `saveRoom` zonder voorafgaande geslaagde claim levert een room op die via
+    // `loadRoomByCode` en `loadRoomByInviteHash` onvindbaar is. Dat is de
+    // bedoeling; de compositielaag hoort die volgorde expliciet te maken.
+    const tokenKeys = await sessionTokenIndexKeys(room.id);
     const chain = client().multi();
     chain.set(roomKey(room.id), codec.encode('room', room), { EX: ttlSeconds });
-    // De code-index beweegt mee met saveRoom (INTB-5: een index die naar een
-    // oude toestand blijft wijzen is een capability-lek). De invite-index kan
-    // dat niet — Room draagt geen hash — en loopt via de locator-lifecycle.
-    chain.set(roomCodeLookupKey(room.code), room.id, { EX: ttlSeconds });
     chain.sAdd(roomsActiveKey(), room.id);
-    refreshTtl(chain, room.id);
+    refreshTtl(chain, room.id, tokenKeys);
     await chain.exec();
   }
 
@@ -538,7 +632,12 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
   async function refreshRoomLocators({ roomId, code, inviteHash, ttlSeconds: claimTtl }) {
     assertPositiveInteger(claimTtl, 'RoomLocatorClaim.ttlSeconds');
     const owned = await client().eval(REFRESH_LOCATORS_LUA, {
-      keys: [roomCodeLookupKey(code), roomInviteLookupKey(inviteHash), ...roomScopeKeys(roomId)],
+      keys: [
+        roomCodeLookupKey(code),
+        roomInviteLookupKey(inviteHash),
+        ...roomScopeKeys(roomId),
+        ...(await sessionTokenIndexKeys(roomId)),
+      ],
       arguments: [roomId, String(claimTtl), ttl],
     });
     if (owned !== 1) {
@@ -588,65 +687,104 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
     return codec.decode('session', await client().hGet(roomSessionsKey(roomId), sessionId));
   }
 
-  /** @param {import('../../types/session').Session} session */
+  /**
+   * Schrijft de sessie en zijn tokenhash-index in één ondeelbare stap, en geeft
+   * de VORIGE tokenhash-index van diezelfde sessie in diezelfde stap vrij.
+   *
+   * Het rotatiedeel is contract, geen extraatje (`repository.js` bij
+   * `saveSession`, en BESLUIT-INTB-locators-en-sessieindex.md deel B): krijgt een
+   * sessie een nieuw token, dan MOET de oude hash ophouden te werken. Twee losse
+   * opdrachten zouden een venster openen waarin beide tokens geldig zijn, en dat
+   * is precies de fout die INTB-5 en INTB-9 al twee keer hebben opgeleverd.
+   *
+   * De lees hieronder bestaat alleen om de VORIGE tokenhash te leren kennen —
+   * `saveSession` krijgt de oude sessie niet mee. Die lees opent een venster, en
+   * `SAVE_SESSION_LUA` sluit het met een compare-and-set op het onbewerkte
+   * opgeslagen document.
+   * @param {import('../../types/session').Session} session
+   */
   async function saveSession(session) {
     assertSessionShape(session);
-    const chain = client().multi();
-    chain.hSet(roomSessionsKey(session.roomId), session.id, codec.encode('session', session));
-    // GEEN tokenHash-index — zie loadSessionByTokenHash hieronder. De fake vult
-    // hem hier wél (DM14/§10); dat verschil is bekend en gemeld, niet vergeten.
-    refreshTtl(chain, session.roomId);
-    await chain.exec();
+    const sessions = roomSessionsKey(session.roomId);
+    const newIndex = sessionTokenLookupKey(session.tokenHash);
+    const encodedSession = codec.encode('session', session);
+    // De index draagt het PAAR en verder niets: de sessie zelf staat op precies
+    // één plek (de sessions-hash van zijn room), zodat er geen tweede kopie is
+    // die kan verouderen. En de SLEUTELNAAM draagt de hash, nooit het token —
+    // dezelfde redenering als bij roomInviteLookupKey(inviteHash): een
+    // Redis-keyname mag de capability niet tonen.
+    const indexValue = codec.encode('session-token-index', {
+      roomId: session.roomId,
+      sessionId: session.id,
+    });
+
+    for (let attempt = 1; attempt <= SESSION_WRITE_ATTEMPTS; attempt += 1) {
+      const stored = (await client().hGet(sessions, session.id)) ?? null;
+      const previousTokenHash = stored === null
+        ? null
+        : /** @type {{tokenHash?: string}} */ (codec.decode('session', stored)).tokenHash;
+      // Niets op te ruimen (nieuwe sessie, of dezelfde hash opnieuw opgeslagen)
+      // -> exact dezelfde sleutel als de nieuwe index, waarmee het script de DEL
+      // overslaat. Zie de sleutelvergelijking in SAVE_SESSION_LUA.
+      const staleIndex = previousTokenHash === undefined
+        || previousTokenHash === null
+        || previousTokenHash === session.tokenHash
+        ? newIndex
+        : sessionTokenLookupKey(previousTokenHash);
+
+      const outcome = await client().eval(SAVE_SESSION_LUA, {
+        keys: [
+          sessions,
+          newIndex,
+          staleIndex,
+          ...roomScopeKeys(session.roomId),
+          ...(await sessionTokenIndexKeys(session.roomId)),
+        ],
+        arguments: [session.id, stored ?? '', encodedSession, indexValue, ttl],
+      });
+
+      if (outcome === 'ok') return;
+      if (outcome !== 'stale') {
+        throw new Error(`saveSession: onverwacht scriptresultaat ${JSON.stringify(outcome)}`);
+      }
+      // 'stale': een tweede schrijver kwam tussen de lees en het script door. Er
+      // is NIETS geschreven — opnieuw lezen, want de vorige tokenhash die deze
+      // poging wilde opruimen is inmiddels een andere.
+    }
+
+    throw new Error(
+      `saveSession: sessie ${JSON.stringify(session.id)} in room ${JSON.stringify(session.roomId)} werd ` +
+        `${SESSION_WRITE_ATTEMPTS} pogingen achter elkaar onder de operatie vandaan geschreven; er is niets gewijzigd.`
+    );
   }
 
   /**
-   * NIET IMPLEMENTEERBAAR MET DE HUIDIGE SLEUTELCATALOGUS — dezelfde klasse
-   * blokkade als INTB-1, één laag lager.
+   * Zoekt een sessie op de hash van zijn token, zonder dat de aanroeper de room
+   * kent — dat is de hele reden dat deze index bestaat: een socket-handshake
+   * stuurt alleen een `sessionToken` mee (PROTOCOL.md), en het opzoeken van de
+   * sessie ÍS de manier waarop de server de room leert kennen.
    *
-   * DM14/§10 heeft deze methode aan de poort toegevoegd met de redenering "de
-   * index kan gewoon door `saveSession` gevuld worden, net zoals `saveRoom` dat
-   * al voor `roomIdByCode` doet". Dat klopt voor de fake, want daar is een index
-   * een `Map` die je ter plekke verzint. Voor Redis klopt het niet: `saveRoom`
-   * kan `roomIdByCode` vullen omdat `room:code:{code}` in `redis-keys.js` én in
-   * `DATA-MODEL.md` §Redis-sleutels staat. Er is geen equivalent voor een
-   * tokenHash, en de signatuur draagt geen `roomId`, dus er is ook geen bestaande
-   * sleutel waar de lookup onder zou kunnen hangen.
+   * Twee beurten, geen SCAN: de globale index levert `{ roomId, sessionId }`,
+   * daarna leest dezelfde room-scoped weg als `loadSession` het document. De
+   * index bevat bewust geen sessiegegevens — één plek waar een sessie echt
+   * staat, dus geen kopie die kan verouderen.
    *
-   * De twee uitwegen die er NIET zijn:
-   *   * zelf een sleutelnaam samenstellen — dat is precies wat `redis-keys.js`
-   *     centraliseert, en een tweede plek met sleutelkennis is hoe patronen
-   *     stilletjes uit elkaar gaan lopen;
-   *   * een globale `SCAN` over alle `room:*:sessions` — dat schaalt niet en het
-   *     verbergt het probleem in plaats van het op te lossen (de INTB2b-prompt
-   *     sluit die noodoplossing expliciet uit).
+   * GEEN TOUCH-ON-READ (`repository.js`, en het besluit deel B): deze lookup
+   * verlengt niets. De TTL-koppeling loopt via de room-brede refresh, niet via
+   * hoe vaak een token wordt opgezocht — anders verliest juist de stille speler,
+   * voor wie reconnect bedoeld is, zijn sessie terwijl de room nog leeft.
    *
-   * WAT ER NODIG IS, concreet genoeg om over te nemen:
-   *   1. `redis-keys.js`: een builder, bijvoorbeeld
-   *      `sessionTokenLookupKey(tokenHash)` -> `session:token:{tokenHash}`, met
-   *      dezelfde `assertSegment`-behandeling als de rest.
-   *   2. `DATA-MODEL.md` §Redis-sleutels: dezelfde regel, met de waarde erbij.
-   *      Eén sleutel is genoeg als de waarde room én sessie draagt; twee losse
-   *      sleutels betekent een tweede dual-write-pad, en dat is precies wat
-   *      DECISIONS #30 elders verbiedt.
-   *   3. Een TTL-uitspraak: de room-TTL (de sessie leeft niet langer dan zijn
-   *      room), ververst door `saveSession` net als de rest van de room-scope.
-   *   4. Een uitspraak over ROTATIE, die in het voorstel ontbreekt: krijgt een
-   *      sessie een nieuw token, dan blijft de oude hash naar diezelfde sessie
-   *      wijzen — een tweede geldige capability naast de nieuwe. Dat is
-   *      letterlijk INTB-5 nog een keer, nu voor sessietokens. De fake heeft dit
-   *      gat vandaag ook (`roomAndSessionByTokenHash` wordt nooit opgeruimd);
-   *      daar valt het niet op omdat niets het opmerkt.
-   *
-   * Zolang 1 en 2 er niet zijn, werpt deze methode. Een `SCAN`-noodoplossing
-   * hier zou groen opleveren en het besluit onzichtbaar maken.
+   * Een verlopen of nooit bestaande index levert `null` op, en een index die
+   * naar een verdwenen sessie wijst ook: `null` is hier "onbekend token", geen
+   * fout.
+   * @param {string} tokenHash
    */
-  async function loadSessionByTokenHash() {
-    throw new NotImplementedError(
-      'loadSessionByTokenHash',
-      UNIMPLEMENTED_METHODS.loadSessionByTokenHash,
-      'DM14/§10 voegde deze methode toe zonder bijbehorende sleutel in redis-keys.js/DATA-MODEL.md, en de ' +
-        'signatuur draagt geen roomId. Zie het commentaar bij deze functie voor wat er nodig is.'
+  async function loadSessionByTokenHash(tokenHash) {
+    const located = /** @type {{roomId: string, sessionId: string}|null} */ (
+      codec.decode('session-token-index', await client().get(sessionTokenLookupKey(tokenHash)))
     );
+    if (located === null) return null;
+    return loadSession(located.roomId, located.sessionId);
   }
 
   // ----------------------------------------------------------------------
@@ -664,9 +802,10 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
   /** @param {import('../../types/player').Player} player */
   async function savePlayer(player) {
     assertPlayerShape(player);
+    const tokenKeys = await sessionTokenIndexKeys(player.roomId);
     const chain = client().multi();
     chain.hSet(roomPlayersKey(player.roomId), player.id, codec.encode('player', player));
-    refreshTtl(chain, player.roomId);
+    refreshTtl(chain, player.roomId, tokenKeys);
     await chain.exec();
   }
 
@@ -699,9 +838,10 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
   /** @param {import('../../types/match').Match} match */
   async function saveMatch(match) {
     assertMatchShape(match);
+    const tokenKeys = await sessionTokenIndexKeys(match.roomId);
     const chain = client().multi();
     chain.set(matchKey(match.roomId, match.id), codec.encode('match', match), { EX: ttlSeconds });
-    refreshTtl(chain, match.roomId, [scoreboardKey(match.roomId, match.id)]);
+    refreshTtl(chain, match.roomId, [scoreboardKey(match.roomId, match.id), ...tokenKeys]);
     await chain.exec();
   }
 
@@ -732,6 +872,7 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
         match,
         scoreboardKey(roomId, round.matchId),
         ...roomScopeKeys(roomId),
+        ...(await sessionTokenIndexKeys(roomId)),
       ],
       arguments: [codec.encode('round', round), ttl],
     });
@@ -814,24 +955,59 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
    * netwerkonderbreking de oude fase eist, test iets dat geen enkele
    * Redis-implementatie kan waarmaken.
    *
-   * IDEMPOTENT: dezelfde fase nog een keer zetten is geen fout. Het schrijft
-   * wél opnieuw, want een fasewissel is activiteit en de TTL-refresh eromheen
-   * (`ttl.js`, refreshmatrix bovenaan dit bestand) hoort dan ook te gebeuren.
+   * IDEMPOTENT: dezelfde fase nog een keer zetten is geen fout, mits
+   * `expectedPhase` die fase óók noemt. Het schrijft wél opnieuw, want een
+   * fasewissel is activiteit en de TTL-refresh eromheen (`ttl.js`,
+   * refreshmatrix bovenaan dit bestand) hoort dan ook te gebeuren.
    *
    * BEWUST NIET GEBOUWD: zelfherstel voor een projectie die uit de pas is
-   * geraakt. Deze methode schrijft altijd beide documenten, dus ze kán een
-   * scheefstand niet zien — ze overschrijft hem gewoon met `newPhase`. Wil
-   * iemand `Match.phase` als bron gebruiken om een afgedwaalde `Room.phase`
-   * terug te zetten, dan is dat een eigen poortmethode met een eigen naam, geen
-   * verborgen bijwerking hier. Gemeld, niet ongevraagd ingebouwd.
+   * geraakt. Deze methode meldt een scheefstand (de dubbele compare-and-set
+   * hieronder ziet hem en geeft `{ ok: false, actualPhase }`), maar repareert
+   * hem niet stilzwijgend. Wil iemand `Match.phase` als bron gebruiken om een
+   * afgedwaalde `Room.phase` terug te zetten, dan is dat een eigen poortmethode
+   * met een eigen naam, geen verborgen bijwerking hier.
+   *
+   * DM19 (reactie op INT-16) heeft de signatuur verbreed; de drie uitbreidingen
+   * staan in `repository.js` bij `PhaseTransition` en hier in dezelfde volgorde:
+   *
+   *   1. DUBBELE COMPARE-AND-SET op `expectedPhase`. Zowel `Room.phase` als
+   *      `Match.phase` moeten hem dragen; dit vertrouwt niet stilzwijgend dat
+   *      de twee al gelijk lopen. Een mismatch is een NORMALE uitkomst
+   *      (`{ ok: false, actualPhase }`), net als een bezette locatorclaim —
+   *      geen exception. `actualPhase` is altijd `Match.phase`, ook als de room
+   *      de mismatch veroorzaakte: besluit 30 wijst dat veld als autoritair aan.
+   *   2. `pausedState` gaat in DEZELFDE atomaire stap mee. Was vóór DM19 een
+   *      losse `saveMatch` van de aanroeper — een dual-write-pad voor precies
+   *      het veld dat besluit 30 in de geest meeneemt.
+   *   3. De `pausedState`/`PAUSED`-invariant in BEIDE richtingen, als throw:
+   *      een intern inconsistente aanvraag is nooit geldig, ongeacht wat er in
+   *      de opslag staat. Daarom `RangeError` en geen `{ ok: false }`, en
+   *      daarom vóór de eerste lees — er gaat geen enkele netwerkbeurt de deur
+   *      uit voordat de aanvraag zichzelf tegenspreekt.
    *
    * @param {string} roomId
    * @param {string} matchId
-   * @param {string} newPhase - komt uit `server/architecture/state-machine.js`;
-   *   hier niet opnieuw gevalideerd, de store slaat op wat hij krijgt.
-   * @returns {Promise<void>}
+   * @param {import('../../repository').PhaseTransition} transition - `newPhase`
+   *   komt uit `server/architecture/state-machine.js`; de fasenamen worden hier
+   *   niet opnieuw gevalideerd, de store slaat op wat hij krijgt.
+   * @returns {Promise<{ ok: true } | { ok: false, actualPhase: string }>}
    */
-  async function setRoomAndMatchPhaseAtomically(roomId, matchId, newPhase) {
+  async function setRoomAndMatchPhaseAtomically(roomId, matchId, transition) {
+    if (typeof transition !== 'object' || transition === null) {
+      throw new TypeError(
+        `setRoomAndMatchPhaseAtomically verwacht een PhaseTransition-object, kreeg: ${typeof transition}`
+      );
+    }
+    const { expectedPhase, newPhase, pausedState } = transition;
+    if (newPhase === 'PAUSED' && pausedState === null) {
+      throw new RangeError('setRoomAndMatchPhaseAtomically: newPhase "PAUSED" vereist een niet-lege pausedState');
+    }
+    if (newPhase !== 'PAUSED' && pausedState !== null) {
+      throw new RangeError(
+        `setRoomAndMatchPhaseAtomically: pausedState moet null zijn buiten de fase "PAUSED" (newPhase was ${JSON.stringify(newPhase)})`
+      );
+    }
+
     const room = roomKey(roomId);
     const match = matchKey(roomId, matchId);
 
@@ -851,18 +1027,36 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
         );
       }
 
+      const decodedRoom = /** @type {{phase: string}} */ (codec.decode('room', storedRoom));
+      const decodedMatch = /** @type {{phase: string}} */ (codec.decode('match', storedMatch));
+      // De inhoudelijke compare-and-set (DM19). Hij staat hier en niet in Lua om
+      // dezelfde reden als de rest van het JSON-werk: het script ziet enveloppen,
+      // geen fasen. Het RAAK-venster tussen deze controle en de schrijf wordt
+      // hieronder gedekt door de tekstuele vergelijking ín het script — die is
+      // strenger dan een fasevergelijking en vangt dus ook een tussentijdse
+      // wijziging aan een heel ander veld.
+      if (decodedRoom.phase !== expectedPhase || decodedMatch.phase !== expectedPhase) {
+        return { ok: false, actualPhase: decodedMatch.phase };
+      }
+
       const outcome = await client().eval(SET_PHASE_LUA, {
-        keys: [room, match, ...roomScopeKeys(roomId), scoreboardKey(roomId, matchId)],
+        keys: [
+          room,
+          match,
+          ...roomScopeKeys(roomId),
+          scoreboardKey(roomId, matchId),
+          ...(await sessionTokenIndexKeys(roomId)),
+        ],
         arguments: [
           storedRoom,
           storedMatch,
-          codec.encode('room', { ...codec.decode('room', storedRoom), phase: newPhase }),
-          codec.encode('match', { ...codec.decode('match', storedMatch), phase: newPhase }),
+          codec.encode('room', { ...decodedRoom, phase: newPhase }),
+          codec.encode('match', { ...decodedMatch, phase: newPhase, pausedState }),
           ttl,
         ],
       });
 
-      if (outcome === 'ok') return;
+      if (outcome === 'ok') return { ok: true };
       // De twee bestaanscontroles zitten óók in het script: tussen de GET
       // hierboven en de EVAL past het verlopen of verwijderen van een sleutel,
       // en dan is "hij bestond net nog" geen grond om te schrijven.
@@ -878,7 +1072,9 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
         throw new Error(`setRoomAndMatchPhaseAtomically: onverwacht scriptresultaat ${JSON.stringify(outcome)}`);
       }
       // 'stale': iemand anders schreef Room of Match tussen de lees en het
-      // script. Er is niets geschreven; opnieuw lezen en opnieuw proberen.
+      // script. Er is niets geschreven; opnieuw lezen en opnieuw proberen — en
+      // dan kan de uitkomst alsnog `{ ok: false, actualPhase }` worden, want de
+      // fase kan intussen echt verzet zijn.
     }
 
     throw new Error(
@@ -999,6 +1195,9 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
     const actionCache = actionCacheKey(roomId);
     const encodedAnswer = codec.encode('answer', answer);
     const encodedAck = codec.encode('action-cache-entry', actionCacheEntry);
+    // Eén keer, vóór de retry-lus: de sessies van een room veranderen niet door
+    // een inzending, en dit is het heetste pad van de adapter.
+    const tokenKeys = await sessionTokenIndexKeys(roomId);
 
     for (let attempt = 1; attempt <= ANSWER_WRITE_ATTEMPTS; attempt += 1) {
       // De lees die het compare-and-set-venster opent (zie SAVE_ANSWER_LUA voor
@@ -1041,6 +1240,7 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
           matchKey(roomId, matchId),
           scoreboard,
           answers,
+          ...tokenKeys,
         ],
         arguments: [
           actionCacheEntry.actionId,
