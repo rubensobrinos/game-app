@@ -47,7 +47,7 @@ Legenda: ✅ gebouwd en getest.
 
 | Module | DM-fase | Status | Tests |
 | --- | --- | --- | --- |
-| `redis-keys.js` | DM1 | ✅ | 65 |
+| `redis-keys.js` | DM1, `sessionTokenLookupKey` toegevoegd (reactie op INTB-10) | ✅ | 67 |
 | `ttl.js` | DM1 | ✅ | 1 |
 | `types/game-configuration.js` | DM2a | ✅ | 27 |
 | `types/session.js` | DM2a | ✅ | 17 |
@@ -64,7 +64,7 @@ Legenda: ✅ gebouwd en getest.
 | `answer-flow.js` | DM7, becommentarieerd door DM13/DM15 | ✅ | zie `docs/data-model-plan/DM-PROGRESS.md` |
 | `types/player.js`'s `toStandingPlayerView()` | DM9 | ✅ | zie `docs/data-model-plan/DM-PROGRESS.md` |
 
-**Totaal: 492 tests groen** (`node --test 'server/data/**/*.test.js'`) na
+**Totaal: 494 tests groen** (`node --test 'server/data/**/*.test.js'`) na
 DM0–DM16. Analytics (DM8) levert bewust geen `server/`-code — dat blijft een
 voorstel onder `docs/data-model-plan/proposals/`, niet als runtimecode
 (`REVIEW-DM2-DM9.md` bevinding 11).

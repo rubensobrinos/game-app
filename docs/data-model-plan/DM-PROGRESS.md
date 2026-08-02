@@ -92,7 +92,33 @@ voorstellen geschreven, geen enkele geïmplementeerd (poort-bevroren):
   ingediend** — geen INT-A/INT-B-akkoord nodig, geen poortwijziging.
 
 **Bouwvolgorde uitgevoerd zoals afgesproken: §10 → INT-14 → §9.** Alle drie
-gebouwd in één ronde, 15 nieuwe tests (#44-58), 492/492 groen.
+gebouwd in één ronde, 15 nieuwe tests (#44-58), 494/494 groen (incl. INT-B's
+eigen `sessionTokenLookupKey`-tests, compatibel gelandeerd).
+
+**Nieuw, nog niet geïmplementeerd — `HANDOFF.md` §13, capability-principe.**
+INT-B vond (en ik heb bevestigd) dat DM16 het achterliggende gat niet volledig
+dichtte: `claimRoomLocatorsAtomically` zelf laat oude locators van dezelfde
+room niet los bij een herclaim (INTB-5 heropend), en `saveRoom` omzeilt de
+hele claim-machinerie nog steeds voor de code-index (INTB-9, nieuw, hoog).
+Drie voorstellen geschreven, geen enkele geïmplementeerd — wacht op
+gezamenlijk technisch akkoord:
+
+- [ ] INTB-9 — `saveRoom` raakt `roomIdByCode` niet meer aan.
+- [ ] INTB-5 (heropend) — `claimRoomLocatorsAtomically` geeft in dezelfde stap
+  de vorige locators van hetzelfde `roomId` vrij (nieuwe reverse index nodig).
+  **Aanbeveling: `rotateRoomLocators` (DM16) vervalt** — twee schrijfpaden
+  naar dezelfde index is zelf een schending van het capability-principe.
+  Wacht op INT-A's bevestiging dat er nog geen aanroeper tegen
+  `rotateRoomLocators` bouwt.
+- [ ] INTB-10, resterende twee punten — sessie-tokenrotatie (kleine ingreep,
+  geen nieuwe index nodig) en TTL-koppeling (voorstel: contract-only, zoals
+  `refreshRoomLocators`). De sleutelbouwer zelf
+  (`sessionTokenLookupKey`, `redis-keys.js`) staat er al — puur additief,
+  geen akkoord voor nodig gehad.
+
+Toegepast op alle drie: het nieuwe standaardcriterium is voortaan "élke
+capability heeft één atomair schrijfpad en één atomair intrekpad — een lookup
+die een ingetrokken capability nog vindt is een bug."
 
 INTB-8 ligt al bij de DT-agent, geen actie hier. INTB-6 (tiebreak) blijft
 terecht open, wacht op GR. Verwacht nog een klein, regulier HANDOFF-item van

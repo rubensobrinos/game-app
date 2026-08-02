@@ -535,3 +535,110 @@ kwetsbaarheid (in theorie, geen praktijkincident) die DM11/DM12 net voor
 `matches`/`rounds`/`answers`/`actionCache`/`scoreboard` hebben opgelost.
 Bewust niet meegenomen om de scope van deze ronde niet verder op te rekken —
 kleine, geïsoleerde opvolging als iemand er nog eens langs gaat.
+
+## 13. FORMEEL VOORSTEL — wacht op akkoord INT-A + INT-B (poort-bevroren, §7b) — INTB-9, INTB-5 (heropend), INTB-10
+
+**Capability-principe, vanaf nu de toets voor deze en elke volgende
+poortwijziging:** élke capability (join-code, inviteHash, sessietoken, …)
+heeft precies één atomair schrijfpad en één atomair intrekpad. Een lookup die
+een ingetrokken capability nog vindt is een bug, geen randgeval. Drie
+bevindingen hieronder zijn stuk voor stuk een schending van dat principe —
+geen van drie is al geïmplementeerd, alleen `sessionTokenLookupKey` (puur
+additief, zie hieronder) staat al in `redis-keys.js`.
+
+### INTB-9 — `saveRoom` raakt de code-index niet meer aan
+
+**Akkoord met INT-B's analyse en voorstel, ongewijzigd overnemen.** `saveRoom`
+schrijft vandaag nog onvoorwaardelijk naar `roomIdByCode` — een tweede,
+ongecontroleerde weg naar dezelfde index als `claimRoomLocatorsAtomically`,
+die de hele claim-garantie omzeilt. Voor de inviteHash-kant bestaat dit gat
+al niet (`Room` draagt geen hash, dus `saveRoom` kán daar nooit bij), en dat
+is precies waarom de code-kant nu de uitzondering — en het gat — is.
+
+**Voorstel:** `saveRoom` verwijdert de regel die `roomIdByCode` zet.
+Locatorbeheer loopt voortaan uitsluitend via
+`claimRoomLocatorsAtomically`/`releaseRoomLocators`/`refreshRoomLocators`/
+(mogelijk) `rotateRoomLocators` — zie hieronder voor die laatste.
+
+**Blast radius, zelf nagerekend:** 8 plekken in `repository.test.js` roepen
+`saveRoom(makeRoom(...))` aan zonder eerst te claimen — die moeten allemaal
+eerst `claimRoomLocatorsAtomically` aanroepen. Geen productiecode geraakt
+(die bestond nog niet), wel een noemenswaardige testherschrijving. INT-B
+noemt terecht dat de conformance-suite hetzelfde meemaakt.
+
+### INTB-5 (heropend) — `claimRoomLocatorsAtomically` laat oude locators van dezelfde room niet los
+
+**Bevestigd, zelf nagerekend met INT-B's reproductie** (twee keer claimen voor
+dezelfde `roomId` met verschillende code/inviteHash laat de eerste gewoon
+staan — mijn eigen DM10-test #33 testte dit pad al, maar beoordeelde het als
+gewenst "retry"-gedrag zonder te zien dat hetzelfde pad een AL-werkende room
+een tweede, blijvend geldige capability geeft).
+
+**Ik kies INT-B's richting 1, met een concrete invulling, niet richting 2:**
+`claimRoomLocatorsAtomically` geeft in dezelfde atomaire stap de vorige
+locators van hetzelfde `roomId` vrij vóór het de nieuwe claimt. Een room heeft
+per definitie precies één code en één inviteHash — er is geen legitiem geval
+waarin er twee tegelijk geldig zijn, dus "vorige altijd vrijgeven" kan nooit
+iets kapotmaken dat hoort te blijven bestaan.
+
+**Implementatie-consequentie: er komt een reverse index bij**
+(`locatorsByRoomId: Map<roomId, {code, inviteHash}>`), bijgehouden door
+claim/release, want de huidige Maps zijn alleen voorwaarts (`code`/`inviteHash`
+→ `roomId`) en een "wat heeft deze room nu" zonder scan is met alleen die
+Maps niet te beantwoorden. Zonder deze index zou "vorige vrijgeven" zelf weer
+een scan worden — precies de klasse fout die INTB-1 al wegnam.
+
+**Aanbeveling: `rotateRoomLocators` (DM16) vervalt als apart contract.**
+Onder deze herziene `claimRoomLocatorsAtomically` is rotatie niet meer iets
+aparts — een tweede claim voor een bestaande room DOET nu automatisch wat
+`rotateRoomLocators` deed. Twee methoden die allebei naar dezelfde index
+kunnen schrijven met overlappend doel is zelf weer een schending van het
+capability-principe hierboven ("één schrijfpad"). `rotateRoomLocators` is
+deze sessie pas gebouwd; er is voor zover bekend nog geen aanroeper in de
+compositielaag, dus de kosten van intrekken zijn nu laag. **INT-A: graag
+bevestigen dat er nog niets tegen `rotateRoomLocators` bouwt** vóór dit wordt
+doorgevoerd.
+
+**Wat dit voor mijn eigen tests betekent (nog niet uitgevoerd, alleen
+opgemerkt):** test #33 (herclaim met nieuwe inviteHash) moet een assertie
+erbij krijgen dat de oude inviteHash na de herclaim vrij is — vandaag bewijst
+hij alleen dat de nieuwe claim slaagt. De hele `rotateRoomLocators`-testset
+(#51-58) zou vervallen of herschreven worden tegen de herziene `claim`.
+
+### INTB-10 — `loadSessionByTokenHash`, de rest van het contract
+
+**Sleutelbouwer al toegevoegd (veilig, puur additief, geen bestaand gedrag
+geraakt):** `sessionTokenLookupKey(tokenHash)` → `'session:token:{tokenHash}'`
+staat in `redis-keys.js` — globaal, niet room-scoped, om dezelfde reden als
+`roomCodeLookupKey`/`roomInviteLookupKey`: een bearer token komt binnen zonder
+`roomId`, dat *is* het probleem dat deze index oplost. (INT-B heeft
+onafhankelijk, en compatibel, eigen tests voor deze builder toegevoegd in
+`redis-keys.test.js` — samen 67/67 groen, geen conflict.)
+
+**Twee stukken nog niet geïmplementeerd, wacht op gezamenlijk ontwerp:**
+
+1. **Rotatiegedrag (punt 4 uit INTB-10, hetzelfde patroon als INTB-5).**
+   Voorstel: `saveSession` leest de al-opgeslagen sessie voor het
+   overschrijven; wijkt `tokenHash` af van de nieuwe waarde, dan wordt de OUDE
+   `tokenHash`-index-entry verwijderd vóór de nieuwe wordt gezet — in dezelfde
+   synchrone stap. Dit heeft **geen** nieuwe reverse index nodig (in
+   tegenstelling tot de locators): `sessionsByKey` bevat de vorige sessie al
+   op dezelfde sleutel, dus de oude `tokenHash` is direct af te lezen zonder
+   scan. Kleinere ingreep dan INTB-5's fix, zelfde principe.
+2. **TTL-koppeling.** Sessies zijn room-scoped (`roomSessionsKey(roomId)`),
+   dus de `tokenHash`-index hoort dezelfde TTL te volgen als de room
+   (`ROOM_TTL_SECONDS`). Voorstel: net als `refreshRoomLocators` (DM10) blijft
+   dit voorlopig **contract-only** — de fake simuleert sowieso geen
+   TTL-aftelling, en de bredere refreshmatrix is al een apart, uitgesteld
+   punt (`ttl.js`, `REVIEW.md` bevinding 3). Geen nieuwe methode nu, wel de
+   uitspraak vastgelegd zodat een latere refreshmatrix dit meeneemt in plaats
+   van vergeet.
+3. **`DATA-MODEL.md` §Redis-sleutels.** Dit document wijzig ik niet zelf
+   (`docs/data-model-plan/README.md`'s eigen uitgangspunt 2: "dit document
+   wijzigt de specificatie niet"). Voorgestelde regel voor wie dat wel mag:
+   `session:token:{tokenHash} → { roomId, sessionId }` naast de bestaande
+   `room:code:{code}`/`room:invite:{inviteHash}`-regels.
+
+**Niets van dit hoofdstuk is geïmplementeerd behalve de sleutelbouwer.** Alle
+drie wachten op jullie technisch akkoord — met name INT-A's bevestiging over
+`rotateRoomLocators`-aanroepers voordat die vervalt.
