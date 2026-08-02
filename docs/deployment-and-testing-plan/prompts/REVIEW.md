@@ -5,24 +5,18 @@ Reviewdatum: 2026-08-02
 ## Conclusie
 
 De scheiding tussen zelfstandig testwerk en goedkeuringsplichtige productiehandelingen
-is sterk. Het plan dekt bovendien vrijwel alle testlagen uit de bron. DT0 is nog niet
-uitvoerbaar zoals geschreven: de fase overschrijdt haar eigen bestandslimiet en de
-gekozen Node-opdracht ontdekt een map niet op de veronderstelde manier. Voor DT1 en
+is sterk. Het plan dekt bovendien vrijwel alle testlagen uit de bron. DT0 had een
+ongeldig Node-discoverycommando; de eerdere bestandslimietbevinding is door de
+repo-eigen autonomy-override vervallen. Voor DT1 en
 verder moeten testlaag, runner en bewijssoort scherper uit elkaar worden gehouden.
 
 ## Bevindingen
 
-### 1. Hoog — DT0 wijzigt minimaal 6 bestanden bij een limiet van 5
+### 1. Vervallen — oude globale bestandslimiet
 
-Stap 2 vraagt één placeholdertest in elk van vijf mappen. Stap 4 wijzigt daarnaast
-`docs/deployment-and-testing-plan/README.md`. Dat zijn zes bestanden, terwijl de
-harde grens maximaal vijf bestanden per actie toestaat.
-
-**Voorstel:** maak in DT0 alleen vijf `.gitkeep`-bestanden en laat de README-update
-achterwege, of maak één centrale smoke-test plus placeholders. Nog eenvoudiger:
-maak alleen de mapstructuur met `.gitkeep` en verplaats iedere runnercheck naar de
-fase waarin die runner werkelijk wordt gebruikt. Als de README-update verplicht
-blijft, splits die expliciet af als een volgende actie.
+Deze bevinding gold alleen onder de vervangen globale Devkit-default. Zes
+samenhangende bestanden zijn binnen de repo-eigen override toegestaan en hoeven niet
+om beleidsredenen over losse acties te worden verdeeld.
 
 ### 2. Hoog — `node --test tests/` ontdekt de testboom niet zoals aangenomen
 

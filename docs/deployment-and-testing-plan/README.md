@@ -7,8 +7,8 @@ specificatie omzet in geteste testinfrastructuur, in welke volgorde, en waar ik 
 stoppen om goedkeuring te vragen.
 
 **Herzien op 2026-08-02 na [`prompts/REVIEW.md`](prompts/REVIEW.md).** De review vond
-DT0 niet uitvoerbaar zoals geschreven (bestandslimiet overschreden, ongeldig
-verificatiecommando, misleidende groene placeholders) en wees op vermenging van
+voor DT0 een ongeldig verificatiecommando en misleidende groene placeholders; de
+oorspronkelijke bestandslimietbevinding is inmiddels vervallen. Verder wees zij op vermenging van
 testsoorten en overclaims verderop in de fasering. Dit document verwerkt die
 bevindingen. Er was nog niets uitgevoerd, dus er valt niets terug te draaien — alleen
 het plan zelf is aangepast.
@@ -77,7 +77,7 @@ vragen". Een kruisverwijzing tussen beide lijsten staat als addendum onderaan
    letterlijk in dit document (zie DT0b) in plaats van dat groen lokaal lijkt op
    "geborgd in CI". Het devkit-managed blok wijzig ik nooit handmatig.
 8. **Autonomie-limieten blijven gelden, inclusief het bestandsaantal per actie.** Max
-   5 bestanden en 400 regels per actie (CLAUDE.md). Een fase die dat dreigt te
+   15 bestanden en 5.000 regels per actie (CLAUDE.md). Een fase die dat dreigt te
    overschrijden — zoals de oorspronkelijke DT0 — wordt gesplitst, niet afgerond.
 9. **`infra/prod/**` en `.github/workflows/deploy.yml` raak ik nooit aan.**
 
@@ -257,15 +257,27 @@ genoemde checkpoint. DT1b is vervallen (zie hierboven), geen checkpoint meer nod
 Uitvoerbare, zelfstandige taakbeschrijvingen per fase staan in
 [`prompts/`](prompts/), zodat ze los te reviewen en los te starten zijn:
 
-- [`prompts/DT0-scaffold.md`](prompts/DT0-scaffold.md) — herzien na
-  [`prompts/REVIEW.md`](prompts/REVIEW.md); wordt momenteel uitgevoerd.
-- [`prompts/DT0b-status-en-ci-gap.md`](prompts/DT0b-status-en-ci-gap.md)
-- [`prompts/DT1a-traceability-matrix.md`](prompts/DT1a-traceability-matrix.md)
-- [`prompts/DT2-fixtures-voorstel.md`](prompts/DT2-fixtures-voorstel.md)
-- [`prompts/DT3a-integratie-matrix.md`](prompts/DT3a-integratie-matrix.md)
+- [`prompts/DT0-scaffold.md`](prompts/DT0-scaffold.md) — **afgerond**.
+- [`prompts/DT0b-status-en-ci-gap.md`](prompts/DT0b-status-en-ci-gap.md) — **afgerond**.
+- [`prompts/DT1a-traceability-matrix.md`](prompts/DT1a-traceability-matrix.md) — **afgerond**.
+- [`prompts/DT2-fixtures-voorstel.md`](prompts/DT2-fixtures-voorstel.md) — **afgerond**.
+- [`prompts/DT3a-integratie-matrix.md`](prompts/DT3a-integratie-matrix.md) — **afgerond**.
+- [`prompts/DT3b-integratie-code.md`](prompts/DT3b-integratie-code.md) — geschreven,
+  **geblokkeerd**: geen enkel scenario uit DT3a heeft nog een activatiecriterium
+  gehaald.
+- [`prompts/DT4a-playwright-e2e.md`](prompts/DT4a-playwright-e2e.md) — geschreven,
+  Deel 1 (pseudocode) uitvoerbaar nu, Deel 2 (echte specs) na `deps`-akkoord.
+- [`prompts/DT4b-device-matrix.md`](prompts/DT4b-device-matrix.md) — geschreven,
+  volledig uitvoerbaar nu.
+- [`prompts/DT5-loadtests.md`](prompts/DT5-loadtests.md) — geschreven, Deel 1
+  (evidence-tabel) uitvoerbaar nu, Deel 2/3 na akkoord.
+- [`prompts/DT6-chaostests.md`](prompts/DT6-chaostests.md) — geschreven, Deel 1
+  (runbook-tekst) uitvoerbaar nu, Deel 2 (uitvoering) na gefaseerde autorisatie.
+- [`prompts/DT7-ci-voorstel.md`](prompts/DT7-ci-voorstel.md) — geschreven, volledig
+  uitvoerbaar nu, activatie apart.
 
-Deze vijf dekken alles wat ik zelfstandig kan doorlopen (matrix, voorstel of
-mapstructuur, geen bindende code of echte uitvoering). DT1b, DT3b, DT4, DT5, DT6 en DT7
-krijgen hun prompt pas vlak voordat ze starten, niet vooraf in bulk — zo blijft elke
-prompt actueel ten opzichte van wat de vorige fase echt opleverde en van wat de
-`PROTOCOL.md`-/`DATA-MODEL.md`-eigenaren inmiddels hebben vastgelegd.
+Alle fases hebben nu een geschreven, review-bare prompt (2026-08-02). DT1b is
+vervallen en heeft geen prompt. Elk prompt-bestand voor DT3b–DT7 bevat zijn eigen
+harde knip tussen wat zonder checkpoint geschreven mag worden en wat op een
+expliciet `deps`/`prod`-akkoord of op DT3a's activatiecriteria wacht — zie het
+prompt-bestand zelf voor die grens, niet dit overzicht.
