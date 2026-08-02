@@ -9,7 +9,7 @@
  *
  * `reason` strings are lowercase, module-internal labels — NOT the 23
  * SCREAMING_CASE PROTOCOL.md error codes. Mapping a reason to an official
- * protocol error code happens later, in the M2 `error-codes` module.
+ * protocol error code happens later, in the PR2 `error-codes` module.
  */
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */

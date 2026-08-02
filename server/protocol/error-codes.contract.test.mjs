@@ -1,5 +1,5 @@
 /**
- * @file M2 — contracttest: bewaakt dat `ERROR_CODES_BY_CATEGORY` (deze repo)
+ * @file PR2 — contracttest: bewaakt dat `ERROR_CODES_BY_CATEGORY` (deze repo)
  *   en `docs/multiplayer/PROTOCOL.md` §Foutcodes (bron van waarheid) niet uit
  *   elkaar lopen. `extractErrorCodesFromProtocolDoc` is puur tekstparsing,
  *   zonder kennis van de enum, zodat de vergelijking hieronder niet

@@ -8,7 +8,7 @@ volgens het uitvoeringsplan in
 
 Deze plek staat naast `server/rules/` (game-rules-plan) en
 `server/architecture/` (architecture-plan) en is **niet definitief**. Ze kan
-verschuiven zodra architecture-plan's A5/A6-voorstel voor een serverskeleton
+verschuiven zodra architecture-plan's AR5/AR6-voorstel voor een serverskeleton
 landt en een bindende mapindeling oplevert (`architecture`-checkpoint).
 
 ## Moduleformaat
@@ -25,4 +25,4 @@ landt en een bindende mapindeling oplevert (`architecture`-checkpoint).
 `envelope`, `auth-shape`, `rest-games`, `client-events`, `server-events`,
 `error-codes`, `reconnect`, `input-safety`, `contract-tests`.
 
-M1 begint vandaag met de envelope- en idempotentie-bouwstenen.
+PR1 begint vandaag met de envelope- en idempotentie-bouwstenen.

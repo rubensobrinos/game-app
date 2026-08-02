@@ -1,10 +1,10 @@
 /**
- * @file M2 — bouwt `payload` van het server->client `error`-event
+ * @file PR2 — bouwt `payload` van het server->client `error`-event
  *   (PROTOCOL.md §Foutcodes: `{ actionId, code, meta }`).
- * @see docs/protocol-plan/README.md, fase M2.
+ * @see docs/protocol-plan/README.md, fase PR2.
  *
  * `actionId` hoort hier niet bij: die kent alleen de aanroeper die de
- * oorspronkelijke actie afhandelde en wordt door de envelope-module (M1)
+ * oorspronkelijke actie afhandelde en wordt door de envelope-module (PR1)
  * toegevoegd, niet hier.
  */
 import { ALL_ERROR_CODES } from './error-codes.mjs';
@@ -13,7 +13,7 @@ import { ALL_ERROR_CODES } from './error-codes.mjs';
  * Sleutelnamen die nooit in `meta` mogen voorkomen — op elke nestingsdiepte
  * (ook binnen arrays), hoofdletterongevoelig vergeleken. Dekt displaynaam,
  * token, IP-adres en volledige antwoordpayload (docs/protocol-plan/README.md,
- * fase M2). Dit is een denylist, geen uitputtende whitelist per foutcode.
+ * fase PR2). Dit is een denylist, geen uitputtende whitelist per foutcode.
  * @type {ReadonlyArray<string>}
  */
 export const FORBIDDEN_META_KEYS = Object.freeze([

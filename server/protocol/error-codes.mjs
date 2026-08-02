@@ -1,5 +1,5 @@
 /**
- * @file M2 — foutcode-enum voor het server->client `error`-event.
+ * @file PR2 — foutcode-enum voor het server->client `error`-event.
  * @see docs/multiplayer/PROTOCOL.md — sectie "Foutcodes".
  *
  * Single source of truth: elke andere module (envelope, rest-games,

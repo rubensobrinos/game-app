@@ -1,5 +1,5 @@
 /**
- * @file M1 — idempotentiebeslissing voor muterende clientacties.
+ * @file PR1 — idempotentiebeslissing voor muterende clientacties.
  *
  * Realiseert PROTOCOL.md §Ack ("Bij een retry met dezelfde `actionId`
  * retourneert de server dezelfde logische ack zonder de mutatie opnieuw uit
