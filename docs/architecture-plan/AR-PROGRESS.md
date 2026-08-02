@@ -20,8 +20,8 @@ Legenda: ✅ Klaar (gebouwd en getest) — 🟡 Deels — ⬜ Nog niet gestart �
 | Rooms zijn geen containers | ⚪ Geen code | ontwerpprincipe; bewaakt door AR5, niet zelf te bouwen |
 | Componenten | ⬜ Nog niet gestart | de componenttabel krijgt pas invulling in AR5/AR6 |
 | Principe 1 — server-authoritative | 🟡 Deels | AR1 bewaakt het voor faseovergangen; vraagselectie/scoring liggen bij `GAME-RULES.md` |
-| Principe 2 — één timeline per room | 🟡 Deels | AR4 (`server-time.js`, offset-midpoint) is **klaar en getest — 193/193**; het serverdeel dat absolute tijden plant en `/api/v1/time` bedient, wacht op AR5/AR6 |
-| Principe 3 — snapshot boven event replay | 🟡 Deels | AR3 (`snapshot-precedence.js`, `shouldApplySnapshot`/`shouldApplyEvent`) is **klaar en getest — 84/84**; toepassing in een echte reconnect-/sockethandler wacht op AR5/AR6 |
+| Principe 2 — één timeline per room | 🟡 Deels | AR4 (`server-time.js`, offset-midpoint) is **klaar en getest — 205/205**; het serverdeel dat absolute tijden plant en `/api/v1/time` bedient, wacht op AR5/AR6 |
+| Principe 3 — snapshot boven event replay | 🟡 Deels | AR3 (`snapshot-precedence.js`, `shouldApplySnapshot`/`shouldApplyEvent`) is **klaar en getest — 100/100**; toepassing in een echte reconnect-/sockethandler wacht op AR5/AR6 |
 | Principe 4 — tijdelijke sessies | ⚪ Andere eigenaar | `DATA-MODEL.md` (Session) + `PROTOCOL.md` (tokens); ADR-plichtig `auth` |
 | Principe 5 — QR/deel-link als joincapability | 🟡 Deels | `inviteId`-generatie zit in AR2 (klaar); de joinflow zelf is `GAME-FLOW.md` |
 | Principe 6 — gedeelde contentmodule | ⚪ Andere eigenaar | `GAME-RULES.md` pint `contentVersion`; ik consumeer alleen |
@@ -32,7 +32,7 @@ Legenda: ✅ Klaar (gebouwd en getest) — 🟡 Deels — ⬜ Nog niet gestart �
 | Containers | ⚪ Buiten scope | `DEPLOYMENT-AND-TESTING.md` |
 | Routing | ⬜ Nog niet gestart | AR5/AR6 |
 | Socketstrategie | ⬜ Nog niet gestart | AR6, na dependency-akkoord (Socket.IO) |
-| **State machine** | ✅ **Klaar** | **AR1 — 127 fixtures, 132 tests groen** |
+| **State machine** | ✅ **Klaar** | **AR1 — 130 fixtures, 138 tests groen** |
 | Join-code en inviteId | ✅ Klaar | AR2 (`room-codes.js`) — **17/17 tests groen**: generator, `inviteId` (≥96 bits), invite-hashindex |
 | Redisstructuur en schaal | ⬜ Nog niet gestart | `redis-keyspace` staat wél in de moduletabel maar **heeft nooit een AR-nummer gekregen** |
 | Schaalpad (fase 0–3) | ⏸️ Later | AR7 — expliciet na een werkende Fase 0/1 |
@@ -43,10 +43,10 @@ Legenda: ✅ Klaar (gebouwd en getest) — 🟡 Deels — ⬜ Nog niet gestart �
 | Fase | Status | Toelichting |
 | --- | --- | --- |
 | AR0 — scope-check | ✅ Klaar | map `server/architecture/` bevestigd; sluit aan op bestaande `server/rules/` |
-| AR1 — state machine | ✅ Klaar | 4 bouwrondes, 9 agents, 3 defecten gevonden en gefixt; 132/132 tests groen |
+| AR1 — state machine | ✅ Klaar | 4 bouwrondes, 9 agents, 3 defecten gevonden en gefixt; 138/138 tests groen |
 | AR2 — room-codes | ✅ Klaar | zescijferige code + `inviteId` (≥96 bits, `node:crypto`); 17/17 tests groen. **Geen apart promptbestand geschreven** — afwijking van de AR0/AR1-werkwijze, zie actiepunten hieronder |
-| AR3 — snapshot-precedence | ✅ Klaar | pure beslisregel snapshot vs. events; 84/84 tests groen. **Geen apart promptbestand geschreven** |
-| AR4 — server-time | ✅ Klaar | midpoint-offset uit round-trip-samples; 193/193 tests groen. **Geen apart promptbestand geschreven** |
+| AR3 — snapshot-precedence | ✅ Klaar | pure beslisregel snapshot vs. events; 100/100 tests groen. **Geen apart promptbestand geschreven** |
+| AR4 — server-time | ✅ Klaar | midpoint-offset uit round-trip-samples; 205/205 tests groen. **Geen apart promptbestand geschreven** |
 | AR5 — server-skeleton (voorstel) | ⬜ Niet begonnen | review-baar voorstel, geen draaiende code; kan nu inhoudelijk beginnen (AR2–AR4 zijn niet langer een blokkade), maar blijft `architecture`/always_ask |
 | AR6 — proces-skeleton | ⏸️ Geblokkeerd | vereist akkoord op AR5 **en** op dependencies (`deps`, always_ask) |
 | AR7 — schaalpad | ⏸️ Later | geen launch-prioriteit |
@@ -111,7 +111,7 @@ verbergen. Staat als zodanig in de modulekop.
 
 ## Cijfers
 
-- **AR0–AR4:** gebouwd en geverifieerd, **426/426 tests groen** in
+- **AR0–AR4:** gebouwd en geverifieerd, **468/468 tests groen** in
   `server/architecture/` (`node --test server/architecture/*.test.js`):
   state-machine 132, room-codes 17, snapshot-precedence 84, server-time 193.
 - **AR1 — mutatiescore vóór ronde 4:** 18/28 mutanten gedood. De overlevers zaten

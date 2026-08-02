@@ -34,13 +34,13 @@ oplevert (`architecture`-checkpoint, always_ask — zie
 
 | Module | Fase | Verantwoordelijkheid | Status |
 | --- | --- | --- | --- |
-| `state-machine.js` | AR1 | Faseovergangen `LOBBY → ... → FINISHED`, `PAUSED`-bookkeeping (`transition()`) | ✅ Klaar — 132/132 tests groen |
+| `state-machine.js` | AR1 | Faseovergangen `LOBBY → ... → FINISHED`, `PAUSED`-bookkeeping (`transition()`) | ✅ Klaar — 138/138 tests groen |
 | `room-codes.js` | AR2 | Zescijferige join-code (crypto-random, `isTaken`-hook) + `inviteId` (≥96 bits, base64url) + invite-hashindex | ✅ Klaar — 17/17 tests groen |
-| `snapshot-precedence.js` | AR3 | Pure beslisregel wanneer een snapshot lokale/eventgebaseerde state mag overschrijven | ✅ Klaar — 84/84 tests groen |
-| `server-time.js` | AR4 | Midpoint-offsetschatting tussen client- en serverklok uit round-trip-samples (`/api/v1/time`) | ✅ Klaar — 193/193 tests groen |
+| `snapshot-precedence.js` | AR3 | Pure beslisregel wanneer een snapshot lokale/eventgebaseerde state mag overschrijven | ✅ Klaar — 100/100 tests groen |
+| `server-time.js` | AR4 | Midpoint-offsetschatting tussen client- en serverklok uit round-trip-samples (`/api/v1/time`) | ✅ Klaar — 205/205 tests groen |
 
 Elke module heeft een eigen `*.test.js` ernaast. Totaal:
-**426/426 tests groen** (`node --test server/architecture/*.test.js`, laatst
+**468/468 tests groen** (`node --test server/architecture/*.test.js`, laatst
 geverifieerd 2026-08-02).
 
 ### Nog ontbrekende fases

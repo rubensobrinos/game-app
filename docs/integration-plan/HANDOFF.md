@@ -19,9 +19,10 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INT-9 | DM | 🔵 open | `deadlineGraceMs`: `DATA-MODEL.md` zegt 150, besluit 13 zegt 250 |
 | INT-10 | GR + GF + AR | ✅ **opgelost** | Deadlock weg; `HOST_NEXT` vanuit `ROUND_RESULT` verwijderd, regressietest geplaatst |
 | INT-13 | DM + AR | 🔵 open | `inviteHash` mist een versieprefix, anders dan sessietokens |
-| INT-14 | DM + PR + **INT-B** | 🔴 **hoog, tijdkritisch** | Poort moet `{ replay: boolean }` teruggeven — beslissen vóór INT-B's Lua-script |
+| INT-14 | DM + PR + **INT-B** | ✅ **ingewilligd** | `saveAcceptedAnswerAtomically` geeft nu `{ replay: boolean }` terug |
 | INT-11 | PR | 🔵 open | `preset`-waarde loopt drie kanten op; het is een wire-veld |
 | INT-15 | DM + **INT-B** | 🔴 **hoog, nu beslissen** | `(roomId, tokenHash)` zou de socket-handshake onbouwbaar maken — input voor INTB-9/10 |
+| INT-16 | DM + **INT-B** | 🟠 ter akkoord | Crash-atomaire fasewissel: fase + projectie + `pausedState` in één operatie, met verwachte oude fase |
 | INT-12 | PD | 🔵 open | `shared/product/quick-start-preset.mjs` is stale naast een nieuwere variant |
 
 ---
@@ -492,3 +493,97 @@ Eén oplossing dekt beide: sla de index op onder `${versie}:${hash}` zoals
 De socketlaag heeft die aanroep achter één functie geïsoleerd, dus een andere
 uitkomst kost mij weinig — maar een room-gescoopte variant kost een
 protocolwijziging en is niet los op te lossen.
+
+---
+
+## INT-16 — crash-atomaire fasewissel: één operatie voor fase, projectie én pausedState
+
+**Voor:** DM (eigenaar van de poort) en INT-B (Lua-script), ter akkoord.
+**Van:** INT-A, met de AR-pet op — dit raakt de state machine die ik bezit.
+**Niet zelf gebouwd:** dit wacht op akkoord, conform de eenrichtingsregel.
+**Bundelt:** review-bevinding 2 en 5.
+
+### Het probleem
+
+Besluit 30 legt vast dat `Match.phase` autoritair is en `Room.phase` een projectie
+die **in dezelfde atomaire operatie** wordt bijgewerkt. `setRoomAndMatchPhaseAtomically`
+doet dat correct. Maar de huidige signatuur is:
+
+```js
+setRoomAndMatchPhaseAtomically(roomId, matchId, newPhase) → Promise<void>
+```
+
+Er zitten twee gaten in.
+
+**Gat 1 — `pausedState` valt buiten de atomaire operatie.** Een pauze zet fase én
+`pausedState` samen; dat is één logische overgang. De compositie doet daar nu twee
+schrijfacties voor: eerst `saveMatch` met de `pausedState` maar zonder fase, dan de
+atomaire fasewissel. Crasht het proces daartussen, dan staat er een match met een
+`pausedState` die niet `PAUSED` is, of andersom. Dat is precies het niet-atomaire
+dual-write-pad dat besluit 30 verbiedt, alleen dan voor het veld dat het besluit niet
+noemt.
+
+**Gat 2 — geen verwachte oude fase.** De operatie schrijft onvoorwaardelijk. Twee
+gelijktijdige overgangen — een servertimer die naar `SCOREBOARD` wil en een host die
+tegelijk `game:finish` stuurt — kunnen elkaar overschrijven, en de verliezer merkt
+niets. Dit is ook de kern van het al gemelde INT-7: heel-document-writes kunnen een
+gelijktijdige faseprojectie klobberen.
+
+### Voorstel
+
+```js
+setRoomAndMatchPhaseAtomically(roomId, matchId, {
+  expectedPhase,        // string — de fase die de aanroeper dacht te zien
+  newPhase,             // string
+  pausedState,          // object | null — in dezelfde operatie
+}) → Promise<{ ok: true } | { ok: false, actualPhase: string }>
+```
+
+- **Compare-and-set.** Komt `expectedPhase` niet overeen met wat er staat, dan
+  schrijft de operatie niets en geeft ze de werkelijke fase terug. De aanroeper kan
+  dan opnieuw beslissen in plaats van blind te overschrijven. Dat sluit gat 2 en
+  geeft INT-7 een oplossing die verder gaat dan de fase alleen.
+- **`pausedState` in dezelfde operatie**, zodat een pauze niet meer half kan landen.
+  `null` bij elke niet-`PAUSED`-fase — dat is invariant 1 van de state machine, en
+  door hem in de poort af te dwingen kan geen enkele aanroeper hem breken.
+- **Conflict is geen fout**, net als bij de locatorclaim: een resultaatobject, geen
+  exception.
+
+### Twee resume-events in plaats van één
+
+Op mijn eigen terrein: de state machine kent nu alleen `HOST_RESUME`, waarbij de
+aanroeper de bestemming meelevert. Het onderscheid tussen een handmatige hervatting
+en herstel na een serverherstart zit dus nergens in de state, alleen in de
+`reason`-vrije tekst van de pauze.
+
+Voorstel: splits naar **`HOST_RESUME`** en **`RECOVERY_RESUME`**. Ze mogen dezelfde
+transitie doen, maar het onderscheid hoort in het alfabet omdat:
+
+- `ARCHITECTURE.md` §10 eist dat herstel gebeurt met een nieuwe korte countdown, niet
+  door stilletjes fases over te slaan — dat is een andere bestemming dan bij een
+  handmatige hervatting;
+- besluit 11 kent `server_recovery` als eigen pauzereden, dus het onderscheid bestaat
+  al productmatig;
+- analytics en logs kunnen een herstart-hervatting dan onderscheiden van een
+  hostactie, wat nu onmogelijk is.
+
+Dit deel raakt alleen `state-machine.js` en is mijn werk zodra de poortkant akkoord is.
+
+### Besluit #37-toets — wat DM en INT-B moeten uitspreken
+
+1. **Redis-sleutel.** Onder welke sleutel landt `pausedState`? Zit hij in het
+   Match-JSON-document (besluit 22) of apart? Als hij in het document zit, moet het
+   Lua-script het hele document lezen, muteren en terugschrijven binnen dezelfde
+   atomaire uitvoering — inclusief de `Room.phase`-projectie in een tweede sleutel.
+2. **TTL.** Raakt deze operatie de TTL van room- en matchsleutels, of blijft dat bij
+   het bestaande refreshpad in `ttl.js`? Een fasewissel is activiteit, dus mijn
+   aanname is verlengen — maar dat moet uitgesproken worden en niet impliciet blijven.
+3. **Lua.** Compare-and-set hoort in hetzelfde script als de schrijfactie, anders is
+   het alsnog check-then-act. Dat is dezelfde les als INT-1.
+
+### Waarom nu
+
+INT-B bouwt het Lua-script voor `saveAcceptedAnswerAtomically`. De fasewissel krijgt
+er een van dezelfde vorm. Wordt dit ná dat werk besloten, dan is het een tweede
+herschrijving van atomaire code — precies wat bij INT-14 net is voorkomen door op tijd
+te melden.

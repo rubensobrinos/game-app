@@ -287,13 +287,31 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
 
   /**
    * Logt zonder ooit een token, displaynaam of stacktrace mee te nemen
-   * (PROTOCOL.md Basisregel 8). Alleen eventnaam, foutcode en room-/sessie-id.
+   * (PROTOCOL.md Basisregel 8, DEPLOYMENT-AND-TESTING.md §Logging).
+   *
+   * DIT IS EEN ALLOWLIST, GEEN FILTER. Een eerdere versie kopieerde alle
+   * meegegeven velden en sloeg alleen `undefined` over; de belofte in dit
+   * comment werd toen afgedwongen door de discipline van de aanroeper en niet
+   * door de code. Eén `logSafe('info', '…', { token })` verderop was genoeg om
+   * een sessietoken in productielogs te zetten. Daarom staat hieronder een
+   * expliciete lijst: alles wat er niet in staat wordt weggegooid, ook als het
+   * nieuw en onschuldig lijkt. Wil je een veld toevoegen, doe dat hier en
+   * bedenk eerst of het een geheim of een persoonsgegeven kan dragen.
    */
+  const LOGGABLE_FIELDS = Object.freeze([
+    'roomId', // opaak id, geen join-capability (dat zijn code en inviteId)
+    'sessionId', // opaak id, niet het token
+    'event', // eventnaam uit het vaste protocolalfabet
+    'code', // gepubliceerde PROTOCOL.md-foutcode
+    'reason', // reeds gelabelde foutklasse, nooit een message of stacktrace
+    'method', // share:opened → qr | link | native
+  ]);
+
   function logSafe(level, message, fields = {}) {
     const safe = {};
-    for (const [key, value] of Object.entries(fields)) {
-      if (value === undefined) continue;
-      safe[key] = value;
+    for (const key of LOGGABLE_FIELDS) {
+      const value = fields[key];
+      if (value !== undefined) safe[key] = value;
     }
     logger[level]?.({ layer: 'socket', ...safe }, message);
   }
