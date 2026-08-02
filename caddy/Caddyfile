@@ -1,0 +1,52 @@
+# caddy/Caddyfile — fase 1. Routing conform docs/multiplayer/ARCHITECTURE.md:
+#   /api/* en /socket.io/*  → game-server
+#   al het overige          → frontend (nginx)
+#
+# Security-headers conform DEPLOYMENT-AND-TESTING.md. HSTS staat bewust nog
+# UIT ("HSTS na succesvolle test") — inschakelen zodra HTTPS via de publieke
+# route aantoonbaar goed werkt. Rate limiting op create/join vergt een
+# Caddy-plugin of de echte game-server; staat als openstaand punt in
+# docs/fase1-runbook.md.
+
+(app) {
+	encode gzip zstd
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		# CSP: de bestaande app gebruikt inline scripts/styles en canvas;
+		# aanscherpen kan pas na een echte inventarisatie van index.html.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'"
+		# HSTS pas ná succesvolle publieke HTTPS-test activeren:
+		# Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	request_body {
+		max_size 64KB
+	}
+
+	handle /api/* {
+		reverse_proxy game-server:3000
+	}
+
+	handle /socket.io/* {
+		reverse_proxy game-server:3000
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+}
+
+# Publieke route. Achter Cloudflare Tunnel praat cloudflared intern HTTP met
+# Caddy; TLS ligt dan aan de edge bij Cloudflare.
+http://play.aseso.nl {
+	import app
+}
+
+# Lokaal testen op de Mac zelf (http://localhost).
+http://localhost, http://127.0.0.1 {
+	import app
+}

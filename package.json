@@ -1,0 +1,13 @@
+{
+  "name": "aseso-game-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser-quizgame + multiplayer-laag (play.aseso.nl). Spec: docs/multiplayer/",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test 'server/**/*.test.*' 'client/**/*.test.*' 'shared/**/*.test.*' 'tests/**/*.test.*'",
+    "start": "node server/index.mjs"
+  }
+}

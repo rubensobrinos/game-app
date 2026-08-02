@@ -1,0 +1,12 @@
+# Override voor Cloudflare Tunnel (DEPLOYMENT-AND-TESTING.md):
+# "Bij Cloudflare Tunnel wordt die mapping in een Compose override verwijderd
+#  ... Zo staan niet alsnog onbedoeld poort 80 en 443 op de Mac open terwijl
+#  de tunnel actief is."
+#
+# Gebruik:
+#   docker compose -f docker-compose.yml -f compose.tunnel.override.yml \
+#     --profile tunnel up -d
+
+services:
+  reverse-proxy:
+    ports: !reset []
