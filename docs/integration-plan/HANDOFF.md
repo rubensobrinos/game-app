@@ -50,25 +50,32 @@ de hostactie naar `ROUND_RESULT`", expliciet gemarkeerd als interpretatie in de
 modulekop. GF heeft besluit 1 letterlijk gelezen. Beide verdedigbaar, de
 combinatie niet.
 
-**Drie uitwegen, de keuze is aan GR:**
+### ✅ Opgelost — variant A, door AR zelf
 
-- **A** — de tussenstand kan bij host-tempo nooit uit. Dan heeft GF gelijk en is
-  de `ROUND_RESULT`-tak in de state machine dode code die weg moet. Vereist wel
-  dat `scoreboardFrequency` die combinatie afdwingt in plaats van toestaat.
-- **B** — AR's interpretatie blijft. Dan moet GF `ROUND_RESULT` aan
-  `WAITING_PHASES` toevoegen wanneer de tussenstand uitstaat, wat betekent dat
-  `scoreboardFrequency` in de clientcontext beschikbaar moet zijn.
-- **C** — bij tussenstand uit loopt `ROUND_RESULT` gewoon op de timer door. Dan
-  is er in die configuratie géén hostactie per ronde en is host-tempo daar
-  feitelijk automatisch.
+Het oorspronkelijke item legde drie uitwegen voor. Bij het narekenen bleek er
+één die de tekst van besluit 1 onvoorwaardelijk waarmaakt, en die zat in AR's
+eigen bestand. De `HOST_NEXT`-tak vanuit `ROUND_RESULT` is verwijderd
+(commit `3143e7e`).
 
-INT-A's voorkeur is **B**: die houdt "één hostactie per ronde" in beide
-configuraties waar, wat de letterlijke belofte van besluit 1 is. Maar dit is
-spelgevoel en dus niet aan de integrator.
+Bij host-tempo loopt elke ronde nu via
+`ROUND_RESULT --timer--> SCOREBOARD --HOST_NEXT--> volgende`, dus **altijd
+precies één hostactie per ronde, in élke configuratie**. GF's
+`WAITING_PHASES` is daarmee correct zonder wijziging, en de deadlock is weg.
+Geverifieerd tegen de échte `availableHostActions` uit `host-controls-state.mjs`,
+niet alleen tegen de eigen tabel. Er staat een regressietest met INT-10 in de
+naam zodat de tak niet terugkeert.
 
-**Wat INT-A doet tot dit beslist is:** de keten-test gebruikt de quick-start-
-default (auto-tempo, tussenstand aan), waar de combinatie niet optreedt. Er komt
-geen omweg in de compositie.
+**Consequentie voor de `GAME-RULES.md`-eigenaar** — geen vraag, wel iets om te
+weten: `scoreboardFrequency: 'uit'` betekent bij host-tempo voortaan "toon geen
+tussenstand", niet "sla de fase over". De `SCOREBOARD`-fase blijft bestaan,
+want daar doet de host zijn enige actie; wat die fase toont is presentatie. Bij
+auto-tempo verandert er niets — daar mag `ROUND_RESULT` de tussenstand nog
+steeds overslaan. Staat als notitie in de modulekop van `state-machine.js`.
+
+**Les:** dit item ontstond doordat AR een gat in besluit 1 met een comment
+invulde in plaats van er een besluit van te maken. Een interpretatie die het
+gedrag van een ander domein raakt hoort in `DECISIONS.md`, niet in een
+modulekop.
 
 ---
 
