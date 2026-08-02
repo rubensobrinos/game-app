@@ -17,7 +17,7 @@ const { join } = require('node:path');
 
 const {
   computeOffsetFromSample, estimateOffset, serverNow, toLocalTime, remainingMs,
-  ERROR_CODES, DEFAULT_OPTIONS,
+  ERROR_CODES, DEFAULT_OPTIONS, FILTER_LIMITS,
 } = require('./server-time');
 
 /** Vaste tijdstempels — nooit Date.now(). T en ENDS_AT komen uit het
@@ -43,13 +43,21 @@ function err(code) { return { ok: false, code }; }
 /**
  * Verwachte uitkomst van estimateOffset. Alle velden worden expliciet meegegeven —
  * niets wordt hier afgeleid, zodat de test geen tweede implementatie wordt.
- * @param {number[]} counts - [sampleCount, usedCount, discardedCount]
- * @param {number[]} rtts - [best, worst, spread, uncertainty]
+ * @param {number[]} counts - [sampleCount, usedCount, discardedCount, negativeRoundTrips]
+ * @param {number[]} rtts - [best, worstUsed, usedSpread, worstMeasured, measuredSpread]
+ * @param {number[]} quality - [uncertainty, offsetSpread, offsetMad]
  */
-function okEstimate(offsetMs, [sampleCount, usedCount, discardedCount], [best, worst, spread, uncertainty]) {
+function okEstimate(
+  offsetMs,
+  [sampleCount, usedCount, discardedCount, negativeRoundTripCount],
+  [best, worstUsed, usedSpread, worstMeasured, measuredSpread],
+  [uncertainty, offsetSpread, offsetMad],
+) {
   return {
-    ok: true, offsetMs, sampleCount, usedCount, discardedCount,
-    bestRoundTripMs: best, worstRoundTripMs: worst, roundTripSpreadMs: spread, uncertaintyMs: uncertainty,
+    ok: true, offsetMs, sampleCount, usedCount, discardedCount, negativeRoundTripCount,
+    bestRoundTripMs: best, worstUsedRoundTripMs: worstUsed, usedRoundTripSpreadMs: usedSpread,
+    worstMeasuredRoundTripMs: worstMeasured, measuredRoundTripSpreadMs: measuredSpread,
+    uncertaintyMs: uncertainty, offsetSpreadMs: offsetSpread, offsetMadMs: offsetMad,
   };
 }
 
@@ -132,6 +140,52 @@ const SNEAKY = [
 /** Uitschieter aan de andere kant: -900 s, round-trip 140 ms. */
 const LOW_OUTLIER = sample(1_008_000, 140, 108_070);
 
+/** Vier eerlijke samples op de PROTOCOL.md-epoch: round-trip 100, ware offset +1000. */
+const HONEST = [
+  sample(T, 100, 1_785_623_413_050),
+  sample(1_785_623_414_000, 100, 1_785_623_415_050),
+  sample(1_785_623_416_000, 100, 1_785_623_417_050),
+  sample(1_785_623_418_000, 100, 1_785_623_419_050),
+];
+/** Eén meting met een extreem korte round-trip (2 ms) en een klok die 4 s mis staat. */
+const FAST_LIAR = sample(1_785_623_420_000, 2, 1_785_623_416_001);
+/** Gecachete `/api/v1/time`-response: round-trip 0 en een 29 s oude serverTime. */
+const CACHED_LIAR = sample(1_785_623_420_000, 0, 1_785_623_391_000);
+/**
+ * Drie van de vijf samples komen van een klok die 10 minuten voorloopt, bij een
+ * volstrekt normale round-trip. Filter én mediaan verliezen het van die meerderheid —
+ * dat is inherent aan een mediaan (modulekop, aanname 5). De enige aanwijzing die de
+ * aanroeper krijgt is offsetSpreadMs; de MAD blijft 0, want de uitschieters zíjn de
+ * meerderheid.
+ */
+const MAJORITY_SKEW = [
+  sample(L, 100, 1_000_050), // offset 0
+  sample(1_002_000, 110, 1_002_055), // offset 0
+  sample(1_004_000, 100, 1_604_050), // offset 600_000
+  sample(1_006_000, 110, 1_606_055), // offset 600_000
+  sample(1_008_000, 120, 1_608_060), // offset 600_000
+];
+/**
+ * ST-M8. Offsets van verschillende ORDEGROOTTE bij gelijke round-trips. Een sortering
+ * zonder comparator vergelijkt als string ("1000" < "1001" < "8" < "90" < "999") en
+ * geeft mediaan 8; de enige juiste mediaan is 999. Zonder deze fixture overleeft die
+ * mutant de hele suite, want alle andere offsets zijn even lang en even positief.
+ */
+const MIXED_MAGNITUDE = [
+  sample(L, 100, 1_000_058), // offset 8
+  sample(1_002_000, 100, 1_002_140), // offset 90
+  sample(1_004_000, 100, 1_005_049), // offset 999
+  sample(1_006_000, 100, 1_007_050), // offset 1000
+  sample(1_008_000, 100, 1_009_051), // offset 1001
+];
+/** Idem, maar met een even aantal en beide tekens: stringsortering geeft -23,5. */
+const MIXED_SIGN = [
+  sample(L, 100, 1_000_045), // offset -5
+  sample(1_002_000, 100, 1_002_000), // offset -50
+  sample(1_004_000, 100, 1_004_053), // offset 3
+  sample(1_006_000, 100, 1_006_090), // offset 40
+];
+
 const ESTIMATE_FIXTURES = [
   // [1] Lege en niet-bruikbare invoer.
   eRow('lege lijst → NO_SAMPLES', [], undefined, err('NO_SAMPLES')),
@@ -144,60 +198,118 @@ const ESTIMATE_FIXTURES = [
 
   // [2] Eén sample: geldig, maar zonder enige kruiscontrole.
   eRow('één sample → ok met usedCount 1 en spreiding 0', [CLEAN[0]], undefined,
-    okEstimate(1_000, [1, 1, 0], [100, 100, 0, 50])),
+    okEstimate(1_000, [1, 1, 0, 0], [100, 100, 0, 100, 0], [50, 0, 0])),
   eRow('één traag sample → uncertaintyMs waarschuwt (1500 ms)', [sample(L, 3_000, 1_003_500)], undefined,
-    okEstimate(2_000, [1, 1, 0], [3_000, 3_000, 0, 1_500])),
+    okEstimate(2_000, [1, 1, 0, 0], [3_000, 3_000, 0, 3_000, 0], [1_500, 0, 0])),
 
   // [3] Meerdere schone samples: de schatting moet exact kloppen.
   eRow('twee samples → mediaan is het gemiddelde van de twee middelste', [CLEAN[0], SNEAKY[1]], undefined,
-    okEstimate(1_005, [2, 2, 0], [100, 110, 10, 50])),
+    okEstimate(1_005, [2, 2, 0, 0], [100, 110, 10, 110, 10], [55, 10, 5])),
   eRow('drie perfect symmetrische samples zonder offset → exact 0',
     [sample(L, 100, 1_000_050), sample(1_002_000, 100, 1_002_050), sample(1_004_000, 100, 1_004_050)],
-    undefined, okEstimate(0, [3, 3, 0], [100, 100, 0, 50])),
+    undefined, okEstimate(0, [3, 3, 0, 0], [100, 100, 0, 100, 0], [50, 0, 0])),
   eRow('drie samples met een negatieve offset → exact -3000',
     [sample(L, 100, 997_050), sample(1_002_000, 100, 999_050), sample(1_004_000, 100, 1_001_050)],
-    undefined, okEstimate(-3_000, [3, 3, 0], [100, 100, 0, 50])),
+    undefined, okEstimate(-3_000, [3, 3, 0, 0], [100, 100, 0, 100, 0], [50, 0, 0])),
   eRow('drie samples met een offset van drie dagen → exact 259_200_000',
     [sample(T, 40, 1_785_882_612_020), sample(1_785_623_413_000, 40, 1_785_882_613_020),
       sample(1_785_623_414_000, 40, 1_785_882_614_020)],
-    undefined, okEstimate(THREE_DAYS_MS, [3, 3, 0], [40, 40, 0, 20])),
+    undefined, okEstimate(THREE_DAYS_MS, [3, 3, 0, 0], [40, 40, 0, 40, 0], [20, 0, 0])),
 
   // [4] Uitschieters — de kern van de robuustheidseis.
   eRow('trage grove uitschieter wordt weggefilterd (een gemiddelde zou 2000 zijn)',
-    [...CLEAN, SLOW_OUTLIER], undefined, okEstimate(1_000, [4, 3, 1], [100, 100, 0, 50])),
+    [...CLEAN, SLOW_OUTLIER], undefined,
+    okEstimate(1_000, [4, 3, 1, 0], [100, 100, 0, 4_000, 3_900], [50, 0, 0])),
   eRow('snelle grove uitschieter overleeft het filter maar niet de mediaan (gemiddelde: 225_757,5)',
-    SNEAKY, undefined, okEstimate(1_015, [4, 4, 0], [100, 150, 50, 50])),
+    SNEAKY, undefined, okEstimate(1_015, [4, 4, 0, 0], [100, 150, 50, 150, 50], [75, 899_000, 10])),
   eRow('oneven aantal: één uitschieter verschuift de mediaan geen millimeter',
     [...SNEAKY, sample(1_008_000, 130, 1_009_095)], undefined,
-    okEstimate(1_020, [5, 5, 0], [100, 150, 50, 50])),
+    okEstimate(1_020, [5, 5, 0, 0], [100, 150, 50, 150, 50], [75, 899_000, 10])),
   eRow('uitschieter aan de onderkant (-900 s) wordt net zo goed genegeerd',
     [SNEAKY[0], SNEAKY[1], SNEAKY[2], LOW_OUTLIER], undefined,
-    okEstimate(1_005, [4, 4, 0], [100, 140, 40, 50])),
+    okEstimate(1_005, [4, 4, 0, 0], [100, 140, 40, 140, 40], [70, 901_020, 10])),
   eRow('uitschieters aan beide kanten tussen drie goede samples: mediaan houdt stand',
-    [...SNEAKY, LOW_OUTLIER], undefined, okEstimate(1_010, [5, 5, 0], [100, 150, 50, 50])),
+    [...SNEAKY, LOW_OUTLIER], undefined,
+    okEstimate(1_010, [5, 5, 0, 0], [100, 150, 50, 150, 50], [75, 1_800_000, 10])),
   eRow('ongeldige samples tussen geldige tellen mee als discarded',
     [CLEAN[0], null, { t0: 1_002_100, t1: 1_003_050, t2: 1_002_000 }, CLEAN[2]], undefined,
-    okEstimate(1_000, [4, 2, 2], [100, 100, 0, 50])),
+    okEstimate(1_000, [4, 2, 2, 1], [100, 100, 0, 100, 0], [50, 0, 0])),
+
+  // [4b] Eén supersnelle sample mag de rest niet wegfilteren. Puur relatief filteren
+  // liet hier precies één (verkeerd) sample over — met een uncertaintyMs die kleiner
+  // werd naarmate de leugen groter was. Nu vullen minCrossCheckSamples snelste samples
+  // de set aan en houdt de mediaan de ware +1000 vast.
+  eRow('supersnelle sample (rtt 2) met een 4 s verkeerde klok kaapt de mediaan niet meer',
+    [...HONEST, FAST_LIAR], undefined,
+    okEstimate(1_000, [5, 3, 2, 0], [2, 100, 98, 100, 98], [50, 5_000, 0])),
+  eRow('gecachete response (rtt 0) met een 29 s verkeerde klok kaapt de mediaan niet meer',
+    [...HONEST, CACHED_LIAR], undefined,
+    okEstimate(1_000, [5, 3, 2, 0], [0, 100, 100, 100, 100], [50, 30_000, 0])),
+  eRow('bij factor 1 en rtt 0 blijft de kruiscontrole staan: usedCount is nooit 1 bij meer samples',
+    [...HONEST, CACHED_LIAR], { roundTripFactor: 1 },
+    okEstimate(1_000, [5, 3, 2, 0], [0, 100, 100, 100, 100], [50, 30_000, 0])),
+  eRow('meerderheid van gecorreleerde uitschieters wint, maar offsetSpreadMs maakt het zichtbaar',
+    MAJORITY_SKEW, undefined,
+    okEstimate(600_000, [5, 5, 0, 0], [100, 120, 20, 120, 20], [60, 600_000, 0])),
+
+  // [4c] ST-M8: `offsets.sort()` zonder comparator sorteert als string. Deze twee
+  // fixtures zijn de enige in de suite waar dat een ANDERE mediaan oplevert.
+  eRow('offsets 8/90/999/1000/1001 → mediaan 999, niet de stringmediaan 8',
+    MIXED_MAGNITUDE, undefined, okEstimate(999, [5, 5, 0, 0], [100, 100, 0, 100, 0], [50, 993, 2])),
+  eRow('offsets -5/-50/3/40 → mediaan -1, niet de stringmediaan -23,5',
+    MIXED_SIGN, undefined, okEstimate(-1, [4, 4, 0, 0], [100, 100, 0, 100, 0], [50, 90, 22.5])),
+
+  // [4d] Betrouwbaarheidsvelden die bij de GEBRUIKTE set horen.
+  eRow('uncertaintyMs volgt de traagste gebruikte sample (20/2), niet de snelste (10/2)',
+    [sample(L, 10, 1_000_005), sample(1_002_000, 20, 1_002_020), sample(1_004_000, 20, 1_004_020)],
+    undefined, okEstimate(10, [3, 3, 0, 0], [10, 20, 10, 20, 10], [10, 10, 0])),
+  eRow('rtt 10/5000/6000/7000: de gemeten spreiding blijft zichtbaar, de gebruikte is kleiner',
+    [sample(L, 10, 1_001_005), sample(1_002_000, 5_000, 1_005_500),
+      sample(1_010_000, 6_000, 1_014_000), sample(1_020_000, 7_000, 1_024_500)],
+    undefined, okEstimate(1_000, [4, 3, 1, 0], [10, 6_000, 5_990, 7_000, 6_990], [3_000, 0, 0])),
+  eRow('twee klok-terugsprongen zijn apart zichtbaar in negativeRoundTripCount',
+    [CLEAN[0], { t0: 1_002_100, t1: 1_003_050, t2: 1_002_000 },
+      { t0: 1_004_100, t1: 1_005_050, t2: 1_004_000 }, CLEAN[2]], undefined,
+    okEstimate(1_000, [4, 2, 2, 2], [100, 100, 0, 100, 0], [50, 0, 0])),
+
+  // [4e] Rekengrenzen: `ok: true` mag nooit Infinity dragen (modulekop, aanname 4).
+  eRow('mediaan van twee extreme offsets loopt niet over', [sample(0, 0, 1.7e308), sample(0, 0, 1.7e308)],
+    undefined, okEstimate(1.7e308, [2, 2, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0])),
+  eRow('offsetSpreadMs buiten het eindige bereik → RESULT_OUT_OF_RANGE',
+    [sample(0, 0, 1.7e308), sample(1.7e308, 0, 0)], undefined, err('RESULT_OUT_OF_RANGE')),
 
   // [5] Opties: absolute bovengrens en relatieve factor.
   eRow('maxRoundTripMs is inclusief: precies gelijk blijft staan', CLEAN, { maxRoundTripMs: 100 },
-    okEstimate(1_000, [3, 3, 0], [100, 100, 0, 50])),
+    okEstimate(1_000, [3, 3, 0, 0], [100, 100, 0, 100, 0], [50, 0, 0])),
+  // maxRoundTripMs is een HARDE grens van de aanroeper: de aanvulling tot
+  // minCrossCheckSamples mag het sample van 100 ms niet terughalen.
   eRow('maxRoundTripMs 0 laat alleen een round-trip van 0 door',
-    [sample(L, 0, 1_000_250), CLEAN[0]], { maxRoundTripMs: 0 }, okEstimate(250, [2, 1, 1], [0, 0, 0, 0])),
+    [sample(L, 0, 1_000_250), CLEAN[0]], { maxRoundTripMs: 0 },
+    okEstimate(250, [2, 1, 1, 0], [0, 0, 0, 0, 0], [0, 0, 0])),
   eRow('maxRoundTripMs verwijdert de trage uitschieter', [...CLEAN, SLOW_OUTLIER], { maxRoundTripMs: 1_000 },
-    okEstimate(1_000, [4, 3, 1], [100, 100, 0, 50])),
+    okEstimate(1_000, [4, 3, 1, 0], [100, 100, 0, 100, 0], [50, 0, 0])),
   eRow('maxRoundTripMs null betekent geen bovengrens', [...CLEAN, SLOW_OUTLIER], { maxRoundTripMs: null },
-    okEstimate(1_000, [4, 3, 1], [100, 100, 0, 50])),
-  eRow('roundTripFactor 1 houdt alleen de allersnelste sample over', SNEAKY, { roundTripFactor: 1 },
-    okEstimate(1_000, [4, 1, 3], [100, 100, 0, 50])),
+    okEstimate(1_000, [4, 3, 1, 0], [100, 100, 0, 4_000, 3_900], [50, 0, 0])),
+  // Factor 1 betekent NIET meer "alleen de allersnelste sample": de absolute
+  // ondergrens houdt alles binnen 30 ms van de snelste erbij. 150 ms ligt daarbuiten.
+  eRow('roundTripFactor 1 laat 100, 110 en 120 door via de absolute ondergrens, 150 niet',
+    SNEAKY, { roundTripFactor: 1 },
+    okEstimate(1_010, [4, 3, 1, 0], [100, 120, 20, 150, 50], [60, 20, 10])),
+  eRow('absolute ondergrens is inclusief: 30 ms boven de snelste blijft staan, 32 ms valt af',
+    [sample(L, 2, 1_000_501), sample(1_002_000, 20, 1_002_510), sample(1_004_000, 32, 1_004_516),
+      sample(1_006_000, 34, 1_015_017)], { roundTripFactor: 1 },
+    okEstimate(500, [4, 3, 1, 0], [2, 32, 30, 34, 32], [16, 0, 0])),
   eRow('roundTripFactor 1.25 laat 100, 110 en 120 door, 150 niet', SNEAKY, { roundTripFactor: 1.25 },
-    okEstimate(1_010, [4, 3, 1], [100, 120, 20, 50])),
+    okEstimate(1_010, [4, 3, 1, 0], [100, 120, 20, 150, 50], [60, 20, 10])),
   eRow('ruime roundTripFactor laat de trage uitschieter toe; de mediaan vangt hem alsnog',
-    [...CLEAN, SLOW_OUTLIER], { roundTripFactor: 50 }, okEstimate(1_000, [4, 4, 0], [100, 4_000, 3_900, 50])),
-  eRow('options null → standaardwaarden', CLEAN, null, okEstimate(1_000, [3, 3, 0], [100, 100, 0, 50])),
-  eRow('leeg options-object → standaardwaarden', CLEAN, {}, okEstimate(1_000, [3, 3, 0], [100, 100, 0, 50])),
+    [...CLEAN, SLOW_OUTLIER], { roundTripFactor: 50 },
+    okEstimate(1_000, [4, 4, 0, 0], [100, 4_000, 3_900, 4_000, 3_900], [2_000, 4_000, 0])),
+  eRow('options null → standaardwaarden', CLEAN, null,
+    okEstimate(1_000, [3, 3, 0, 0], [100, 100, 0, 100, 0], [50, 0, 0])),
+  eRow('leeg options-object → standaardwaarden', CLEAN, {},
+    okEstimate(1_000, [3, 3, 0, 0], [100, 100, 0, 100, 0], [50, 0, 0])),
   eRow('DEFAULT_OPTIONS expliciet meegeven → zelfde resultaat als weglaten', CLEAN, DEFAULT_OPTIONS,
-    okEstimate(1_000, [3, 3, 0], [100, 100, 0, 50])),
+    okEstimate(1_000, [3, 3, 0, 0], [100, 100, 0, 100, 0], [50, 0, 0])),
 
   // [6] Ongeldige opties zijn een programmeerfout en gaan vóór de sample-poorten.
   ...[['options 42', 42], ['options als string', 'snel'], ['options als array', []],
@@ -312,7 +424,11 @@ test('remainingMs blijft op +0 staan en wordt nooit negatief of -0', () => {
 test('end-to-end: vier samples → offset → lokale tijden en resterende rondetijd', () => {
   // Eén van de vier metingen is traag én fout; de schatter houdt 1000 ms over.
   const estimate = estimateOffset([...CLEAN, SLOW_OUTLIER]);
-  assert.deepStrictEqual(estimate, okEstimate(1_000, [4, 3, 1], [100, 100, 0, 50]));
+  // Zelfde scenario als de uitschieter-fixture in blok [4]; dezelfde verwachting.
+  assert.deepStrictEqual(
+    estimate,
+    okEstimate(1_000, [4, 3, 1, 0], [100, 100, 0, 4_000, 3_900], [50, 0, 0]),
+  );
 
   // startsAt/endsAt uit het `round:started`-voorbeeld, vertaald naar de lokale klok
   // van deze client (die 1000 ms achterloopt) — ARCHITECTURE.md principe 2.

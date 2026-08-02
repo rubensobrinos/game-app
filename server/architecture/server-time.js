@@ -37,11 +37,23 @@
 //    zit daardoor onlosmakelijk in de round-trip. OPEN VERZOEK aan de PROTOCOL.md-
 //    eigenaar: pas met een tweede tijdstempel is die asymmetrie echt te corrigeren.
 // 3. Er is geen norm voor "goed genoeg" en geen hersyncbeleid (na reconnect, na
-//    resume) vastgelegd. Deze module geeft daarom `uncertaintyMs` en
-//    `roundTripSpreadMs` terug als ADVIES; de aanroeper beslist of hij opnieuw meet.
+//    resume) vastgelegd. Deze module geeft daarom `uncertaintyMs`, de twee
+//    round-trip-spreidingen en `offsetSpreadMs`/`offsetMadMs` terug als ADVIES; de
+//    aanroeper beslist of hij opnieuw meet.
 // 4. PROTOCOL.md zegt "tijden in epoch-milliseconden": tijdstempels moeten hier dus
 //    eindig en >= 0 zijn (zelfde strengheid als `isValidNow` in state-machine.js).
-//    Een offset is een verschil en mag uiteraard wél negatief zijn.
+//    Een offset is een verschil en mag uiteraard wél negatief zijn. Een berekende
+//    UITKOMST die buiten het eindige getalbereik valt is geen bruikbare epoch-ms en
+//    levert `RESULT_OUT_OF_RANGE`: `ok: true` mag nooit Infinity of NaN dragen.
+// 5. MEERDERHEIDSAANNAME (expliciet, want een mediaan verzwijgt hem): de schatting is
+//    alleen robuust zolang MEER DAN DE HELFT van de gebruikte samples eerlijk is.
+//    Drie van vijf samples met dezelfde verkeerde klok — bijvoorbeeld een cache die
+//    één oude `serverTime` blijft herhalen — winnen van filter én mediaan, en dat is
+//    binnen één meetreeks niet te repareren. Deze module maakt die onenigheid daarom
+//    MEETBAAR met `offsetSpreadMs` en `offsetMadMs`, die over de berekende OFFSETS
+//    gaan in plaats van over de round-trips. Grote `offsetSpreadMs` bij kleine
+//    `usedRoundTripSpreadMs` betekent: de samples zijn het oneens terwijl het net
+//    stabiel was — dat is een reden om opnieuw te meten, niet om te vertrouwen.
 
 /**
  * Eén meting rond één `GET /api/v1/time`-aanroep: t0 = lokale tijd vlak vóór het
@@ -59,6 +71,7 @@ const ERROR_CODES = Object.freeze({
   NO_USABLE_SAMPLES: 'NO_USABLE_SAMPLES', // wél gemeten, niets overleefde de filters
   INVALID_OPTIONS: 'INVALID_OPTIONS', // `options` of een veld valt buiten bereik
   INVALID_TIME: 'INVALID_TIME', // tijdstempel- of offsetargument is geen geldig getal
+  RESULT_OUT_OF_RANGE: 'RESULT_OUT_OF_RANGE', // uitkomst is niet eindig; zie aanname 4
 });
 
 /**
@@ -67,6 +80,24 @@ const ERROR_CODES = Object.freeze({
  * beter dan deze module.
  */
 const DEFAULT_OPTIONS = Object.freeze({ roundTripFactor: 2, maxRoundTripMs: null });
+
+/**
+ * Vaste ondergrenzen van het round-trip-filter. Bewust GEEN opties: het zijn geen
+ * netwerkbudgetten van de aanroeper maar de voorwaarden waaronder de mediaan überhaupt
+ * iets betekent. Zie `estimateOffset` voor de motivatie per constante.
+ *
+ * `minRoundTripSlackMs = 30`: absolute ondergrens onder de relatieve drempel. Onder
+ * ongeveer 30 ms verschil zegt "de ene round-trip was sneller" niets over kwaliteit —
+ * dat is scheduler-, GC- en wifi-jitter, geen meetbaar beter pad. Zonder deze bodem is
+ * de drempel puur relatief en kan één supersnelle meting (een gecachete response met
+ * `roundTripMs` 0 of 1) alle normale samples wegfilteren.
+ *
+ * `minCrossCheckSamples = 3`: zoveel van de snelste samples doen altijd mee, ook als de
+ * drempel ze afwijst. Drie is het kleinste aantal waarbij een mediaan een meerderheid
+ * kán hebben; bij één sample is er geen enkele kruiscontrole en dicteert die ene meting
+ * de hele roomtijdlijn (ARCHITECTURE.md principe 2).
+ */
+const FILTER_LIMITS = Object.freeze({ minRoundTripSlackMs: 30, minCrossCheckSamples: 3 });
 
 /**
  * Offset en round-trip van ÉÉN sample, exact volgens PROTOCOL.md:
@@ -111,10 +142,9 @@ function computeOffsetFromSample(sample) {
  *
  * WAAROM EEN ROUND-TRIP-FILTER MET DAARNA DE MEDIAAN, EN GEEN GEMIDDELDE:
  * 1. Filteren. De fout van een sample is begrensd door `roundTripMs / 2`: een trage
- *    sample is per definitie een onnauwkeurige sample. Alles boven `snelste
- *    round-trip * roundTripFactor` valt af, en boven `maxRoundTripMs` als de
- *    aanroeper die zet. De snelste sample overleeft altijd, want `best <= best *
- *    factor` geldt voor elke `factor >= 1`.
+ *    sample is per definitie een onnauwkeurige sample. Boven `maxRoundTripMs` valt
+ *    een sample af als de aanroeper die grens zet, en verder geldt de drempel
+ *    hieronder. De snelste sample overleeft altijd.
  * 2. Mediaan. Een gemiddelde is lineair in álle waarden: één sample die er 900 s
  *    naast zit verschuift het gemiddelde met 900 s / n en kaapt de schatting. De
  *    mediaan verschuift bij één uitschieter hooguit één rangpositie — bij drie
@@ -124,22 +154,53 @@ function computeOffsetFromSample(sample) {
  * Bij een even aantal gebruikte samples is de mediaan het gemiddelde van de twee
  * middelste waarden (standaarddefinitie).
  *
+ * DE DREMPEL IS RELATIEF *EN* ABSOLUUT — en houdt altijd minstens drie samples over:
+ *   drempel = max(best * roundTripFactor, best + minRoundTripSlackMs)
+ * Een puur relatieve drempel schaalt mee met `best` en stort daardoor in zodra één
+ * sample veel sneller is dan de rest: bij `best = 0` (een gecachete `/api/v1/time`-
+ * response) is `best * factor` óók 0, en dan overleeft alleen die ene sample. De
+ * schatting hangt dan volledig aan de meest verdachte meting, terwijl `usedCount 1`
+ * plus een piepkleine `uncertaintyMs` juist maximaal vertrouwen uitstralen. De
+ * absolute bodem vangt het jitter-bereik af; `minCrossCheckSamples` garandeert
+ * daarnaast dat de snelste samples nooit alleen komen te staan, ongeacht schaal. Dat
+ * kost precisie wanneer één snelle sample tussen veel trage staat — die trage samples
+ * tellen dan mee — maar `uncertaintyMs` rapporteert die prijs eerlijk, en géén enkele
+ * meting mag in haar eentje de roomtijdlijn bepalen. `maxRoundTripMs` blijft hard: de
+ * aanvulling kiest alleen uit samples die binnen het budget van de aanroeper vielen.
+ *
  * RANDGEVALLEN, expliciet: geen array → INVALID_SAMPLE_LIST; lege lijst →
- * NO_SAMPLES; alles verworpen → NO_USABLE_SAMPLES; precies één bruikbaar sample →
- * ok met `usedCount: 1` en `roundTripSpreadMs: 0`. In dat laatste geval is er geen
+ * NO_SAMPLES; alles verworpen → NO_USABLE_SAMPLES (ook als álles een teruggesprongen
+ * klok was: de aanroeper moet dan hoe dan ook opnieuw meten); precies één bruikbaar
+ * sample → ok met `usedCount: 1` en spreiding 0. In dat laatste geval is er geen
  * enkele kruiscontrole en moet de aanroeper op `uncertaintyMs` afgaan.
  *
- * BETROUWBAARHEID: `uncertaintyMs` (= `bestRoundTripMs / 2`) is de klassieke
- * bovengrens op de fout van de beste meting bij maximaal asymmetrische vertraging;
- * `roundTripSpreadMs` zegt hoe stabiel het net was; `usedCount`/`discardedCount`
- * hoeveel bewijs eronder ligt. Deze module bepaalt bewust GEEN drempel —
- * hersyncbeleid ligt bij de aanroeper (open punt 3).
+ * BETROUWBAARHEID — elk veld hoort bij een andere vraag:
+ * - `uncertaintyMs` = `worstUsedRoundTripMs / 2`, de bovengrens op de fout van de
+ *   GEBRUIKTE set bij maximaal asymmetrische vertraging. Niet `best / 2`: de mediaan
+ *   kan uit elk gebruikt sample komen, dus de grens van het traagste gebruikte
+ *   sample geldt voor de uitkomst.
+ * - `usedRoundTripSpreadMs` (over de gebruikte samples) versus
+ *   `measuredRoundTripSpreadMs` (over álle samples die de validatie en
+ *   `maxRoundTripMs` haalden): de eerste zegt hoe homogeen het bewijs is, de tweede
+ *   hoe stabiel het net was. Alleen de eerste rapporteren liegt precies wanneer het
+ *   net het onrustigst was, want het filter houdt juist de uitschieters buiten.
+ * - `offsetSpreadMs` (max − min) en `offsetMadMs` (mediane absolute afwijking) gaan
+ *   over de offsets zelf: hoe erg zijn de samples het ONEENS? De MAD negeert een
+ *   enkele uitschieter en is dus de "typische" onenigheid; `offsetSpreadMs` ziet ook
+ *   een gecorreleerde meerderheid, waar de MAD 0 blijft (aanname 5).
+ * - `negativeRoundTripCount` telt samples met `t2 < t0`. Dat is geen gewone
+ *   uitschieter maar bewijs dat de LOKALE klok tijdens het meten is verzet, dus dat
+ *   ook de overgebleven samples verdacht zijn; daarom apart van `discardedCount`.
+ * Deze module bepaalt bewust GEEN drempel — hersyncbeleid ligt bij de aanroeper
+ * (open punt 3).
  * @param {TimeSample[]} samples
  * @param {EstimateOptions} [options]
  * @returns {{
  *   ok: true, offsetMs: number, sampleCount: number, usedCount: number,
- *   discardedCount: number, bestRoundTripMs: number, worstRoundTripMs: number,
- *   roundTripSpreadMs: number, uncertaintyMs: number,
+ *   discardedCount: number, negativeRoundTripCount: number, bestRoundTripMs: number,
+ *   worstUsedRoundTripMs: number, usedRoundTripSpreadMs: number,
+ *   worstMeasuredRoundTripMs: number, measuredRoundTripSpreadMs: number,
+ *   uncertaintyMs: number, offsetSpreadMs: number, offsetMadMs: number,
  * } | { ok: false, code: string }}
  */
 function estimateOffset(samples, options) {
@@ -158,11 +219,19 @@ function estimateOffset(samples, options) {
 
   const cap = config.maxRoundTripMs === null ? Infinity : config.maxRoundTripMs;
   const measured = [];
+  let negativeRoundTripCount = 0;
   for (const sample of samples) {
     const result = computeOffsetFromSample(sample);
-    // Onbruikbare en te trage samples verdwijnen stil; ze komen terug in
-    // discardedCount, zodat de aanroeper kan besluiten opnieuw te meten.
-    if (result.ok && result.roundTripMs <= cap) {
+    if (!result.ok) {
+      // Een teruggesprongen lokale klok is geen gewone meetfout: apart tellen.
+      if (result.code === ERROR_CODES.NEGATIVE_ROUND_TRIP) {
+        negativeRoundTripCount += 1;
+      }
+      continue;
+    }
+    // Te trage samples verdwijnen stil; ze komen terug in discardedCount, zodat de
+    // aanroeper kan besluiten opnieuw te meten.
+    if (result.roundTripMs <= cap) {
       measured.push(result);
     }
   }
@@ -170,40 +239,56 @@ function estimateOffset(samples, options) {
     return reject(ERROR_CODES.NO_USABLE_SAMPLES);
   }
 
-  let bestRoundTripMs = measured[0].roundTripMs;
-  for (const item of measured) {
-    if (item.roundTripMs < bestRoundTripMs) {
-      bestRoundTripMs = item.roundTripMs;
+  // Kopie sorteren: de array van de aanroeper blijft ongemoeid. Oplopend op
+  // round-trip, zodat "de snelste n" en "alles onder de drempel" hetzelfde voorstuk
+  // van de lijst zijn.
+  const ranked = measured.slice().sort((a, b) => a.roundTripMs - b.roundTripMs);
+  const bestRoundTripMs = ranked[0].roundTripMs;
+  const worstMeasuredRoundTripMs = ranked[ranked.length - 1].roundTripMs;
+
+  const threshold = Math.max(
+    bestRoundTripMs * config.roundTripFactor,
+    bestRoundTripMs + FILTER_LIMITS.minRoundTripSlackMs,
+  );
+  const minKeep = Math.min(FILTER_LIMITS.minCrossCheckSamples, ranked.length);
+  const used = [];
+  for (const item of ranked) {
+    if (item.roundTripMs <= threshold || used.length < minKeep) {
+      used.push(item);
     }
   }
+  const worstUsedRoundTripMs = used[used.length - 1].roundTripMs;
 
-  // Relatieve drempel: alles wat meer dan `roundTripFactor` keer zo traag is als de
-  // snelste meting draagt meer ruis dan informatie.
-  const threshold = bestRoundTripMs * config.roundTripFactor;
-  const offsets = [];
-  let worstRoundTripMs = bestRoundTripMs;
-  for (const item of measured) {
-    if (item.roundTripMs <= threshold) {
-      offsets.push(item.offsetMs);
-      if (item.roundTripMs > worstRoundTripMs) {
-        worstRoundTripMs = item.roundTripMs;
-      }
-    }
-  }
-
-  // Expliciete comparator: Array#sort sorteert standaard als string.
-  offsets.sort((a, b) => a - b);
-  return {
+  // Expliciete comparator: Array#sort sorteert standaard als string, en offsets zijn
+  // getallen van wisselend teken en wisselende lengte ([8, 90, 999] zou 8 als mediaan
+  // geven). `map` levert een nieuwe array op, dus `used` blijft op round-trip-volgorde.
+  const offsets = used.map((item) => item.offsetMs).sort((a, b) => a - b);
+  const offsetMs = median(offsets);
+  const estimate = {
     ok: true,
-    offsetMs: median(offsets),
+    offsetMs,
     sampleCount: samples.length,
-    usedCount: offsets.length,
-    discardedCount: samples.length - offsets.length,
+    usedCount: used.length,
+    discardedCount: samples.length - used.length,
+    negativeRoundTripCount,
     bestRoundTripMs,
-    worstRoundTripMs,
-    roundTripSpreadMs: worstRoundTripMs - bestRoundTripMs,
-    uncertaintyMs: bestRoundTripMs / 2,
+    worstUsedRoundTripMs,
+    usedRoundTripSpreadMs: worstUsedRoundTripMs - bestRoundTripMs,
+    worstMeasuredRoundTripMs,
+    measuredRoundTripSpreadMs: worstMeasuredRoundTripMs - bestRoundTripMs,
+    uncertaintyMs: worstUsedRoundTripMs / 2,
+    offsetSpreadMs: offsets[offsets.length - 1] - offsets[0],
+    offsetMadMs: medianAbsoluteDeviation(offsets, offsetMs),
   };
+
+  // Aanname 4: `ok: true` mag geen Infinity of NaN dragen. Alleen bij absurd grote
+  // tijdstempels kan een verschil overlopen; dan is er geen bruikbare schatting.
+  for (const key of Object.keys(estimate)) {
+    if (key !== 'ok' && !Number.isFinite(estimate[key])) {
+      return reject(ERROR_CODES.RESULT_OUT_OF_RANGE);
+    }
+  }
+  return estimate;
 }
 
 /**
@@ -217,7 +302,13 @@ function serverNow(localNow, offsetMs) {
   if (!isTimestamp(localNow) || !isOffset(offsetMs)) {
     return reject(ERROR_CODES.INVALID_TIME);
   }
-  return { ok: true, serverTime: localNow + offsetMs };
+  const serverTime = localNow + offsetMs;
+  // Twee geldige argumenten kunnen samen tóch overlopen; Infinity is geen epoch-ms
+  // waarmee een aanroeper een countdown kan tekenen (aanname 4).
+  if (!Number.isFinite(serverTime)) {
+    return reject(ERROR_CODES.RESULT_OUT_OF_RANGE);
+  }
+  return { ok: true, serverTime };
 }
 
 /**
@@ -232,7 +323,11 @@ function toLocalTime(serverTimestamp, offsetMs) {
   if (!isTimestamp(serverTimestamp) || !isOffset(offsetMs)) {
     return reject(ERROR_CODES.INVALID_TIME);
   }
-  return { ok: true, localTime: serverTimestamp - offsetMs };
+  const localTime = serverTimestamp - offsetMs;
+  if (!Number.isFinite(localTime)) {
+    return reject(ERROR_CODES.RESULT_OUT_OF_RANGE);
+  }
+  return { ok: true, localTime };
 }
 
 /**
@@ -249,7 +344,14 @@ function remainingMs(endsAtServer, localNow, offsetMs) {
   if (!isTimestamp(endsAtServer) || !isTimestamp(localNow) || !isOffset(offsetMs)) {
     return reject(ERROR_CODES.INVALID_TIME);
   }
-  return { ok: true, remainingMs: Math.max(0, endsAtServer - (localNow + offsetMs)) };
+  // Na de clamp, niet ervóór: een uitkomst die naar -Infinity overloopt betekent
+  // "deadline allang voorbij" en klapt terecht op 0. Alleen een resterende tijd die
+  // zelf niet eindig is, is onbruikbaar (aanname 4).
+  const remaining = Math.max(0, endsAtServer - (localNow + offsetMs));
+  if (!Number.isFinite(remaining)) {
+    return reject(ERROR_CODES.RESULT_OUT_OF_RANGE);
+  }
+  return { ok: true, remainingMs: remaining };
 }
 
 /**
@@ -287,12 +389,25 @@ function readOptions(options) {
 
 /**
  * Mediaan van een OPLOPEND GESORTEERDE, niet-lege lijst; even aantal → gemiddelde
- * van de twee middelste waarden.
+ * van de twee middelste waarden. Dat gemiddelde is `a / 2 + b / 2` en niet
+ * `(a + b) / 2`: de tussensom kan bij twee extreme waarden overlopen naar Infinity,
+ * de gehalveerde waarden nooit.
  * @param {number[]} sorted @returns {number}
  */
 function median(sorted) {
   const middle = sorted.length >> 1;
-  return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+  return sorted.length % 2 === 1 ? sorted[middle] : sorted[middle - 1] / 2 + sorted[middle] / 2;
+}
+
+/**
+ * Mediane absolute afwijking rond `center`: de mediaan van |waarde - center|. Robuuste
+ * maat voor de TYPISCHE onenigheid tussen de samples — één uitschieter verandert hem
+ * nauwelijks. Blind voor een gecorreleerde meerderheid; daarvoor staat `offsetSpreadMs`
+ * ernaast (aanname 5).
+ * @param {number[]} values @param {number} center @returns {number}
+ */
+function medianAbsoluteDeviation(values, center) {
+  return median(values.map((value) => Math.abs(value - center)).sort((a, b) => a - b));
 }
 
 /**
@@ -329,4 +444,5 @@ module.exports = {
   remainingMs,
   ERROR_CODES,
   DEFAULT_OPTIONS,
+  FILTER_LIMITS,
 };
