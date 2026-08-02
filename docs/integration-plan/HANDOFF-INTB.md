@@ -13,7 +13,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INTB-1 | Drie methoden misten `roomId` | ✅ DM verbreedde de signaturen |
 | INTB-2 | Geen atomaire claim voor de join-code | ✅ locator-lifecycle, geverifieerd |
 | INTB-3 | `getScoreboardTop` negeerde `roomId` | ✅ opgelost in DM12 |
-| INTB-4 | Fake dwingt idempotentie niet af | 🔵 **open** — 3 tests bewust rood |
+| INTB-4 | Fake dwingt idempotentie niet af | ✅ DM13 — de 3 rode tests zijn groen |
 | INTB-5 | Geroteerde uitnodiging blijft geldig | 🔴 **heropend** — zie hieronder |
 | INTB-6 | Tiebreak `getScoreboardTop` ligt niet vast | 🔵 open |
 | INTB-7 | Ruw invite-id of hash? | ✅ poort neemt de hash |
@@ -310,7 +310,20 @@ builders.
 
 ---
 
-## INTB-4 🔵 — De fake dwingt idempotentie en "één antwoord per ronde" niet af
+## INTB-4 ✅ — OPGELOST in DM13
+
+De fake controleert nu wél een bestaand antwoord (`existingAnswer`) en een
+bekende `actionId` (`existingActionCacheEntry`). De drie tests die hier bewust
+rood op stonden zijn groen; de conformance-suite staat op **80/80**.
+
+Daarmee hebben die tests gedaan waarvoor ze bedoeld waren: ze waren de
+acceptatietoets van de fix, geschreven vóórdat de fix bestond.
+
+De oorspronkelijke melding staat hieronder ter referentie.
+
+---
+
+## INTB-4-oud — de oorspronkelijke melding
 
 **Aan:** DM-agent. **Blokkeert:** INTB1b.
 

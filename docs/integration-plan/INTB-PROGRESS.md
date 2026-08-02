@@ -49,12 +49,11 @@ INTB2a staat alleen het fundament.
 | `loadAnswer` | 🟡 | 🔵 |
 | `loadActionCacheEntry` | 🟡 | 🔵 |
 | `setRoomAndMatchPhaseAtomically` | 🟡 | 🔵 |
-| `saveAcceptedAnswerAtomically` | 🔴 | 🔵 |
+| `saveAcceptedAnswerAtomically` | 🟡 | 🔵 |
 | `getScoreboardTop` | 🟡 | 🔵 |
 
-`saveAcceptedAnswerAtomically` staat 🔴: drie tests zijn bewust rood op
-**INTB-4**. Ze toetsen het correcte contract uit `DATA-MODEL.md` (stappen 4 en 5)
-en blijven staan tot DM de fake corrigeert.
+Conformance-suite: **80/80 groen**. De drie tests die op **INTB-4** rood stonden
+zijn met DM13 groen geworden — ze waren de acceptatietoets van die fix.
 
 ## Fundament (INTB2a)
 
@@ -64,6 +63,23 @@ en blijven staan tot DM de fake corrigeert.
 | Versieerbare documentenvelop | ✅ 24 tests |
 | Guard op de testinstantie | ✅ weigert 6379 en elke externe host |
 | Mutatietest | ✅ 7 van 7 gevangen |
+
+## Rapportageroutine
+
+Dit document liep vandaag twee keer achter op de werkelijkheid, in beide
+richtingen: **INTB-5** stond op opgelost terwijl het gat nog bestond, en
+**INTB-4** stond op open terwijl DM13 het al had gefixt. Daarom, vóór elke
+statusmelding:
+
+1. **Draai de suite opnieuw.** Niet het getal uit een eerder verslag overnemen.
+2. **Lees de laatste HANDOFF-stand** — ook de items die van anderen zijn, want
+   die bewegen zonder dat ik het merk.
+3. **Leg de getallen naast elkaar.** Een repo-breed "0 rood" naast een eigen
+   "3 rood" in hetzelfde bericht kan niet allebei waar zijn. Dat was de fout bij
+   INTB-4: het repo-getal klopte en was al het bewijs dat mijn eigen regel
+   verouderd was.
+4. **Een groene test bewijst wat hij toetst, niet wat je hoopt.** Bij INTB-5
+   bewees hij dat `releaseRoomLocators` werkt, niet dat een rotatie hem gebruikt.
 
 ## Testinfrastructuur
 
