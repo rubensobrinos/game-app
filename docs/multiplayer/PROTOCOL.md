@@ -320,6 +320,12 @@ score/streak/rondetimer resetten — `GAME-FLOW.md` §12). Clients ordenen eerst
 `matchSequence`, dan pas op `serverTime` binnen die match
 (`docs/integration-plan/HANDOFF.md`, INT-2).
 
+**Pre-match-lobby (INT-17):** vóór de eerste match bestaat er geen match —
+`DATA-MODEL.md` §Room: `currentMatchId: null`. In die toestand zijn
+`room.matchId` en `room.matchSequence` expliciet **allebei `null`**; één van
+beide `null` is inconsistent en ongeldig. Voor de ordening telt een snapshot
+zonder match als sequence 0: elke echte match wint.
+
 `room.pausedState` is `null` wanneer de room niet gepauzeerd is. Gepauzeerd
 heeft het de volledige vorm, gelijk aan het live `game:paused`-event (zie
 §Server → client events):
@@ -746,6 +752,11 @@ daarvoor bestaat geen aparte foutcode (`DECISIONS.md`, punt 2).
 - `NAME_INVALID`
 - `RATE_LIMITED`
 - `PROTOCOL_VERSION_UNSUPPORTED`
+- `INVALID_REQUEST`
+
+  Misvormde requestbody zonder specifiekere code (bijvoorbeeld een ontbrekende
+  of ongeldige `config.preset` bij `POST /api/v1/games`). Nooit voor
+  invite-/joinlocator-problemen — daar blijft INVITE_INVALID voor bestaan.
 
 Clientresponse:
 

@@ -90,8 +90,18 @@ function validateSnapshotRoom(room) {
   if (typeof joinUrl !== 'string' || joinUrl.length === 0) return { ok: false, code: null };
   if (!Number.isInteger(playerCount) || playerCount < 0) return { ok: false, code: null };
   if (!isPlainObject(config)) return { ok: false, code: null };
-  if (typeof matchId !== 'string' || matchId.length === 0) return { ok: false, code: null };
-  if (!Number.isInteger(matchSequence) || matchSequence < 1) return { ok: false, code: null };
+  // INT-17 (bug-report-snapshot-500-on-lobby.md): vóór de eerste match bestaat
+  // er geen match — DATA-MODEL.md §Room toont zelf `currentMatchId: null`. In
+  // die pre-match-lobby zijn `matchId` en `matchSequence` daarom expliciet
+  // ALLEBEI null; elke andere combinatie (één van beide null) is inconsistent
+  // en wordt afgewezen. Ordeningssemantiek voor snapshot-precedence: een
+  // snapshot zonder match telt als sequence 0 — elke echte match wint.
+  const preMatch = matchId === null && matchSequence === null;
+  if (!preMatch) {
+    if (matchId === null || matchSequence === null) return { ok: false, code: null };
+    if (typeof matchId !== 'string' || matchId.length === 0) return { ok: false, code: null };
+    if (!Number.isInteger(matchSequence) || matchSequence < 1) return { ok: false, code: null };
+  }
 
   const pausedStateResult = validatePausedState(pausedState);
   if (!pausedStateResult.ok) return pausedStateResult;

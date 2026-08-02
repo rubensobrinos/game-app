@@ -145,6 +145,26 @@ test('validateSnapshotShape: room.matchSequence ontbreekt → afgewezen', () => 
   assert.deepEqual(validateSnapshotShape(snapshot), { ok: false, code: null });
 });
 
+// INT-17: pre-match-lobby — vóór de eerste match zijn matchId én matchSequence
+// expliciet null (DATA-MODEL.md §Room: `currentMatchId: null`). Eén van beide
+// null is inconsistent en blijft afgewezen.
+test('validateSnapshotShape: pre-match-lobby (matchId=null én matchSequence=null) → ok:true', () => {
+  const snapshot = buildLiteralSnapshot();
+  snapshot.room.matchId = null;
+  snapshot.room.matchSequence = null;
+  assert.deepEqual(validateSnapshotShape(snapshot), { ok: true });
+});
+test('validateSnapshotShape: alleen matchId=null → afgewezen (inconsistent)', () => {
+  const snapshot = buildLiteralSnapshot();
+  snapshot.room.matchId = null;
+  assert.deepEqual(validateSnapshotShape(snapshot), { ok: false, code: null });
+});
+test('validateSnapshotShape: alleen matchSequence=null → afgewezen (inconsistent)', () => {
+  const snapshot = buildLiteralSnapshot();
+  snapshot.room.matchSequence = null;
+  assert.deepEqual(validateSnapshotShape(snapshot), { ok: false, code: null });
+});
+
 // DECISIONS.md punt 10: room.pausedState, volledige vorm of null
 test('validateSnapshotShape: room.pausedState = null (niet gepauzeerd) → ok:true', () => {
   const snapshot = buildLiteralSnapshot();

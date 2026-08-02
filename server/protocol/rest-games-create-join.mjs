@@ -16,15 +16,13 @@
  * `LATE_JOIN_DISABLED`, `ROOM_LOCKED`, `CODE_RATE_LIMITED`) hoort bij het
  * latere serverproces, niet bij deze module ('Niet in scope', PR3-prompt).
  *
- * Foutcode-conventie voor generieke vorm-afwijkingen: `PROTOCOL.md` kent geen
- * eigen "ongeldige aanvraag/response-vorm"-code. Waar geen specifiekere code
- * van toepassing is (bv. `config` ontbreekt, `hostParticipates` is geen
- * boolean, `joinUrl` is geen geldige URL, een onbekende rol in `roles`),
- * gebruikt deze module `INVITE_INVALID` als dichtstbijzijnde bestaande
- * Room/join-categoriecode — dezelfde soort toepassingskeuze als de
- * `GAME_NOT_FOUND`-keuze die de PR3-prompt zelf maakt voor een niet-matchend
- * path-parameter-formaat. Dit is een toepassingskeuze van deze validator,
- * geen citaat uit `PROTOCOL.md`. Specifieke schendingen met een eigen
+ * Foutcode-conventie voor generieke vorm-afwijkingen (bijgewerkt in de
+ * PR-slotlichting): `PROTOCOL.md` §Foutcodes kent sindsdien `INVALID_REQUEST`
+ * voor een misvormde requestbody zonder specifiekere code. De
+ * CREATE-validator gebruikt die (een misvormde create heeft niets met een
+ * invite te maken; de UI toonde eerder "ongeldige uitnodiging" bij het
+ * aanmaken van een game). JOIN-locatorproblemen blijven `INVITE_INVALID` —
+ * daar gáát het over de uitnodiging. Specifieke schendingen met een eigen
  * gedocumenteerde code (`NAME_INVALID`/`NAME_TOO_LONG` via
  * `normalizeAndValidateDisplayName`) gebruiken die eigen code onveranderd.
  */
@@ -39,12 +37,15 @@ import { normalizeAndValidateDisplayName } from './input-safety.mjs';
  */
 
 const INVITE_INVALID = 'INVITE_INVALID';
+const INVALID_REQUEST = 'INVALID_REQUEST';
 
 // Deze module verzint geen eigen foutcodes — ze leent uitsluitend van
 // `error-codes.mjs` (single source of truth). Fail fast bij module-load als
-// deze code ooit uit die enum verdwijnt.
-if (!ALL_ERROR_CODES.has(INVITE_INVALID)) {
-  throw new Error(`rest-games-create-join: foutcode "${INVITE_INVALID}" ontbreekt in ALL_ERROR_CODES`);
+// deze codes ooit uit die enum verdwijnen.
+for (const code of [INVITE_INVALID, INVALID_REQUEST]) {
+  if (!ALL_ERROR_CODES.has(code)) {
+    throw new Error(`rest-games-create-join: foutcode "${code}" ontbreekt in ALL_ERROR_CODES`);
+  }
 }
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
@@ -115,15 +116,15 @@ function validateOptionalDisplayName(displayName) {
  */
 export function validateCreateGameRequest(body) {
   if (!isPlainObject(body)) {
-    return { ok: false, code: INVITE_INVALID };
+    return { ok: false, code: INVALID_REQUEST };
   }
   const { config, hostParticipates, displayName } = body;
 
   if (!isPlainObject(config) || typeof config.preset !== 'string' || typeof config.language !== 'string') {
-    return { ok: false, code: INVITE_INVALID };
+    return { ok: false, code: INVALID_REQUEST };
   }
   if (typeof hostParticipates !== 'boolean') {
-    return { ok: false, code: INVITE_INVALID };
+    return { ok: false, code: INVALID_REQUEST };
   }
 
   const displayNameResult = validateOptionalDisplayName(displayName);

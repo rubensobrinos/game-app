@@ -21,7 +21,7 @@
  *   | 'ALREADY_ANSWERED' | 'DEADLINE_PASSED' | 'INVALID_ANSWER_FORMAT'
  *   | 'UNSUPPORTED_EVENT'
  *   | 'NAME_TOO_LONG' | 'NAME_INVALID' | 'RATE_LIMITED'
- *   | 'PROTOCOL_VERSION_UNSUPPORTED'
+ *   | 'PROTOCOL_VERSION_UNSUPPORTED' | 'INVALID_REQUEST'
  * } ErrorCode
  */
 
@@ -52,11 +52,16 @@ export const ERROR_CODES_BY_CATEGORY = Object.freeze({
   INPUT: Object.freeze([
     'NAME_TOO_LONG', 'NAME_INVALID', 'RATE_LIMITED',
     'PROTOCOL_VERSION_UNSUPPORTED',
+    // PR-slotlichting (INT-17-ronde): misvormde requestbody zonder
+    // specifiekere code (bv. ontbrekende config.preset bij create). Vóór deze
+    // code kreeg een misvormde create INVITE_INVALID, waardoor de UI
+    // "ongeldige uitnodiging" toonde bij het AANMAKEN van een game.
+    'INVALID_REQUEST',
   ]),
 });
 
 /**
- * Platte set van alle 23 codes, voor snelle membership-checks
+ * Platte set van alle 24 codes, voor snelle membership-checks
  * (`ALL_ERROR_CODES.has(code)`) — afgeleid van `ERROR_CODES_BY_CATEGORY`, geen
  * tweede handmatige lijst die uit sync kan raken.
  * @type {ReadonlySet<ErrorCode>}
