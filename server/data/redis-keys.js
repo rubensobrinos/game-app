@@ -48,6 +48,19 @@ function roomInviteLookupKey(inviteHash) {
   return `room:invite:${assertSegment('inviteHash', inviteHash)}`;
 }
 
+/**
+ * @returns {string} 'session:token:{tokenHash}'
+ * Reactie op INTB-10 (docs/data-model-plan/HANDOFF.md §13): globaal, niet
+ * room-scoped — een bearer token komt binnen zonder roomId, dat is precies
+ * waarom deze index bestaat (analoog aan roomCodeLookupKey/
+ * roomInviteLookupKey, die om dezelfde reden ook niet room-scoped zijn).
+ * TTL-koppeling en rotatiegedrag: zie HANDOFF.md §13, nog niet
+ * geïmplementeerd, alleen deze sleutelbouwer.
+ */
+function sessionTokenLookupKey(tokenHash) {
+  return `session:token:${assertSegment('tokenHash', tokenHash)}`;
+}
+
 /** @returns {string} 'room:{roomId}' */
 function roomKey(roomId) {
   return `room:${assertSegment('roomId', roomId)}`;
@@ -105,6 +118,7 @@ module.exports = {
   roomsActiveKey,
   roomCodeLookupKey,
   roomInviteLookupKey,
+  sessionTokenLookupKey,
   roomKey,
   roomSessionsKey,
   roomPlayersKey,

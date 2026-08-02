@@ -7,6 +7,7 @@ const {
   roomsActiveKey,
   roomCodeLookupKey,
   roomInviteLookupKey,
+  sessionTokenLookupKey,
   roomKey,
   roomSessionsKey,
   roomPlayersKey,
@@ -17,6 +18,22 @@ const {
   revokedSessionsKey,
   actionCacheKey,
 } = require('./redis-keys');
+
+describe('globale sessietoken-index — INTB-10', () => {
+  test('sessionTokenLookupKey gebruikt alleen de tokenhash, zonder roomId', () => {
+    assert.strictEqual(
+      sessionTokenLookupKey('v1_abc123'),
+      'session:token:v1_abc123'
+    );
+    assert.strictEqual(sessionTokenLookupKey.length, 1);
+  });
+
+  test('sessionTokenLookupKey weigert lege en onveilige Redis-segmenten', () => {
+    for (const invalid of ['', 'a:b', 'a*b', 'a?b', 'a[b', 'a]b']) {
+      assert.throws(() => sessionTokenLookupKey(invalid), TypeError);
+    }
+  });
+});
 
 describe('sleutelpatronen — happy path, exact match met DATA-MODEL.md #1-11', () => {
   const cases = [
