@@ -17,6 +17,95 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INT-7 | DM | 🔵 open | Poort heeft geen conditionele/partiële write; heel-document-writes kunnen `Room.phase` overschrijven |
 | INT-8 | PR | 🔵 open | PR10-previewendpoint wijkt af van de gebouwde `previewInvite` |
 | INT-9 | DM | 🔵 open | `deadlineGraceMs`: `DATA-MODEL.md` zegt 150, besluit 13 zegt 250 |
+| INT-10 | GR + GF + AR | 🔴 **hoog** | **Deadlock bij host-tempo met tussenstand uit — de match hangt** |
+| INT-11 | PR | 🔵 open | `preset`-waarde loopt drie kanten op; het is een wire-veld |
+| INT-12 | PD | 🔵 open | `shared/product/quick-start-preset.mjs` is stale naast een nieuwere variant |
+
+---
+
+## INT-10 — deadlock bij host-tempo met de tussenstand uit
+
+**Voor:** GR (semantiek van host-tempo), GF (`host-controls-state.mjs`), AR
+(state machine). **Ernst:** hoog — de match komt niet verder.
+
+Twee lezingen van besluit 1 zijn onafhankelijk geïmplementeerd en samen kloppen
+ze niet.
+
+- `client/flow/host-controls-state.mjs:18` — `WAITING_PHASES = new Set(['SCOREBOARD'])`.
+  De hostactie `'next'` verschijnt uitsluitend bij `SCOREBOARD`.
+- `server/architecture/state-machine.js` — bij `pacing: 'host'` is `HOST_NEXT`
+  óók geldig vanuit `ROUND_RESULT` naar `COUNTDOWN`/`ROUND_ACTIVE`/`FINISHED`, en
+  weigert `TIMER_ELAPSED` naar diezelfde bestemmingen.
+
+Met `pacing: 'host'` én een configuratie waarin de tussenstand niet wordt
+getoond, bereikt de match `ROUND_RESULT` en komt er niet meer weg: de server
+wacht op een hostactie die de client nooit aanbiedt, en de timerovergang is
+geweigerd. `server/data/types/game-configuration.js` valideert
+`scoreboardFrequency` zonder enum, dus die configuratie is representeerbaar.
+
+Achtergrond: besluit 1 legt "één hostactie per ronde" vast maar zegt niet wat er
+gebeurt als de tussenstand uitstaat. AR heeft dat gat ingevuld met "dan verschuift
+de hostactie naar `ROUND_RESULT`", expliciet gemarkeerd als interpretatie in de
+modulekop. GF heeft besluit 1 letterlijk gelezen. Beide verdedigbaar, de
+combinatie niet.
+
+**Drie uitwegen, de keuze is aan GR:**
+
+- **A** — de tussenstand kan bij host-tempo nooit uit. Dan heeft GF gelijk en is
+  de `ROUND_RESULT`-tak in de state machine dode code die weg moet. Vereist wel
+  dat `scoreboardFrequency` die combinatie afdwingt in plaats van toestaat.
+- **B** — AR's interpretatie blijft. Dan moet GF `ROUND_RESULT` aan
+  `WAITING_PHASES` toevoegen wanneer de tussenstand uitstaat, wat betekent dat
+  `scoreboardFrequency` in de clientcontext beschikbaar moet zijn.
+- **C** — bij tussenstand uit loopt `ROUND_RESULT` gewoon op de timer door. Dan
+  is er in die configuratie géén hostactie per ronde en is host-tempo daar
+  feitelijk automatisch.
+
+INT-A's voorkeur is **B**: die houdt "één hostactie per ronde" in beide
+configuraties waar, wat de letterlijke belofte van besluit 1 is. Maar dit is
+spelgevoel en dus niet aan de integrator.
+
+**Wat INT-A doet tot dit beslist is:** de keten-test gebruikt de quick-start-
+default (auto-tempo, tussenstand aan), waar de combinatie niet optreedt. Er komt
+geen omweg in de compositie.
+
+---
+
+## INT-11 — de `preset`-waarde loopt drie kanten op
+
+**Voor:** PR. **Blokkeert:** stap 2 (wire-contract).
+
+Drie plekken, drie waarden voor hetzelfde veld in `POST /api/v1/games`:
+
+| Bron | Waarde |
+| --- | --- |
+| `PROTOCOL.md`, request-voorbeeld | `"group_battle"` |
+| `client/flow/host-setup-state.mjs` | `'default'` (door GF gemarkeerd als gok) |
+| `server/composition/room-lifecycle.mjs` | `'quick_start'` |
+
+Besluit 31 schrapt Groepsbattle, dus `"group_battle"` in `PROTOCOL.md` is
+achterhaald — maar er is geen vervanger vastgelegd, en daardoor heeft iedereen
+zelf iets gekozen. Inclusief ikzelf; `'quick_start'` is net zo goed een gok als
+`'default'`.
+
+Besluit 35 houdt de quick-start-route expliciet in stand, dus het veld verdwijnt
+niet. PR moet één waarde vastleggen; INT-A en GF volgen die.
+
+---
+
+## INT-12 — stale presetbestand naast een nieuwere variant
+
+**Voor:** PD.
+
+`shared/product/quick-start-preset.mjs` exporteert
+`GROUP_BATTLE_DEFAULT_GAME_TYPES` met vier spelvormen, wat besluit 31 en 32
+achterhaald hebben. Er bestaat inmiddels ook
+`shared/product/flags-mc-quick-start-default.mjs`.
+
+GF importeert de oude niet meer (alleen nog een comment die ernaar verwijst) en
+in `server/` importeert niemand hem. Het risico is dus beperkt tot verwarring —
+maar met twee presetbestanden naast elkaar en INT-11 nog open is dat precies het
+soort verwarring dat iemand een verkeerde default laat kiezen.
 
 ---
 
