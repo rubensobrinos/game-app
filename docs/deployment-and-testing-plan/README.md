@@ -89,12 +89,34 @@ raakt, lever ik een voorstel dat hún bevestiging nodig heeft, geen bindende keu
   testmodule en faalt op een lege map met `MODULE_NOT_FOUND` (geverifieerd op de hier
   geïnstalleerde Node v24.16.0) — geen geldige recursieve discoverycheck.
 - **Checkpoint:** locatie bevestigen voordat ik iets buiten `docs/` aanmaak.
+- **Status (2026-08-02): afgerond.** Alle vijf mappen bestaan, elk met precies één
+  `.gitkeep`: `tests/{contract,integration,e2e,load,chaos}/`. Geverifieerd met
+  `find tests -type f`. Er staan nog geen testbestanden in, dus er is nu nog geen
+  testrunner-commando om uit te voeren — zie T0b hieronder voor het canonieke
+  commando-sjabloon voor zodra dat wel zo is.
 
 ### T0b — Documentatie: canoniek testcommando + CI-kloof (eigen, aparte actie)
 - Aanvulling in dit README, los van T0's bestandenbudget: het canonieke lokale
   commando per laag zodra die laag bestanden heeft (bijv.
   `node --test tests/contract/*.test.js`), plus expliciet benoemd dat de huidige
   managed CI dit niet draait. Geen wijziging aan `.github/workflows/ci.yml`.
+- **Status (2026-08-02): afgerond** — dit is de aanvulling zelf, hieronder.
+- **Canoniek lokaal testcommando-sjabloon per laag** (sjabloon, geen commando dat nu
+  al iets uitvoert: elke map bevat op dit moment alleen een `.gitkeep`, dus dit levert
+  pas resultaat op zodra een laag daadwerkelijk `.test.js`-bestanden krijgt):
+  - Contract: `node --test tests/contract/*.test.js`
+  - Integratie: `node --test tests/integration/*.test.js`
+  - E2E: `node --test tests/e2e/*.test.js`
+  - Load: `node --test tests/load/*.test.js`
+  - Chaos: `node --test tests/chaos/*.test.js`
+- **CI-kloof, expliciet herhaald:** de bestaande, devkit-managed
+  `.github/workflows/ci.yml` draait `npm ci` + ESLint + Jest en dekt deze
+  `node:test`-boom onder `tests/` niet; deze repo heeft ook geen `package.json`. Dat
+  gat wordt niet stilzwijgend opgelost door lokaal groene tests. Het wordt pas
+  dichtgezet ná een goedgekeurd T7-voorstel (CI-volgordevoorstel, zie de fasering
+  hieronder) — nooit door het devkit-managed blok handmatig te wijzigen. Tot een
+  T7-voorstel is goedgekeurd, draaien bovenstaande commando's uitsluitend lokaal, niet
+  in CI.
 
 ### T1a — Traceability-matrix (markdown, geen code)
 - Tabel: gedocumenteerd payloadveld/regel uit `PROTOCOL.md` → brontekst/paragraaf →
