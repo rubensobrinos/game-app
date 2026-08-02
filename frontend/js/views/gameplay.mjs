@@ -16,6 +16,12 @@ import { displayState, optionsLocked } from './round-model.mjs';
 export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   root.textContent = '';
 
+  // Screenreader-only titel: dit scherm heeft geen zichtbare <h1>/<h2> (de
+  // ronde-header is bewust klein, geen paginatitel), maar een screenreader
+  // heeft bij elke schermwissel wél een aankondigingspunt nodig.
+  const screenTitle = el('h2', 'sr-only');
+  screenTitle.textContent = t('game.screenTitle');
+
   const header = el('div', 'gameplay-header');
   const roundLabel = el('p', 'gameplay-round');
   const timer = el('p', 'gameplay-timer');
@@ -23,14 +29,21 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
 
   const flag = document.createElement('img');
   flag.className = 'gameplay-flag';
-  flag.alt = '';
+  // Nooit leeg: dit ís de vraag, geen decoratie. Wel bewust generiek — de
+  // landnaam in alt-tekst zou het antwoord verklappen aan wie een
+  // screenreader gebruikt, vóórdat ze kunnen "kijken" zoals een ziende
+  // speler. Zelfde vraag, zelfde uitdaging, geen voorsprong of achterstand.
+  flag.alt = t('game.flagAlt');
 
   const options = el('div', 'gameplay-options');
   const status = el('p', 'gameplay-status');
+  status.setAttribute('aria-live', 'polite');
   const progress = el('p', 'gameplay-progress');
   const result = el('div', 'gameplay-result');
+  result.setAttribute('aria-live', 'polite');
+  result.setAttribute('aria-atomic', 'true');
 
-  root.append(header, flag, options, status, progress, result);
+  root.append(screenTitle, header, flag, options, status, progress, result);
 
   let renderedRoundId = null;
   let optionButtons = new Map();
@@ -67,6 +80,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
         btn.type = 'button';
         btn.className = 'gameplay-option';
         btn.textContent = countryName(iso2, lang);
+        btn.setAttribute('aria-pressed', 'false');
         btn.addEventListener('click', () => onAnswer(iso2));
         optionButtons.set(iso2, btn);
         options.appendChild(btn);
@@ -78,7 +92,11 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     const locked = optionsLocked(model);
     for (const [iso2, btn] of optionButtons) {
       btn.disabled = locked;
-      btn.classList.toggle('is-selected', iso2 === model.selectedOptionId);
+      const selected = iso2 === model.selectedOptionId;
+      btn.classList.toggle('is-selected', selected);
+      // `.is-selected` is puur visueel; `aria-pressed` is wat een screenreader
+      // hoort — zelfde discipline als app-menu.mjs's taal-/themaknoppen.
+      btn.setAttribute('aria-pressed', String(selected));
     }
 
     // Verzendstatus

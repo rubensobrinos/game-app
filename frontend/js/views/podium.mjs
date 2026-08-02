@@ -18,6 +18,7 @@ export function createPodiumView({ root, t, isHost, onRematch }) {
 
   const selfLine = document.createElement('p');
   selfLine.className = 'podium-self';
+  selfLine.setAttribute('aria-live', 'polite');
 
   const action = document.createElement('div');
   action.className = 'podium-action';
@@ -50,6 +51,10 @@ export function createPodiumView({ root, t, isHost, onRematch }) {
       const label = document.createElement('span');
       label.className = 'podium-medal';
       label.textContent = t(medals[index]);
+      // Decoratief: de positie zit al in de volgorde van de <ol> (een
+      // screenreader kondigt "item 1 van 3" enz. vanzelf aan) — het medaille-
+      // emoji hoeft niet apart voorgelezen te worden.
+      label.setAttribute('aria-hidden', 'true');
       const name = document.createElement('span');
       name.className = 'podium-name';
       name.textContent = entry.effectiveName;

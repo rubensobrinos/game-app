@@ -34,6 +34,8 @@ export const nl = Object.freeze({
   'join.joined': 'Meegedaan!',
 
   // — UI3/UI4-sleutels (toegevoegd door CT/regie-agent, zie HANDOFF-UI) —
+  'game.screenTitle': 'Spelscherm',
+  'game.flagAlt': 'Te raden vlag',
   'game.round': 'Ronde',
   'game.sending': 'Versturen…',
   'game.received': 'Antwoord ontvangen',

@@ -14,6 +14,7 @@ export function createScoreboardView({ root, t }) {
 
   const selfLine = document.createElement('p');
   selfLine.className = 'scoreboard-self';
+  selfLine.setAttribute('aria-live', 'polite');
 
   root.append(title, list, selfLine);
 

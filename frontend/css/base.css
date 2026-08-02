@@ -93,6 +93,23 @@ img {
   display: none !important;
 }
 
+/* Alleen voor screenreaders: visueel weg, maar niet uit de toegankelijkheids-
+   boom (in tegenstelling tot `[hidden]`/`display:none`). Voor schermtitels en
+   labels die geen plek verdienen in de visuele layout, maar wél nodig zijn
+   zodra een scherm wisselt (aankondiging) of een control alleen een icoon
+   toont. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 button,
 input,
 select,

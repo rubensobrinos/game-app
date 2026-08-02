@@ -30,6 +30,8 @@ export const en = Object.freeze({
   'join.retry': 'Try again',
   'join.joined': 'Joined!',
 
+  'game.screenTitle': 'Gameplay',
+  'game.flagAlt': 'Flag to guess',
   'game.round': 'Round',
   'game.sending': 'Sending…',
   'game.received': 'Answer received',

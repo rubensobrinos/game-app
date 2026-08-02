@@ -28,6 +28,8 @@ export const es = Object.freeze({
   'join.retry': 'Reintentar',
   'join.joined': '¡Unido!',
 
+  'game.screenTitle': 'Partida',
+  'game.flagAlt': 'Bandera a adivinar',
   'game.round': 'Ronda',
   'game.sending': 'Enviando…',
   'game.received': 'Respuesta recibida',

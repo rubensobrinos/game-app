@@ -36,12 +36,19 @@ export function createLobbyView({ root, t, isHost, gameCode, onStart, onShareAct
     btn.type = 'button';
     btn.className = `btn-secondary lobby-share-${action}`;
     btn.hidden = true;
+    if (action === 'show-code') {
+      // De enige deelactie die iets in-place toont/verbergt i.p.v. een
+      // dialoog te openen of een systeemactie te starten — aria-expanded
+      // hoort daarbij.
+      btn.setAttribute('aria-expanded', 'false');
+    }
     btn.addEventListener('click', () => handleShareAction(action));
     shareButtons.set(action, btn);
     shareRow.appendChild(btn);
   }
 
   const feedback = el('p', 'lobby-share-feedback');
+  feedback.setAttribute('aria-live', 'polite');
   const codeReveal = el('p', 'lobby-code-reveal');
   codeReveal.hidden = true;
   const linkFallback = document.createElement('input');
@@ -62,19 +69,35 @@ export function createLobbyView({ root, t, isHost, gameCode, onStart, onShareAct
   });
 
   // Schermvullende QR-overlay — apart van de rest van de lobby, sluit met
-  // dezelfde tik overal (achtergrond of terugknop).
+  // dezelfde tik overal (achtergrond of terugknop). Een modale dialoog (net
+  // als app-menu.mjs's paneel): rol + label voor een screenreader, Escape
+  // sluit, en focus gaat ín bij openen en terug naar de knop die 'm opende
+  // bij sluiten — anders valt de focus terug naar `body` en begint Tab weer
+  // bovenaan de pagina.
   const qrOverlay = el('div', 'lobby-qr-overlay');
   qrOverlay.hidden = true;
+  qrOverlay.setAttribute('role', 'dialog');
+  qrOverlay.setAttribute('aria-modal', 'true');
+  qrOverlay.setAttribute('aria-label', t('lobby.shareQr'));
   const qrImage = document.createElement('img');
   qrImage.className = 'lobby-qr-image';
-  qrImage.alt = '';
+  // Beschrijft het doel, niet de QR-patroon-pixels (die zijn voor een
+  // screenreader toch niet te "lezen") — vergelijkbaar met hoe de zichtbare
+  // code/link ernaast al hetzelfde doel dienen.
+  qrImage.alt = t('lobby.shareQr');
   const qrBack = document.createElement('button');
   qrBack.type = 'button';
   qrBack.className = 'btn-secondary lobby-qr-back';
-  qrBack.addEventListener('click', closeQr);
+  qrBack.addEventListener('click', () => closeQr({ returnFocus: true }));
   qrOverlay.addEventListener('click', (event) => {
     if (event.target === qrOverlay) {
-      closeQr();
+      closeQr({ returnFocus: true });
+    }
+  });
+  qrOverlay.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      closeQr({ returnFocus: true });
     }
   });
   qrOverlay.append(qrImage, qrBack);
@@ -86,8 +109,11 @@ export function createLobbyView({ root, t, isHost, gameCode, onStart, onShareAct
   let shareUrls = { qrUrl: '', copyUrl: '' };
   let feedbackTimer = null;
 
-  function closeQr() {
+  function closeQr({ returnFocus = false } = {}) {
     qrOverlay.hidden = true;
+    if (returnFocus) {
+      shareButtons.get('show-qr')?.focus();
+    }
   }
 
   async function handleShareAction(action) {
@@ -98,11 +124,13 @@ export function createLobbyView({ root, t, isHost, gameCode, onStart, onShareAct
       // cellSize 8 ≈ schermvullend op mobiel (qr.mjs's eigen richtlijn).
       qrImage.src = qrDataUrl(shareUrls.qrUrl, { cellSize: 8 });
       qrOverlay.hidden = false;
+      qrBack.focus();
       return;
     }
 
     if (action === 'show-code') {
       codeReveal.hidden = !codeReveal.hidden;
+      shareButtons.get('show-code')?.setAttribute('aria-expanded', String(!codeReveal.hidden));
       return;
     }
 
@@ -153,6 +181,9 @@ export function createLobbyView({ root, t, isHost, gameCode, onStart, onShareAct
     waiting.textContent = t('lobby.waiting');
     qrBack.textContent = t('lobby.back');
     startButton.textContent = t('lobby.start');
+    qrOverlay.setAttribute('aria-label', t('lobby.shareQr'));
+    qrImage.alt = t('lobby.shareQr');
+    linkFallback.setAttribute('aria-label', t('lobby.shareCopy'));
     for (const [action, btn] of shareButtons) {
       btn.textContent = t(SHARE_LABEL_KEYS[action]);
       btn.hidden = !availableActions.includes(action);

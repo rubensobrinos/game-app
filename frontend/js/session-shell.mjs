@@ -62,6 +62,8 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
   const banner = document.createElement('p');
   banner.className = 'session-banner';
   banner.hidden = true;
+  banner.setAttribute('aria-live', 'assertive');
+  banner.setAttribute('aria-atomic', 'true');
 
   // Minimale hosttoggle, vooruitlopend op UI5's volledige hostbalk (lock/kick/
   // finish/next): zonder dít bestaat er geen enkele weg om de pauze-overlay
@@ -88,8 +90,16 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
   const pauseOverlay = document.createElement('div');
   pauseOverlay.className = 'session-pause-overlay';
   pauseOverlay.hidden = true;
+  // Modale dialoog, zelfde discipline als app-menu.mjs's paneel en
+  // lobby.mjs's QR-overlay: rol + label voor een screenreader, en Escape
+  // sluit 'm — maar alleen voor de host, want alleen de host kán hervatten.
+  // Een niet-host ziet dezelfde overlay zonder ontsnapping (moet wachten),
+  // dus daar doet Escape bewust niets.
+  pauseOverlay.setAttribute('role', 'dialog');
+  pauseOverlay.setAttribute('aria-modal', 'true');
   const pauseCardWrap = document.createElement('div');
   pauseCardWrap.className = 'session-pause-card';
+  pauseCardWrap.tabIndex = -1; // focustarget voor een niet-host (geen knop om op te focussen)
   const pauseCard = document.createElement('p');
   // De overlay dekt het hele scherm (position: fixed, inset: 0) en zit vóór
   // `hostPauseButton` in de DOM — die knop is dus onbereikbaar zolang de
@@ -99,9 +109,19 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
   pauseResumeButton.type = 'button';
   pauseResumeButton.className = 'btn-primary session-pause-resume';
   pauseResumeButton.hidden = true;
-  pauseResumeButton.addEventListener('click', () => sendHostAction('resume'));
+  pauseResumeButton.addEventListener('click', () => {
+    sendHostAction('resume');
+    hostPauseButton.focus();
+  });
   pauseCardWrap.append(pauseCard, pauseResumeButton);
   pauseOverlay.appendChild(pauseCardWrap);
+  pauseOverlay.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && isHost()) {
+      event.stopPropagation();
+      sendHostAction('resume');
+      hostPauseButton.focus();
+    }
+  });
 
   root.append(banner, hostPauseButton, phaseContainer, pauseOverlay);
 
@@ -189,12 +209,21 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
       pauseOverlay.hidden = true;
       return;
     }
+    const wasHidden = pauseOverlay.hidden;
+    const reasonText = t(messageForPauseReason(matchPhase.pausedState?.reason));
     pauseOverlay.hidden = false;
-    pauseCard.textContent = t(messageForPauseReason(matchPhase.pausedState?.reason));
+    pauseOverlay.setAttribute('aria-label', reasonText);
+    pauseCard.textContent = reasonText;
     // De overlay dekt het scherm, dus `hostPauseButton` (erachter) is nu
     // onbereikbaar — de host hervat vanuit de overlay zelf.
     pauseResumeButton.hidden = !isHost();
     pauseResumeButton.textContent = t('session.resume');
+    // Alleen bij het daadwerkelijk openen focus verplaatsen, niet bij elke
+    // her-render terwijl 'm al open staat (bv. een taalwissel tijdens pauze
+    // zou anders de focus steeds wegkapen).
+    if (wasHidden) {
+      (isHost() ? pauseResumeButton : pauseCardWrap).focus();
+    }
   }
 
   function pausableAction() {
