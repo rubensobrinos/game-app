@@ -25,12 +25,45 @@ function isPlainObject(value) {
 }
 
 /**
+ * Valideert de volledige `pausedState`-vorm uit `DATA-MODEL.md`/`PROTOCOL.md`
+ * (`DECISIONS.md` punt 10): `previousPhase`, `remainingMs`, `reason`,
+ * `pausedAt` — allemaal verplicht wanneer niet `null`. `reason` wordt alleen
+ * op vorm getoetst (niet-lege string), niet tegen de 4 vastgelegde waarden —
+ * clients houden bewust een generieke fallback voor onbekende waarden
+ * (`DECISIONS.md` punt 11), dus een striktere enum-check hier zou toekomstige,
+ * nog niet bedachte redenen onterecht laten falen.
+ * @param {unknown} pausedState
+ * @returns {ValidationResult}
+ */
+function validatePausedState(pausedState) {
+  if (pausedState === null) return { ok: true };
+  if (!isPlainObject(pausedState)) return { ok: false, code: null };
+
+  const keys = Object.keys(pausedState);
+  const expectedKeys = ['previousPhase', 'remainingMs', 'reason', 'pausedAt'];
+  if (keys.length !== expectedKeys.length || !expectedKeys.every((key) => keys.includes(key))) {
+    return { ok: false, code: null };
+  }
+
+  const { previousPhase, remainingMs, reason, pausedAt } = pausedState;
+  if (typeof previousPhase !== 'string' || previousPhase.length === 0) return { ok: false, code: null };
+  if (!Number.isFinite(remainingMs) || remainingMs < 0) return { ok: false, code: null };
+  if (typeof reason !== 'string' || reason.length === 0) return { ok: false, code: null };
+  if (!Number.isFinite(pausedAt)) return { ok: false, code: null };
+
+  return { ok: true };
+}
+
+/**
  * Valideert `snapshot.room` tegen de letterlijke velden uit §State-snapshot:
  * `code`, `phase`, `locked`, `allowLateJoin`, `joinUrl`, `playerCount`,
- * `config`, `matchId` — alle acht verplicht, geen andere sleutels
- * (Ontwerpkeuze #2: literaal vastgelegde vorm). `config` en `matchId` worden
- * alleen op type getoetst (object resp. string) — de inhoud van `config` is
- * spelinhoud, niet vorm.
+ * `config`, `matchId`, `matchSequence`, `pausedState` — alle tien verplicht,
+ * geen andere sleutels (Ontwerpkeuze #2: literaal vastgelegde vorm). `config`
+ * en `matchId` worden alleen op type getoetst (object resp. string) — de
+ * inhoud van `config` is spelinhoud, niet vorm. `matchSequence` is
+ * `Match.sequence` uit `DATA-MODEL.md` (integer ≥ 1,
+ * `docs/integration-plan/HANDOFF.md` INT-2). `pausedState` is `null` of de
+ * volledige vorm, zie `validatePausedState`.
  * @param {unknown} room
  * @returns {ValidationResult}
  */
@@ -40,12 +73,16 @@ function validateSnapshotRoom(room) {
   const keys = Object.keys(room);
   const expectedKeys = [
     'code', 'phase', 'locked', 'allowLateJoin', 'joinUrl', 'playerCount', 'config', 'matchId',
+    'matchSequence', 'pausedState',
   ];
   if (keys.length !== expectedKeys.length || !expectedKeys.every((key) => keys.includes(key))) {
     return { ok: false, code: null };
   }
 
-  const { code, phase, locked, allowLateJoin, joinUrl, playerCount, config, matchId } = room;
+  const {
+    code, phase, locked, allowLateJoin, joinUrl, playerCount, config, matchId,
+    matchSequence, pausedState,
+  } = room;
   if (typeof code !== 'string' || code.length === 0) return { ok: false, code: null };
   if (typeof phase !== 'string' || phase.length === 0) return { ok: false, code: null };
   if (typeof locked !== 'boolean') return { ok: false, code: null };
@@ -54,6 +91,10 @@ function validateSnapshotRoom(room) {
   if (!Number.isInteger(playerCount) || playerCount < 0) return { ok: false, code: null };
   if (!isPlainObject(config)) return { ok: false, code: null };
   if (typeof matchId !== 'string' || matchId.length === 0) return { ok: false, code: null };
+  if (!Number.isInteger(matchSequence) || matchSequence < 1) return { ok: false, code: null };
+
+  const pausedStateResult = validatePausedState(pausedState);
+  if (!pausedStateResult.ok) return pausedStateResult;
 
   return { ok: true };
 }
@@ -80,16 +121,38 @@ function validateSnapshotScoreboard(scoreboard) {
 }
 
 /**
+ * Valideert `snapshot.self` — grotendeels ongebroken (zie
+ * `validateSnapshotShape`'s JSDoc voor waarom), met één uitzondering:
+ * `eligibleFromRound` (`DECISIONS.md` punt 3) wordt wél expliciet getoetst
+ * tegen de exacte eis uit `DATA-MODEL.md`/`GAME-RULES.md` — een integer
+ * `>= 1`, niet "een willekeurig getal". Dit is de enige `self`-sleutel die
+ * deze module kent; overige `self`-velden (`roles`, `playerId`, ...) blijven
+ * ongetoetst spelinhoud.
+ * @param {unknown} self
+ * @returns {ValidationResult}
+ */
+function validateSnapshotSelf(self) {
+  if (!isPlainObject(self)) return { ok: false, code: null };
+
+  const { eligibleFromRound } = self;
+  if (!Number.isInteger(eligibleFromRound) || eligibleFromRound < 1) {
+    return { ok: false, code: null };
+  }
+
+  return { ok: true };
+}
+
+/**
  * Valideert de volledige snapshot-vorm (gebruikt door zowel `GET
  * /api/v1/games/{code}/state` als `room:state`), tegen de letterlijke
  * structuur uit §State-snapshot: `protocolVersion`, `serverTime`, `room`
- * (zie `validateSnapshotRoom`), `self`, `currentRound`, `scoreboard` (zie
- * `validateSnapshotScoreboard`) — geen andere toplevel-sleutels
- * (Ontwerpkeuze #2). `self` en `currentRound` worden alleen op "is dit een
- * object" getoetst: `PROTOCOL.md` breekt hun interne velden niet uit als
- * onderdeel van de letterlijke snapshot-structuurcitatie (in tegenstelling
- * tot `room` en `scoreboard`, die dat wél doen), en de inhoud van
- * `currentRound` is bovendien spelinhoud (Uitgangspunt 5).
+ * (zie `validateSnapshotRoom`), `self` (zie `validateSnapshotSelf`),
+ * `currentRound`, `scoreboard` (zie `validateSnapshotScoreboard`) — geen
+ * andere toplevel-sleutels (Ontwerpkeuze #2). `currentRound` wordt alleen op
+ * "is dit een object" getoetst: `PROTOCOL.md` breekt de interne velden niet
+ * uit als onderdeel van de letterlijke snapshot-structuurcitatie (in
+ * tegenstelling tot `room` en `scoreboard`, die dat wél doen), en de inhoud
+ * van `currentRound` is bovendien spelinhoud (Uitgangspunt 5).
  * @param {unknown} snapshot
  * @returns {ValidationResult}
  */
@@ -114,7 +177,9 @@ export function validateSnapshotShape(snapshot) {
   const roomResult = validateSnapshotRoom(room);
   if (!roomResult.ok) return roomResult;
 
-  if (!isPlainObject(self)) return { ok: false, code: null };
+  const selfResult = validateSnapshotSelf(self);
+  if (!selfResult.ok) return selfResult;
+
   if (!isPlainObject(currentRound)) return { ok: false, code: null };
 
   const scoreboardResult = validateSnapshotScoreboard(scoreboard);
@@ -127,15 +192,18 @@ export function validateSnapshotShape(snapshot) {
  * De veilige sleutels van `currentRound` tijdens een actieve ronde —
  * letterlijk de toplevel-velden van het `round:started`-payloadvoorbeeld
  * (§Voorbeeld `round:started`): `matchId`, `roundId`, `roundNumber`,
- * `totalRounds`, `gameType`, `contentVersion`, `question`, `startsAt`,
- * `endsAt`. Bewust een allowlist, geen denylist van verboden namen (bv.
+ * `totalRounds`, `gameType`, `contentVersion`, `rendererVersion`, `question`,
+ * `startsAt`, `endsAt`. `rendererVersion` is het algemene, canonieke
+ * roundveld dat `PR9`/`PR11` toevoegen naast `contentVersion` (`DECISIONS.md`
+ * punt 21) — géén correctheidsveld, dus veilig tijdens `ROUND_ACTIVE`.
+ * Bewust een allowlist, geen denylist van verboden namen (bv.
  * `correctOptionId`, `correctAnswer`) — zodat een onbekend/nieuw
  * correctheidsveld niet per ongeluk toch doorglipt.
  * @type {ReadonlySet<string>}
  */
 const SAFE_ACTIVE_ROUND_KEYS = new Set([
   'matchId', 'roundId', 'roundNumber', 'totalRounds', 'gameType', 'contentVersion',
-  'question', 'startsAt', 'endsAt',
+  'rendererVersion', 'question', 'startsAt', 'endsAt',
 ]);
 
 /**

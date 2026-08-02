@@ -40,23 +40,22 @@ const GAME_NOT_FOUND = 'GAME_NOT_FOUND';
  * bestaande code uit de Room/join-categorie voor een misvormd path-
  * parameter) bestaat hier geen vergelijkbare "dichtstbijzijnde" code.
  *
- * Van de vier categorieën is `INPUT` thematisch het minst ongepast (generieke
- * payload-/versievalidatie i.p.v. room-/sessie-/rondetoestand); binnen die
- * categorie kiest deze validator `PROTOCOL_VERSION_UNSUPPORTED` uitsluitend
- * om aan het gedeelde `ValidationResult<T>`-type te voldoen — niet omdat een
- * misvormde `serverTime` iets met protocolversies te maken heeft. Dit is een
- * toepassingskeuze, geen citaat uit `PROTOCOL.md`, en expliciet niet
- * hetzelfde als de `GAME_NOT_FOUND`-betekenis hierboven (om verwarring met de
- * path-parameter-check te vermijden hergebruikt deze functie die code niet).
+ * `DECISIONS.md` punt 19 beslecht dit: een lokale, eigen constante in plaats
+ * van de eerder geleende `PROTOCOL_VERSION_UNSUPPORTED`-placeholder (die
+ * suggereerde dat een misvormde `serverTime` iets met protocolversies te
+ * maken had, wat niet zo is). `INVALID_SERVER_RESPONSE` is bewust **geen**
+ * nieuwe wire-foutcode: hij wordt niet toegevoegd aan `error-codes.mjs`'s
+ * `ALL_ERROR_CODES` en blijft dus buiten de fail-fast-toets hieronder.
  * Aanroepers mogen bij een `ok: false`-resultaat van `validateTimeResponse`
  * alleen op `ok` vertrouwen, nooit op de specifieke waarde van `code`.
  */
-const TIME_RESPONSE_INVALID_FALLBACK_CODE = 'PROTOCOL_VERSION_UNSUPPORTED';
+const INVALID_SERVER_RESPONSE = 'INVALID_SERVER_RESPONSE';
 
-// Deze module verzint geen eigen foutcodes — ze leent uitsluitend van
+// Deze module verzint geen eigen wire-foutcodes — op INVALID_SERVER_RESPONSE
+// hierboven na (bewust lokaal, zie de JSDoc erbij), leent ze uitsluitend van
 // `error-codes.mjs` (single source of truth). Fail fast bij module-load als
 // een van deze codes ooit uit die enum verdwijnt.
-for (const code of [GAME_NOT_FOUND, TIME_RESPONSE_INVALID_FALLBACK_CODE]) {
+for (const code of [GAME_NOT_FOUND]) {
   if (!ALL_ERROR_CODES.has(code)) {
     throw new Error(`rest-games-session: foutcode "${code}" ontbreekt in ALL_ERROR_CODES`);
   }
@@ -134,13 +133,13 @@ function isPlainObject(value) {
  * @param {unknown} body - de rauwe responsebody van `GET /api/v1/time`.
  * @returns {ValidationResult<{ serverTime: number }>} `serverTime` moet een
  *   eindig, niet-negatief geheel getal zijn (epoch-ms). Zie
- *   `TIME_RESPONSE_INVALID_FALLBACK_CODE` hierboven voor de (niet-canonieke)
+ *   `INVALID_SERVER_RESPONSE` hierboven voor de (niet-canonieke, lokale)
  *   `code`-waarde bij `ok: false` — aanroepers vertrouwen daarbij alleen op
  *   `ok`, nooit op de specifieke code.
  */
 export function validateTimeResponse(body) {
   if (!isPlainObject(body)) {
-    return { ok: false, code: TIME_RESPONSE_INVALID_FALLBACK_CODE };
+    return { ok: false, code: INVALID_SERVER_RESPONSE };
   }
 
   const { serverTime } = body;
@@ -151,7 +150,7 @@ export function validateTimeResponse(body) {
     serverTime >= 0;
 
   if (!isValidServerTime) {
-    return { ok: false, code: TIME_RESPONSE_INVALID_FALLBACK_CODE };
+    return { ok: false, code: INVALID_SERVER_RESPONSE };
   }
 
   return { ok: true, value: { serverTime } };

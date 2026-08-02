@@ -80,9 +80,10 @@ test('validateRoundAnswerEnvelope: clientAnsweredAt: "gisteren" -> afgewezen', (
   );
 });
 
-// Rij 21 — share:opened, alle drie toegestane method-waarden, voor host en
-// player: alle ok.
-for (const method of ['qr', 'link', 'native']) {
+// Rij 21 — share:opened, alle vier toegestane method-waarden (PR11 §3,
+// DECISIONS.md punt 18 breidt de drie gedocumenteerde waarden uit met
+// "code"), voor host en player: alle ok.
+for (const method of ['qr', 'link', 'native', 'code']) {
   test(`validateShareOpenedPayload: method "${method}" -> ok`, () => {
     assert.deepEqual(validateShareOpenedPayload({ method }), { ok: true });
   });
@@ -96,10 +97,10 @@ test('share:opened vereist rol host_or_player: zowel host als player voldoen', (
   assert.equal(hasRequiredRole(['player'], result.entry.requiredRole), true);
 });
 
-// Rij 22 — share:opened, { method: "code" }: afgewezen (niet in de drie
-// toegestane waarden; Open vraag §6, niet hier opgelost).
-test('validateShareOpenedPayload: method "code" -> afgewezen (niet gedocumenteerd)', () => {
-  assert.deepEqual(validateShareOpenedPayload({ method: 'code' }), { ok: false, code: null });
+// Rij 22 (herzien door PR11 §3) — share:opened, { method: "qrcode" }: een
+// vijfde, niet-gedocumenteerde waarde blijft afgewezen.
+test('validateShareOpenedPayload: method "qrcode" (onbekende vijfde waarde) -> afgewezen', () => {
+  assert.deepEqual(validateShareOpenedPayload({ method: 'qrcode' }), { ok: false, code: null });
 });
 
 // Rij 23 — resolveEventValidator("game:start") ... ("share:opened"): elk van

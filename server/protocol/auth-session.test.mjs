@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes as realRandomBytes } from 'node:crypto';
-import { generateSessionToken, hashToken } from './auth-session.mjs';
+import { generateSessionToken, hashToken, verifyToken } from './auth-session.mjs';
 
 /**
  * Deterministische fake `randomBytes`: negeert `size` en retourneert altijd
@@ -63,50 +63,150 @@ test('generateSessionToken: 1000 aanroepen met echte randomBytes botsen niet (sm
   assert.equal(tokens.size, 1000);
 });
 
-// 4. hashToken: zelfde token+pepper, twee aanroepen -> identieke hash.
-test('hashToken: zelfde token en pepper geven bij twee aanroepen identieke hash', () => {
-  const hashA = hashToken('token-abc', 'pepper-xyz');
-  const hashB = hashToken('token-abc', 'pepper-xyz');
+// PR8b, bijgewerkt naar PR12's hashToken(token, { version, pepper })-signatuur.
+
+// 4. hashToken: zelfde token, zelfde pepper (andere versie dan hierboven) ->
+//    verschillende hash dan met een andere pepper.
+test('hashToken: zelfde token, andere pepper (zelfde versie) geeft verschillende hash', () => {
+  const hashA = hashToken('token-abc', { version: 'v1', pepper: 'pepper-one' });
+  const hashB = hashToken('token-abc', { version: 'v1', pepper: 'pepper-two' });
+  assert.notEqual(hashA, hashB);
+});
+
+// 5. hashToken: verschillende token, zelfde pepperConfig -> verschillende hash.
+test('hashToken: verschillende token, zelfde pepperConfig geeft verschillende hash', () => {
+  const hashA = hashToken('token-one', { version: 'v1', pepper: 'pepper-abc' });
+  const hashB = hashToken('token-two', { version: 'v1', pepper: 'pepper-abc' });
+  assert.notEqual(hashA, hashB);
+});
+
+// 6. hashToken met lege string als token, version of pepper: gedefinieerd
+//    gedrag (gekozen: afwijzen met een duidelijke Error — zie JSDoc in
+//    auth-session.mjs).
+test('hashToken: lege token, lege version of lege pepper wordt afgewezen met een duidelijke Error', () => {
+  assert.throws(() => hashToken('', { version: 'v1', pepper: 'pepper-xyz' }), /token mag geen lege string zijn/);
+  assert.throws(
+    () => hashToken('token-abc', { version: '', pepper: 'pepper-xyz' }),
+    /pepperConfig\.version mag geen lege string zijn/,
+  );
+  assert.throws(
+    () => hashToken('token-abc', { version: 'v1', pepper: '' }),
+    /pepperConfig\.pepper mag geen lege string zijn/,
+  );
+});
+
+// --- PR12: pepper-versionering + constant-time verifyToken ---
+// Verplichte testgevallen 1-11 uit
+// docs/protocol-plan/prompts/PR12-auth-session-extension.md.
+
+// 1. hashToken: zelfde token/pepperConfig, twee aanroepen -> identieke output.
+test('PR12 #1 hashToken: zelfde token en pepperConfig geven bij twee aanroepen identieke output', () => {
+  const pepperConfig = { version: 'v1', pepper: 'pepper-xyz' };
+  const hashA = hashToken('token-abc', pepperConfig);
+  const hashB = hashToken('token-abc', pepperConfig);
   assert.equal(hashA, hashB);
 });
 
-// 5. hashToken: zelfde token, verschillende pepper -> verschillende hash.
-test('hashToken: zelfde token, verschillende pepper geeft verschillende hash', () => {
-  const hashA = hashToken('token-abc', 'pepper-one');
-  const hashB = hashToken('token-abc', 'pepper-two');
-  assert.notEqual(hashA, hashB);
+// 2. hashToken: andere `version` in pepperConfig, zelfde token/pepper ->
+//    andere output-string.
+test('PR12 #2 hashToken: andere version in pepperConfig geeft andere output-string', () => {
+  const hashV1 = hashToken('token-abc', { version: 'v1', pepper: 'dezelfde-pepper' });
+  const hashV2 = hashToken('token-abc', { version: 'v2', pepper: 'dezelfde-pepper' });
+  assert.notEqual(hashV1, hashV2);
 });
 
-// 6. hashToken: verschillende token, zelfde pepper -> verschillende hash.
-test('hashToken: verschillende token, zelfde pepper geeft verschillende hash', () => {
-  const hashA = hashToken('token-one', 'pepper-abc');
-  const hashB = hashToken('token-two', 'pepper-abc');
-  assert.notEqual(hashA, hashB);
+// 3. hashToken: output-vorm begint met `${version}:`, gevolgd door 64
+//    hex-tekens.
+test('PR12 #3 hashToken: output-vorm is `${version}:` gevolgd door 64 hex-tekens', () => {
+  const hash = hashToken('token-abc', { version: 'v1', pepper: 'pepper-xyz' });
+  assert.match(hash, /^v1:[0-9a-f]{64}$/);
 });
 
-// 7. hashToken output-vorm: exact 64 hex-tekens (SHA-256 digest lengte).
-test('hashToken: output-vorm is exact 64 hex-tekens', () => {
-  const hash = hashToken('token-abc', 'pepper-xyz');
-  assert.equal(hash.length, 64);
-  assert.equal(/^[0-9a-f]{64}$/.test(hash), true);
+// 4. verifyToken: juiste token tegen de bijbehorende storedHash, juiste
+//    peppersByVersion -> true.
+test('PR12 #4 verifyToken: juiste token tegen de bijbehorende storedHash geeft true', () => {
+  const pepperConfig = { version: 'v1', pepper: 'pepper-xyz' };
+  const storedHash = hashToken('token-abc', pepperConfig);
+  assert.equal(verifyToken('token-abc', storedHash, { v1: 'pepper-xyz' }), true);
 });
 
-// 8. hashToken met lege string als token of pepper: gedefinieerd gedrag
-//    (gekozen: afwijzen met een duidelijke Error — zie JSDoc in
-//    auth-session.mjs).
-test('hashToken: lege token of lege pepper wordt afgewezen met een duidelijke Error', () => {
-  assert.throws(() => hashToken('', 'pepper-xyz'), /token mag geen lege string zijn/);
-  assert.throws(() => hashToken('token-abc', ''), /pepper mag geen lege string zijn/);
-  assert.throws(() => hashToken('', ''), /token mag geen lege string zijn/);
+// 5. verifyToken: onjuiste token die verschilt in het eerste byte van de
+//    hash-invoer -> false, geen throw.
+test('PR12 #5 verifyToken: token die verschilt in het eerste byte geeft false zonder throw', () => {
+  const pepperConfig = { version: 'v1', pepper: 'pepper-xyz' };
+  const storedHash = hashToken('aaaa-token', pepperConfig);
+  assert.doesNotThrow(() => {
+    assert.equal(verifyToken('baaa-token', storedHash, { v1: 'pepper-xyz' }), false);
+  });
 });
 
-// 9. integratie: hashToken(generateSessionToken(realRandomBytes), pepper)
-//    slaagt zonder Buffer/string-typefouten.
-test('integratie: hashToken(generateSessionToken(echte randomBytes), pepper) slaagt', () => {
+// 6. verifyToken: onjuiste token die verschilt in het laatste byte -> false,
+//    geen throw.
+test('PR12 #6 verifyToken: token die verschilt in het laatste byte geeft false zonder throw', () => {
+  const pepperConfig = { version: 'v1', pepper: 'pepper-xyz' };
+  const storedHash = hashToken('token-aaaa', pepperConfig);
+  assert.doesNotThrow(() => {
+    assert.equal(verifyToken('token-aaab', storedHash, { v1: 'pepper-xyz' }), false);
+  });
+});
+
+// 7. verifyToken: storedHash's versie zit niet in peppersByVersion (bv.
+//    ingetrokken/onbekende versie) -> false.
+test('PR12 #7 verifyToken: onbekende/ingetrokken pepperversie geeft false', () => {
+  const storedHash = hashToken('token-abc', { version: 'v9-ingetrokken', pepper: 'pepper-xyz' });
+  assert.equal(verifyToken('token-abc', storedHash, { v1: 'andere-pepper' }), false);
+});
+
+// 8. verifyToken: storedHash zonder `version:`-scheiding, of met ongeldige
+//    hex -> false, geen throw.
+test('PR12 #8 verifyToken: storedHash zonder scheiding of met ongeldige hex geeft false zonder throw', () => {
+  assert.doesNotThrow(() => {
+    assert.equal(verifyToken('token-abc', 'geen-scheidingsteken-hier', { v1: 'pepper-xyz' }), false);
+  });
+  assert.doesNotThrow(() => {
+    // 'zz' is geen geldig hex-teken.
+    assert.equal(verifyToken('token-abc', 'v1:zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz', { v1: 'pepper-xyz' }), false);
+  });
+  assert.doesNotThrow(() => {
+    // oneven aantal hex-tekens.
+    assert.equal(verifyToken('token-abc', 'v1:abc', { v1: 'pepper-xyz' }), false);
+  });
+});
+
+// 9. verifyToken: storedHash en de herberekende hash hebben een verschillende
+//    lengte -> false, geen throw (timingSafeEqual gooit zelf bij ongelijke
+//    lengte, dus dat wordt expliciet afgevangen vóórdat het wordt
+//    aangeroepen).
+test('PR12 #9 verifyToken: storedHash met afwijkende (maar geldige) hex-lengte geeft false zonder throw', () => {
+  // Geldige hex, maar slechts 32 tekens (16 bytes) i.p.v. de verwachte 64
+  // tekens (32 bytes) van een echte SHA-256-digest.
+  const shortStoredHash = 'v1:0011223344556677889900112233445566778899001122334455667788990011';
+  assert.doesNotThrow(() => {
+    assert.equal(verifyToken('token-abc', 'v1:aabb', { v1: 'pepper-xyz' }), false);
+  });
+  assert.doesNotThrow(() => {
+    assert.equal(verifyToken('token-abc', shortStoredHash, { v1: 'pepper-xyz' }), false);
+  });
+});
+
+// 10. verifyToken (rotatiescenario): een storedHash gemaakt met v1,
+//     geverifieerd met peppersByVersion = { v1: oldPepper, v2: currentPepper }
+//     (beide nog aanwezig tijdens rotatie) -> true.
+test('PR12 #10 verifyToken rotatiescenario: oude pepperversie blijft verifieerbaar naast een nieuwe', () => {
+  const oldPepperConfig = { version: 'v1', pepper: 'oude-pepper' };
+  const storedHash = hashToken('token-abc', oldPepperConfig);
+  const peppersByVersion = { v1: 'oude-pepper', v2: 'huidige-pepper' };
+  assert.equal(verifyToken('token-abc', storedHash, peppersByVersion), true);
+});
+
+// 11. integratie: hashToken -> verifyToken met dezelfde pepperConfig/token
+//     slaagt zonder Buffer/string-typefouten.
+test('PR12 #11 integratie: hashToken -> verifyToken met dezelfde pepperConfig/token slaagt', () => {
   const token = generateSessionToken(realCryptoSource());
-  assert.equal(typeof token, 'string');
-  const hash = hashToken(token, 'een-server-side-pepper');
-  assert.equal(typeof hash, 'string');
-  assert.equal(hash.length, 64);
-  assert.equal(/^[0-9a-f]{64}$/.test(hash), true);
+  const pepperConfig = { version: 'v1', pepper: 'een-server-side-pepper' };
+  const storedHash = hashToken(token, pepperConfig);
+  assert.equal(typeof storedHash, 'string');
+  assert.doesNotThrow(() => {
+    assert.equal(verifyToken(token, storedHash, { v1: pepperConfig.pepper }), true);
+  });
 });

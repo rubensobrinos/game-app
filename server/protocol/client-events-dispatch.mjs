@@ -88,14 +88,14 @@ export function validateRoundAnswerEnvelope(payload) {
   return { ok: true };
 }
 
-/** @type {ReadonlySet<'qr' | 'link' | 'native'>} */
-const VALID_SHARE_METHODS = new Set(['qr', 'link', 'native']);
+/** @type {ReadonlySet<'qr' | 'link' | 'native' | 'code'>} */
+const VALID_SHARE_METHODS = new Set(['qr', 'link', 'native', 'code']);
 
 /**
  * Valideert de payload van `share:opened`. `method` verplicht, exact één van
- * `"qr" | "link" | "native"` (PROTOCOL.md §Client → server events — Open
- * vraag §6 in `../README.md` bespreekt een mogelijke vierde waarde, maar dat
- * wordt hier niet vooruitgelopen; deze validator toetst uitsluitend de drie
+ * `"qr" | "link" | "native" | "code"` (`DECISIONS.md` punt 18: de vier
+ * herkomsten zijn gelijkgetrokken — voorheen bespraken PROTOCOL.md §Client →
+ * server events en Open vraag §6 in `../README.md` nog maar drie
  * gedocumenteerde waarden). Geen andere sleutels toegestaan.
  * @param {unknown} payload
  * @returns {ValidationResult}

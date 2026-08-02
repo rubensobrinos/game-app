@@ -5,6 +5,7 @@ import {
   validateLeaveGameRequestShape,
   validateTimeResponse,
 } from './rest-games-session.mjs';
+import { ALL_ERROR_CODES } from './error-codes.mjs';
 
 // Rij 20
 test('validateGetStateRequestShape: geldige { code, authorizationHeader } → ok:true', () => {
@@ -71,8 +72,8 @@ test('validateTimeResponse: exacte fixture { serverTime: 1785623412000 } → ok:
 
 // Rij 26 — drie losse gevallen. De testtabel pint hier bewust geen specifieke
 // foutcode (in tegenstelling tot rijen 21/22/24) — zie de JSDoc bij
-// `TIME_RESPONSE_INVALID_FALLBACK_CODE` in rest-games-session.mjs voor de
-// reden. Deze tests controleren daarom alleen `ok: false`.
+// `INVALID_SERVER_RESPONSE` in rest-games-session.mjs voor de reden. Deze
+// tests controleren daarom alleen `ok: false`.
 const invalidTimeResponseBodies = [
   ['serverTime als string ("1785623412000")', { serverTime: '1785623412000' }],
   ['serverTime negatief (-5)', { serverTime: -5 }],
@@ -85,3 +86,16 @@ for (const [label, body] of invalidTimeResponseBodies) {
     assert.equal(result.ok, false);
   });
 }
+
+// PR11 §4 — DECISIONS.md punt 19: de lokale `/time`-foutafhandeling gebruikt
+// een eigen `INVALID_SERVER_RESPONSE`-constante, en die wordt bewust GEEN
+// nieuwe wire-foutcode (niet toegevoegd aan `error-codes.mjs`'s
+// `ALL_ERROR_CODES`). Regressietest voor beide kanten van die eis.
+test('validateTimeResponse: ongeldige body → code is de lokale "INVALID_SERVER_RESPONSE"', () => {
+  const result = validateTimeResponse({});
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'INVALID_SERVER_RESPONSE');
+});
+test('INVALID_SERVER_RESPONSE is geen wire-foutcode: ontbreekt in error-codes.mjs\'s ALL_ERROR_CODES', () => {
+  assert.equal(ALL_ERROR_CODES.has('INVALID_SERVER_RESPONSE'), false);
+});
