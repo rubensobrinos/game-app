@@ -204,3 +204,20 @@ officiële ESM-build, MIT, herkomstheader in het bestand) met wrapper
 een `<img>` teruggeeft (bewust geen SVG-string: dat zou innerHTML vergen; de
 CSP staat `img-src data:` al toe). 3 tests groen (`frontend/js/qr.test.mjs`).
 Voor UI2: `img.src = qrDataUrl(shareUrlsFor(joinUrl).qrUrl)` en klaar.
+
+---
+
+## UI-5 — visuele eenheid is een harde DoD (producteigenaar, 2 aug 2026)
+
+De producteigenaar heeft de huidige ongestylede schermen afgekeurd ("het lijkt
+wel twee werelden, terwijl het 1 game moet zijn"). Vanaf nu geldt als harde
+definition of done voor élk scherm: **naast de singleplayer gelegd is het
+onmiskenbaar hetzelfde product** — zelfde donkere achtergrond, zelfde paarse
+accenten, zelfde gradient-titels, zelfde kaart- en knopstijl.
+
+Om dit te versnellen staat er nu `frontend/css/components.css` (gelinkt in
+index.html): de volledige componentlaag in de visuele taal van style.css,
+voor alle bestaande klassen (btn-primary/secondary, field-input, gameplay-*,
+scoreboard-*, podium-*). Gebruik bij UI2 en verder dezelfde klassen/tokens;
+schermspecifieke layout blijft van jou. Wijkt een scherm visueel af van de
+singleplayer, dan is het niet af — hoe groen de tests ook zijn.

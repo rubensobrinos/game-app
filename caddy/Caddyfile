@@ -27,11 +27,54 @@
 		max_size 64KB
 	}
 
+	# ── Eén domein, één game ──────────────────────────────────────────
+	# De game-server bedient de multiplayer: API, sockets, de multiplayer-
+	# schermen (/j/, /game/, /host/) én hun assets (frontend/-root, /client/,
+	# /shared/). nginx bedient de singleplayer op / (incl. flags/, waar ook de
+	# multiplayer-spelschermen hun vlagafbeeldingen vandaan halen).
 	handle /api/* {
 		reverse_proxy game-server:3000
 	}
 
 	handle /socket.io/* {
+		reverse_proxy game-server:3000
+	}
+
+	handle /j/* {
+		reverse_proxy game-server:3000
+	}
+
+	handle /game/* {
+		reverse_proxy game-server:3000
+	}
+
+	handle /host/* {
+		reverse_proxy game-server:3000
+	}
+
+	# Assets van de multiplayer-frontend (frontend/ is de root van de
+	# game-server; deze prefixen bestaan niet in de singleplayer):
+	handle /css/* {
+		reverse_proxy game-server:3000
+	}
+
+	handle /js/* {
+		reverse_proxy game-server:3000
+	}
+
+	handle /vendor/* {
+		reverse_proxy game-server:3000
+	}
+
+	handle /locales/* {
+		reverse_proxy game-server:3000
+	}
+
+	handle /client/* {
+		reverse_proxy game-server:3000
+	}
+
+	handle /shared/* {
 		reverse_proxy game-server:3000
 	}
 

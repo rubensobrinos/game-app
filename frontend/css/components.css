@@ -1,0 +1,213 @@
+/* components.css — de componentlaag die de multiplayer-schermen visueel
+   identiek maakt aan de singleplayer (style.css in de repo-root). Eén game,
+   één gezicht: zelfde donkere achtergrond, zelfde paarse accenten, zelfde
+   gradient-titel, zelfde kaart- en knopstijl.
+
+   Toegevoegd door CT/regie op verzoek van de producteigenaar ("het lijkt wel
+   twee werelden") — zie HANDOFF-UI. Gebruikt uitsluitend de tokens uit
+   base.css (die al gelijk zijn aan style.css). Viewspecifieke layout blijft
+   van de UI-agent; dit bestand stylet de gedeelde componentklassen. */
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  margin: 0;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app-root {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+/* Titels — zelfde gradient als .app-title in de singleplayer */
+h1,
+h2 {
+  background: linear-gradient(135deg, #a855f7, #60a5fa);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+h1 { font-size: 2.2rem; margin: 12px 0 20px; }
+h2 { font-size: 1.5rem; margin: 8px 0 16px; }
+
+p { color: var(--text-muted); }
+
+/* Knoppen — zelfde taal als de singleplayer-knoppen */
+.btn-primary,
+.btn-secondary,
+.gameplay-option,
+.podium-rematch {
+  display: block;
+  width: 100%;
+  padding: 14px 20px;
+  border-radius: var(--r);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-primary,
+.podium-rematch {
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid var(--accent);
+}
+
+.btn-primary:active,
+.podium-rematch:active { transform: scale(0.98); }
+
+.btn-primary:hover,
+.podium-rematch:hover { box-shadow: 0 0 0 4px var(--accent-glow); }
+
+.btn-secondary,
+.gameplay-option {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover,
+.gameplay-option:not(:disabled):hover { border-color: var(--accent-light); }
+
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Invoervelden */
+.field-input {
+  display: block;
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.1rem;
+  outline: none;
+}
+
+.field-input:focus {
+  border-color: var(--accent-light);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.field-input::placeholder { color: var(--text-muted); }
+
+/* Verticale ritmiek voor de formulier-achtige schermen */
+.home-quick-start,
+.home-code-submit,
+.join-submit,
+.join-retry { margin-top: 14px; }
+
+.home-code-input,
+.join-name-input { margin-top: 6px; }
+
+/* ── Spelscherm (UI3) ─────────────────────────────────────────────── */
+
+.gameplay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.gameplay-round { color: var(--text-muted); font-weight: 600; }
+
+.gameplay-timer {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--accent-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.gameplay-flag {
+  display: block;
+  width: 100%;
+  max-width: 340px;
+  margin: 8px auto 18px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+
+.gameplay-options { display: grid; gap: 10px; }
+
+.gameplay-option.is-selected {
+  border-color: var(--accent-light);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.gameplay-option.is-correct {
+  border-color: var(--success);
+  background: var(--success-bg);
+}
+
+.gameplay-status { min-height: 1.4em; margin: 12px 0 0; font-weight: 600; }
+.gameplay-progress { margin: 4px 0 0; font-size: 0.95rem; }
+
+.gameplay-result { margin-top: 16px; }
+.gameplay-correct { color: var(--text); font-weight: 600; }
+.gameplay-own.is-correct { color: var(--success); font-weight: 700; }
+.gameplay-own.is-wrong { color: var(--error); font-weight: 700; }
+.gameplay-score { color: var(--gold, #f59e0b); font-weight: 700; }
+
+/* ── Tussenstand & podium (UI4) ───────────────────────────────────── */
+
+.scoreboard-list,
+.podium-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.scoreboard-entry,
+.podium-step {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 12px 16px;
+}
+
+.scoreboard-entry.is-self,
+.podium-step.is-self {
+  border-color: var(--accent-light);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.scoreboard-name,
+.podium-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scoreboard-score,
+.podium-score {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-light);
+}
+
+.podium-step-1 { border-color: var(--gold, #f59e0b); }
+.podium-medal { font-size: 1.3rem; }
+
+.scoreboard-self,
+.podium-self { margin-top: 14px; font-weight: 600; color: var(--text); }
+
+.podium-action { margin-top: 20px; }
+.podium-wait { text-align: center; }
