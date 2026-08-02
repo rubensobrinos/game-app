@@ -18,8 +18,25 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INTB-6 | Tiebreak `getScoreboardTop` ligt niet vast | 🔵 open |
 | INTB-7 | Ruw invite-id of hash? | ✅ poort neemt de hash |
 | INTB-8 | Fixtures produceren ongeldige documenten | 🔵 open |
-| INTB-9 | `saveRoom` omzeilt de atomaire locatorclaim | 🔴 **open, hoog** |
-| INTB-10 | `loadSessionByTokenHash` niet implementeerbaar | 🔵 open |
+| INTB-9 | `saveRoom` omzeilt de atomaire locatorclaim | 🟡 **besluit akkoord**, bouwen |
+| INTB-10 | `loadSessionByTokenHash` niet implementeerbaar | 🟡 **besluit akkoord**, wacht op sleutel in `redis-keys.js` |
+
+Beide delen van
+[`BESLUIT-INTB-locators-en-sessieindex.md`](BESLUIT-INTB-locators-en-sessieindex.md)
+zijn van productzijde akkoord.
+
+**Deel A is nu een harde regel:** `claimRoomLocatorsAtomically`,
+`rotateRoomLocators` en `releaseRoomLocators` zijn de enige drie schrijvers van
+de lookup-indexen. Elke andere schrijfweg is voortaan per definitie een bug.
+
+**Deel B akkoord**, inclusief de TTL-vorm: de room-brede refresh leest de
+tokenhashes uit de bestaande sessions-hash. Ik kan bouwen zodra
+`sessionTokenLookupKey(tokenHash)` in `redis-keys.js` staat en de regel in
+`DATA-MODEL.md` §Redis-sleutels is opgenomen.
+
+**Vaste werkafspraak:** mijn akkoord op een poortmethode betekent
+implementeerbaar in Redis, mét benoemde sleutel én TTL-uitspraak. Anders geen
+akkoord.
 
 DM heeft de poort van 18 naar 21 methoden gebracht en daarmee vijf items gesloten.
 De oplossing voor INTB-2 is beter dan mijn voorstel: één
