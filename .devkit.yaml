@@ -1,5 +1,18 @@
 profile: react-native-app
 profile_version: 0.16.0
+# Repo-eigen autonomy-overrides. Scalaire velden overschrijven de globale
+# agent-rules.md; lijstvelden (forbidden_paths e.d.) worden samengevoegd, dus
+# de globale verboden paden blijven onverkort gelden.
+#
+# Reden voor de verruiming: dit repo wordt per specificatiedocument opgebouwd in
+# losse, volledig geteste modules. Eén module + bijbehorende fixture-gedreven
+# testsuite is routineus 700-1000 nieuwe regels; de globale grens van 400 dwong
+# dan tot het kunstmatig opknippen van één samenhangende wijziging over
+# meerdere commits, wat de review juist moeilijker maakt in plaats van veiliger.
+autonomy_overrides:
+  autonomy:
+    max_files_changed_without_approval: 15
+    max_lines_changed_without_approval: 5000
 managed_hashes:
   .pre-commit-config.yaml: 64ebce0a75ce245fd03e2deabcf591a030e2e48595ecffca8fbba1d2a1609edf
   .github/workflows/ci.yml: e14232b5247610291bc9b658f27875824dbffd7e43b001292fc694d4b7b416bc
