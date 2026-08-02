@@ -39,7 +39,7 @@ generiek "klaar":
 | Testlagen — Contracttests | ⏹️ Vervallen bij mij | PROTOCOL.md's PR7 bouwt dit zelf; DT1a is 📄 voorbereiding klaar als auditmatrix (26 open beslispunten + kruisverwijzing), **bevestiging door PROTOCOL.md-eigenaar nog niet binnen** |
 | Testlagen — Integratie | 📄 matrix klaar / ✅ 10/14 geactiveerd | DT3a: 14 scenario's (📄). Via twee heraudits (DT-R1, herhaald op verzoek): eerst 5/14 (1,2,5,8,10), daarna nog eens 5 erbij (3,7,9,12,14) — de tweede audit herbeoordeelde onafhankelijk de claim uit `match-lifecycle.mjs`-commit `27f6e4e` in plaats van 'm te vertrouwen. **Definitief: 10/14 geactiveerd, zelf herverifieerd: repo-breed `npm test` 2158/2158 groen**, de 5 nieuwste tests ook los gedraaid (6/6, rij 9 heeft twee testblokken). Rijen 4,6,11,13 blijven geblokkeerd — rate limiting, `share:opened`-persistentie, een socket-laag en een `round:progress`-broadcast-aanroeper ontbreken nog; voor elk opnieuw expliciet gezocht en niets gevonden. |
 | Testlagen — Browser/E2E | 📄 klaar / 🚧 uitvoering geblokkeerd (implementatie) | DT4a Deel 1: 6 pseudocode-scenario's (📄), elk met een eigen implementatieprerequisite — **DT-R4 (2026-08-02) bevestigd met verse citaten: nog geen enkele HTML koppelt aan `client/flow/`**, 0/6 uitvoerbaar. DT4b: runbook klaar (📄), **0/10 devicechecks uitgevoerd — 🚧 handmatig**, geen dependency lost dit op |
-| Testlagen — Restart-/chaostests | 📄 klaar / 🚧 uitvoering geblokkeerd (autorisatie) | DT6 Deel 1: runbook + preflight-stap voor 6 scenario's — DT-R2 (2026-08-02) gevalideerd tegen `docker-compose.yml`. **Stap 1 uitgevoerd (2026-08-02, geautoriseerd):** `aseso-game-chaos`-stack live opgestart naast de draaiende `aseso-game`-stack, geïsoleerd via `compose.chaos.override.yml` (loopback-poorten 8080/8443). Live preflight bevestigd: 5/5 services healthy, Redis AOF actief. **0/6 scenario's uitgevoerd** — resetten (stap 2) en het eerste destructieve scenario (stap 3) blijven apart geautoriseerd |
+| Testlagen — Restart-/chaostests | 📄 klaar / ✅ 1/6 scenario's uitgevoerd | DT6: `aseso-game-chaos`-stack draait geïsoleerd (`compose.chaos.override.yml`, loopback 8080/8443) naast de echte `aseso-game`-stack. **Scenario 1 uitgevoerd (2026-08-02, geautoriseerd):** game-server-restart, REST-realiseerbaar deel — container herstelt (~50s tot healthy), `/api/v1/time` werkt na herstel, roomstate overleeft de restart **niet** (verwacht: geen Redis-koppeling, alleen `createInMemoryStore()`). Bijvangst: `server/Dockerfile` bouwde zonder dependencies/`shared/`/`frontend/` — gefixt, anders kon dit scenario niet eens starten. Onverwachte, reproduceerbare bevinding los van chaos: `GET /api/v1/games/{code}/state` geeft `500 INTERNAL_ERROR` met een geldig token — gemeld, niet zelf gefixt (niet mijn module). Resetten en scenario 2–6: elk apart geautoriseerd. |
 | Testlagen — Loadtests | 📄 klaar / 🚧 uitvoering geblokkeerd (dependency + implementatie) | DT5 Deel 1: 10/10 criteria toegewezen aan een bewijsmethode (📄) — **DT-R4 (2026-08-02) bevestigd: geen spelbelastbare server aanwezig**, dus 0/10 criteria daadwerkelijk gemeten; wacht op loadtooling, een draaiende server, observability, een geschikte omgeving én een uitvoeringsakkoord |
 | Testlagen — CI-integratie | ✅ Uitgevoerd en geslaagd | DT7/DT-R3: **opgelost via optie A** (nieuw devkitprofiel `node-esm-app`, niet mijn eigen DT7-voorstel voor een parallelle workflow — dat is nu overbodig). De bestaande, managed `ci.yml` draait zelf al `node --check server/index.mjs` (lint) en `npm test` (echte `node:test`-suite) op Node 22. Geverifieerd: `devkit doctor --here` → profiel `node-esm-app`, geen managed-block-drift; `devkit validate-config` groen; `npm test` 2096/2096 groen. |
 | Handmatige pilots | ⚪ Buiten scope | `prod`, always_ask |
@@ -53,6 +53,23 @@ menselijke akkoordblokkade, maar niet de expliciete technische prerequisites per
 rij (server, UI, Compose-stack, meetomgeving) — zie de rapportage hieronder voor
 wat daarvan inmiddels wél en niet klopt.
 
+## Rapportage — chaos-scenario 1 + heraudit (2026-08-02, avond)
+
+Geautoriseerd door de producteigenaar: scenario 1 tegen `aseso-game-chaos`, plus
+een verzoek om DT3b/DT4/DT5 opnieuw te beoordelen tegen de inmiddels échte
+server (`server/index.mjs`, niet meer de placeholder).
+
+| Onderdeel | Verwachting | Uitkomst | Verklaring |
+| --- | --- | --- | --- |
+| Chaos-stack met echte server | image bevat de echte server | ❌ eerst, ✅ na fix | `server/Dockerfile` was stale (geen `npm ci`, geen `shared/`/`frontend/`) — gefixt vóór gebruik |
+| Scenario 1 (restart) | procesherstel + healthcheck-herstel | ✅ | ~50s tot `healthy`, `/api/v1/time` werkt na herstel |
+| Scenario 1: roomstate na restart | — | ❌, verwacht | geen Redis-koppeling; `createInMemoryStore()` is nog de enige store |
+| Scenario 1: "midden in een ronde" | — | niet uitvoerbaar | `game:start`/`round:answer` zijn socket-only, geen socketlaag |
+| DT3a-heraudit | eventueel meer rijen | ✅ +5 (3,7,9,12,14), nu 10/14 | onafhankelijk herbeoordeeld, niet op gezag van commit `27f6e4e` |
+| DT3a rij 4/6 tegen echte REST | eventueel deelactivatie | 🚧 preciezer, niet geactiveerd | coderegistratie/joinUrl-zichtbaarheid werken al; rate limiting resp. `share:opened`-persistentie ontbreken nog — matrixeis niet verzwakt |
+| Playwright/k6-target | opnieuw gecontroleerd | ⚪ ongewijzigd, nu met checklist | zie `e2e-load-target-check.md` §Triggercondities |
+| Onverwachte bevinding | — | `500 INTERNAL_ERROR` op `GET /games/{code}/state` | reproduceerbaar, los van chaos, gemeld — niet mijn module om te fixen |
+
 ## Rapportage uitvoeringsakkoord (DT-R5, 2026-08-02)
 
 **Dependencies — wat er nu daadwerkelijk is:**
@@ -60,10 +77,12 @@ wat daarvan inmiddels wél en niet klopt.
   `docker-compose.yml` + `compose.tunnel.override.yml` (geverifieerd door DT-R2
   tegen de echte, samengevoegde configuratie), en het devkitprofiel `node-esm-app`
   (opgelost via DT-R3 optie A, zie CI-rij hierboven).
-- Nog niet aanwezig: Playwright, k6 — **bevestigd met verse citaten door DT-R4**,
-  zie [`e2e-load-target-check.md`](../e2e-load-target-check.md). Geen HTML in de
-  repo koppelt aan `client/flow/`; `server/index.mjs` is nog steeds de
-  `node:http`-placeholder (501 op alle echte routes).
+- Nog niet aanwezig: Playwright, k6 — **herbevestigd 2026-08-02 (avond) door
+  DT-R4**, zie [`e2e-load-target-check.md`](../e2e-load-target-check.md) §Triggercondities.
+  `server/index.mjs` is niet meer de placeholder (echte Fastify-server, REST-laag,
+  statische serving — zie DT6-rapportage hierboven), maar er is nog geen
+  gerenderde `frontend/`-UI en geen socketlaag; geen van beide targets bestaat dus
+  nog, om een andere reden dan eerder.
 
 **Tests die daadwerkelijk gedraaid zijn sinds het uitvoeringsakkoord** (nageteld,
 niet aangenomen — `npm test`, volledige repo, laatst geverifieerd 2026-08-02 ná
@@ -79,13 +98,16 @@ dus niet beperkt tot DT2's 7 fixtures — andere plannen (data-model-plan,
 architecture-plan, protocol-plan, product-plan, content-plan e.a.) hebben in
 dezelfde periode zelf duizenden tests toegevoegd en gedraaid.
 
-**Resterende technische blockers, één zin per fase:**
+**Resterende technische blockers, één zin per fase (bijgewerkt 2026-08-02 avond):**
 - DT3b: 10/14 geactiveerd; overige 4 (rijen 4,6,11,13) missen rate limiting,
-  `share:opened`-persistentie, een socket-laag resp. een broadcast-aanroeper.
-- DT4a: geen geïntegreerde, gerenderde multiplayer-UI om te besturen.
+  `share:opened`-persistentie, een socket-laag resp. een broadcast-aanroeper —
+  rij 4/6's andere helft (coderegistratie, joinUrl-zichtbaarheid) is inmiddels
+  wel bevestigd tegen de echte server.
+- DT4a: geen geïntegreerde, gerenderde multiplayer-UI om te besturen (de server
+  die 'm zou serveren, bestaat inmiddels wel).
 - DT4b: geen dependency lost dit op — wacht op een mens met een echt toestel.
 - DT5: geen spelbelastbare server; k6 zonder target meet niets zinvols.
-- DT6: stack draait nu geïsoleerd (stap 1 gedaan); resetten + eerste scenario wachten op aparte autorisatie.
+- DT6: scenario 1 gedaan (REST-deel); scenario's 2–6 en resetten wachten op aparte autorisatie, elk apart.
 - DT7: **opgelost** — devkitprofiel `node-esm-app` vervangt het onjuiste
   `react-native-app`-profiel; geen blocker meer.
 

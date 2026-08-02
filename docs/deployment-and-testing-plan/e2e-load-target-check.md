@@ -14,6 +14,41 @@ bevindingen hieronder is uitgevoerd als actie (geen `npm install`, geen
 dat is expliciet buiten scope van deze controle. Deze prompt is herbruikbaar en is
 inmiddels twee keer gedraaid; onderstaand staan beide controles, nieuwste eerst.
 
+## Triggercondities voor de volgende ronde (checklist, geen heraudit)
+
+Vastgelegd 2026-08-02 zodat een volgende ronde kan afvinken in plaats van opnieuw
+vanaf nul te moeten uitzoeken wát "een target" precies betekent.
+
+**Playwright-target bestaat zodra ALLE drie waar zijn:**
+
+- [ ] Een van `docs/frontend-plan`'s UI-fasen (UI0/UI1/…) heeft daadwerkelijk
+      gerenderde schermen opgeleverd — niet alleen een mandaat/scaffold. Check:
+      `find frontend -type f` levert meer op dan `.gitkeep`, én minstens één
+      bestand daarin bevat een `<script type="module">` die `client/flow/`
+      importeert.
+- [ ] `server/index.mjs` serveert die `frontend/`-inhoud daadwerkelijk (dat deel
+      bestaat al: `registerStaticRoutes()` — dit vinkje volgt automatisch zodra
+      het vorige punt waar is, geen aparte actie nodig).
+- [ ] De gerenderde UI kan minstens de joinflow tegen een draaiende server
+      doorlopen (hoeft geen sockets te hebben — DT4a's scenario's 1/3/4 zijn
+      REST-only bereikbaar; scenario's 2/5/6 hebben wél de socketlaag nodig).
+
+**k6-target bestaat zodra BEIDE waar zijn:**
+
+- [ ] `server/transport/socket.mjs` bestaat en `attachSocketsIfAvailable()`
+      (`server/index.mjs`) koppelt hem daadwerkelijk (niet de huidige stille
+      no-op bij een ontbrekend bestand — zie INT-3 in
+      `docs/integration-plan/HANDOFF.md`, blokkeert dit).
+- [ ] Een keten-test over écht verkeer (niet in-process, maar via een
+      luisterende server) draait groen — bijv. `tests/integration/full-match.test.mjs`
+      (per `INT-PROGRESS.md` stap 1b, nog te bouwen) uitgevoerd tegen `inject()`
+      of een echte poort, niet tegen losse compositiefuncties.
+
+**Wat dit checklist niet doet:** het geeft geen `deps`-akkoord — dat staat al vast
+in `DECISIONS.md`. Het bepaalt alleen wanneer het zinvol is om Playwright/k6
+daadwerkelijk toe te voegen, zodat die stap niet voortijdig gebeurt tegen een
+target dat nog niet af is.
+
 ---
 
 # Controle 2 augustus 2026 (avond) — herbevestiging
