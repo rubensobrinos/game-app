@@ -47,6 +47,7 @@ services:
       - ./style.css:/usr/share/nginx/html/style.css:ro
       - ./app.js:/usr/share/nginx/html/app.js:ro
       - ./hint.js:/usr/share/nginx/html/hint.js:ro
+      - ./public-mode.js:/usr/share/nginx/html/public-mode.js:ro
       - ./flaginfo.js:/usr/share/nginx/html/flaginfo.js:ro
       - ./geo.js:/usr/share/nginx/html/geo.js:ro
       - ./geo-facts.js:/usr/share/nginx/html/geo-facts.js:ro
@@ -72,6 +73,7 @@ services:
       REDIS_URL: redis://redis:6379
       DATABASE_URL: ${DATABASE_URL}
       TOKEN_PEPPER: ${TOKEN_PEPPER}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL}
       MAX_PLAYERS_PER_GAME: "100"
       GAME_TTL_SECONDS: "14400"
       CONTENT_VERSION: ${CONTENT_VERSION}
