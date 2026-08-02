@@ -13,11 +13,10 @@
 // UI-voorkeur, geen game-instelling — de taal waarin vragen gesteld worden
 // blijft apart in `host-setup-state`'s `config.language`.
 //
-// Transportlaag: `transport-mock.mjs` (INT-A's stap 2 bestaat nog niet). Eén
-// module-brede instantie — `createMockTransport()` houdt zijn "room" in
-// geheugen per instantie, dus code-invoer moet dezelfde instantie raadplegen
-// als "Snel starten" gebruikte. De swap naar de echte transportlaag is later
-// één importwijziging hier (`transport-mock.mjs` → `transport.mjs`).
+// Transportlaag: de ECHTE (`transport.mjs`) — REST + Socket.IO tegen de
+// draaiende game-server, met snapshot-precedence en de onStatus-callback.
+// De swap (mock → echt) is gedaan op 2 aug 2026, op aanwijzing van de
+// producteigenaar; `transport-mock.mjs` blijft bestaan voor tests.
 
 import { applyI18n, t, setLang, getLang } from './i18n.mjs';
 import { loadLang, saveLang, loadTheme, saveTheme } from './preferences.mjs';
@@ -25,14 +24,14 @@ import { createAppMenu } from './app-menu.mjs';
 import { resolveRoute } from '../../client/flow/route-resolver.mjs';
 import { joinSourceFor } from '../../client/flow/share-actions.mjs';
 import { loadSession } from '../../client/flow/session-store.mjs';
-import { createMockTransport } from './transport-mock.mjs';
+import { createTransport } from './transport.mjs';
 import { createHomeView } from './views/home.mjs';
 import { createJoinView } from './views/join.mjs';
 import { createSessionShell } from './session-shell.mjs';
 
 const ROOT_ID = 'app-root';
 const HEADER_ID = 'app-header';
-const transport = createMockTransport();
+const transport = createTransport();
 const storage = window.localStorage;
 
 let currentScreen = null; // { render()?, destroy()? } van de actief gemounte view

@@ -742,46 +742,50 @@ export function createTransport(options = {}) {
 /**
  * Houdt de `LocalState` bij die `snapshot-precedence.mjs` verwacht en sequencet
  * zijn twee functies. **Dit is geen tweede beslisregel**: elke ja/nee komt uit
- * `shouldApplySnapshot` / `shouldApplyEvent`. Wat hier bijkomt is precies het
- * ene stuk dat die module zelf als open punt (e) noteert en dat `PROTOCOL.md`
- * inmiddels voorschrijft: **eerst op `matchSequence` ordenen, dan pas op
- * `serverTime` binnen die match** (`PROTOCOL.md` §State-snapshot,
- * `docs/integration-plan/HANDOFF.md` INT-2).
+ * `shouldApplySnapshot` / `shouldApplyEvent`, inclusief de matchordening. De
+ * module ordent sinds `PROTOCOL.md` §State-snapshot (commit `bb07aa9`) zelf
+ * **eerst op `matchSequence` en pas daarna op `serverTime` binnen die match**;
+ * deze poort heeft daar geen eigen versie meer van en mag die ook niet hebben
+ * (`AGENTS.md`: één implementatie per regel).
  *
- * Die matchordening is hier uitgedrukt als een aanpassing van de BASELINE die
- * aan de module wordt meegegeven, niet als een eigen tijdvergelijking:
+ * Wat deze poort daarvoor moet doen is precies het contract dat de modulekop
+ * beschrijft: `matchSequence` is een VERPLICHT veld van de `LocalState` — `null`
+ * vóór de eerste match (telt als 0), verder een integer ≥ 1 — en wordt na een
+ * toegepast snapshot samen met `matchId` bijgewerkt. Een ontbrekend veld levert
+ * `INVALID_LOCAL_STATE` op, en dat is opzet: een stilzwijgende 0 zou élk
+ * snapshot strikt hoger maken en dus bij élk snapshot score en streak resetten.
  *
- *   - een strikt LAGERE `matchSequence` → meteen afgewezen; een oudere match
- *     verliest altijd, ongeacht de klok;
- *   - een strikt HOGERE `matchSequence` → de `serverTime`-baseline wordt op
- *     "nog niets toegepast" gezet, zodat de module hem op identiteit
- *     (protocolversie, room) blijft keuren maar niet op een klok die over de
- *     matchgrens heen niets betekent;
- *   - gelijk of onbekend → onveranderd aan de module doorgegeven.
- *
- * Events dragen geen `matchSequence` (alleen sommige dragen `matchId`), dus
- * voor events werkt de ordening alleen voor matches waarvan al een snapshot is
- * gezien. Zie het handoff-item over matchSequence in de event-envelope.
+ * `matchId` en `matchSequence` mogen na een match-start-EVENT legitiem uit de
+ * pas lopen (het event draagt geen sequence, dus `registerEvent` zet alleen
+ * `matchId`). De module kruist dat paar in de `LocalState` bewust niet; bouw er
+ * hier dus ook geen validatie omheen.
  *
  * @param {{ protocolVersion?: string }} [options]
  */
 export function createSnapshotPrecedenceGate(options = {}) {
-  /** @type {{ protocolVersion: string, roomCode: string | null, matchId: string | null, appliedServerTime: number | null, appliedFrom: 'snapshot' | 'event' | null }} */
+  /** @type {{ protocolVersion: string, roomCode: string | null, matchId: string | null, matchSequence: number | null, appliedServerTime: number | null, appliedFrom: 'snapshot' | 'event' | null }} */
   const local = {
     protocolVersion: options.protocolVersion ?? PROTOCOL_VERSION,
     roomCode: null,
     matchId: null,
+    matchSequence: null,
     appliedServerTime: null,
     appliedFrom: null,
   };
 
-  /** De `matchSequence` van de laatst toegepaste state, of null. */
-  let appliedMatchSequence = null;
-
   /**
-   * `matchId → matchSequence`, gevuld uit snapshots. Nodig omdat events geen
-   * `matchSequence` dragen: zonder deze tabel is een event van een oudere match
-   * niet als zodanig te herkennen.
+   * `matchId → matchSequence`, gevuld uit snapshots.
+   *
+   * DIT IS GEEN KOPIE VAN DE ORDENINGSREGEL MAAR EEN CAPABILITY DIE DE MODULE
+   * NIET KAN HEBBEN. `shouldApplyEvent` is stateloos en ziet per aanroep één
+   * envelope; de event-envelope draagt geen `matchSequence` (alleen sommige
+   * payloads een `matchId`), dus de module kan een event van een OUDERE match
+   * principieel niet als zodanig herkennen — dat is open punt (e) in
+   * `snapshot-precedence.mjs`. Deze tabel reconstrueert de sequence van een
+   * `matchId` die in een EERDER snapshot is gezien; alleen daarmee is de
+   * afwijzing hieronder mogelijk. Het vergelijken zelf blijft de regel van de
+   * module en wordt hier niet herhaald. Zodra `matchSequence` in de
+   * event-envelope landt, vervalt deze tabel samen met open punt (e).
    * @type {Map<string, number>}
    */
   const sequenceByMatchId = new Map();
@@ -796,12 +800,6 @@ export function createSnapshotPrecedenceGate(options = {}) {
     const roomCode = readString(readObject(snapshot)?.room, 'code');
     const incomingSequence = readSequence(snapshot);
 
-    if (incomingSequence !== null && appliedMatchSequence !== null && incomingSequence < appliedMatchSequence) {
-      // matchSequence gaat vóór serverTime: een snapshot van een oudere match
-      // verliest altijd, ook als zijn klok hoger staat.
-      return { apply: false, reason: 'STALE_MATCH_SEQUENCE' };
-    }
-
     // De module eist een niet-lege `roomCode` in de LocalState. Bij de eerste
     // snapshot is die er nog niet; hij wordt hier geleerd en teruggedraaid als
     // de module de snapshot alsnog afwijst.
@@ -810,14 +808,7 @@ export function createSnapshotPrecedenceGate(options = {}) {
       local.roomCode = roomCode;
     }
 
-    const newerMatch = incomingSequence !== null
-      && appliedMatchSequence !== null
-      && incomingSequence > appliedMatchSequence;
-    const baseline = newerMatch
-      ? { ...local, appliedServerTime: null, appliedFrom: null }
-      : local;
-
-    const decision = shouldApplySnapshot(baseline, snapshot);
+    const decision = shouldApplySnapshot(local, snapshot);
     if (decision.apply !== true) {
       if (bootstrapped) {
         local.roomCode = null;
@@ -828,13 +819,14 @@ export function createSnapshotPrecedenceGate(options = {}) {
     const snapshotObject = readObject(snapshot);
     local.roomCode = roomCode;
     local.matchId = readString(readObject(snapshotObject?.room), 'matchId');
+    // `matchId` en `matchSequence` zijn één paar (PROTOCOL.md §State-snapshot):
+    // ze gaan samen naar `null` bij een lobby-snapshot, anders samen naar de
+    // waarden uit dít snapshot.
+    local.matchSequence = incomingSequence;
     local.appliedServerTime = snapshotObject.serverTime;
     local.appliedFrom = 'snapshot';
-    if (incomingSequence !== null) {
-      appliedMatchSequence = incomingSequence;
-      if (local.matchId !== null) {
-        sequenceByMatchId.set(local.matchId, incomingSequence);
-      }
+    if (incomingSequence !== null && local.matchId !== null) {
+      sequenceByMatchId.set(local.matchId, incomingSequence);
     }
     return decision;
   }
@@ -857,23 +849,22 @@ export function createSnapshotPrecedenceGate(options = {}) {
     }
 
     const eventMatchId = readString(readObject(readObject(envelope)?.payload), 'matchId');
-    let baseline = local;
 
     if (eventMatchId !== null && local.matchId !== null && eventMatchId !== local.matchId) {
+      // Zie `sequenceByMatchId` hierboven: dit is het enige wat de stateloze
+      // module niet zelf kan. Zij ziet alleen deze envelope en die draagt geen
+      // `matchSequence`; hier is uit een eerder snapshot bekend bij wélke
+      // sequence deze `matchId` hoorde, en dan is een event van een strikt
+      // oudere match herkenbaar en dus afwijsbaar.
       const eventSequence = sequenceByMatchId.get(eventMatchId) ?? null;
-      if (eventSequence !== null && appliedMatchSequence !== null) {
-        if (eventSequence < appliedMatchSequence) {
-          return { apply: false, reason: 'STALE_MATCH_SEQUENCE' };
-        }
-        if (eventSequence > appliedMatchSequence) {
-          baseline = { ...local, appliedServerTime: null, appliedFrom: null };
-        }
+      if (eventSequence !== null && local.matchSequence !== null && eventSequence < local.matchSequence) {
+        return { apply: false, reason: 'STALE_MATCH_SEQUENCE' };
       }
       // Onbekende match zonder sequence: niet te ordenen op match. Valt terug
       // op de serverTime-ordening van de module (zie het handoff-item over matchSequence in de event-envelope).
     }
 
-    const decision = shouldApplyEvent(baseline, envelope);
+    const decision = shouldApplyEvent(local, envelope);
     if (decision.apply !== true) {
       return decision;
     }
@@ -886,9 +877,15 @@ export function createSnapshotPrecedenceGate(options = {}) {
     return decision;
   }
 
-  /** Alleen voor tests/diagnostiek: een kopie van de bijgehouden positie. */
+  /** Alleen voor tests/diagnostiek: een kopie van de bijgehouden positie.
+   * `appliedMatchSequence` is een alias van `local.matchSequence`, bewaard voor
+   * bestaande aanroepers van vóór het veld in de `LocalState` zelf landde. */
   function inspect() {
-    return { ...local, appliedMatchSequence, knownMatches: new Map(sequenceByMatchId) };
+    return {
+      ...local,
+      appliedMatchSequence: local.matchSequence,
+      knownMatches: new Map(sequenceByMatchId),
+    };
   }
 }
 

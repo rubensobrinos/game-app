@@ -679,7 +679,10 @@ test('een nieuwere match wint van een hogere serverTime binnen de oude match', (
 
   gate.registerSnapshot(snapshotFixture({ code, serverTime: 5000, matchId: 'm1', matchSequence: 1 }));
   // Zelfde milliseconde, nieuwe match: zonder de sequence-ordening zou dit
-  // DUPLICATE_SNAPSHOT worden (open punt (e) in snapshot-precedence.js).
+  // DUPLICATE_SNAPSHOT worden. `snapshot-precedence.mjs` ordent daarom eerst op
+  // `matchSequence` en pas daarna op `serverTime` (PROTOCOL.md §State-snapshot);
+  // voor SNAPSHOTS is dat gat dus dicht. Open punt (e) in die module gaat over
+  // wat er overblijft: de EVENT-envelope draagt geen `matchSequence`.
   const rematch = gate.registerSnapshot(snapshotFixture({ code, serverTime: 5000, matchId: 'm2', matchSequence: 2 }));
 
   assert.equal(rematch.apply, true);
