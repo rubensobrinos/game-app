@@ -39,6 +39,21 @@ L0 die niet dezelfde omvang heeft als Pilot A/B).
 | 9 | L2 — 20 rooms × 50 spelers, doel "1.000 gelijktijdige spelers". | DEPLOYMENT-AND-TESTING.md:340. | k6 (of eigen loadclient) voor de ruwe schaal-/foutthresholds + observability-metric (actieve rooms/sockets, event-loop lag, Redislatency) om te zien *of* en *waar* het knelt. | Het aantal gelijktijdige spelers halen zónder foutthresholds te overschrijden is een doorvoeroefening (k6-terrein), maar "1.000 gelijktijdige spelers" zonder degradatie aantonen vereist ook dat de kernmetrics (event-loop lag, Redislatency, foutcodes) binnen bereik blijven — dat lees je af in observability, niet in de k6-samenvatting alleen. |
 | 10 | L3 — 200 rooms × 50 spelers, doel "knelpuntanalyse na CDN/schaalwerk". | DEPLOYMENT-AND-TESTING.md:341. | k6 (of eigen loadclient) als lastgenerator + observability-metric als eigenlijke analyse-uitkomst. | Het doel is hier expliciet "knelpuntanalyse", geen pass/fail-getal: k6 levert de belasting, maar het knelpunt zélf (waar loopt event-loop lag op, waar loopt Redislatency op, welke foutcodes verschijnen) wordt zichtbaar via de kernmetrics uit §Observability, niet via een k6-threshold-uitslag. |
 
+## Update na Deel 2/3 — rij 5 heeft een reëel obstakel, niet alleen een schaalvraag
+
+Bij de eerste uitvoering van het k6-script voor rijen 4/5 (DT5 Deel 3,
+L0-schaal, 2026-08-02) bleek `round:progress` de definitieve "iedereen heeft
+geantwoord"-update structureel te laten vallen zodra alle spelers binnen
+hetzelfde 1s-throttlevenster antwoorden — precies het scenario dat rij 5
+beschrijft. Zie
+[`bug-report-round-progress-drops-final-update.md`](bug-report-round-progress-drops-final-update.md)
+en de uitvoeringslog in
+[`e2e-load-target-check.md`](e2e-load-target-check.md). Dit is geen
+schaalprobleem (het treedt al op bij 3 spelers) en geen k6-scriptfout — het is
+een reëel gat in het enige kanaal dat rij 5 via k6 zou moeten bewijzen. Rij 5
+blijft daarom "k6" als beoogde runner (de keuze zelf is nog steeds juist),
+maar is op dit moment niet bewijsbaar totdat die bug is opgelost.
+
 ## L2/L3: expliciete omgeving-/providercheck vóór uitvoering
 
 De bron zegt dit letterlijk (DEPLOYMENT-AND-TESTING.md:353–354): "L2 en L3 worden

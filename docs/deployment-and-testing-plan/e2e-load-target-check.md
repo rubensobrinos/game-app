@@ -14,6 +14,56 @@ bevindingen hieronder is uitgevoerd als actie (geen `npm install`, geen
 dat is expliciet buiten scope van deze controle. Deze prompt is herbruikbaar en is
 inmiddels twee keer gedraaid; onderstaand staan beide controles, nieuwste eerst.
 
+## DT5 Deel 3 — L0-uitvoering tegen de lokale stack (2026-08-02)
+
+**Akkoord:** productgesprek 2026-08-02 — L0-schaal (~20 spelers) tegen de
+lokale stack geautoriseerd; L1 en hoger blijven apart geautoriseerd, L2/L3
+bovendien pas na een omgeving-/providercheck.
+
+**Twee blokkades onderweg, allebei niet in mijn module, allebei gedocumenteerd
+als bugrapport in plaats van zelf gefixt:**
+
+1. `node server/index.mjs` crashte bij elke opstart — `INVALID_REQUEST`
+   ontbrak in `rest.mjs`'s statustabel (commit `bb07aa9`'s bijwerking).
+   Zie [`bug-report-boot-crash-invalid-request.md`](bug-report-boot-crash-invalid-request.md).
+   Tijdens het schrijven van dit rapport bleek de fix door een andere sessie
+   al onderweg (ongecommit op het moment van herverificatie, later
+   gecommit) — server start weer.
+2. `l1-event-latency-and-answer-peak.js`'s eerste versie wachtte op een volle
+   `round:progress` (`answeredCount === eligiblePlayerCount`) om de match
+   vroegtijdig af te ronden. Die update **komt structureel nooit** zodra
+   alle spelers binnen hetzelfde 1s-throttlevenster antwoorden — precies het
+   antwoordpiek-scenario van rij 5. Zie
+   [`bug-report-round-progress-drops-final-update.md`](bug-report-round-progress-drops-final-update.md).
+   Script aangepast om op `round:ended` te wachten (komt altijd); de volle
+   `round:progress`-meting blijft in het script staan om de bug zichtbaar te
+   houden.
+
+**Uitvoering, na beide bevindingen, lokaal (`node server/index.mjs`, poort
+3900, in-memory store, geen Redis):**
+
+```
+k6 run --env BASE_URL=http://127.0.0.1:3900 --env PLAYERS=20 \
+  tests/load/l1-event-latency-and-answer-peak.js
+```
+
+| Metric | Resultaat | Threshold |
+| --- | --- | --- |
+| `answer_ack_latency_ms` (rij 4-proxy, lokaal) | p95 = 22.19 ms | < 300 ms ✅ |
+| `socket_connect_success` | 100% (20/20) | > 99% ✅ |
+| `round_started_received` | 100% (20/20) | > 99% ✅ |
+| `round_progress_full_broadcast_latency_ms` (rij 5) | **0 samples — bug** | n.v.t., zie bugrapport |
+| `round_ended_latency_ms` | ~16,5 s (natuurlijke rondedeadline) | informatief |
+
+**Wat dit wél en niet bewijst:** dit is een L0-schaal (20 spelers), lokale
+run — geen L1-bewijs (100 spelers) en geen bewijs "via de gecontroleerde
+publieke route" (rij 4 eist dat expliciet, apart gate). Het bewijst wel dat
+het mechanisme werkt: room aanmaken, 20 spelers joinen, socketverbindingen,
+`game:start`, een ronde spelen, antwoorden versturen/acken, en het script
+draait zonder foutthresholds te raken. Rij 5 kan op dit moment sowieso niet
+via `round:progress` bewezen worden, ongeacht schaal — dat is de bug
+hierboven, geen schaalbeperking.
+
 ## Triggercondities voor de volgende ronde (checklist, geen heraudit)
 
 Vastgelegd 2026-08-02 zodat een volgende ronde kan afvinken in plaats van opnieuw

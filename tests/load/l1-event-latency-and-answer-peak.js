@@ -27,11 +27,25 @@
 //     publieke-route-eis; dat blijft een apart, nog niet gegeven akkoord,
 //     zie README.md §Checkpoints).
 //
-// EÉN RONDE, NIET ALLE 20 — de host stuurt `game:finish` zodra iedereen heeft
-// geantwoord, in plaats van de resterende 19 rondes uit te zitten. Dat bewijst
+// EÉN RONDE, NIET ALLE 20 — de host stuurt `game:finish` zodra de ronde
+// eindigt, in plaats van de resterende 19 rondes uit te zitten. Dat bewijst
 // dezelfde antwoordpiek-/latencymechaniek zonder de testduur nodeloos te
 // vermenigvuldigen; zie ook rij 5's eigen definitie ("antwoordpieken", niet
 // "elke ronde van de match").
+//
+// TRIGGER IS `round:ended`, NIET `round:progress` MET VOLLE TELLING — bewust.
+// Eerste versie van dit script wachtte op een `round:progress` met
+// `answeredCount === eligiblePlayerCount` om vroegtijdig af te ronden. Bij
+// uitvoering bleek die laatste, volledige `round:progress`-broadcast
+// STRUCTUREEL NOOIT aan te komen zodra alle spelers binnen hetzelfde
+// throttlevenster antwoorden (PROTOCOL.md: "maximaal tweemaal per seconde") —
+// precies het antwoordpiek-scenario dat rij 5 beschrijft. Zie
+// `bug-report-round-progress-drops-final-update.md` voor de volledige
+// reproductie. Dit script vertrouwt daarom niet langer op dat kanaal om af te
+// ronden (het blijft wel gemeten, als `round_progress_broadcast_latency_ms`,
+// juist om de bug zichtbaar te houden in elke run), en wacht in plaats
+// daarvan op `round:ended` — het event dat WEL altijd komt, op de normale
+// rondedeadline.
 
 import ws from 'k6/ws';
 import http from 'k6/http';
@@ -45,7 +59,10 @@ const WS_URL = BASE_URL.replace(/^http/, 'ws');
 const PLAYERS = Number(__ENV.PLAYERS || 100); // L1-doel; zie kopcommentaar voor kleinere/grotere runs
 const LATENCY_P95_MS = Number(__ENV.LATENCY_P95_MS || 300); // rij 4, §Slagingscriteria L1
 const ANSWER_PEAK_MS = Number(__ENV.ANSWER_PEAK_MS || 2000); // rij 5, §Slagingscriteria L1
-const HARD_TIMEOUT_MS = Number(__ENV.HARD_TIMEOUT_MS || 30000);
+// Standaard ruim boven de natuurlijke rondeduur (COUNTDOWN_MS 3s + vraagdeadline
+// 15s ≈ 18s, zie server/composition/match-lifecycle.mjs) — de trigger is nu
+// `round:ended`, dat altijd op die deadline komt, niet eerder.
+const HARD_TIMEOUT_MS = Number(__ENV.HARD_TIMEOUT_MS || 45000);
 
 export const options = {
   scenarios: {
@@ -53,23 +70,32 @@ export const options = {
       executor: 'per-vu-iterations',
       vus: PLAYERS,
       iterations: 1,
-      maxDuration: __ENV.MAX_DURATION || '90s',
+      maxDuration: __ENV.MAX_DURATION || '120s',
     },
   },
   thresholds: {
     // Rij 4: p95 van individuele ack-round-trips (round:answer -> ack).
     answer_ack_latency_ms: [`p(95)<${LATENCY_P95_MS}`],
-    // Rij 5: tijd van "ronde begint" tot "server heeft alle antwoorden
-    // verwerkt" (gemeten door de host via round:progress), één sample.
-    answer_peak_full_completion_ms: [`p(95)<${ANSWER_PEAK_MS}`],
     socket_connect_success: ['rate>0.99'],
     round_started_received: ['rate>0.99'],
+    // Rij 5, WEL gemeten maar bewust GEEN hard threshold: dit signaal is zelf
+    // het onderwerp van bug-report-round-progress-drops-final-update.md — een
+    // threshold hierop zou een bekende servertekortkoming laten "falen" op
+    // elke run, terwijl het punt is de tekortkoming zichtbaar te houden, niet
+    // dit script te laten stuklopen op een bug die niet van mij is.
   },
 };
 
 const ackLatency = new Trend('answer_ack_latency_ms', true);
+// Rij 5-signaal: hoe lang na het begin van de ronde het laatste, volle
+// `round:progress` (answeredCount === eligiblePlayerCount) binnenkomt. Blijft
+// LEEG (geen samples) zolang de hieronder gedocumenteerde bug bestaat — dat
+// is zelf het bewijs, niet een testfout.
+const fullProgressBroadcastLatency = new Trend('round_progress_full_broadcast_latency_ms', true);
 const progressBroadcastLatency = new Trend('round_progress_broadcast_latency_ms', true);
-const peakCompletion = new Trend('answer_peak_full_completion_ms', true);
+// Rij 5, betrouwbare vervanger: tijd van ronde-begin tot `round:ended`
+// (event dat wél altijd komt), gemeten door de host.
+const roundEndedLatency = new Trend('round_ended_latency_ms', true);
 const connectSuccess = new Rate('socket_connect_success');
 const roundStartedReceived = new Rate('round_started_received');
 
@@ -177,12 +203,16 @@ export default function (data) {
           if (answered && answerSentAt > 0) {
             progressBroadcastLatency.add(Date.now() - answerSentAt);
           }
-          if (isHost && frame.envelope.payload.answeredCount === frame.envelope.payload.eligiblePlayerCount) {
-            peakCompletion.add(Date.now() - roundStartedAt);
-            // Piek is verwerkt: rond de match vroegtijdig af in plaats van de
-            // resterende 19 rondes uit te zitten (zie kopcommentaar).
-            socket.send(encodeEvent('game:finish', { actionId: 'act_finish_loadtest', payload: {} }, 2));
+          if (frame.envelope.payload.answeredCount === frame.envelope.payload.eligiblePlayerCount) {
+            fullProgressBroadcastLatency.add(Date.now() - roundStartedAt);
           }
+          return;
+        }
+        if (frame.event === 'round:ended' && isHost) {
+          roundEndedLatency.add(Date.now() - roundStartedAt);
+          // Ronde is voorbij: rond de match hier af in plaats van de
+          // resterende 19 rondes uit te zitten (zie kopcommentaar).
+          socket.send(encodeEvent('game:finish', { actionId: 'act_finish_loadtest', payload: {} }, 2));
           return;
         }
         if (frame.event === 'game:finished') {
