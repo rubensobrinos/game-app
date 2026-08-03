@@ -9,8 +9,20 @@ De 21 schermen uit `04` staan hieronder **op volgorde van de spelersreis**, niet
 op nummer: landing → lobby → ronde → uitslag → beheer. Zo lees je de tabel als
 een doorloop en zie je waar iemand vastloopt, in plaats van als een inventaris.
 
-`S09` en `S10` (Echt of Nep, Hoger of Lager) staan er wel in maar vallen buiten
-de huidige lanceerscope — die blijven bewust op 0.
+`S09` en `S10` (Echt of Nep, Hoger of Lager) staan op niveau 0. **Herzien (3
+aug 2026), principe 8 — niet "buiten de lanceerscope", zoals deze regel eerder
+zei:** `PRODUCT.md`'s §Spelvormen in multiplayer noemt `real_or_fake_flag`
+(S09) en `higher_lower` (S10) expliciet als twee van de vijf **Golf 1 —
+MVP-launch**-spelvormen, naast `flags_mc` (S08, al gebouwd). De server- en
+protocolkant bestaan al volledig en getest: `server/rules/question-selection.js`,
+`server/rules/validators.js` (`{choice:'real'|'fake'}` resp. `{side:0|1}`) en
+`PROTOCOL.md`'s `round:started`-voorbeelden per `gameType`. Wat ontbreekt is
+puur thema 1's schermwerk (`04` S09/S10) en, los daarvan, `client/flow/`'s
+spelvorm-selector die vandaag vastzit op `['flags_mc']` (`UI-17`,
+`HANDOFF-UI.md`; al gesignaleerd naar `product-plan`'s eigenaar in
+`docs/game-flow-plan/GF-HANDOFF-TO-INT-A.md`, geen nieuw punt). Niet `⏸`
+(`NIVEAUS.md`): er is geen blokkade, geen besluit waarop gewacht wordt — dit is
+gewoon nog niet gebouwd. Zie [`14-S09-S10-echt-of-nep-en-hoger-of-lager.md`](prompts/14-S09-S10-echt-of-nep-en-hoger-of-lager.md).
 
 ## Start en join
 
@@ -34,8 +46,8 @@ de huidige lanceerscope — die blijven bewust op 0.
 |---|---|---|---|
 | S07 | Countdown | 1 | **Gebouwd (prompt 04), route A gekozen:** countdown als sub-state van `gameplay.mjs` (geen aparte view/mount-cyclus) — groot getal, afgeleid van `secondsRemaining(countdownEndsAt, offsetMs)`, geen vaste `3`/`2`/`1`-aanname (werkt bij elke serverduur). Geverifieerd met Playwright: verschijnt direct na `Start de game`, telt zichtbaar af, gaat zonder wit scherm over in de eerste vraag. **`UI-13` (HANDOFF-UI.md):** `transport-mock.mjs`'s `COUNTDOWN_MS` (1,2s) is intern tegenstrijdig met `03` §6's richtduur (2,5–3,0s) — aan INT-A of/welke leidend is; de weergave zelf werkt bij beide. Niet gebouwd: rondecontext klein tijdens de countdown, en de vraaginhoud zelf vooraf laden (die twee zijn `04`-niveau-2-composities, geen bug — het huidige protocol levert de vraag toch pas ná de countdown, zie de prompt voor de afweging). |
 | S08 | Meerkeuzevraag | 1 | Vraag, vlag, opties en timer werken. Letter/vorm-identiteit bewust uitgesteld (D-021). Timer is een getal, geen progressbalk. |
-| S09 | Echt of Nep | 0 | Niet in multiplayer gebouwd; alleen singleplayer. |
-| S10 | Hoger of Lager | 0 | Buiten de huidige lanceerscope. |
+| S09 | Echt of Nep | 0 | **Niet "buiten scope" (zie inleiding hierboven, principe 8):** `PRODUCT.md` bevestigt `real_or_fake_flag` als Golf-1-spelvorm; server/protocol staan al klaar. Nog te bouwen: het scherm zelf (prompt 14). |
+| S10 | Hoger of Lager | 0 | **Niet "buiten scope" (zie inleiding hierboven, principe 8):** `PRODUCT.md` bevestigt `higher_lower` als Golf-1-spelvorm; server/protocol staan al klaar. Nog te bouwen: het scherm zelf (prompt 14). |
 | S11 | Antwoord versturen | 1 | Vergrendeling en statustekst werken. Status staat naast de component in plaats van erin (D-021, bewust). |
 | S12 | Antwoord bevestigd | 1 | Voortgang `3/7 beantwoord` werkt. Geen `Wachten op 4 spelers…`-formulering, geen afgeronde teller bij grote rooms. |
 

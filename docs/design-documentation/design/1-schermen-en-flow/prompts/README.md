@@ -26,6 +26,13 @@ best na elkaar gedaan.
 scherm en `docs/frontend-plan/HANDOFF-UI.md` (`UI-13` t/m `UI-17`) voor de
 opengebleven punten die uit het uitvoeren volgden.
 
+Een tiende bouwprompt kwam er ná die negen bij, niet uit review maar uit een
+gecorrigeerde scope-aanname:
+
+| # | Bestand | Dekt | Fase (roadmap) |
+| --- | --- | --- | --- |
+| 14 | [`14-S09-S10-echt-of-nep-en-hoger-of-lager.md`](14-S09-S10-echt-of-nep-en-hoger-of-lager.md) | S09, S10 — bevestigde Golf-1-spelvormen, server/protocol staan al klaar | 1, ten onrechte als "buiten scope" gemarkeerd |
+
 ## Verzoeken/besluiten die uit het uitvoeren volgden
 
 Vier van de vijf oorspronkelijke `HANDOFF`-kandidaten hieronder bleken bij
@@ -57,8 +64,11 @@ gaat.**
 ## Wat deze negen niet dekken
 
 `S08`/`S11`/`S12`/`S18` staan in `../PROGRESS.md` al op niveau 1 zonder een
-scherpe, direct uitvoerbare volgende stap; `S09`/`S10` staan op niveau 0 en
-vallen sowieso buiten de lanceerscope. Thema 2's eigen fundamentgat (wereldmotieven,
+scherpe, direct uitvoerbare volgende stap. `S09`/`S10` stonden hier eerder ook
+als "buiten de lanceerscope" — dat was fout (zie `../PROGRESS.md`, principe 8):
+beide zijn bevestigde Golf-1-spelvormen (`PRODUCT.md`), nu gedekt door
+[`14-S09-S10-echt-of-nep-en-hoger-of-lager.md`](14-S09-S10-echt-of-nep-en-hoger-of-lager.md).
+Thema 2's eigen fundamentgat (wereldmotieven,
 iconografie, lettertype/accentkleur — `O-002`/`O-003`) en thema 5's
 device-/screenreadertests horen niet hier, ook al raken ze dezelfde schermen.
 
