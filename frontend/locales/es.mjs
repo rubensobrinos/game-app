@@ -15,6 +15,7 @@ export const es = Object.freeze({
   'home.title': 'Rounda',
   'home.promise': 'Sin cuenta. Sin descarga. Cada uno juega en su propio teléfono.',
   'home.quickStart': 'Empieza una partida ahora',
+  'home.quickStartSub': 'Eres el anfitrión',
   'home.creating': 'Creando la partida…',
   'home.divider': 'o',
   'home.codeLabel': 'Introduce el código de la partida',
@@ -66,7 +67,7 @@ export const es = Object.freeze({
 
   'game.screenTitle': 'Partida',
   'game.flagAlt': 'Bandera a adivinar',
-  'game.questionPrompt': '¿Qué bandera es esta?',
+  'game.questionPrompt': '¿A qué país pertenece esta bandera?',
   'game.round': 'Ronda',
   'game.secondsLeft': 'segundos restantes',
   'game.sending': 'Enviando…',

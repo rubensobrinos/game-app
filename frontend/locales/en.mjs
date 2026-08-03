@@ -17,6 +17,7 @@ export const en = Object.freeze({
   'home.title': 'Rounda',
   'home.promise': 'No account. No download. Everyone plays on their own phone.',
   'home.quickStart': 'Start a game now',
+  'home.quickStartSub': "You're the host",
   'home.creating': 'Creating a game…',
   'home.divider': 'or',
   'home.codeLabel': 'Enter the game code',
@@ -68,7 +69,7 @@ export const en = Object.freeze({
 
   'game.screenTitle': 'Gameplay',
   'game.flagAlt': 'Flag to guess',
-  'game.questionPrompt': 'Which flag is this?',
+  'game.questionPrompt': 'Which country does this flag belong to?',
   'game.round': 'Round',
   'game.secondsLeft': 'seconds left',
   'game.sending': 'Sending…',

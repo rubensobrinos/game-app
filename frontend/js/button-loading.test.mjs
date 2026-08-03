@@ -98,3 +98,22 @@ test('een niet-element wordt genegeerd in plaats van te gooien', () => {
   assert.doesNotThrow(() => setButtonLoading(null, { loading: true }));
   assert.equal(isButtonLoading(null), false);
 });
+
+// BOUWSPRINT (rounda-1c): een knop met een `[data-button-loading-label]`-kind
+// (home.mjs's sublabel-pattern) mag dat kind niet verliezen bij een
+// laadwissel — `textContent` op de hele knop zou het wegvegen.
+test('knop met een [data-button-loading-label]-kind: alleen dat kind wisselt van tekst, de rest blijft staan', () => {
+  const sub = { textContent: 'Je bent de spelleider', dataset: {} };
+  const label = { textContent: 'Start direct een game', dataset: {} };
+  const b = knop();
+  b.querySelector = (selector) => (selector === '[data-button-loading-label]' ? label : null);
+
+  setButtonLoading(b, { loading: true, label: 'Potje maken…' });
+  assert.equal(label.textContent, 'Potje maken…');
+  assert.equal(sub.textContent, 'Je bent de spelleider'); // ongemoeid
+  assert.equal(b.disabled, true);
+
+  setButtonLoading(b, { loading: false });
+  assert.equal(label.textContent, 'Start direct een game');
+  assert.equal(sub.textContent, 'Je bent de spelleider');
+});

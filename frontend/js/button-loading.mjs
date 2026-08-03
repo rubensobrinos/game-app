@@ -11,8 +11,22 @@
 //
 // Het oorspronkelijke label wordt onthouden en bij `loading: false` zonder
 // `label` teruggezet, zodat de aanroeper het niet zelf hoeft te bewaren.
-
+//
+// BOUWSPRINT (rounda-1c): een knop kan sinds de 1c-transplantatie een
+// sublabel dragen (bv. home.mjs's "Je bent de spelleider" onder "Start
+// direct een game") — `button.textContent = ...` zou die sublabel-node
+// stilzwijgend wegvegen (textContent vervangt ALLE children door één
+// tekstnode). Callers zonder sublabel zijn ongewijzigd: zonder een
+// `[data-button-loading-label]`-kind valt dit terug op de knop zelf, exact
+// het oude gedrag.
 const IDLE_LABEL = 'idleLabel';
+
+function labelTarget(button) {
+  if (typeof button.querySelector !== 'function') {
+    return button;
+  }
+  return button.querySelector('[data-button-loading-label]') ?? button;
+}
 
 /**
  * @param {HTMLButtonElement} button
@@ -22,10 +36,11 @@ export function setButtonLoading(button, { loading, label = null }) {
   if (!(button instanceof HTMLElement)) {
     return;
   }
+  const target = labelTarget(button);
 
   if (loading) {
     if (button.dataset[IDLE_LABEL] === undefined) {
-      button.dataset[IDLE_LABEL] = button.textContent ?? '';
+      button.dataset[IDLE_LABEL] = target.textContent ?? '';
     }
     // Breedte vastzetten vóór de labelwissel: `E01` en `05` §4.1 verbieden
     // layoutshift, en `Start direct een game` → `Potje maken…` is smaller —
@@ -41,7 +56,7 @@ export function setButtonLoading(button, { loading, label = null }) {
     // vuren. Een knop die er alleen bezig uitziet is geen laadstaat.
     button.disabled = true;
     if (label !== null) {
-      button.textContent = label;
+      target.textContent = label;
     }
     return;
   }
@@ -55,12 +70,12 @@ export function setButtonLoading(button, { loading, label = null }) {
     // Foutafloop: de aanroeper geeft een eigen vervolglabel mee (`Opnieuw
     // proberen`). Het oorspronkelijke label blijft onthouden, zodat een
     // geslaagde retry er alsnog op terugvalt.
-    button.textContent = label;
+    target.textContent = label;
     return;
   }
 
   if (button.dataset[IDLE_LABEL] !== undefined) {
-    button.textContent = button.dataset[IDLE_LABEL];
+    target.textContent = button.dataset[IDLE_LABEL];
     delete button.dataset[IDLE_LABEL];
   }
 }

@@ -20,6 +20,9 @@ export const nl = Object.freeze({
   'home.title': 'Rounda',
   'home.promise': 'Geen account. Geen download. Iedereen speelt op zijn eigen telefoon.',
   'home.quickStart': 'Start direct een game',
+  // BOUWSPRINT (rounda-1c): sublabel in de startknop — wie hierop drukt is
+  // altijd host (hostParticipates default), dus onvoorwaardelijk waar.
+  'home.quickStartSub': 'Je bent de spelleider',
   'home.creating': 'Potje maken…',
   'home.divider': 'of',
   'home.codeLabel': 'Voer de gamecode in',
@@ -81,7 +84,10 @@ export const nl = Object.freeze({
   // — UI3/UI4-sleutels (toegevoegd door CT/regie-agent, zie HANDOFF-UI) —
   'game.screenTitle': 'Spelscherm',
   'game.flagAlt': 'Te raden vlag',
-  'game.questionPrompt': 'Welke vlag is dit?',
+  // BOUWSPRINT (rounda-1c): exacte mockup-tekst — de regel bestond al
+  // (questionPrompt, .gameplay-question, boven de vlag), alleen de copy
+  // week af van rounda-1c.html's letterlijke tekst.
+  'game.questionPrompt': 'Bij welk land hoort deze vlag?',
   'game.round': 'Ronde',
   'game.secondsLeft': 'seconden te gaan',
   'game.sending': 'Versturen…',
