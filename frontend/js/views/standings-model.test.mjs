@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { standingsFrom, podiumTop3 } from './standings-model.mjs';
+import { standingsFrom, podiumTop3, rankMovementFrom } from './standings-model.mjs';
 
 const TOP = [
   { playerId: 'p1', effectiveName: 'Vlugge Vos', score: 1200 },
@@ -44,4 +44,28 @@ test('geen eigen ranking: volgorde van de payload wordt nooit hersorteerd', () =
   const shuffled = [TOP[2], TOP[0], TOP[1]];
   const s = standingsFrom({ top: shuffled, self: null });
   assert.deepEqual(s.entries.map((e) => e.playerId), ['p3', 'p1', 'p2']);
+});
+
+test('rankMovementFrom: null vorige stand geeft een lege Map (bv. eerste ronde)', () => {
+  const current = standingsFrom({ top: TOP, self: null });
+  const movement = rankMovementFrom(null, current);
+  assert.equal(movement.size, 0);
+});
+
+test('rankMovementFrom: p3 stijgt van 3 naar 1, p1 daalt van 1 naar 3, p2 blijft gelijk', () => {
+  const previous = standingsFrom({ top: TOP, self: null });
+  const shuffled = [TOP[2], TOP[1], TOP[0]];
+  const current = standingsFrom({ top: shuffled, self: null });
+  const movement = rankMovementFrom(previous, current);
+  assert.equal(movement.get('p3'), 2); // was 3, nu 1 -> +2
+  assert.equal(movement.get('p1'), -2); // was 1, nu 3 -> -2
+  assert.equal(movement.get('p2'), 0); // was 2, nu 2 -> 0
+});
+
+test('rankMovementFrom: een nieuwe speler zonder vorige positie krijgt geen entry', () => {
+  const previous = standingsFrom({ top: TOP.slice(0, 2), self: null });
+  const current = standingsFrom({ top: TOP, self: null });
+  const movement = rankMovementFrom(previous, current);
+  assert.equal(movement.has('p3'), false);
+  assert.equal(movement.get('p1'), 0);
 });

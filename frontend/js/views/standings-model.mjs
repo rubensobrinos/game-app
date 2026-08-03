@@ -39,3 +39,31 @@ export function standingsFrom(payload) {
 export function podiumTop3(standings) {
   return standings.entries.slice(0, 3);
 }
+
+/**
+ * Positieverschil per speler t.o.v. de vorige stand — gedeeld tussen S15's
+ * bewegingsindicatie (`↑2`/`↓1`/`—`) en 07-reveal-en-sociale-headline.md's
+ * comeback-detectie (prompt 08): één implementatie, niet twee lichtjes
+ * verschillende. Puur: geen sessiestatus, geen eigen ranking, alleen het
+ * verschil tussen twee al berekende `standingsFrom()`-uitkomsten.
+ * @param {ReturnType<typeof standingsFrom> | null} previous null als er nog
+ *   geen vorige stand is (bv. de eerste ronde).
+ * @param {ReturnType<typeof standingsFrom>} current
+ * @returns {Map<string, number>} playerId → positieverschil. Positief = omhoog
+ *   (verbeterd), negatief = omlaag, geen entry = geen vorige positie om mee
+ *   te vergelijken (nieuw binnengekomen speler, of geen vorige stand).
+ */
+export function rankMovementFrom(previous, current) {
+  const movement = new Map();
+  if (previous === null || previous === undefined || !Array.isArray(previous.entries)) {
+    return movement;
+  }
+  const previousPositions = new Map(previous.entries.map((entry) => [entry.playerId, entry.position]));
+  for (const entry of current.entries) {
+    const previousPosition = previousPositions.get(entry.playerId);
+    if (typeof previousPosition === 'number') {
+      movement.set(entry.playerId, previousPosition - entry.position);
+    }
+  }
+  return movement;
+}

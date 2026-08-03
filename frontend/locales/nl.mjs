@@ -62,12 +62,27 @@ export const nl = Object.freeze({
   'game.roundPoints': 'Punten deze ronde',
   'standings.title': 'Tussenstand',
   'standings.you': 'Jij',
+  // S15: aria-label bij de bewegingsbadge (↑/↓/—) — de badge zelf is beknopt
+  // beeldschrift, dit is wat een screenreader in plaats daarvan voorleest.
+  'standings.moveUp.one': '{n} plaats gestegen',
+  'standings.moveUp.other': '{n} plaatsen gestegen',
+  'standings.moveDown.one': '{n} plaats gedaald',
+  'standings.moveDown.other': '{n} plaatsen gedaald',
+  'standings.moveSame': 'Geen verandering',
   'podium.title': 'Eindstand',
   'podium.first': '🥇',
   'podium.second': '🥈',
   'podium.third': '🥉',
   'podium.rematch': 'Revanche',
   'podium.waitForHost': 'Wachten tot de host een nieuwe game start…',
+  'podium.newGame': 'Nieuw spel',
+  'podium.share': 'Deel uitslag',
+  // Deel uitslag (03 §4.5): uitsluitend de eigen score/positie, privacy-
+  // vriendelijk — nooit andermans naam of score, geen roomcode/link.
+  'podium.shareWon': 'Ik heb net Rounda gewonnen met {score} punten! 🏆',
+  'podium.shareResult': 'Ik scoorde {score} punten in Rounda!',
+  'podium.shareGeneric': 'We speelden net Rounda!',
+  'podium.close': 'Afsluiten',
 
   // — Foutmeldingen: sleutel = `edge-case-messaging.messageForErrorCode()`'s
   // teruggegeven code, vertaald hier. PROTOCOL.md's volledige foutcodetabel. —

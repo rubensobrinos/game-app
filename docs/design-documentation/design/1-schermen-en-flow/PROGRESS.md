@@ -52,8 +52,8 @@ geen nieuwe fase. Wie hier tickets van maakt op rijgrootte alleen, onderschat
 |---|---|---|---|
 | S13 | Ronde-reveal | 1 | Correct antwoord, eigen keuze en punten verschijnen. Geen eigen fase met opbouw, geen rankbeweging, geen antwoordverdeling. |
 | S14 | Sociale headline | 0 | Bestaat niet. Geen selectielogica, geen copy, geen plek in de flow. |
-| S15 | Leaderboard | 1 | Top vijf plus eigen rij werkt. Geen bewegingsindicatie (`↑2`), geen rankanimatie, geen tie-regel. |
-| S20 | Podium | 1 | Top drie en eigen positie werken. Emoji-medailles zijn placeholders (D-015). Geen 3→2→1-opbouw, geen `Deel uitslag`/`Nieuw spel`. |
+| S15 | Leaderboard | 1 | **Bewegingsindicatie gebouwd (prompt 08):** `standings-model.mjs`'s nieuwe `rankMovementFrom()` (gedeeld met 07's comeback-detectie, één implementatie) vergelijkt de vorige met de huidige stand; `scoreboard.mjs` toont `↑2`/`↓1`/`—` per rij met een vertaald `aria-label`. Geverifieerd met `node:test` (3 nieuwe gevallen: stijgen, dalen, nieuwe speler zonder vorige positie). **Tie-regel blijft bewust open** (`UI-15`, HANDOFF-UI.md): getest met een tie-scenario, servervolgorde wordt getoond zonder gedeelde-plaats-indicatie — geen eigen aanname, `04` noemt dit zelf al een openstaand productbesluit. Geen rankanimatie (thema 3's territorium, motion-tokens nog niet toegepast hier). |
+| S20 | Podium | 1 | **Alle drie de gevraagde stukken gebouwd (prompt 08):** 3→2→1-opbouw (brons→zilver→goud, 1,4s per stap, overslaanbaar met een tik op het podium — geverifieerd met een losse testharnas: 1→2→3 zichtbare stappen na resp. 0/1,5s/1,5s, en direct 3 na de tik); `Deel uitslag` (alléén de eigen score/positie, privacyvriendelijk, geen roomcode/link — klembord-fallback geverifieerd); `Nieuw spel` (host, terug naar start — directe route naar `09-S02-spel-aanpassen.md` zodra die bestaat). Ook toegevoegd, niet expliciet gevraagd maar een reëel gat: `Afsluiten`, nu ook voor niet-hosts (die zaten eerder vast te wachten op een revanche zonder enige uitweg). Emoji-medailles blijven placeholders (D-015), niet aangeraakt. |
 
 ## Beheer, pauze en fouten
 

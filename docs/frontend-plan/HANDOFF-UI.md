@@ -17,6 +17,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-12 | PR | 🟡 informatief, klein verzoek | `PROTOCOL.md` specificeert `round:ended`'s persoonlijke velden nergens — client las ze verkeerd, nu client-side gefixt |
 | UI-13 | INT-A | 🔵 open | `COUNTDOWN_MS` (1,2s) in `transport-mock.mjs` wijkt af van `03` §6's richtduur (2,5–3,0s) — welke is leidend? |
 | UI-14 | producteigenaar | 🔵 open, voorstel al gebouwd | Dubbele tab: `BroadcastChannel`-gebaseerde detectie toegevoegd (geen nieuwe dependency) — bevestig of dit de gewenste aanpak is |
+| UI-15 | producteigenaar | 🔵 open | Tie-regel bij gelijke scores (S15/S20): `04` noemt dit expliciet nog te beslissen; `transport-mock.mjs` heeft al een ongedocumenteerde tiebreak (`joinedAt` ascending) — client toont gewoon de servervolgorde, geen gedeelde-plaats-indicator |
 
 ---
 
@@ -577,3 +578,30 @@ soort cross-tab-signalering (het is de enige client-side optie zonder een
 nieuw serverbouwstuk — alternatief zou een `localStorage`-event zijn, functie
 gelijk maar minder direct), en of een banner volstaat of dat er ook een
 actieve stap gewenst is (bv. de oudere tab z'n socket zelf laten sluiten).
+
+---
+
+## UI-15 — Tie-regel bij gelijke scores (thema 1, 3 aug 2026)
+
+**Voor:** de producteigenaar. `04-SCREEN-SPECIFICATIONS.md`'s S15 noemt dit
+zelf al expliciet: "gedeelde plaats of secundaire sortering wordt expliciet
+productbesluit" — nog niet genomen.
+
+Bij het bouwen van `1-schermen-en-flow/prompts/08-leaderboard-en-podium.md`
+(rankbeweging + podium) getest met een tie-scenario (twee gelijke scores via
+een testharnas): de client toont gewoon de servervolgorde zonder enige
+gedeelde-plaats-indicatie — bij 900/900/500 krijgen de twee spelers met 900
+gewoon posities 1 en 2, geen "=1"-notatie of vergelijkbare markering.
+
+**Al ontdekt, niet door de client verzonnen:** `transport-mock.mjs`'s
+`rankPlayers()` heeft al een tiebreak (`b.score - a.score || a.joinedAt -
+b.joinedAt` — bij gelijke score wint wie eerder joinde) die nergens in `04`
+of `03` als productbesluit staat. Dat is dus een ongedocumenteerde
+mock-aanname, niet per se de gewenste regel.
+
+**Verzoek:** een besluit over (a) of gelijke scores een gedeelde plaats tonen
+(bv. beide "#1") of een secundaire sortering (zoals de huidige `joinedAt`-
+tiebreak, of bv. snelste gemiddelde antwoordtijd), en (b) of dat besluit ook
+in `04`/`03` vastgelegd moet worden zodat de mock het niet langer stilzwijgend
+bepaalt. De client (`standings-model.mjs`) doet zelf bewust geen eigen
+ranking — die volgt zodra de servervolgorde dat besluit weerspiegelt.

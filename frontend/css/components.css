@@ -292,7 +292,26 @@ button:disabled:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* S15: nu drie kinderen in de rij (naam, beweging, score) i.p.v. twee —
+     zonder dit neemt de naam z'n intrinsieke breedte en verdringt de
+     bewegingsbadge, i.p.v. zelf af te knippen. */
+  flex: 1;
+  min-width: 0;
 }
+
+/* S15: bewegingsbadge (↑2/↓1/—) tussen naam en score. Geen eigen kleurrol
+   voor omhoog/omlaag — hergebruikt de bestaande success/danger-tokens,
+   consistent met hoe de rest van de app "beter"/"slechter" al kleurt. */
+.scoreboard-move {
+  flex: none;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.scoreboard-move.is-up { color: var(--color-success); }
+.scoreboard-move.is-down { color: var(--color-danger); }
 
 .scoreboard-score,
 .podium-score {
@@ -302,10 +321,30 @@ button:disabled:hover {
 }
 
 .podium-step-1 { border-color: var(--color-accent-competition, #f59e0b); }
+
+/* S20's 3→2→1-opbouw zet `hidden` per stap — zonder deze regel wint de
+   `display: flex` hierboven (auteurscascade na de UA-stylesheet), en blijft
+   een "verborgen" stap gewoon zichtbaar. */
+.podium-step[hidden] { display: none; }
 .podium-medal { font-size: 1.3rem; }
 
 .scoreboard-self,
 .podium-self { margin-top: 14px; font-weight: 600; color: var(--color-text-primary); }
 
-.podium-action { margin-top: 20px; }
+/* S20: tot vier acties (Revanche/Nieuw spel/Deel uitslag/Afsluiten) — gap
+   i.p.v. losse margins, anders stapelt elke knop tegen de vorige aan. */
+.podium-action {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 .podium-wait { text-align: center; }
+
+.podium-share-feedback {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  min-height: 1.2em;
+  margin: 8px 0 0;
+}

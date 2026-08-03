@@ -49,7 +49,7 @@ import {
   applyProgress,
   applyRoundEnded,
 } from './views/round-model.mjs';
-import { standingsFrom } from './views/standings-model.mjs';
+import { standingsFrom, rankMovementFrom } from './views/standings-model.mjs';
 import { createRoomHeader } from './views/room-header.mjs';
 import { createLobbyView } from './views/lobby.mjs';
 import { createGameplayView } from './views/gameplay.mjs';
@@ -206,6 +206,10 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   let roundModel = initialRoundModel();
   let countdownEndsAt = null; // S07: alleen relevant tijdens matchPhase.phase === 'COUNTDOWN'
   let standingsPayload = null;
+  // S15/prompt 08: vorige `standingsFrom()`-uitkomst, voor `rankMovementFrom()`
+  // (gedeeld met 07-reveal-en-sociale-headline.md's comeback-detectie, zelfde
+  // vorige-versus-huidige-vergelijking). `null` tot de tweede stand binnenkomt.
+  let previousStandings = null;
   let participants = new Map();
   let playerCount = 0;
   let locked = false;
@@ -488,6 +492,13 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         roundModel = applyRoundEnded(roundModel, envelope.payload);
         break;
       case 'scoreboard:updated':
+        // S15: de OUDE stand snapshotten vóórdat 'ie overschreven wordt —
+        // zo is er bij de volgende render iets om de nieuwe stand mee te
+        // vergelijken (`rankMovementFrom`). Bij de eerste stand ooit blijft
+        // `previousStandings` bewust `null` (niets om mee te vergelijken).
+        if (standingsPayload !== null) {
+          previousStandings = standingsFrom(standingsPayload);
+        }
         standingsPayload = envelope.payload;
         break;
       case 'game:finished':
@@ -499,6 +510,9 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         if (isEmptyFinish(envelope.payload)) {
           onLeaveHome();
           return;
+        }
+        if (standingsPayload !== null) {
+          previousStandings = standingsFrom(standingsPayload);
         }
         standingsPayload = envelope.payload;
         break;
@@ -624,7 +638,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       return;
     }
     if (viewName === 'scoreboard') {
-      mountedView = createScoreboardView({ root: phaseContainer, t });
+      mountedView = createScoreboardView({ root: phaseContainer, t, tCount });
       return;
     }
     if (viewName === 'podium') {
@@ -632,7 +646,10 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         root: phaseContainer,
         t,
         isHost: isHost(),
+        capabilities,
         onRematch: () => sendHostAction('rematch'),
+        onNewGame: onLeaveHome,
+        onClose: onLeaveHome,
       });
       return;
     }
@@ -665,7 +682,8 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       return;
     }
     if (viewName === 'scoreboard' || viewName === 'podium') {
-      mountedView.update(standingsFrom(standingsPayload ?? {}));
+      const currentStandings = standingsFrom(standingsPayload ?? {});
+      mountedView.update(currentStandings, { movement: rankMovementFrom(previousStandings, currentStandings) });
     }
   }
 
