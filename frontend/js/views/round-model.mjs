@@ -49,6 +49,33 @@ export function applyRoundStarted(payload) {
 }
 
 /**
+ * `room:state` — hydrateert dit lokale model bij (her)verbinden, iets wat tot
+ * nu toe nergens gebeurde: na een reconnect/reload bleef `roundModel` op
+ * `initialRoundModel()` staan terwijl er wél al een actieve ronde was.
+ * `answerStatus` was daardoor na een reconnect altijd `'idle'`, ook als de
+ * server allang een antwoord had geaccepteerd — precies het probleem dat
+ * `applyRoundEnded`'s `selfNoAnswer`-afleiding onbetrouwbaar maakte.
+ *
+ * Server-autoritatief: `answeredCurrentRound` komt letterlijk uit de snapshot
+ * (`PROTOCOL.md`, `self.answeredCurrentRound`) — dit bestand verzint niets,
+ * het leest alleen wat de server al meegeeft en nu nog genegeerd werd.
+ *
+ * @param {object} currentRoundPayload snapshot's `currentRound` (`{}` als er geen actieve ronde is)
+ * @param {boolean} answeredCurrentRound snapshot's `self.answeredCurrentRound`
+ */
+export function hydrateFromSnapshot(currentRoundPayload, answeredCurrentRound) {
+  if (currentRoundPayload === null || typeof currentRoundPayload !== 'object' || currentRoundPayload.roundId == null) {
+    return initialRoundModel();
+  }
+  const started = applyRoundStarted(currentRoundPayload);
+  // Alleen de bevestiging overnemen, nooit zelf een `selectedOptionId`
+  // verzinnen — welke optie het was, weet deze client na een reload niet
+  // meer, en hoeft ook niet: vergrendeling en het "geen antwoord"-onderscheid
+  // hebben genoeg aan de statuswaarde zelf.
+  return answeredCurrentRound === true ? Object.freeze({ ...started, answerStatus: 'accepted' }) : started;
+}
+
+/**
  * Gebruikers-tik op een optie. Alleen mogelijk vanuit 'idle' met een actieve
  * vraag; elke andere toestand is een no-op (opties zijn dan vergrendeld —
  * één antwoord per speler per ronde, PROTOCOL.md).
@@ -100,16 +127,30 @@ export function applyProgress(model, payload) {
   });
 }
 
-/** `round:ended` — de enige bron van goed/fout en punten. */
+/**
+ * `round:ended` — de enige bron van goed/fout en punten.
+ *
+ * `selfNoAnswer` is hier bewust NIET `answerStatus === 'idle'`: dat klopt
+ * voor "nooit iets verstuurd", maar `rejected` heeft twee heel verschillende
+ * oorzaken (zie `applyAnswerRejected`) — `ALREADY_ANSWERED` betekent dat er
+ * wél een eerder antwoord telt (deze poging was een overbodige retry),
+ * `DEADLINE_PASSED` betekent dat er nooit één is aangekomen. Alleen dat
+ * laatste (plus `idle`) is echt "geen antwoord"; `sending` (ack onderweg
+ * kwijtgeraakt) blijft een grijs gebied dat `hydrateFromSnapshot` na een
+ * reconnect meestal al oplost vóórdat dit event binnenkomt.
+ */
 export function applyRoundEnded(model, payload) {
   if (payload.roundId !== model.roundId) {
     return model;
   }
+  const selfNoAnswer =
+    model.answerStatus === 'idle' || (model.answerStatus === 'rejected' && model.rejectionCode === 'DEADLINE_PASSED');
   return Object.freeze({
     ...model,
     result: {
       correctOptionId: payload.correctAnswer?.optionId ?? null,
       selfCorrect: payload.selfCorrect === true,
+      selfNoAnswer,
       selfScore: typeof payload.selfScore === 'number' ? payload.selfScore : null,
       distribution: payload.distribution ?? null,
     },

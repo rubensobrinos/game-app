@@ -228,10 +228,20 @@ button:disabled:hover {
 .gameplay-status { min-height: 1.4em; margin: 12px 0 0; font-weight: 600; }
 .gameplay-progress { margin: 4px 0 0; font-size: 0.95rem; }
 
+.gameplay-question { color: var(--text-muted); font-weight: 600; margin: 4px 0 0; }
+
 .gameplay-result { margin-top: 16px; }
 .gameplay-correct { color: var(--text); font-weight: 600; }
-.gameplay-own.is-correct { color: var(--success); font-weight: 700; }
-.gameplay-own.is-wrong { color: var(--error); font-weight: 700; }
+/* Resultaatstempel (09-CONTENT-AND-MICROCOPY.md §9): hoofdletters via CSS,
+   niet in de vertaalwaarde — beter lokaliseerbaar dan `JUIST` als string. */
+.gameplay-own {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 700;
+}
+.gameplay-own.is-correct { color: var(--success); }
+.gameplay-own.is-wrong { color: var(--error); }
+.gameplay-own.is-noanswer { color: var(--text-muted); }
 .gameplay-score { color: var(--gold, #f59e0b); font-weight: 700; }
 
 /* ── Tussenstand & podium (UI4) ───────────────────────────────────── */

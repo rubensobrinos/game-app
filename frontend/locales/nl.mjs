@@ -18,16 +18,20 @@ export const nl = Object.freeze({
 
   // — UI1-sleutels (Home + Preview/join) —
   'home.title': 'Rounda',
-  'home.quickStart': 'Snel starten',
+  'home.quickStart': 'Start direct een game',
+  'home.creating': 'Potje maken…',
   'home.divider': 'of',
-  'home.codeLabel': 'Heb je een code?',
+  'home.codeLabel': 'Voer de gamecode in',
   'home.codePlaceholder': '123456',
   'home.codeSubmit': 'Meedoen met code',
   'home.codeInvalid': 'Vul een code van 6 cijfers in',
   'join.title': 'Meedoen',
   'join.previewing': 'Bezig met ophalen…',
   'join.submitting': 'Bezig met meedoen…',
-  'join.nameLabel': 'Jouw naam (optioneel)',
+  'join.nameLabel': 'Hoe noemen we je?',
+  // Zichtbare aanwijzing dat de naam optioneel blijft — "Hoe noemen we je?"
+  // klinkt op zichzelf als een verplicht veld (reviewfeedback T4-1 punt 6).
+  'join.nameOptionalHint': 'Optioneel — laat leeg voor een voorgestelde naam.',
   'join.namePlaceholder': 'bv. Tom',
   'join.submit': 'Meedoen',
   'join.retry': 'Opnieuw proberen',
@@ -36,6 +40,7 @@ export const nl = Object.freeze({
   // — UI3/UI4-sleutels (toegevoegd door CT/regie-agent, zie HANDOFF-UI) —
   'game.screenTitle': 'Spelscherm',
   'game.flagAlt': 'Te raden vlag',
+  'game.questionPrompt': 'Welke vlag is dit?',
   'game.round': 'Ronde',
   'game.sending': 'Versturen…',
   'game.received': 'Antwoord ontvangen',
@@ -43,8 +48,12 @@ export const nl = Object.freeze({
   'game.notAccepted': 'Niet gelukt, probeer opnieuw',
   'game.answered': 'beantwoord',
   'game.correctAnswer': 'Het juiste antwoord',
-  'game.youWereRight': 'Goed!',
-  'game.youWereWrong': 'Helaas, fout',
+  // Resultaatstempel (09-CONTENT-AND-MICROCOPY.md §9): drie gelijkwaardige
+  // staten via één component, hoofdletters via CSS (text-transform) — niet
+  // in de vertaalwaarde zelf, dat is beter lokaliseerbaar.
+  'game.resultCorrect': 'Juist',
+  'game.resultIncorrect': 'Onjuist',
+  'game.resultNoAnswer': 'Geen antwoord',
   'game.yourScore': 'Jouw punten',
   'standings.title': 'Tussenstand',
   'standings.you': 'Jij',
@@ -52,7 +61,7 @@ export const nl = Object.freeze({
   'podium.first': '🥇',
   'podium.second': '🥈',
   'podium.third': '🥉',
-  'podium.rematch': 'Nog een keer!',
+  'podium.rematch': 'Revanche',
   'podium.waitForHost': 'Wachten tot de host een nieuwe game start…',
 
   // — Foutmeldingen: sleutel = `edge-case-messaging.messageForErrorCode()`'s
@@ -85,6 +94,8 @@ export const nl = Object.freeze({
   // — Verbindingsstatus (reconnect-state.mjs via messageForConnectionStatus) —
   'connection.disconnected': 'Verbinding verbroken…',
   'connection.reconnecting': 'Opnieuw verbinden…',
+  'connection.connected': 'We zijn weer verbonden.',
+  'connection.answerSaved': 'Je antwoord blijft bewaard.',
 
   // — Pauzeredenen (DECISIONS.md #11 via messageForPauseReason) —
   'pause.host': 'Gepauzeerd door de host',
@@ -102,11 +113,11 @@ export const nl = Object.freeze({
   'session.backToStart': 'Terug naar start',
 
   // — UI5: Hostbalk (lock/kick/finish/next; pauze zit hierboven) —
-  'hostbar.lock': 'Vergrendel',
-  'hostbar.unlock': 'Ontgrendel',
+  'hostbar.lock': 'Room vergrendelen',
+  'hostbar.unlock': 'Room ontgrendelen',
   'hostbar.next': 'Volgende',
-  'hostbar.finish': 'Beëindig',
-  'hostbar.finishConfirm': 'Deze game nu beëindigen voor iedereen?',
+  'hostbar.finish': 'Game beëindigen',
+  'hostbar.finishConfirm': 'Weet je zeker dat je het potje wilt beëindigen?',
   'hostbar.players': 'Spelers beheren',
   'hostbar.kick': 'Verwijder',
   'hostbar.kickConfirmPrefix': 'Verwijderen uit deze game:',
@@ -115,6 +126,8 @@ export const nl = Object.freeze({
   'room.scanToJoin': 'Scan om mee te doen',
   'lobby.title': 'Lobby',
   'lobby.waiting': 'Wachten tot de host start…',
+  'lobby.emptyTitle': 'Nog niemand binnen',
+  'lobby.emptyHint': 'Laat iemand de QR scannen om te beginnen.',
   // Telbaar via `tCount('lobby.playerCount', n)` — `{n}` wordt ingevuld.
   'lobby.playerCount.one': '{n} speler',
   'lobby.playerCount.other': '{n} spelers',

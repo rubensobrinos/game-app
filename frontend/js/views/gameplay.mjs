@@ -27,6 +27,9 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   const timer = el('p', 'gameplay-timer');
   header.append(roundLabel, timer);
 
+  const questionPrompt = el('p', 'gameplay-question');
+  questionPrompt.textContent = t('game.questionPrompt');
+
   const flag = document.createElement('img');
   flag.className = 'gameplay-flag';
   // Nooit leeg: dit ís de vraag, geen decoratie. Wel bewust generiek — de
@@ -43,7 +46,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   result.setAttribute('aria-live', 'polite');
   result.setAttribute('aria-atomic', 'true');
 
-  root.append(screenTitle, header, flag, options, status, progress, result);
+  root.append(screenTitle, header, questionPrompt, flag, options, status, progress, result);
 
   let renderedRoundId = null;
   let optionButtons = new Map();
@@ -54,6 +57,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     if (state === 'empty') {
       roundLabel.textContent = '';
       timer.textContent = '';
+      questionPrompt.hidden = true;
       flag.removeAttribute('src');
       options.textContent = '';
       status.textContent = '';
@@ -62,6 +66,8 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
       renderedRoundId = null;
       return;
     }
+
+    questionPrompt.hidden = false;
 
     // Ronde-header
     roundLabel.textContent =
@@ -123,12 +129,21 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
       progress.textContent = '';
     }
 
-    // Uitslag — uitsluitend uit round:ended
+    // Uitslag — uitsluitend uit round:ended. Drie gelijkwaardige staten via
+    // één stempelcomponent (09-CONTENT-AND-MICROCOPY.md §9: JUIST/ONJUIST/
+    // GEEN ANTWOORD) — hoofdletters komen van CSS (`.gameplay-own`,
+    // text-transform), niet van de vertaalwaarde zelf.
     if (model.result !== null && result.childElementCount === 0) {
       const correct = el('p', 'gameplay-correct');
       correct.textContent = `${t('game.correctAnswer')}: ${countryName(model.result.correctOptionId, lang)}`;
-      const own = el('p', model.result.selfCorrect ? 'gameplay-own is-correct' : 'gameplay-own is-wrong');
-      own.textContent = model.result.selfCorrect ? t('game.youWereRight') : t('game.youWereWrong');
+      const resultClass = model.result.selfNoAnswer ? 'is-noanswer' : model.result.selfCorrect ? 'is-correct' : 'is-wrong';
+      const resultKey = model.result.selfNoAnswer
+        ? 'game.resultNoAnswer'
+        : model.result.selfCorrect
+          ? 'game.resultCorrect'
+          : 'game.resultIncorrect';
+      const own = el('p', `gameplay-own ${resultClass}`);
+      own.textContent = t(resultKey);
       result.append(correct, own);
       if (model.result.selfScore !== null) {
         const score = el('p', 'gameplay-score');

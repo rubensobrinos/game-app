@@ -28,6 +28,13 @@ export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, on
   const countLine = el('p', 'lobby-count');
   const list = document.createElement('ul');
   list.className = 'lobby-players';
+  // Lege staat i.p.v. "0 spelers" + een lege lijst — alleen mogelijk vóór
+  // de host zelf meedoet, of héél even bij het allereerste render-moment.
+  const emptyState = el('div', 'lobby-empty');
+  emptyState.hidden = true;
+  const emptyTitle = el('p', 'lobby-empty-title');
+  const emptyHint = el('p', 'lobby-empty-hint');
+  emptyState.append(emptyTitle, emptyHint);
 
   // De vier deelacties als één omkaderde groep met een kop, in plaats van vier
   // losse knoppen tussen de rest van het scherm. `lobby.share` ("Uitnodigen")
@@ -111,7 +118,7 @@ export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, on
   // onder de knoppen, waardoor "Gekopieerd!" losgezongen van zijn actie
   // verscheen.
   shareSection.append(shareTitle, shareRow, feedback, codeReveal, linkFallback);
-  screen.append(title, waiting, countLine, list, shareSection, startButton);
+  screen.append(title, waiting, countLine, list, emptyState, shareSection, startButton);
   root.append(screen, qrOverlay);
 
   let availableActions = [];
@@ -194,6 +201,8 @@ export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, on
     qrOverlay.setAttribute('aria-label', t('lobby.shareQr'));
     qrImage.alt = t('lobby.shareQr');
     linkFallback.setAttribute('aria-label', t('lobby.shareCopy'));
+    emptyTitle.textContent = t('lobby.emptyTitle');
+    emptyHint.textContent = t('lobby.emptyHint');
     for (const [action, btn] of shareButtons) {
       btn.textContent = t(SHARE_LABEL_KEYS[action]);
       btn.hidden = !availableActions.includes(action);
@@ -210,16 +219,23 @@ export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, on
     shareUrls = shareUrlsFor(model.joinUrl);
     renderStatic();
 
-    // `tCount` en niet `${n} ${t(...)}`: dat laatste gaf "1 spelers".
-    countLine.textContent = tCount('lobby.playerCount', model.playerCount);
     codeReveal.textContent = `${t('lobby.code')}: ${gameCode}`;
 
-    list.textContent = '';
-    for (const name of model.participants.values()) {
-      const item = document.createElement('li');
-      item.className = 'lobby-player';
-      item.textContent = name;
-      list.appendChild(item);
+    const empty = model.playerCount === 0;
+    emptyState.hidden = !empty;
+    countLine.hidden = empty;
+    list.hidden = empty;
+
+    if (!empty) {
+      // `tCount` en niet `${n} ${t(...)}`: dat laatste gaf "1 spelers".
+      countLine.textContent = tCount('lobby.playerCount', model.playerCount);
+      list.textContent = '';
+      for (const name of model.participants.values()) {
+        const item = document.createElement('li');
+        item.className = 'lobby-player';
+        item.textContent = name;
+        list.appendChild(item);
+      }
     }
 
     if (isHost) {

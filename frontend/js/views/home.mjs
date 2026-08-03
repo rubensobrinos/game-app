@@ -30,6 +30,8 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   quickStartButton.type = 'button';
   quickStartButton.className = 'home-quick-start btn-primary';
   const quickStartError = el('p', 'home-quick-start-error field-error');
+  const quickStartStatus = el('p', 'home-quick-start-status');
+  quickStartStatus.setAttribute('aria-live', 'polite');
 
   const divider = el('p', 'home-divider');
   divider.textContent = t('home.divider');
@@ -48,7 +50,7 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   codeSubmitButton.type = 'button';
   codeSubmitButton.className = 'home-code-submit btn-secondary';
 
-  screen.append(logo, title, quickStartButton, quickStartError, divider, codeLabel, codeError, codeSubmitButton);
+  screen.append(logo, title, quickStartButton, quickStartStatus, quickStartError, divider, codeLabel, codeError, codeSubmitButton);
   root.append(screen);
 
   let state = initialHostSetupState();
@@ -108,6 +110,7 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
     codeLabel.hidden = state.status === 'creating';
     codeSubmitButton.hidden = state.status === 'creating';
     codeSubmitButton.textContent = t('home.codeSubmit');
+    quickStartStatus.textContent = state.status === 'creating' ? t('home.creating') : '';
     quickStartError.textContent = state.status === 'error' ? t(`error.${messageForErrorCode(state.errorCode)}`) : '';
   }
 

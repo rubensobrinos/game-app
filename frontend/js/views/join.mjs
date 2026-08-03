@@ -33,7 +33,10 @@ export function createJoinView({ root, t, transport, storage, onJoined }) {
   nameInput.className = 'join-name-input field-input';
   nameInput.maxLength = 60; // grapheme-afkap gebeurt in join-state, dit is alleen een ruime UI-grens
   nameInput.placeholder = t('join.namePlaceholder');
-  nameLabel.append(nameLabelText, nameInput);
+  // "Hoe noemen we je?" leest op zichzelf als verplicht — deze regel maakt
+  // zichtbaar dat leeg laten geldig is (reviewfeedback T4-1 punt 6).
+  const nameOptionalHint = el('span', 'field-label-hint');
+  nameLabel.append(nameLabelText, nameInput, nameOptionalHint);
   const errorMessage = el('p', 'join-error field-error');
   const submitButton = document.createElement('button');
   submitButton.type = 'button';
@@ -120,6 +123,7 @@ export function createJoinView({ root, t, transport, storage, onJoined }) {
       status.textContent = state.status === 'submitting' ? t('join.submitting') : '';
       nameLabel.hidden = false;
       nameLabelText.textContent = t('join.nameLabel');
+      nameOptionalHint.textContent = t('join.nameOptionalHint');
       // Voorinvullen, niet als placeholder (harde regel 2: één tik moet
       // volstaan zonder te typen) — alleen bij het eerste render van dit
       // status, anders overschrijft elke render de eigen typeactie.

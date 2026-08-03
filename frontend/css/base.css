@@ -359,6 +359,12 @@ button {
   font-weight: 600;
 }
 
+.field-label-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
 .field-error {
   color: var(--error);
   background: var(--error-bg);
@@ -423,6 +429,25 @@ button {
   border-radius: var(--r-sm);
   padding: 0.75rem 1rem;
   font-weight: 600;
+}
+
+.lobby-empty {
+  text-align: center;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-sm);
+  padding: 1.5rem 1rem;
+}
+
+.lobby-empty-title {
+  font-weight: 700;
+  margin: 0 0 0.25rem;
+}
+
+.lobby-empty-hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0;
 }
 
 /* Deelblok: kop + de vier acties, als één herkenbare groep in plaats van vier
@@ -533,6 +558,14 @@ button {
 .session-banner.is-disconnected {
   background: var(--error-bg);
   color: var(--error);
+}
+
+.session-answer-saved {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 0.35rem 1rem 0;
+  margin: 0;
 }
 
 .session-pause-overlay {

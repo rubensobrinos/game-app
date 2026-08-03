@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {
   initialRoundModel,
   applyRoundStarted,
+  hydrateFromSnapshot,
   selectOption,
   applyAnswerAccepted,
   applyAnswerRejected,
@@ -81,10 +82,60 @@ test('round:ended is de enige bron van goed/fout en negeert de verkeerde ronde',
   assert.deepEqual(ended.result, {
     correctOptionId: 'FR',
     selfCorrect: true,
+    selfNoAnswer: false,
     selfScore: 187,
     distribution: { FR: 2, DE: 1 },
   });
   assert.equal(applyRoundEnded(sending, { roundId: 'round_99', correctAnswer: { optionId: 'DE' } }), sending);
+});
+
+test('round:ended — selfNoAnswer: idle en DEADLINE_PASSED tellen als geen antwoord, ALREADY_ANSWERED en accepted niet', () => {
+  const endedPayload = { roundId: 'round_03', correctAnswer: { optionId: 'FR' }, selfCorrect: false, selfScore: 0 };
+
+  const neverAnswered = applyRoundStarted(STARTED); // answerStatus: 'idle'
+  assert.equal(applyRoundEnded(neverAnswered, endedPayload).result.selfNoAnswer, true);
+
+  const tooLate = applyAnswerRejected(selectOption(applyRoundStarted(STARTED), 'FR'), 'DEADLINE_PASSED');
+  assert.equal(applyRoundEnded(tooLate, endedPayload).result.selfNoAnswer, true);
+
+  // ALREADY_ANSWERED betekent dat er wél een eerder antwoord telt — deze
+  // retry was overbodig, niet "geen antwoord".
+  const retryAfterAlreadyAnswered = applyAnswerRejected(selectOption(applyRoundStarted(STARTED), 'FR'), 'ALREADY_ANSWERED');
+  assert.equal(applyRoundEnded(retryAfterAlreadyAnswered, endedPayload).result.selfNoAnswer, false);
+
+  const accepted = applyAnswerAccepted(selectOption(applyRoundStarted(STARTED), 'FR'), { roundId: 'round_03' });
+  assert.equal(applyRoundEnded(accepted, endedPayload).result.selfNoAnswer, false);
+});
+
+test('hydrateFromSnapshot: geen actieve ronde geeft het initiële model', () => {
+  assert.deepEqual(hydrateFromSnapshot({}, false), initialRoundModel());
+  assert.deepEqual(hydrateFromSnapshot(null, false), initialRoundModel());
+});
+
+test('hydrateFromSnapshot: actieve ronde zonder bevestigd antwoord staat op idle (vraag zichtbaar, niet vergrendeld)', () => {
+  const model = hydrateFromSnapshot(STARTED, false);
+  assert.equal(model.roundId, 'round_03');
+  assert.equal(model.question.targetIso2, 'FR');
+  assert.equal(model.answerStatus, 'idle');
+  assert.equal(optionsLocked(model), false);
+});
+
+test('hydrateFromSnapshot: answeredCurrentRound=true vergrendelt zonder een gekozen optie te verzinnen', () => {
+  const model = hydrateFromSnapshot(STARTED, true);
+  assert.equal(model.answerStatus, 'accepted');
+  assert.equal(model.selectedOptionId, null);
+  assert.equal(optionsLocked(model), true);
+});
+
+test('hydrateFromSnapshot ná reconnect: round:ended toont dan terecht geen GEEN ANTWOORD', () => {
+  const rehydrated = hydrateFromSnapshot(STARTED, true);
+  const ended = applyRoundEnded(rehydrated, {
+    roundId: 'round_03',
+    correctAnswer: { optionId: 'FR' },
+    selfCorrect: true,
+    selfScore: 100,
+  });
+  assert.equal(ended.result.selfNoAnswer, false);
 });
 
 test('progress: laatste telling wint, zonder namen', () => {

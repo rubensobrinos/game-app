@@ -42,6 +42,7 @@ import { estimateServerOffset, secondsRemaining } from './server-time.mjs';
 import {
   initialRoundModel,
   applyRoundStarted,
+  hydrateFromSnapshot,
   selectOption,
   applyAnswerAccepted,
   applyAnswerRejected,
@@ -56,6 +57,7 @@ import { createPodiumView } from './views/podium.mjs';
 import { createHostBar } from './views/hostbar.mjs';
 
 const GAMEPLAY_TICK_MS = 250;
+const RECOVERED_MESSAGE_MS = 3000;
 
 // Codes waarbij een opgeslagen sessie principieel niet meer bruikbaar is —
 // verder proberen (reconnect, opnieuw snapshot ophalen) heeft geen zin, de
@@ -79,6 +81,12 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
   banner.hidden = true;
   banner.setAttribute('aria-live', 'assertive');
   banner.setAttribute('aria-atomic', 'true');
+
+  // Geruststelling naast (nooit in plaats van) de disconnected-tekst — eigen
+  // element, want de twee kunnen tegelijk zichtbaar zijn.
+  const answerSavedNote = document.createElement('p');
+  answerSavedNote.className = 'session-answer-saved';
+  answerSavedNote.hidden = true;
 
   // UI5: de hostbalk (pauzeren/hervatten, vergrendelen, spelers verwijderen,
   // handmatig volgende ronde bij hostgestuurde pacing). Vervangt de eerdere
@@ -133,7 +141,7 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
     }
   });
 
-  root.append(banner, hostBarRoot, phaseContainer, pauseOverlay);
+  root.append(banner, answerSavedNote, hostBarRoot, phaseContainer, pauseOverlay);
 
   let matchPhase = initialMatchPhaseState();
   let reconnect = initialReconnectState();
@@ -150,6 +158,13 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
   let mountedView = null;
   let gameplayTimer = null;
   let terminated = false;
+  // Vóór `transport.connect()` gedeclareerd, niet verderop bij
+  // `showRecoveredMessage`: de mock roept `onStatus('connecting')` al
+  // synchroon aan tijdens `connect()` zelf, dus `renderBanner()` (via
+  // `handleStatus`) leest deze twee al vóórdat de rest van dit bestand is
+  // uitgevoerd — anders een TDZ-`ReferenceError`.
+  let recoveredMessageTimer = null;
+  let showingRecoveredMessage = false;
 
   const capabilities = { nativeShareAvailable: typeof navigator !== 'undefined' && 'share' in navigator };
 
@@ -191,12 +206,23 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
   }
 
   function handleStatus(status) {
+    // Vóór de transitie vastleggen: `reconnect.status` ná de transitie is bij
+    // 'connected' altijd 'connected', dus dat vertelt niet meer of dit de
+    // állereerste verbinding was of een herstel ná een echte disconnect.
+    const wasDown = reconnect.status === 'disconnected' || reconnect.status === 'reconnecting';
+
     if (status === 'connecting') {
       reconnect = reconnectTransition(reconnect, { type: 'RECONNECT_ATTEMPT_STARTED' });
     } else if (status === 'connected') {
       reconnect = reconnectTransition(reconnect, { type: 'RECONNECT_SUCCEEDED' });
+      if (wasDown) {
+        showRecoveredMessage();
+      }
     } else if (status === 'disconnected') {
       reconnect = reconnectTransition(reconnect, { type: 'DISCONNECTED' });
+      // Een nieuwe disconnect wint altijd van een nog zichtbare
+      // hersteld-melding van een vorige, kortstondige reconnect.
+      cancelRecoveredMessage();
     }
     renderBanner();
 
@@ -205,6 +231,27 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
       reconnect = reconnectTransition(reconnect, { type: 'SNAPSHOT_REQUEST_SENT' });
       requestFreshSnapshot();
     }
+  }
+
+  // "We zijn weer verbonden." — alleen ná een écht herstel (nooit bij de
+  // allereerste verbinding), 3s zichtbaar, en een lopende timer wordt altijd
+  // eerst geannuleerd i.p.v. gestapeld (reviewfeedback T4-2 punt 5). State
+  // hierboven bij de andere `let`s gedeclareerd (TDZ, zie die toelichting).
+  function showRecoveredMessage() {
+    clearTimeout(recoveredMessageTimer);
+    showingRecoveredMessage = true;
+    renderBanner();
+    recoveredMessageTimer = setTimeout(() => {
+      recoveredMessageTimer = null;
+      showingRecoveredMessage = false;
+      renderBanner();
+    }, RECOVERED_MESSAGE_MS);
+  }
+
+  function cancelRecoveredMessage() {
+    clearTimeout(recoveredMessageTimer);
+    recoveredMessageTimer = null;
+    showingRecoveredMessage = false;
   }
 
   async function requestFreshSnapshot() {
@@ -227,11 +274,26 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
   }
 
   function renderBanner() {
-    const key = messageForConnectionStatus(reconnect.status);
-    banner.hidden = key === null;
-    banner.classList.toggle('is-disconnected', reconnect.status === 'disconnected');
-    if (key !== null) {
-      banner.textContent = t(key);
+    if (showingRecoveredMessage) {
+      banner.hidden = false;
+      banner.classList.remove('is-disconnected');
+      banner.textContent = t('connection.connected');
+    } else {
+      const key = messageForConnectionStatus(reconnect.status);
+      banner.hidden = key === null;
+      banner.classList.toggle('is-disconnected', reconnect.status === 'disconnected');
+      if (key !== null) {
+        banner.textContent = t(key);
+      }
+    }
+
+    // Geruststelling naast (niet in plaats van) de disconnected-tekst — en
+    // alleen als er ook echt een geaccepteerd antwoord is, niet zomaar op
+    // basis van de fase (reviewfeedback T4-2 punt 3: fase alleen bewijst
+    // niet dat dít antwoord is aangekomen).
+    answerSavedNote.hidden = !(reconnect.status === 'disconnected' && roundModel.answerStatus === 'accepted');
+    if (!answerSavedNote.hidden) {
+      answerSavedNote.textContent = t('connection.answerSaved');
     }
   }
 
@@ -312,6 +374,7 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
         break;
     }
 
+    renderBanner();
     renderPauseOverlay();
     renderHostBar();
     routeToView();
@@ -323,6 +386,14 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
     joinUrl = typeof room.joinUrl === 'string' ? room.joinUrl : joinUrl;
     locked = typeof room.locked === 'boolean' ? room.locked : locked;
     pacing = room.config?.pacing === 'host' ? 'host' : 'auto';
+    // `room:state` komt alleen bij de eerste verbinding en ná een reconnect
+    // binnen (nooit tussendoor tijdens een stabiele sessie) — hydrateer
+    // `roundModel` daarom telkens opnieuw vanuit de snapshot. Zonder dit
+    // bleef een herladen/herverbonden client op `initialRoundModel()` staan
+    // terwijl er allang een ronde liep, en was `answerStatus` na een
+    // reconnect altijd `'idle'` ook als de server al een antwoord had
+    // geaccepteerd (reviewfeedback T4-3).
+    roundModel = hydrateFromSnapshot(payload?.currentRound, payload?.self?.answeredCurrentRound === true);
     if (payload?.self && typeof payload.self.playerId === 'string') {
       selfInfo = payload.self;
       participants.set(payload.self.playerId, payload.self.effectiveName ?? '');
@@ -353,6 +424,7 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
   function terminate(message) {
     terminated = true;
     stopGameplayTicker();
+    cancelRecoveredMessage();
     socket.close();
     clearSession(storage, code);
     root.textContent = '';
@@ -521,6 +593,7 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
     destroy() {
       terminated = true;
       stopGameplayTicker();
+      cancelRecoveredMessage();
       socket.close();
     },
   };
