@@ -54,6 +54,13 @@ services:
       - ./flaginfo.js:/usr/share/nginx/html/flaginfo.js:ro
       - ./geo.js:/usr/share/nginx/html/geo.js:ro
       - ./geo-facts.js:/usr/share/nginx/html/geo-facts.js:ro
+      # /progress — het voortgangsoverzicht. Bewust twee losse mappen en niet
+      # heel `docs/`: STATUS.md, DECISIONS.md en de professionaliserings-
+      # adviezen (waaronder een securityanalyse) komen zo de container niet
+      # eens in. nginx serveert hiervan alleen de pagina en de vijf
+      # PROGRESS.md-bestanden — zie nginx/default.conf.
+      - ./docs/progress:/usr/share/nginx/html/docs/progress:ro
+      - ./docs/design-documentation:/usr/share/nginx/html/docs/design-documentation:ro
       - ./data:/usr/share/nginx/html/data:ro
       - ./flags:/usr/share/nginx/html/flags:ro
       - ./logos:/usr/share/nginx/html/logos:ro
