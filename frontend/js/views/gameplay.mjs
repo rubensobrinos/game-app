@@ -318,7 +318,19 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     } else if (model.answerStatus === 'accepted') {
       status.textContent = t('game.received');
     } else if (model.answerStatus === 'rejected') {
-      status.textContent = model.rejectionCode === 'DEADLINE_PASSED' ? t('game.tooLate') : t('game.notAccepted');
+      // BOUWSPRINT: `ALREADY_ANSWERED` is net als `DEADLINE_PASSED` terminaal
+      // (round-model.mjs's `applyAnswerRejected` vergrendelt de opties voor
+      // beide) — maar toonde tot nu toe dezelfde generieke "Niet gelukt,
+      // probeer opnieuw" als een écht mislukte, wél-opnieuw-te-proberen
+      // poging. Dat is misleidend: de opties zijn hier al vergrendeld, een
+      // nieuwe poging is dus sowieso niet mogelijk. Hergebruikt de bestaande
+      // `error.ALREADY_ANSWERED`-sleutel i.p.v. een nieuwe te verzinnen.
+      status.textContent =
+        model.rejectionCode === 'DEADLINE_PASSED'
+          ? t('game.tooLate')
+          : model.rejectionCode === 'ALREADY_ANSWERED'
+            ? t('error.ALREADY_ANSWERED')
+            : t('game.notAccepted');
     } else {
       status.textContent = '';
     }
