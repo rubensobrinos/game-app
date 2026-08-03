@@ -10,20 +10,30 @@ voor/na-tekst, Regels, Definition of Done.
 | [`T4-2a-statusteksten-direct-uitvoerbaar.md`](T4-2a-statusteksten-direct-uitvoerbaar.md) | uitgevoerd | Loadingstatus, lege lobby, hersteld-bevestiging + antwoord-geruststelling | T4-3 (`answerSaved` leunt op de hydratatiefix) |
 | [`T4-2b-reconnect-drempel-en-handmatige-retry.md`](T4-2b-reconnect-drempel-en-handmatige-retry.md) | open — wacht op PO-besluit | `connection.reconnectFailed`-drempel + handmatige retry-knoppen | PO-besluit over drempel en knopgedrag |
 | [`T4-3-vraagtekst-en-geen-antwoord-staat.md`](T4-3-vraagtekst-en-geen-antwoord-staat.md) | uitgevoerd, herontworpen ná reviewfeedback | Vraagtekst + snapshot-hydratatie zodat `GEEN ANTWOORD` server-autoritatief is | niets |
+| [`T4-4-pure-aanvullingen-zonder-afhankelijkheden.md`](T4-4-pure-aanvullingen-zonder-afhankelijkheden.md) | open, klaar om uit te voeren | Belofte-regel, sociaal bewijs bij join, vergrendelstatus in de lobby | niets — alle drie geverifieerd tegen de code dat data al bestaat |
+| [`T4-5-host-specifieke-copy.md`](T4-5-host-specifieke-copy.md) | open, klaar om uit te voeren | Spelerslobby-copy + host-pauzestempel | niets — `isHost` is al overal beschikbaar waar nodig |
 
 T4-2 is na reviewfeedback opgesplitst in T4-2a (geen open productbesluit,
 direct uitvoerbaar) en T4-2b (wél een open productbesluit) — zie de uitleg
 bovenaan T4-2b.
 
-Bewust nog geen prompt voor:
+Bewust nog geen prompt voor (geverifieerd tegen de code, niet aangenomen):
 
-- **Spelerslobby-copy + host-pauzestempel** (`PROGRESS.md` §6-speler, §12) —
-  groter dan een directe tekstcorrectie: `lobby.mjs` en de pauze-overlay
-  moeten weten of ze voor host of speler renderen en twee copysets voeren.
-  Volgt zodra T4-1–T4-3 verwerkt zijn.
 - **Gelijke plaatsen** (§11) — vraagt eerst een productbesluit over de
   tie-regel zelf (wie staat bovenaan bij een gelijke stand?), niet alleen
   tekst.
+- **Podium: delen/afsluiten** (§11) — `podium.mjs` heeft alleen een
+  rematch-knop; delen/afsluiten zijn geen ontbrekende tekst maar ontbrekende
+  knoppen/acties, dus eerder een schermgat (thema 1) dan tekstwerk.
 - **Sociale headlines** (§10) — de copy-helft is van hier, maar zonder de
   selectielogica (thema 1, S14) heeft een templateset nergens een plek om te
   verschijnen. Wacht op afstemming met thema 1.
+- **Countdown-copy** (§7) — het scherm zelf bestaat nog niet (thema 1, S07).
+- **Naam-botsingsmelding** (§5) — de server voegt de suffix stil toe zonder
+  een apart signaal (`nameSource` onderscheidt alleen server-verzonnen van
+  zelf-gekozen, niet "botste met een bestaande naam"). Vraagt een
+  protocolveld, geen tekstwerk — buiten mijn bevoegdheid zonder overleg.
+- **Puntendelta + rank movement** (§9) — geblokkeerd, zie de aparte
+  bugmelding: de echte `round:ended`-payload heeft niet eens de velden die
+  `round-model.mjs` momenteel verwacht, dus dit moet eerst als bugfix
+  opgelost worden vóórdat er een delta-tekst op gebouwd kan worden.

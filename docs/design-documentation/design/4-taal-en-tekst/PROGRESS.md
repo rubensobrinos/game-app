@@ -3,7 +3,7 @@
 **Eigenaar:** UI (frontend-implementatie)
 **Documenten:** `09-CONTENT-AND-MICROCOPY.md`
 **Criteria uit:** `11-DESIGN-QA-CHECKLIST.md` sectie J · schaal: [`NIVEAUS.md`](../NIVEAUS.md)
-**Bijgewerkt:** 3 augustus 2026 — ná uitvoering van [`prompts/T4-1`](prompts/T4-1-terminologie-en-directe-correcties.md), [`T4-2a`](prompts/T4-2a-statusteksten-direct-uitvoerbaar.md) en [`T4-3`](prompts/T4-3-vraagtekst-en-geen-antwoord-staat.md). [`T4-2b`](prompts/T4-2b-reconnect-drempel-en-handmatige-retry.md) staat nog open, wacht op een PO-besluit.
+**Bijgewerkt:** 3 augustus 2026 — ná uitvoering van [`prompts/T4-1`](prompts/T4-1-terminologie-en-directe-correcties.md), [`T4-2a`](prompts/T4-2a-statusteksten-direct-uitvoerbaar.md) en [`T4-3`](prompts/T4-3-vraagtekst-en-geen-antwoord-staat.md). [`T4-2b`](prompts/T4-2b-reconnect-drempel-en-handmatige-retry.md) staat nog open, wacht op een PO-besluit. Nieuw: [`T4-4`](prompts/T4-4-pure-aanvullingen-zonder-afhankelijkheden.md) en [`T4-5`](prompts/T4-5-host-specifieke-copy.md) klaar om uit te voeren — brengen samen vijf niveau-0-rijen naar niveau 1/2. Zie ook de **bugmelding** onderaan §9: de echte `round:ended`-payload matcht niet de velden die `round-model.mjs` verwacht.
 
 Herzien: de vorige versie dekte `09` §4–§11 maar sloeg §12 (pauze/beheer) en
 §13 (reconnect) helemaal over, en had één onjuiste claim (foutcodedekking).
@@ -99,7 +99,7 @@ opgeschreven.
 | Waar | Niveau | Nu | Volgens `09` |
 |---|---|---|---|
 | Correct antwoord | 1 | zin: `Het juiste antwoord: Frankrijk` | `Japan` — kaler, als stempel bedoeld |
-| Eigen resultaat | 2 | `game.resultCorrect`/`resultIncorrect`/`resultNoAnswer` als stempelwoorden (hoofdletters via CSS `text-transform`), geen volzin meer (T4-3) | ✅ letterlijk gelijk aan de bedoeling; hoofdlettering komt uit CSS i.p.v. de vertaalwaarde zelf — bewust, beter lokaliseerbaar |
+| Eigen resultaat | 1 | `game.resultCorrect`/`resultIncorrect`/`resultNoAnswer` als stempelwoorden (T4-3) — **klopt alleen tegen `transport-mock.mjs`**; tegen de echte server toont dit altijd `resultIncorrect`, zie de bugmelding hieronder | ✅ letterlijk gelijk aan de bedoeling zodra de bug is opgelost |
 | Geen antwoord ingediend | 2 | eigen, derde staat: `round-model.mjs`'s `hydrateFromSnapshot` + preciezere `selfNoAnswer`-logica (idle/`DEADLINE_PASSED` → geen antwoord, `ALREADY_ANSWERED`/geaccepteerd → wél een antwoord), niet langer verward met "fout" (T4-3) | ✅ — inclusief het reducer-fixje dat de vorige versie terecht als blokkade signaleerde |
 | Puntendelta | 0 | alleen lopend totaal (`Jouw punten: 100`) | `+164 punten`, apart `Snelheidsbonus +64` |
 | Rank movement | 0 | bestaat niet | `Je stijgt naar #4` / `Twee plaatsen omhoog` |
@@ -110,6 +110,24 @@ server-snapshot, dus toonde een tussentijdse pagina-herlaad een volledig
 lege gameplay-staat i.p.v. de actieve vraag. `hydrateFromSnapshot` lost
 beide tegelijk op, zonder protocolwijziging (leunt op het al bestaande
 `self.answeredCurrentRound`-snapshotveld).
+
+**Bugmelding (nog niet opgelost) — `selfCorrect`/`selfScore` matchen de
+echte server niet.** `round-model.mjs`'s `applyRoundEnded` leest
+`payload.selfCorrect`/`payload.selfScore`. De échte `round:ended`-payload
+(`server/transport/socket.mjs:534-535`) heeft die velden niet — die stuurt
+`ownPoints` (punten van déze ronde) en `ownCorrect`. `transport.mjs` doet
+geen veldvertaling, dus tegen de echte transportlaag (na "DE SWAP", commit
+`98a114d`) is `selfCorrect` altijd `false` en `selfScore` altijd `null`,
+ongeacht het echte antwoord. Alleen `transport-mock.mjs` stuurt wél
+`selfScore`/`selfCorrect` — met `selfScore` daar zelfs als cumulatief totaal,
+terwijl `ownPoints` alleen dit-ronde-punten is. Dit is dus geen losse
+tekstfix: het `game.yourScore`-lopend-totaal in `gameplay.mjs:148-151` heeft
+sowieso nooit een cumulatief server-veld gehad in het echte protocol (dat zit
+alleen in `scoreboard:updated`/`standings-model.mjs`). Blokkeert zowel de
+niveau-2-claim hierboven bij "Eigen resultaat" (klopt alleen tegen de mock)
+als de Puntendelta/Rank-movement-rijen. Vraagt een keuze (bugfix + mogelijk
+een klein datastroom-besluit: per-ronde-delta tonen i.p.v. lopend totaal),
+geen prompt geschreven — zie gesprek met de eigenaar.
 
 ## §10 — Sociale headlines
 
@@ -181,14 +199,15 @@ in `09`; wij hebben er één, en die ene wijkt af.
 
 | Niveau | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| Aantal rijen hierboven (§4–§14) | 15 | 12 | 22 | 0 |
+| Aantal rijen hierboven (§4–§14) | 15 | 13 | 21 | 0 |
 
 Herteld ná uitvoering van T4-1/T4-2a/T4-3 (49 rijen, §4–§14 — consistenter
-afgebakend dan de vorige telling van 17/15/12/0, die §14 niet meenam). Tien
-rijen schoven op: negen van 0/1 naar 2 (§4 startknop+codelabel, §5 naamvraag,
-§6-host lege lobby, §7 vraagtekst, §9 eigen resultaat + geen-antwoord,
-§12 vergrendel-/beëindigknoppen+bevestiging), drie van 0 naar 1 (§4
-loadingstatussen, §13 hersteld-bevestiging + geruststelling).
+afgebakend dan de vorige telling van 17/15/12/0, die §14 niet meenam). Negen
+rijen schoven op: acht van 0/1 naar 2 (§4 startknop+codelabel, §5 naamvraag,
+§6-host lege lobby, §7 vraagtekst, §9 geen-antwoord, §12
+vergrendel-/beëindigknoppen+bevestiging), vier van 0 naar 1 (§4
+loadingstatussen, §9 eigen resultaat — met de caveat hierboven, §13
+hersteld-bevestiging + geruststelling).
 
 ## Wat dit voor de eerdere conclusie betekent
 
@@ -213,6 +232,13 @@ daarvan zijn nu opgelost:
   productbesluit (drempel, knopgedrag) dat niet aan een tekstcorrectie hangt
   — zie [`T4-2b`](prompts/T4-2b-reconnect-drempel-en-handmatige-retry.md).
 
-Grootste resterende directe winst: §6-speler (spelerslobby-copy) en het
-host-pauzestempel (§12) — allebei kleine, afgebakende gaten zonder open
-productbesluit, nog niet in een prompt gevat (zie `prompts/README.md`).
+Grootste resterende directe winst: [`T4-4`](prompts/T4-4-pure-aanvullingen-zonder-afhankelijkheden.md)
+(belofte-regel, sociaal bewijs, vergrendelstatus) en
+[`T4-5`](prompts/T4-5-host-specifieke-copy.md) (spelerslobby-copy +
+host-pauzestempel) — vijf niveau-0-rijen, alle vijf geverifieerd tegen de
+code dat de benodigde data al bestaat, dus geen productbesluit nodig.
+
+Belangrijkste blokkade die dit onderzoek verder blootlegde: de
+`selfCorrect`/`selfScore`-bugmelding bij §9. Dat is geen tekstgat maar een
+bugfix (en mogelijk een klein datastroom-besluit), en staat los van de
+niveau-0-prompts hierboven.
