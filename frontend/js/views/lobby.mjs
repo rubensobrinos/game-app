@@ -21,6 +21,7 @@
 import { shareActionsFor, shareUrlsFor } from '../../../client/flow/share-actions.mjs';
 import { participantPresentationFor } from './participant-presentation.mjs';
 import { createPlayerChip } from '../player-chip.mjs';
+import { createRoundaView } from './rounda.mjs';
 
 // T5-9: hoeveel van de meest recente joins zichtbaar blijven in de
 // samengevouwen 'aggregate'-weergave (36+ spelers) vóórdat "Bekijk alle
@@ -126,6 +127,12 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   // voor toetsenbord/screenreader te wijzigen.
   const mainColumn = el('div', 'lobby-main-column');
   mainColumn.append(title, lockedNotice, playerStatus, waiting, countLine, recentJoinsLabel, list, viewAllButton, emptyState);
+  // Bouwticket-inhang (regie): de wacht-minigame in de lobby — attract-stand
+  // default, spel start bij eerste aanraking, volledig client-side.
+  const roundaGameRoot = el('div', 'lobby-rounda');
+  const roundaGame = createRoundaView({ root: roundaGameRoot });
+  mainColumn.append(roundaGameRoot);
+
   screen.append(mainColumn, shareSection, startButton);
   root.appendChild(screen);
 
@@ -364,7 +371,15 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     }
   }
 
-  return { update, render: renderStatic };
+  return {
+    update,
+    render: renderStatic,
+    // Ruimt de minigame-timers/listeners op bij fase-/schermwissel
+    // (session-shell roept destroy?.() al optioneel aan).
+    destroy() {
+      roundaGame?.destroy?.();
+    },
+  };
 }
 
 function el(tag, className) {

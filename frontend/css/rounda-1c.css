@@ -78,7 +78,7 @@ h1, h2 {
 }
 .home-title {
   text-transform: uppercase;
-  font-size: 46px;
+  font-size: clamp(30px, 10vw, 46px); /* thema 5-bug: vaste 46px brak 200%-zoom */
   line-height: 0.95;
   letter-spacing: -0.045em;
 }
@@ -311,3 +311,32 @@ h1, h2 {
 @media (min-width: 700px) {
   .screen { min-height: calc(100dvh - 180px); }
 }
+
+/* ════ REVIEWFIXES (grote review, na bouwsprint) ════ */
+
+/* #5: lucht tussen uitnodigen-blok en de (sticky) startknop — geen overlap */
+.lobby-start { margin-top: 16px; }
+
+/* #6: permanente mini-QR in het paneel — scanbaar zonder tik */
+.room-header-qr-inline {
+  width: 84px;
+  height: 84px;
+  border-radius: 10px;
+  background: #f4f4f6;
+  padding: 5px;
+  flex: none;
+}
+
+/* #9: de solo-voetlink hoort alleen op de startpagina, niet midden in een
+   potje (afleiding + 17px-tikdoel). :has = zelfde support-lijn als de rest
+   van deze laag. */
+.app-footer { display: none; }
+body:has(.home-screen) .app-footer { display: block; }
+
+/* #10: de tegengloed-animatie binnenin het logo was een conic-repaint per
+   frame (renderer meetbaar bezig; batterij). De gloed blijft, statisch;
+   het rad zelf draait op transform = gecomposit, goedkoop. */
+.app-logo::before { animation: none !important; }
+
+/* Minigame in de lobby: compact, tussen lijst en uitnodigen */
+.lobby-rounda { margin-top: 14px; display: flex; justify-content: center; }

@@ -46,7 +46,18 @@ export function createRoomHeader({ root, t, gameCode, joinUrl, onShareAction }) 
   qrButton.setAttribute('aria-haspopup', 'dialog');
   qrButton.setAttribute('aria-expanded', 'false');
 
-  bar.append(codeWrap, qrButton);
+  // Reviewfix #6 (producteigenaar): de QR is PERMANENT zichtbaar in het
+  // paneel zodra de joinUrl bekend is — scanbaar zonder één tik. De knop
+  // blijft bestaan voor de grote modale versie (verder weg zitten = groter
+  // nodig). Decoratief duplicaat van de knopactie: aria-hidden, de knop
+  // draagt het toegankelijke pad.
+  const inlineQr = document.createElement('img');
+  inlineQr.className = 'room-header-qr-inline';
+  inlineQr.alt = '';
+  inlineQr.setAttribute('aria-hidden', 'true');
+  inlineQr.hidden = true;
+
+  bar.append(codeWrap, inlineQr, qrButton);
   root.appendChild(bar);
 
   // Modale QR-overlay. Zelfde discipline als app-menu.mjs en de eerdere
@@ -133,6 +144,9 @@ export function createRoomHeader({ root, t, gameCode, joinUrl, onShareAction }) 
       if (typeof nextJoinUrl === 'string' && nextJoinUrl !== '') {
         currentJoinUrl = nextJoinUrl;
         cardUrl.textContent = displayUrl(currentJoinUrl);
+        // Reviewfix #6: mini-QR direct tonen zodra er iets te scannen valt.
+        inlineQr.src = qrDataUrl(currentJoinUrl, { cellSize: 4 });
+        inlineQr.hidden = false;
       }
     },
     /** Verwijdert de balk en de overlay — bij het verlaten van een sessie. */
