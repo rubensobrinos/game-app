@@ -599,11 +599,17 @@ button.is-loading::after {
 .timer-fill {
   height: 100%;
   width: 100%;
-  border-radius: inherit;
   background: var(--color-accent-primary);
-  /* Alleen de breedte loopt mee met de klok; de kleuromslag hieronder is een
-     aparte, snellere overgang zodat urgentie niet traag "aan komt zetten". */
-  transition: width var(--motion-fast) linear,
+  /* `transform: scaleX()` en niet `width` — 06 §9 en thema 3's
+     performancebudget: een breedteovergang forceert elke tik een reflow.
+     Bijvangst: schalen is ook vloeiender op middelmatige hardware.
+
+     Geen eigen `border-radius` meer: de track heeft `overflow: hidden` plus de
+     pill-radius, en klipt de fill dus in vorm. Zou de fill zijn eigen ronding
+     houden, dan werd die bij het schalen horizontaal platgedrukt. */
+  transform-origin: left center;
+  transform: scaleX(1);
+  transition: transform var(--motion-fast) linear,
     background-color var(--motion-fast) var(--ease-enter);
 }
 

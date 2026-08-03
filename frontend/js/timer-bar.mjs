@@ -68,11 +68,19 @@ export function createTimerBar({ root, t, urgentVanaf = URGENT_VANAF_SECONDEN })
   // `timer-value`, niet via een percentage dat elke tick verandert.
   track.setAttribute('aria-hidden', 'true');
 
+  // Zichtbaar: alleen het cijfer, altijd even breed (tabulair). Als de
+  // aankondiging hier ook in zou staan, sprong de balk zichtbaar smaller
+  // zodra "30 seconden te gaan" verscheen — dat gebeurde in de eerste versie.
   const value = el('span', 'timer-value');
-  value.setAttribute('aria-live', 'polite');
-  value.setAttribute('aria-atomic', 'true');
+  value.setAttribute('aria-hidden', 'true');
 
-  wrap.append(track, value);
+  // Onzichtbaar: de zin voor wie hem laat voorlezen. Eigen element, dus de
+  // layout blijft stil en de aankondiging kan een volledige zin zijn.
+  const melding = el('span', 'sr-only');
+  melding.setAttribute('aria-live', 'polite');
+  melding.setAttribute('aria-atomic', 'true');
+
+  wrap.append(track, value, melding);
   root.appendChild(wrap);
 
   let vorige = null;
@@ -89,19 +97,20 @@ export function createTimerBar({ root, t, urgentVanaf = URGENT_VANAF_SECONDEN })
     wrap.hidden = false;
 
     const seconden = Math.max(0, Math.ceil(secondsLeft));
-    fill.style.width = `${fractie(secondsLeft, totalSeconds) * 100}%`;
+    // `scaleX` en niet `width`: een breedteovergang forceert elke tik een
+    // reflow, wat `06` §9 juist wil vermijden. De track klipt de vorm.
+    fill.style.transform = `scaleX(${fractie(secondsLeft, totalSeconds)})`;
 
     const urgent = seconden <= urgentVanaf;
     wrap.classList.toggle('is-urgent', urgent);
 
-    // De zichtbare tekst wisselt elke seconde; de aankondiging niet. Beide uit
-    // hetzelfde element zou de screenreader elke tick laten praten, dus de
-    // `aria-live` staat op `polite` en we schrijven alleen bij een
-    // aankondigingsmoment een volledige zin — anders alleen het cijfer.
+    // Het cijfer wisselt elke seconde en blijft zichtbaar; de aankondiging
+    // vuurt alleen op de twee momenten uit `moetAankondigen` (`08` §2.2 —
+    // niet elke tick spammen). Twee elementen, dus de een verstoort de ander
+    // niet: de layout blijft stil en de zin blijft een volledige zin.
+    value.textContent = String(seconden);
     if (moetAankondigen(vorige, seconden, urgentVanaf)) {
-      value.textContent = `${seconden} ${t('game.secondsLeft')}`;
-    } else {
-      value.textContent = String(seconden);
+      melding.textContent = `${seconden} ${t('game.secondsLeft')}`;
     }
     vorige = seconden;
   }
