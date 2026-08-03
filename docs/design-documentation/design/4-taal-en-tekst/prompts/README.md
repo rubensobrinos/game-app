@@ -10,8 +10,13 @@ voor/na-tekst, Regels, Definition of Done.
 | [`T4-2a-statusteksten-direct-uitvoerbaar.md`](T4-2a-statusteksten-direct-uitvoerbaar.md) | uitgevoerd | Loadingstatus, lege lobby, hersteld-bevestiging + antwoord-geruststelling | T4-3 (`answerSaved` leunt op de hydratatiefix) |
 | [`T4-2b-reconnect-drempel-en-handmatige-retry.md`](T4-2b-reconnect-drempel-en-handmatige-retry.md) | open — wacht op PO-besluit | `connection.reconnectFailed`-drempel + handmatige retry-knoppen | PO-besluit over drempel en knopgedrag |
 | [`T4-3-vraagtekst-en-geen-antwoord-staat.md`](T4-3-vraagtekst-en-geen-antwoord-staat.md) | uitgevoerd, herontworpen ná reviewfeedback | Vraagtekst + snapshot-hydratatie zodat `GEEN ANTWOORD` server-autoritatief is | niets |
-| [`T4-4-pure-aanvullingen-zonder-afhankelijkheden.md`](T4-4-pure-aanvullingen-zonder-afhankelijkheden.md) | open, klaar om uit te voeren | Belofte-regel, sociaal bewijs bij join, vergrendelstatus in de lobby | niets — alle drie geverifieerd tegen de code dat data al bestaat |
-| [`T4-5-host-specifieke-copy.md`](T4-5-host-specifieke-copy.md) | open, klaar om uit te voeren | Spelerslobby-copy + host-pauzestempel | niets — `isHost` is al overal beschikbaar waar nodig |
+| [`T4-4-pure-aanvullingen-zonder-afhankelijkheden.md`](T4-4-pure-aanvullingen-zonder-afhankelijkheden.md) | open — corrigeer eerst de kop van §2, zie [`REVIEW.md`](REVIEW.md) | Belofte-regel, sociaal bewijs bij join, vergrendelstatus in de lobby | niets — data bestaat al; let op de overlap met thema 1 |
+| [`T4-5-host-specifieke-copy.md`](T4-5-host-specifieke-copy.md) | open — `lobby.playerSelf` vraagt eerst een prop, zie [`REVIEW.md`](REVIEW.md) | Spelerslobby-copy + host-pauzestempel | `lobby.playerSelf` vraagt tóch een nieuwe prop in `createLobbyView` |
+
+[`REVIEW.md`](REVIEW.md) — feitelijke controle van T4-4/T4-5 en de bugmelding
+tegen de code (3 aug 2026). Zes bevindingen; **de ontbrekende `playerSelf`-prop
+(T4-5 §1) en de kop van T4-4 §2 moeten gecorrigeerd zijn vóórdat iemand deze
+twee prompts uitvoert.**
 
 T4-2 is na reviewfeedback opgesplitst in T4-2a (geen open productbesluit,
 direct uitvoerbaar) en T4-2b (wél een open productbesluit) — zie de uitleg

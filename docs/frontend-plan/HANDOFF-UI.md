@@ -13,7 +13,8 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-8 | INT-A / PR | 🔵 open | `room:state` bevat geen deelnemerslijst — een joiner ziet geen namen van al aanwezige spelers |
 | UI-9 | thema 3 | ✅ opgelost | Motion-tokens geleverd door thema 2; `M1` kan starten |
 | UI-10 | thema 1 | 🔵 open | `room-header.mjs` is dode code — `D-018` daardoor nog niet zichtbaar |
-| UI-11 | producteigenaar | 🔵 open | `O-002`/`O-003` blokkeren wereldmotieven, iconografie en thema 5's composities |
+| UI-11 | producteigenaar | 🔵 open | `O-002`/`O-003` blokkeren wereldmotieven en iconografie (thema 2) |
+| UI-12 | PR | 🟡 informatief, klein verzoek | `PROTOCOL.md` specificeert `round:ended`'s persoonlijke velden nergens — client las ze verkeerd, nu client-side gefixt |
 
 ---
 
@@ -438,16 +439,22 @@ Volledige beschrijving inclusief de drie ongeteste aannames in
 ## UI-11 — `O-002` en `O-003` blokkeren twee thema's (thema 2, 3 aug 2026)
 
 **Voor:** de producteigenaar. **Blokkeert:** thema 2 (wereldmotieven,
-iconografie) en thema 5 (medium/tablet- en podiumcomposities, die daar
-expliciet op wachten).
+iconografie).
 
-Twee onderdelen staan op niveau 0 door een ontbrekende keuze, niet door
-capaciteit:
+_Correctie op de eerste versie: daar stond dat het ook thema 5's medium/tablet-
+en podiumcomposities blokkeert. Thema 5 heeft die claim inmiddels expliciet
+ingetrokken en de prompts alsnog geschreven (`T5-7`, `T5-8`) — een tweekoloms
+breakpoint is een layoutvraag, geen kleurvraag. Deze blokkade raakt dus alleen
+thema 2._
+
+Twee onderdelen staan **on hold** (⏸) door een ontbrekende keuze, niet door
+capaciteit. Ze staan bewust niet op niveau 0: aan een 0 kan iemand werken, aan
+deze twee niet.
 
 | Onderdeel | Wacht op |
 | --- | --- |
 | Wereldmotieven (`05` §2.7) | `O-003` — de exacte accentkleur |
-| Iconografie (`05` §3) | `O-002` — het lettertype, plus een merkontwerper |
+| Iconografie (`05` §3) | een merkontwerper; `O-002` is bijzaak, want `05` §3 stelt geen eis aan de letterkeuze |
 
 Samen zijn ze precies wat `10-IMPLEMENTATION-ROADMAP.md` als risico `R3`
 benoemt: zonder eigen visuele grammatica blijft dit generieke donkere
@@ -460,3 +467,39 @@ er eigen uitziet.
 
 Onderbouwing per vraag, met wat wij vandaag hebben en wat het besluit raakt,
 in `2-vorm-en-systeem/prompts/T2-7-besluitverzoek-o002-o003.md`.
+
+---
+
+## UI-12 — `round:ended`'s persoonlijke velden staan nergens in `PROTOCOL.md` (thema 4, 3 aug 2026)
+
+**Voor:** PR (protocoleigenaar). **Urgentie:** laag — de client is inmiddels
+zelf gecorrigeerd, dit is een documentatiegat, geen blokkade.
+
+`round-model.mjs` las tot vandaag `payload.selfCorrect`/`selfScore` uit de
+`round:ended`-payload. De échte server stuurt `ownPoints`/`ownCorrect`/
+`ownResponseTimeMs` (`server/transport/socket.mjs:534-536`), en valideert daar
+ook hard op (`server/protocol/server-events-scoring.mjs:64-69`:
+`typeof ownPoints !== 'number'` → afgewezen). Sinds de transportlaag-swap naar
+de echte server (`98a114d`) toonde het resultaatstempel daardoor altijd
+"Onjuist" en verdween de scoreregel volledig — alleen `transport-mock.mjs`
+stuurde (tot vandaag) de velden die de client verwachtte.
+
+**Grondoorzaak:** `PROTOCOL.md`'s `round:ended`-sectie (rond regel 493-500)
+gaat uitsluitend over `resultDetails`-lekkage en de eventtabel zegt alleen
+"room + persoonlijke velden ... eigen punten" — nergens staat `ownPoints`,
+`ownCorrect` of `ownResponseTimeMs` met naam. Zonder die drie veldnamen in het
+protocoldocument kon client en server wegdrijven zonder dat een test of review
+het ving; het risico herhaalt zich bij het volgende persoonlijke veld.
+
+**Al gedaan (geen actie nodig van PR):** `round-model.mjs`, `transport-mock.mjs`
+en `round-model.test.mjs` zijn gecorrigeerd naar `ownCorrect`/`ownPoints`,
+inclusief het onderscheid dat `ownPoints` punten van déze ronde zijn, geen
+cumulatief totaal (dat bestaat alleen in `scoreboard:updated`). Zie
+`design-documentation/design/4-taal-en-tekst/PROGRESS.md` §9 voor de volledige
+analyse.
+
+**Verzoek:** `PROTOCOL.md`'s `round:ended`-sectie aanvullen met de drie
+persoonlijke velden (`ownPoints`, `ownCorrect`, `ownResponseTimeMs`) en hun
+vorm/semantiek, zodat dit specifieke gat niet terugkeert. Geen haast, geen
+codewijziging nodig — puur het protocoldocument in lijn brengen met wat de
+server al (correct) doet.
