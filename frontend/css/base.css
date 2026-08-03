@@ -598,6 +598,18 @@ button {
   margin: 0;
 }
 
+.session-terminated {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.session-terminated-title {
+  margin: 0;
+}
+
 .lobby-waiting,
 .lobby-count {
   text-align: center;
@@ -700,6 +712,32 @@ button {
 .lobby-player > span {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* T5-9: 9–35 spelers — compact meerkoloms rooster i.p.v. één kolom. Blijft
+   `minmax(0, ...)` per kolom, dezelfde reden als hierboven (T5-1): een lange
+   naam mag een kolom niet breder maken dan het rooster toestaat. */
+.lobby-players-grid {
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+
+.lobby-players-grid .lobby-player {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.lobby-recent-joins-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+.lobby-view-all {
+  margin-top: 0.25rem;
 }
 
 /* S17: inline verwijderknop voor de host — zelfde compacte stijl als
@@ -848,7 +886,11 @@ button {
 .session-pause-overlay {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  /* D-018: de code/QR in #app-header (z-index 60) "blijft het hele potje
+     zichtbaar" — ook tijdens pauze. Onder de header, niet erboven, anders
+     dekt deze overlay 'm onbedoeld af (S16's "QR tonen" werd zo onbereikbaar:
+     de qrButton zat wél nog in de DOM, maar lag onder deze overlay). */
+  z-index: 55;
   background: var(--color-overlay);
   display: flex;
   align-items: center;
