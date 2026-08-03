@@ -5,15 +5,29 @@ in git, niet hier.** Bij twijfel wint dit bestand van elk PROGRESS-bestand.
 
 _Laatst geverifieerd: 3 aug 2026 (nacht) · commit `389edab`_
 
-## Runtimeketen (wat draait er echt)
+## Stand 3 aug ± 16:00 (115 commits vandaag)
 
-| Laag | Stand |
-| --- | --- |
-| play.aseso.nl | ✅ live (singleplayer, Play Aseso-branding, merkspellen-flag, deelknop) |
-| Game-server | ✅ store-factory geland (`bc6e7bd`): `REDIS_URL` ⇒ Redis-adapter — **productie draait op Redis** |
-| Multiplayer-frontend | ✅ **swap gedaan** (`98a114d`): echte `transport.mjs`; `/samen` rendert live (na Dockerfile-rechtenfix) |
-| POST /api/v1/games (Snel starten) | 🔴 **500 in productie tot rebuild** — INT-18 gefixt in `389edab`, maar het draaiende image bevat die fix nog niet |
-| Routering één-domein + /samen | ✅ actief; "Samen spelen"-kaart nog achter `SHOW_MULTIPLAYER=false` |
+### Live op play.aseso.nl
+Werkende multiplayer-keten (create/join/QR/rondes/pauze), Rounda-naam,
+menu = één voordeur. Visueel: bouwplaats — herontwerp loopt (drie
+designrichtingen liggen bij de producteigenaar).
+
+### Wacht op producteigenaar (de enige echte wachtrij)
+1. Keuze designrichting (3 nieuwe varianten onderweg; eisen 5-9 vastgelegd)
+2. M11 — besluitverzoek dialoog-transities (thema 3)
+3. UI-11 — lettertype- en kleurbesluit
+4. UI-20 — arbitrage: T2-9 vs T5-7 claimen beide het voorkeurenpaneel
+5. UI-21 — productvraag grote QR-kaart vs room-header (D-018)
+6. Rebuild-moment afspreken (alleen op gecommitte, gelande stand)
+7. ± 280 ongepushte commits → push naar remote (backup!)
+
+### Spelregel toegevoegd (NIVEAUS.md, regel 0)
+Een component telt pas als af wanneer een scherm hem gebruikt — antwoord op
+drie "gebouwd maar niet aangesloten"-gevallen vandaag.
+
+### Bekende dubbelingen (eigenaar: thema 2/3 na UI-20-arbitrage)
+Timer + rangpijltjes bestaan dubbel (module én handgebouwd in schermen);
+handoff-item met drie concrete gebreken ligt klaar.
 
 ## Nacht van 2→3 aug: wat er gebeurde
 

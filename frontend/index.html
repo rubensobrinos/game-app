@@ -28,6 +28,13 @@
     <div id="app-header"></div>
     <!-- Lege root-container: UI1-UI5 monteren hier hun schermen. -->
     <div id="app-root"></div>
+    <!-- Sinds / de Rounda-hoofdpagina is (Caddy, 3 aug 2026) is dit de weg
+         terug naar de sologames op /solo. Statisch en buiten #app-root:
+         geen view-logica nodig, applyI18n vertaalt 'm bij boot en bij
+         taalwissel mee. -->
+    <footer class="app-footer">
+      <a href="/solo" class="app-footer-solo-link" data-i18n="home.soloLink"></a>
+    </footer>
     <script type="module" src="/js/app.mjs"></script>
   </body>
 </html>

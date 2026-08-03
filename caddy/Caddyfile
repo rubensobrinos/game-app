@@ -82,6 +82,21 @@
 		reverse_proxy game-server:3000
 	}
 
+	# ── Hoofdpagina = Rounda (besluit producteigenaar 3 aug 2026: één
+	# voordeur). Exact "/" gaat naar de game-server, die de Rounda-home
+	# (frontend/index.html) serveert. De oude singleplayer-menupagina blijft
+	# bereikbaar op /solo; alle singleplayer-ASSETS (app.js, style.css,
+	# flags/, losse spelbestanden) blijven via de catch-all hieronder gewoon
+	# op hun bestaande rootpaden werken — alleen de indexpagina verhuist.
+	handle / {
+		reverse_proxy game-server:3000
+	}
+
+	handle /solo {
+		rewrite * /index.html
+		reverse_proxy frontend:80
+	}
+
 	handle {
 		reverse_proxy frontend:80
 	}

@@ -28,7 +28,16 @@ regel terug naar 0 — niet direct naar 1.
 Het teken sluit aan bij de legenda die de `*-PROGRESS.md`-bestanden onder
 `docs/*-plan/` al gebruiken (`⏸️ bewust uitgesteld`).
 
-## Vier regels bij het invullen
+## Vijf regels bij het invullen
+
+0. **Een component telt pas als af wanneer een scherm hem gebruikt.**
+   (Toegevoegd 3 aug 2026, regie, op voorstel van thema 3 — na drie gevallen
+   op één dag van "gebouwd maar nergens aangesloten" of "twee keer gebouwd
+   zonder het van elkaar te weten": `room-header`, thema 2's vier losse
+   componenten, de dubbele timer/pijltjes.) Een module met groene tests die
+   geen enkel scherm importeert staat op **0**, niet op 1 — de voortgangs-
+   pagina meet wat het prodúct kan, niet wat de map bevat. Wie een component
+   oplevert, levert óók de aansluiting, of een handoff-item mét eigenaar.
 
 1. **Een niveau geldt pas als het volledig gehaald is.** Half niveau 2 blijft
    een 1. Anders schuift alles binnen een maand naar 2 zonder dat er iets is

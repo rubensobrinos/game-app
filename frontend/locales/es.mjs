@@ -20,6 +20,7 @@ export const es = Object.freeze({
   'home.codeLabel': 'Introduce el código de la partida',
   'home.codePlaceholder': '123456',
   'home.codeSubmit': 'Unirse con código',
+  'home.soloLink': '¿Prefieres practicar solo? Juega los juegos individuales',
   'home.codeInvalid': 'Introduce un código de 6 dígitos',
   'home.hostSetupLink': 'Ajustar partida',
 
