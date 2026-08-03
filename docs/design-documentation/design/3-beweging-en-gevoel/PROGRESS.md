@@ -67,7 +67,7 @@ beheer wordt gedekt, maar niet door motion.
 | Fundament | Niveau | Stand |
 |---|---|---|
 | Motion-tokens | 0 | Geen `--motion-fast`/`--base`/`--emphasis`-schaal. Er staan losse `0.12s`- en `0.18s`-waarden verspreid door de CSS. |
-| `prefers-reduced-motion` | 0 | Nergens gerespecteerd. |
+| `prefers-reduced-motion` | 1 | **Bijgewerkt:** een blanket-regel staat inmiddels in `base.css` (door een andere agent, nog niet gecommit op moment van schrijven) — `animation`/`transition-duration` naar vrijwel nul, `scroll-behavior: auto`. Dekt de vloer; niveau 2 pas zodra `M2`'s inhoudelijke vervangingen (podium direct compleet, score direct definitief, geen carrousel) er ook zijn — zie `prompts/M0-reduced-motion.md`. |
 | Mute-mechanisme | 0 | **Losgetrokken van "Geluidslaag":** een UI-schakelaar + lokaal bewaarde voorkeur, exact hetzelfde patroon als de bestaande taal-/themaknop. Vandaag bouwbaar, geen open besluit nodig — er is alleen nog niets om te muten. |
 | Geluidsarchitectuur | 0 | Assets, mixer, categorieën (§5). Zit vast op `O-008` (wie bestuurt geluid) én op geluidsassets die nog niet bestaan — dit deel kán ik niet alleen oplossen. |
 | Haptiek | 0 | Geen `navigator.vibrate` bij submit of reveal. |
@@ -79,7 +79,7 @@ beheer wordt gedekt, maar niet door motion.
 |---|---|---|---|---|
 | Momenten (`E01`–`E15`) | 8 | 7 | 0 | 0 |
 | Momenten incl. voorstel `E16` | 9 | 7 | 0 | 0 |
-| Fundamenten | 6 | 0 | 0 | 0 |
+| Fundamenten | 5 | 1 | 0 | 0 |
 
 ## Afhankelijkheden van andere thema's
 
