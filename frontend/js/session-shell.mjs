@@ -36,6 +36,7 @@ import {
   messageForErrorCode,
 } from '../../client/flow/edge-case-messaging.mjs';
 import { clearSession } from '../../client/flow/session-store.mjs';
+import { createErrorState } from './state-message.mjs';
 import { shareOpenedMethodFor } from '../../client/flow/share-actions.mjs';
 import { viewFor } from './view-switcher.mjs';
 import { estimateServerOffset, secondsRemaining } from './server-time.mjs';
@@ -692,18 +693,20 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     root.textContent = '';
     const screen = document.createElement('div');
     screen.className = 'screen session-terminated';
-    const title = document.createElement('h2');
-    title.className = 'session-terminated-title';
-    title.textContent = t('session.terminatedTitle');
-    const text = document.createElement('p');
-    text.textContent = message;
-    const backButton = document.createElement('button');
-    backButton.type = 'button';
-    backButton.className = 'btn-primary';
-    backButton.textContent = t('session.backToStart');
-    backButton.addEventListener('click', onLeaveHome);
-    screen.append(title, text, backButton);
     root.appendChild(screen);
+    // UI-21/regel 0: dit is de paginafout uit `state-message.mjs` — dezelfde
+    // vorm als elke andere fout in de app in plaats van een vijfde eigen
+    // opbouw. Levert bovendien twee dingen op die deze hand-gebouwde versie
+    // miste: `role="alert"` (het scherm wordt vervángen, dus zonder dat hoort
+    // een screenreader niet dát er iets is misgegaan) en styling — de
+    // `.session-terminated*`-klassen kwamen in geen enkel CSS-bestand voor.
+    createErrorState({
+      root: screen,
+      variant: 'page',
+      title: t('session.terminatedTitle'),
+      message,
+      action: { label: t('session.backToStart'), onClick: onLeaveHome },
+    });
   }
 
   function routeToView() {
