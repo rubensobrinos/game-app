@@ -47,8 +47,15 @@ De onderste laag: waar elk component uit put.
 
 | Niveau | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| Fundamenten | 3 | 2 | 3 | 0 |
+| Fundamenten | 2 | 3 | 3 | 0 |
 | Componenten | 0 | 9 | 3 | 0 |
+
+De twee resterende nullen zijn wereldmotieven en iconografie. Beide zijn
+**niet bouwbaar**, niet onaangeroerd — ze wachten op `O-002`/`O-003` en op
+echt ontwerpwerk. Het besluitverzoek daarvoor is
+[`T2-7`](prompts/T2-7-besluitverzoek-o002-o003.md), en het staat als `UI-11`
+bij de producteigenaar. Er is dus geen bouwprompt en er hoort er ook geen te
+zijn: die zou een taak suggereren die niemand kan uitvoeren.
 
 Verschoven sinds de eerste opname: knophiërarchie van 2 naar 1 (geen
 laadvariant, `05` §4.1), en motion-tokens toegevoegd als eigen fundament.
