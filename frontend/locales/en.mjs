@@ -45,7 +45,7 @@ export const en = Object.freeze({
   'game.resultCorrect': 'Correct',
   'game.resultIncorrect': 'Incorrect',
   'game.resultNoAnswer': 'No answer',
-  'game.yourScore': 'Your score',
+  'game.roundPoints': 'Points this round',
   'standings.title': 'Standings',
   'standings.you': 'You',
   'podium.title': 'Final standings',

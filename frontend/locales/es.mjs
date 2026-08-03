@@ -43,7 +43,7 @@ export const es = Object.freeze({
   'game.resultCorrect': 'Correcto',
   'game.resultIncorrect': 'Incorrecto',
   'game.resultNoAnswer': 'Sin respuesta',
-  'game.yourScore': 'Tu puntuación',
+  'game.roundPoints': 'Puntos esta ronda',
   'standings.title': 'Clasificación',
   'standings.you': 'Tú',
   'podium.title': 'Clasificación final',

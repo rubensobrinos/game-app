@@ -145,9 +145,9 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
       const own = el('p', `gameplay-own ${resultClass}`);
       own.textContent = t(resultKey);
       result.append(correct, own);
-      if (model.result.selfScore !== null) {
+      if (model.result.roundPoints !== null) {
         const score = el('p', 'gameplay-score');
-        score.textContent = `${t('game.yourScore')}: ${model.result.selfScore}`;
+        score.textContent = `${t('game.roundPoints')}: ${model.result.roundPoints}`;
         result.append(score);
       }
       const correctBtn = optionButtons.get(model.result.correctOptionId);

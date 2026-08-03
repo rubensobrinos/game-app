@@ -28,7 +28,7 @@ const STARTED = {
 test('round:started vult de vraag en reset alles van de vorige ronde', () => {
   const stale = applyRoundEnded(
     selectOption(applyRoundStarted({ ...STARTED, roundId: 'round_02' }), 'DE'),
-    { roundId: 'round_02', correctAnswer: { optionId: 'FR' }, selfCorrect: false, selfScore: 0 },
+    { roundId: 'round_02', correctAnswer: { optionId: 'FR' }, ownCorrect: false, ownPoints: 0 },
   );
   const model = applyRoundStarted(STARTED);
   assert.equal(model.roundId, 'round_03');
@@ -74,8 +74,8 @@ test('round:ended is de enige bron van goed/fout en negeert de verkeerde ronde',
   const ended = applyRoundEnded(sending, {
     roundId: 'round_03',
     correctAnswer: { optionId: 'FR' },
-    selfCorrect: true,
-    selfScore: 187,
+    ownCorrect: true,
+    ownPoints: 187,
     distribution: { FR: 2, DE: 1 },
   });
   assert.equal(displayState(ended), 'result');
@@ -83,14 +83,14 @@ test('round:ended is de enige bron van goed/fout en negeert de verkeerde ronde',
     correctOptionId: 'FR',
     selfCorrect: true,
     selfNoAnswer: false,
-    selfScore: 187,
+    roundPoints: 187,
     distribution: { FR: 2, DE: 1 },
   });
   assert.equal(applyRoundEnded(sending, { roundId: 'round_99', correctAnswer: { optionId: 'DE' } }), sending);
 });
 
 test('round:ended — selfNoAnswer: idle en DEADLINE_PASSED tellen als geen antwoord, ALREADY_ANSWERED en accepted niet', () => {
-  const endedPayload = { roundId: 'round_03', correctAnswer: { optionId: 'FR' }, selfCorrect: false, selfScore: 0 };
+  const endedPayload = { roundId: 'round_03', correctAnswer: { optionId: 'FR' }, ownCorrect: false, ownPoints: 0 };
 
   const neverAnswered = applyRoundStarted(STARTED); // answerStatus: 'idle'
   assert.equal(applyRoundEnded(neverAnswered, endedPayload).result.selfNoAnswer, true);
@@ -132,8 +132,8 @@ test('hydrateFromSnapshot ná reconnect: round:ended toont dan terecht geen GEEN
   const ended = applyRoundEnded(rehydrated, {
     roundId: 'round_03',
     correctAnswer: { optionId: 'FR' },
-    selfCorrect: true,
-    selfScore: 100,
+    ownCorrect: true,
+    ownPoints: 100,
   });
   assert.equal(ended.result.selfNoAnswer, false);
 });

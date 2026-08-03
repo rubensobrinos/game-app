@@ -27,7 +27,7 @@ export function initialRoundModel() {
     answerStatus: /** @type {AnswerStatus} */ ('idle'),
     rejectionCode: null,
     progress: null, // { answeredCount, eligiblePlayerCount }
-    result: null, // { correctOptionId, selfCorrect, selfScore, distribution }
+    result: null, // { correctOptionId, selfCorrect, selfNoAnswer, roundPoints, distribution }
   });
 }
 
@@ -149,9 +149,14 @@ export function applyRoundEnded(model, payload) {
     ...model,
     result: {
       correctOptionId: payload.correctAnswer?.optionId ?? null,
-      selfCorrect: payload.selfCorrect === true,
+      selfCorrect: payload.ownCorrect === true,
       selfNoAnswer,
-      selfScore: typeof payload.selfScore === 'number' ? payload.selfScore : null,
+      // Punten van déze ronde, geen lopend totaal — dat laatste bestaat
+      // alleen in `scoreboard:updated` (zie standings-model.mjs). `round:ended`
+      // levert nooit een cumulatief veld, ook niet vóór deze fix (de oude
+      // `selfScore`-lezing verwachtte een veld dat de echte server nooit
+      // heeft gestuurd — zie PROGRESS.md §9's bugmelding).
+      roundPoints: typeof payload.ownPoints === 'number' ? payload.ownPoints : null,
       distribution: payload.distribution ?? null,
     },
   });

@@ -547,13 +547,17 @@ export function createMockTransport() {
     const distribution = buildDistribution(question.optionIso2s, answers);
 
     target.phase = 'ROUND_RESULT';
-    broadcastPersonalized(target, 'round:ended', (playerId) => ({
-      roundId,
-      correctAnswer,
-      distribution,
-      selfCorrect: playerId !== null && answers.get(playerId) === correctAnswer.optionId,
-      selfScore: playerId !== null ? (target.players.get(playerId)?.score ?? null) : null,
-    }));
+    broadcastPersonalized(target, 'round:ended', (playerId) => {
+      const ownCorrect = playerId !== null && answers.get(playerId) === correctAnswer.optionId;
+      return {
+        roundId,
+        correctAnswer,
+        distribution,
+        ownCorrect,
+        ownPoints: ownCorrect ? 100 : 0,
+        ownResponseTimeMs: null,
+      };
+    });
 
     scheduleTimer(target, ROUND_RESULT_MS, () => showScoreboard(target));
   }

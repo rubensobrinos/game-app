@@ -54,7 +54,7 @@ export const nl = Object.freeze({
   'game.resultCorrect': 'Juist',
   'game.resultIncorrect': 'Onjuist',
   'game.resultNoAnswer': 'Geen antwoord',
-  'game.yourScore': 'Jouw punten',
+  'game.roundPoints': 'Punten deze ronde',
   'standings.title': 'Tussenstand',
   'standings.you': 'Jij',
   'podium.title': 'Eindstand',
