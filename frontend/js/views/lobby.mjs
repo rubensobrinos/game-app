@@ -19,6 +19,12 @@
 // dan wat de header al permanent toont.
 
 import { shareActionsFor, shareUrlsFor } from '../../../client/flow/share-actions.mjs';
+import { participantPresentationFor } from './participant-presentation.mjs';
+
+// T5-9: hoeveel van de meest recente joins zichtbaar blijven in de
+// samengevouwen 'aggregate'-weergave (36+ spelers) vóórdat "Bekijk alle
+// spelers" wordt gebruikt.
+const RECENT_JOINS_COUNT = 5;
 
 export function createLobbyView({ root, t, tCount, isHost, onStart, onShareAction, onKickPlayer }) {
   root.textContent = '';
@@ -43,6 +49,21 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   const countLine = el('p', 'lobby-count');
   const list = document.createElement('ul');
   list.className = 'lobby-players';
+  // T5-9: 36+ spelers toont alleen de recente joins + dit totaal; de
+  // volledige lijst blijft opvraagbaar (07 §9 verbiedt een permanente
+  // namenmuur, niet dat de data ooit zichtbaar mag worden).
+  const recentJoinsLabel = el('p', 'lobby-recent-joins-label');
+  recentJoinsLabel.hidden = true;
+  const viewAllButton = document.createElement('button');
+  viewAllButton.type = 'button';
+  viewAllButton.className = 'btn-quiet lobby-view-all';
+  viewAllButton.hidden = true;
+  viewAllButton.addEventListener('click', () => {
+    showAllPlayers = !showAllPlayers;
+    if (lastModel !== null) {
+      update(lastModel);
+    }
+  });
   // Lege staat i.p.v. "0 spelers" + een lege lijst — alleen mogelijk vóór
   // de host zelf meedoet, of héél even bij het allereerste render-moment.
   const emptyState = el('div', 'lobby-empty');
@@ -90,7 +111,14 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   // Feedback en link horen bij het deelblok — die stonden eerder los onder de
   // knoppen, waardoor "Gekopieerd!" losgezongen van zijn actie verscheen.
   shareSection.append(shareTitle, shareRow, feedback, linkFallback);
-  screen.append(title, lockedNotice, playerStatus, waiting, countLine, list, emptyState, shareSection, startButton);
+  // T5-7: vanaf tabletbreedte staat de deelsectie náást i.p.v. onder de
+  // spelerslijst (`07` §6) — pure groepering, geen herordening: dezelfde drie
+  // stukken in dezelfde DOM-volgorde als voorheen (lijst, delen, startknop),
+  // nu alleen zodat CSS Grid-areas ze kan plaatsen zonder de leesvolgorde
+  // voor toetsenbord/screenreader te wijzigen.
+  const mainColumn = el('div', 'lobby-main-column');
+  mainColumn.append(title, lockedNotice, playerStatus, waiting, countLine, recentJoinsLabel, list, viewAllButton, emptyState);
+  screen.append(mainColumn, shareSection, startButton);
   root.appendChild(screen);
 
   let availableActions = [];
@@ -110,6 +138,11 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   // render-moment (dat is geen "join", dat is de startstand).
   let lastPulsedCount = null;
   let pulseTimer = null;
+  // T5-9: laatst ontvangen model, puur om de "Bekijk alle spelers"-toggle
+  // een re-render te kunnen triggeren zonder dat de aanroeper opnieuw
+  // update() hoeft aan te roepen voor een zuiver lokale UI-actie.
+  let lastModel = null;
+  let showAllPlayers = false;
 
   async function handleShareAction(action) {
     onShareAction(action);
@@ -166,6 +199,8 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     playerJoined.textContent = t('lobby.playerJoined');
     playerWaitingForHost.textContent = t('lobby.playerWaitingForHost');
     playerInviteHint.textContent = t('lobby.playerInviteHint');
+    recentJoinsLabel.textContent = t('lobby.recentJoins');
+    viewAllButton.textContent = showAllPlayers ? t('lobby.viewAllHide') : t('lobby.viewAllShow');
     for (const [action, btn] of shareButtons) {
       btn.textContent = t(SHARE_LABEL_KEYS[action]);
       btn.hidden = !availableActions.includes(action);
@@ -178,6 +213,7 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
    * @param {{ playerCount: number, participants: Map<string,string>, canStart: boolean, locked: boolean, selfName: string | null, capabilities: {nativeShareAvailable:boolean}, joinUrl: string }} model
    */
   function update(model) {
+    lastModel = model;
     availableActions = shareActionsFor(model.capabilities);
     shareUrls = shareUrlsFor(model.joinUrl);
     renderStatic();
@@ -203,9 +239,15 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     previousLocked = model.locked === true;
 
     const empty = model.playerCount === 0;
+    const presentation = participantPresentationFor(model.playerCount);
     emptyState.hidden = !empty;
     countLine.hidden = empty;
     list.hidden = empty;
+    // T5-9: 9–35 spelers krijgt een compact grid i.p.v. de ruime rijenlijst;
+    // hergebruikt dezelfde `.lobby-player`-rijen, alleen de layout wijzigt.
+    list.classList.toggle('lobby-players-grid', presentation === 'grid');
+    viewAllButton.hidden = presentation !== 'aggregate';
+    recentJoinsLabel.hidden = presentation !== 'aggregate' || showAllPlayers;
 
     if (!empty) {
       // `tCount` en niet `${n} ${t(...)}`: dat laatste gaf "1 spelers". De
@@ -273,6 +315,20 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
         }
         list.appendChild(item);
         renderedRows.set(playerId, { item, label, kickButton });
+      }
+
+      // T5-9: in de samengevouwen 'aggregate'-weergave alleen de meest
+      // recente `RECENT_JOINS_COUNT` rijen tonen — de rest bestaat al in de
+      // DOM (reconciliatie hierboven raakt ze niet aan) maar blijft
+      // `hidden` tot "Bekijk alle spelers". Geen aparte animatie/re-render
+      // nodig om ze weer te tonen, en een echt vertrokken speler is hier
+      // sowieso al verwijderd door de reconciliatie hierboven.
+      const collapsed = presentation === 'aggregate' && !showAllPlayers;
+      const visibleIds = collapsed
+        ? new Set([...model.participants.keys()].slice(-RECENT_JOINS_COUNT))
+        : null;
+      for (const [playerId, entry] of renderedRows) {
+        entry.item.hidden = visibleIds !== null && !visibleIds.has(playerId);
       }
     }
 
