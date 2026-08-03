@@ -55,3 +55,46 @@ test('een onbruikbare totaalduur geeft een lege balk, geen deling door nul', () 
   assert.equal(fractie(10, null), 0);
   assert.equal(fractie(Number.NaN, 30), 0);
 });
+
+// ── 12-segmentenvorm (1c) ────────────────────────────────────────────────
+import { brandendeSegmenten, SEGMENTEN, URGENTE_SEGMENTEN } from './timer-bar.mjs';
+
+test('vol is twaalf segmenten, leeg is nul', () => {
+  assert.equal(brandendeSegmenten(30, 30), 12);
+  assert.equal(brandendeSegmenten(0, 30), 0);
+});
+
+test('de helft van de tijd is de helft van de segmenten', () => {
+  assert.equal(brandendeSegmenten(15, 30), 6);
+});
+
+test('een restje tijd houdt altijd één segment aan', () => {
+  // Anders staat de timer op nul terwijl je nog kunt antwoorden — erger dan
+  // een segment te veel.
+  assert.equal(brandendeSegmenten(0.4, 30), 1);
+  assert.equal(brandendeSegmenten(0.01, 30), 1);
+});
+
+test('de laatste seconden vallen binnen de urgente zone', () => {
+  // Bij 30s totaal is één segment 2,5s; de laatste twee segmenten dekken dus
+  // ruwweg de laatste vijf seconden — de zone die magenta is.
+  assert.ok(brandendeSegmenten(5, 30) <= URGENTE_SEGMENTEN);
+  assert.ok(brandendeSegmenten(6, 30) > URGENTE_SEGMENTEN);
+});
+
+test('segmenten blijven binnen hun grenzen, ook bij rare invoer', () => {
+  for (const [r, tot] of [[-5, 30], [999, 30], [Number.NaN, 30], [10, 0], [10, null]]) {
+    const n = brandendeSegmenten(r, tot);
+    assert.ok(n >= 0 && n <= SEGMENTEN, `${r}/${tot} gaf ${n}`);
+    assert.ok(Number.isInteger(n));
+  }
+});
+
+test('het aantal segmenten daalt monotoon met de tijd', () => {
+  let vorige = SEGMENTEN;
+  for (let s = 30; s >= 0; s--) {
+    const n = brandendeSegmenten(s, 30);
+    assert.ok(n <= vorige, `bij ${s}s sprong het omhoog: ${vorige} → ${n}`);
+    vorige = n;
+  }
+});

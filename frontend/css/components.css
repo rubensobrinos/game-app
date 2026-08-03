@@ -590,59 +590,61 @@ button.is-loading::after {
   gap: 10px;
 }
 
+/* Twaalf segmenten in plaats van één doorlopende balk (1c). Een balk laat je
+   aflezen dat er "iets minder" is; blokjes laat je tellen. */
 .timer-track {
   flex: 1;
-  height: 8px;
-  border-radius: 999px;
+  display: flex;
+  gap: 3px;
+  height: 10px;
+}
+
+.timer-segment {
+  flex: 1;
+  border-radius: 2px;
   background: var(--color-surface-2);
-  overflow: hidden;
+  /* Alleen de kleur wisselt — geen breedte, geen transform. `06` §9: geen
+     eigenschap animeren die layout forceert, en hier hoeft er niets te
+     bewegen omdat het doven zelf de informatie is. */
+  transition: background-color var(--motion-fast) var(--ease-enter);
 }
 
-.timer-fill {
-  height: 100%;
-  width: 100%;
-  background: var(--color-accent-primary);
-  /* `transform: scaleX()` en niet `width` — 06 §9 en thema 3's
-     performancebudget: een breedteovergang forceert elke tik een reflow.
-     Bijvangst: schalen is ook vloeiender op middelmatige hardware.
-
-     Geen eigen `border-radius` meer: de track heeft `overflow: hidden` plus de
-     pill-radius, en klipt de fill dus in vorm. Zou de fill zijn eigen ronding
-     houden, dan werd die bij het schalen horizontaal platgedrukt. */
-  transform-origin: left center;
-  transform: scaleX(1);
-  transition: transform var(--motion-fast) linear,
-    background-color var(--motion-fast) var(--ease-enter);
+.timer-segment.is-on {
+  background: var(--color-signal-lime);
 }
 
+/* De laatste twee segmenten — de linkerste, want de balk dooft van rechts
+   naar links. Ze zijn magenta zodra ze branden, niet pas als ze aan de beurt
+   zijn: zo zie je de gevarenzone aankomen. Geen knipperen; de urgentie zit in
+   de kleur en in hoeveel er nog over is (`08` §2.4). */
+.timer-segment.is-urgent-zone.is-on {
+  background: var(--color-signal-magenta);
+}
+
+/* Vormgeving overgenomen van `rounda-1c.css`'s `.gameplay-timer` (mono, groot,
+   lime). Die selector wijst sinds de segmententimer nergens meer naar — de
+   platte-tekst-timer bestaat niet meer. Hier opnieuw opgebouwd op de
+   systeemtokens, zodat het lichte thema meekomt. Gemeld aan regie; hun
+   bestand is niet aangeraakt. */
 .timer-value {
-  font-weight: 800;
-  font-size: var(--type-body-lg);
-  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--color-signal-lime);
   min-width: 2.5ch;
   text-align: right;
 }
 
-/* Laatste seconden — 06 E07. Contrast, geen beweging: de puls is thema 3's
-   werk, en 08 §2.4 eist dat de urgentie ook zonder motion zichtbaar is.
+/* Laatste seconden — 06 E07. Het cijfer volgt de kleur van de segmenten die
+   dan nog branden, zodat balk en getal hetzelfde zeggen.
 
-   `--color-warning` en niet `--color-danger`: P12 reserveert rood voor fout en
-   geeft tijd/aandacht een eigen rol. Een timer die rood wordt zegt "je hebt
-   iets verkeerd gedaan", en dat is niet wat er gebeurt. */
-.timer.is-urgent .timer-fill {
-  background: var(--color-warning);
-}
-
+   Geen puls, geen knipper: de urgentie zit in de kleur én in hoeveel blokjes
+   er over zijn (`08` §2.4 — nooit alleen in beweging, en een getal dat
+   schaalt onder je duim leest slechter, niet beter). Niet `--color-danger`:
+   P12 reserveert rood voor fout, en de tijd die opraakt is geen fout. */
 .timer.is-urgent .timer-value {
-  color: var(--color-warning);
-  /* M8/E07: de puls (thema 3's deel, zie boven) — contrast blijft ook
-     zonder motion staan (M0's blanket-regel dekt reduced motion al). */
-  animation: timer-urgent-pulse var(--motion-fast) var(--ease-enter) infinite;
-}
-
-@keyframes timer-urgent-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.08); }
+  color: var(--color-signal-magenta);
 }
 
 .gameplay-flag {

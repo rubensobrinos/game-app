@@ -112,8 +112,10 @@
      kleine statusovergangen, width/height/top/left/margin/padding vermijden
      (forceert reflow), blur/filter/grote box-shadow meten en beperken. Zie
      ../../docs/design-documentation/design/3-beweging-en-gevoel/
-     PERFORMANCE-BUDGET-AUDIT.md voor de volledige toetsing en een bekende
-     overtreding (.timer-fill's width-transitie, niet hier gefixt). */
+     PERFORMANCE-BUDGET-AUDIT.md voor de volledige toetsing. De enige
+     overtreding die daar stond (.timer-fill's width-transitie) is weg: de
+     timer bestaat sinds de bouwsprint uit segmenten die alleen van kleur
+     wisselen. */
   --motion-instant: 100ms;    /*  80–120ms  — indrukken, directe respons */
   --motion-fast: 160ms;       /* 140–180ms  — kleine statuswissels */
   --motion-base: 250ms;       /* 220–280ms  — verschijnen en verdwijnen */

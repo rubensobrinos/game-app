@@ -1,21 +1,26 @@
-// timer-bar.mjs — T2-3. De rondetimer als horizontale balk (`05` §9).
+// timer-bar.mjs — T2-3, herzien naar de 12-segmentenvorm (1c).
 //
-// Tot nu toe was de timer één getal. `05` §9 noemt de progressbalk de
-// basisvorm en het getal de optionele aanvulling; wij hadden alleen het getal,
-// en geen enkel verschil tussen seconde 30 en seconde 2.
+// De timer is geen doorlopende balk maar twaalf segmenten die van rechts naar
+// links doven. Waarom segmenten: een doorlopende balk van 100% naar 0% laat
+// je aflezen dat er "iets minder" is; twaalf blokjes laat je tellen. Op een
+// luidruchtige borrel is dat het verschil tussen weten en gokken.
 //
-// Deze module rekent niets uit. Hij krijgt de resterende seconden binnen en
-// tekent — `secondsRemaining()` in `server-time.mjs` blijft de bron, en de
-// tick blijft van `session-shell.mjs`. Een tweede tijdrekening naast die ene
-// is precies wat `AGENTS.md` verbiedt.
+// De laatste twee segmenten zijn magenta. Ze zijn dat altijd, niet pas als ze
+// aan de beurt zijn: zo zie je de gevarenzone aankomen in plaats van erdoor
+// verrast te worden. Dat is ook waarom er niet geknipperd wordt — de urgentie
+// zit in kleur en in het aantal, niet in beweging (`08` §2.4: nooit alleen in
+// beweging, en `06` §7 verbiedt flikkeren onder reduced motion).
 //
-// Beweging hoort hier níét. `06` E07 (de puls in de laatste seconden) staat in
-// thema 3's catalogus; deze module levert het contrastverschil en de klassen,
-// thema 3 hangt er eventueel beweging aan. Daarmee is de urgentie ook zonder
-// motion zichtbaar, wat `08` §2.4 sowieso eist.
+// Deze module rekent geen tijd uit. Hij krijgt de resterende seconden binnen
+// en tekent; `secondsRemaining()` in `server-time.mjs` blijft de bron en de
+// tick blijft van `session-shell.mjs`.
 
 /** `06` E07 spreekt van "de laatste drie seconden" — als default, niet als wet. */
 export const URGENT_VANAF_SECONDEN = 3;
+
+/** 1c-vorm: twaalf segmenten, de laatste twee in magenta. */
+export const SEGMENTEN = 12;
+export const URGENTE_SEGMENTEN = 2;
 
 /**
  * Bepaalt of de screenreader een update hoort te krijgen. `08` §2.2: niet elke
@@ -34,7 +39,6 @@ export function moetAankondigen(vorige, huidige, urgentVanaf = URGENT_VANAF_SECO
   if (vorige === null) {
     return true;
   }
-  // Precies de overgang naar urgent, niet elke tick daarbinnen.
   return vorige > urgentVanaf && huidige <= urgentVanaf;
 }
 
@@ -52,30 +56,55 @@ export function fractie(resterend, totaal) {
 }
 
 /**
+ * Hoeveel segmenten branden er nog.
+ *
+ * `ceil` en niet `round`: zolang er ook maar een fractie van een seconde over
+ * is hoort er een segment te branden. Anders staat de timer op nul terwijl je
+ * nog kunt antwoorden — en dat is erger dan een segment te veel.
+ *
+ * @param {number} resterend @param {number} totaal @param {number} segmenten
+ * @returns {number} 0..segmenten
+ */
+export function brandendeSegmenten(resterend, totaal, segmenten = SEGMENTEN) {
+  const f = fractie(resterend, totaal);
+  if (f === 0) {
+    return 0;
+  }
+  return Math.max(1, Math.min(segmenten, Math.ceil(f * segmenten)));
+}
+
+/**
  * @param {{
  *   root: HTMLElement,
  *   t: (key: string) => string,
  *   urgentVanaf?: number,
+ *   segmenten?: number,
  * }} options
  */
-export function createTimerBar({ root, t, urgentVanaf = URGENT_VANAF_SECONDEN }) {
+export function createTimerBar({ root, t, urgentVanaf = URGENT_VANAF_SECONDEN, segmenten = SEGMENTEN }) {
   const wrap = el('div', 'timer');
 
   const track = el('div', 'timer-track');
-  const fill = el('div', 'timer-fill');
-  track.appendChild(fill);
-  // De balk is decoratie bovenop de tekst: een screenreader krijgt de tijd via
-  // `timer-value`, niet via een percentage dat elke tick verandert.
+  // Decoratie bovenop de tekst: een screenreader krijgt de tijd via de
+  // meldingsregel, niet via twaalf div's die elke seconde van klasse wisselen.
   track.setAttribute('aria-hidden', 'true');
 
-  // Zichtbaar: alleen het cijfer, altijd even breed (tabulair). Als de
-  // aankondiging hier ook in zou staan, sprong de balk zichtbaar smaller
-  // zodra "30 seconden te gaan" verscheen — dat gebeurde in de eerste versie.
+  const blokjes = [];
+  for (let i = 0; i < segmenten; i++) {
+    // De laatste twee segmenten zijn de linkerste: de balk dooft van rechts
+    // naar links, dus index 0 en 1 zijn wat er als laatste overblijft.
+    const urgent = i < URGENTE_SEGMENTEN;
+    const blokje = el('span', urgent ? 'timer-segment is-urgent-zone' : 'timer-segment');
+    track.appendChild(blokje);
+    blokjes.push(blokje);
+  }
+
+  // Zichtbaar: alleen het cijfer, altijd even breed (tabulair). Zou de
+  // aankondiging hier ook in staan, dan sprong de balk smaller zodra
+  // "30 seconden te gaan" verscheen.
   const value = el('span', 'timer-value');
   value.setAttribute('aria-hidden', 'true');
 
-  // Onzichtbaar: de zin voor wie hem laat voorlezen. Eigen element, dus de
-  // layout blijft stil en de aankondiging kan een volledige zin zijn.
   const melding = el('span', 'sr-only');
   melding.setAttribute('aria-live', 'polite');
   melding.setAttribute('aria-atomic', 'true');
@@ -97,17 +126,14 @@ export function createTimerBar({ root, t, urgentVanaf = URGENT_VANAF_SECONDEN })
     wrap.hidden = false;
 
     const seconden = Math.max(0, Math.ceil(secondsLeft));
-    // `scaleX` en niet `width`: een breedteovergang forceert elke tik een
-    // reflow, wat `06` §9 juist wil vermijden. De track klipt de vorm.
-    fill.style.transform = `scaleX(${fractie(secondsLeft, totalSeconds)})`;
+    const aan = brandendeSegmenten(secondsLeft, totalSeconds, segmenten);
+    for (let i = 0; i < blokjes.length; i++) {
+      blokjes[i].classList.toggle('is-on', i < aan);
+    }
 
-    const urgent = seconden <= urgentVanaf;
-    wrap.classList.toggle('is-urgent', urgent);
+    // Alleen nog voor de tekstkleur; de segmentkleur zit in de zone-klasse.
+    wrap.classList.toggle('is-urgent', seconden <= urgentVanaf);
 
-    // Het cijfer wisselt elke seconde en blijft zichtbaar; de aankondiging
-    // vuurt alleen op de twee momenten uit `moetAankondigen` (`08` §2.2 —
-    // niet elke tick spammen). Twee elementen, dus de een verstoort de ander
-    // niet: de layout blijft stil en de zin blijft een volledige zin.
     value.textContent = String(seconden);
     if (moetAankondigen(vorige, seconden, urgentVanaf)) {
       melding.textContent = `${seconden} ${t('game.secondsLeft')}`;
@@ -117,9 +143,10 @@ export function createTimerBar({ root, t, urgentVanaf = URGENT_VANAF_SECONDEN })
 
   function reset() {
     vorige = null;
+    melding.textContent = '';
   }
 
-  return { update, reset };
+  return { update, reset, element: wrap };
 }
 
 function el(tag, className) {
