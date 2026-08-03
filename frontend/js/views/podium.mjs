@@ -25,6 +25,30 @@ export function createPodiumView({ root, t, isHost, capabilities, onRematch, onN
   const steps = document.createElement('ol');
   steps.className = 'podium-steps';
 
+  // M10/E14: begrensd, CSS-only confetti — alleen ná de laatste (winnaar-)
+  // stap, nooit onder reduced motion. Vast aantal deeltjes, vaste korte
+  // duur, geen lus (06 §9 performancebudget — nogmaals getoetst in M5).
+  const confetti = document.createElement('div');
+  confetti.className = 'podium-confetti';
+  confetti.setAttribute('aria-hidden', 'true');
+  let confettiTimer = null;
+  const CONFETTI_COUNT = 16;
+  const CONFETTI_DURATION_MS = 1800;
+
+  function showConfetti() {
+    confetti.textContent = '';
+    for (let i = 0; i < CONFETTI_COUNT; i += 1) {
+      const piece = document.createElement('span');
+      piece.className = 'podium-confetti-piece';
+      piece.style.setProperty('--i', String(i));
+      confetti.appendChild(piece);
+    }
+    clearTimeout(confettiTimer);
+    confettiTimer = setTimeout(() => {
+      confetti.textContent = '';
+    }, CONFETTI_DURATION_MS);
+  }
+
   const selfLine = document.createElement('p');
   selfLine.className = 'podium-self';
   selfLine.setAttribute('aria-live', 'polite');
@@ -80,7 +104,7 @@ export function createPodiumView({ root, t, isHost, capabilities, onRematch, onN
   closeButton.addEventListener('click', () => onClose());
 
   action.append(shareButton, closeButton);
-  root.append(title, steps, selfLine, action, shareFeedback);
+  root.append(title, steps, confetti, selfLine, action, shareFeedback);
 
   let currentStandings = { entries: [], self: null };
   let revealTimers = [];
@@ -134,7 +158,15 @@ export function createPodiumView({ root, t, isHost, capabilities, onRematch, onN
   function update(standings) {
     currentStandings = standings;
     clearRevealTimers();
+    clearTimeout(confettiTimer);
+    confetti.textContent = '';
     steps.textContent = '';
+    // M10/E14: `06` §7 vraagt "podium direct compleet" onder reduced motion
+    // — dit moet de stagger-keten zelf overslaan (niet alleen de CSS-duur
+    // verkorten), anders loopt `revealNext`'s 1400ms-per-stap-vertraging
+    // gewoon door.
+    const reduceMotion =
+      typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const medals = ['podium.first', 'podium.second', 'podium.third'];
     const items = podiumTop3(standings).map((entry, index) => {
       const item = document.createElement('li');
@@ -167,18 +199,39 @@ export function createPodiumView({ root, t, isHost, capabilities, onRematch, onN
       if (revealIndex >= revealOrder.length) {
         return;
       }
-      revealOrder[revealIndex].hidden = false;
+      const item = revealOrder[revealIndex];
+      item.hidden = false;
+      // M10/E14: entrance-animatie — alleen op het gestaggerde pad, niet bij
+      // de instant-toon-alles-varianten hieronder (skip/reduced motion).
+      // `hidden` en de klasse gaan tegelijk aan: een `@keyframes`-animatie
+      // kan (anders dan een `transition`) wél starten zodra `display` van
+      // `none` naar `flex` gaat, zolang de klasse er al op zit vóór de
+      // browser de volgende frame rendert.
+      item.classList.add('podium-step-enter');
       revealIndex += 1;
       if (revealIndex < revealOrder.length) {
         revealTimers.push(setTimeout(revealNext, PODIUM_STEP_DELAY_MS));
+      } else {
+        showConfetti();
       }
     }
-    revealNext();
-    steps.onclick = () => {
-      clearRevealTimers();
+    function revealAllInstantly() {
       items.forEach((item) => {
         item.hidden = false;
+        item.classList.remove('podium-step-enter');
       });
+    }
+    if (reduceMotion) {
+      revealAllInstantly();
+    } else {
+      revealNext();
+    }
+    steps.onclick = () => {
+      clearRevealTimers();
+      revealAllInstantly();
+      if (!reduceMotion) {
+        showConfetti();
+      }
     };
 
     if (standings.self !== null) {

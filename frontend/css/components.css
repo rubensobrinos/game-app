@@ -561,6 +561,49 @@ button.is-loading::after {
 .podium-step[hidden] { display: none; }
 .podium-medal { font-size: 1.3rem; }
 
+/* M10/E14: entrance-animatie bovenop S20's `hidden`-toggle. Een
+   `transition` kan niet animeren over de `display:none`-grens hierboven,
+   dus een `@keyframes`-animatie die start zodra `hidden` weggaat (klasse
+   en attribuut gaan tegelijk aan in podium.mjs). Alleen op het gestaggerde
+   pad — skip/reduced motion tonen alles zonder deze klasse. */
+.podium-step-enter {
+  animation: podium-step-enter var(--motion-stage) var(--ease-stage);
+}
+
+@keyframes podium-step-enter {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* M10/E14: begrensd, CSS-only confetti — vast aantal deeltjes (16, zie
+   podium.mjs), transform/opacity-only, vaste korte duur, geen lus.
+   `--i` (custom property per deeltje) verspreidt start-positie/vertraging
+   zonder 16 losse regels te schrijven. */
+.podium-confetti {
+  position: relative;
+  height: 0;
+  overflow: visible;
+}
+
+.podium-confetti-piece {
+  position: absolute;
+  top: 0;
+  left: calc(5% + (var(--i, 0) * 6%));
+  width: 8px;
+  height: 8px;
+  background: var(--color-accent-competition, #f59e0b);
+  opacity: 0;
+  animation: podium-confetti-fall 1.8s ease-in calc(var(--i, 0) * 40ms) 1;
+}
+
+.podium-confetti-piece:nth-child(3n) { background: var(--color-accent-primary); }
+.podium-confetti-piece:nth-child(3n+1) { background: var(--color-success); }
+
+@keyframes podium-confetti-fall {
+  0% { opacity: 1; transform: translateY(0) rotate(0deg); }
+  100% { opacity: 0; transform: translateY(140px) rotate(200deg); }
+}
+
 .scoreboard-self,
 .podium-self { margin-top: 14px; font-weight: 600; color: var(--color-text-primary); }
 
