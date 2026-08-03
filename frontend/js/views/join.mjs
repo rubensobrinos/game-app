@@ -16,7 +16,14 @@
 // playerId }) wordt aangeroepen ná een geslaagde join — de aanroeper (app.mjs)
 // bepaalt wat daarna gebeurt (navigeren), niet dit bestand.
 
-import { initialJoinState, transition, previewRequestFor, joinRequestFor } from '../../../client/flow/join-state.mjs';
+import {
+  initialJoinState,
+  transition,
+  previewRequestFor,
+  joinRequestFor,
+  graphemeCount,
+  NAME_MAX_GRAPHEMES,
+} from '../../../client/flow/join-state.mjs';
 import { saveSession } from '../../../client/flow/session-store.mjs';
 import { messageForErrorCode } from '../../../client/flow/edge-case-messaging.mjs';
 
@@ -42,7 +49,12 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined }
   // "Hoe noemen we je?" leest op zichzelf als verplicht — deze regel maakt
   // zichtbaar dat leeg laten geldig is (reviewfeedback T4-1 punt 6).
   const nameOptionalHint = el('span', 'field-label-hint');
-  nameLabel.append(nameLabelText, nameInput, nameOptionalHint);
+  // S04: grafeemgebaseerde teller — `join-state.mjs` kapt al stil af op
+  // `NAME_MAX_GRAPHEMES`, deze teller telt met dezelfde `Intl.Segmenter`-
+  // aanpak (`graphemeCount`), niet met `.length` (UTF-16-eenheden).
+  const nameCounter = el('span', 'join-name-counter');
+  nameCounter.setAttribute('aria-hidden', 'true'); // decoratief naast het veld, geen eigen aankondiging
+  nameLabel.append(nameLabelText, nameInput, nameOptionalHint, nameCounter);
   const errorMessage = el('p', 'join-error field-error');
   const submitButton = document.createElement('button');
   submitButton.type = 'button';
@@ -57,8 +69,13 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined }
   let state = initialJoinState();
 
   nameInput.addEventListener('input', () => {
+    updateNameCounter();
     dispatch({ type: 'NAME_CHANGED', value: nameInput.value });
   });
+
+  function updateNameCounter() {
+    nameCounter.textContent = `${graphemeCount(nameInput.value)}/${NAME_MAX_GRAPHEMES}`;
+  }
 
   submitButton.addEventListener('click', () => {
     if (state.status !== 'name-entry') {
@@ -143,6 +160,7 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined }
         nameInput.value = state.displayName ?? state.suggestedName ?? '';
         nameInput.dataset.prefilledFor = state.locator.type + (state.suggestedName ?? '');
       }
+      updateNameCounter();
       submitButton.hidden = false;
       submitButton.disabled = state.status === 'submitting';
       submitButton.textContent = t('join.submit');

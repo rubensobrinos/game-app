@@ -22,9 +22,21 @@
 // suggestion. This corrects an earlier assumption (symmetric preview for both
 // locator types) made before PROTOCOL.md's preview section was written.
 
-const NAME_MAX_GRAPHEMES = 20;
+// Geëxporteerd (niet alleen intern gebruikt): S04 vraagt een zichtbare teller
+// bij de limiet in join.mjs — die hergebruikt dezelfde grens en dezelfde
+// segmenter-aanpak, telt niet zelf opnieuw met `.length` (UTF-16-eenheden,
+// geen grafemen).
+export const NAME_MAX_GRAPHEMES = 20;
 const JOIN_SOURCES = new Set(['qr', 'shared_link', 'unknown']);
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+/** @param {string} value @returns {number} */
+export function graphemeCount(value) {
+  if (typeof value !== 'string' || value.length === 0) {
+    return 0;
+  }
+  return [...graphemeSegmenter.segment(value)].length;
+}
 
 /** @returns {JoinState} */
 export function initialJoinState() {

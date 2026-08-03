@@ -14,6 +14,8 @@
 import { initialHostSetupState, transition, createRequestFor } from '../../../client/flow/host-setup-state.mjs';
 import { saveSession } from '../../../client/flow/session-store.mjs';
 import { messageForErrorCode } from '../../../client/flow/edge-case-messaging.mjs';
+import { resolveRoute } from '../../../client/flow/route-resolver.mjs';
+import { formatCode } from './room-header.mjs';
 
 const CODE_FORMAT = /^[0-9]{6}$/;
 
@@ -42,7 +44,10 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   const codeInput = document.createElement('input');
   codeInput.type = 'text';
   codeInput.inputMode = 'numeric';
-  codeInput.maxLength = 6;
+  // 7, niet 6: de zichtbare, geformatteerde waarde ("123 456") heeft een
+  // spatie extra — de onderliggende cijferwaarde blijft door de
+  // input-handler hieronder zelf op 6 cijfers begrensd.
+  codeInput.maxLength = 7;
   codeInput.placeholder = t('home.codePlaceholder');
   codeInput.className = 'home-code-input field-input';
   codeLabel.append(codeLabelText, codeInput);
@@ -67,8 +72,44 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
     runCreate();
   });
 
+  // S03: visuele codeformattering ("123 456") terwijl de onderliggende
+  // waarde schoon blijft — zelfde patroon als `room-header.mjs`'s
+  // `formatCode()` (hergebruikt, niet gedupliceerd). Alleen cijfers, max 6.
+  codeInput.addEventListener('input', () => {
+    const digits = codeInput.value.replace(/\D/g, '').slice(0, 6);
+    codeInput.value = formatCode(digits);
+  });
+
+  // Enter submit't, zelfde als een form-submit — er was nog geen handler.
+  codeInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      codeSubmitButton.click();
+    }
+  });
+
+  // S03: een geplakte volledige join-URL (`/j/{inviteId}`) is geen 6-cijferige
+  // code om te "extraheren" (die twee vormen zijn niet compatibel, zie de
+  // toelichting in 06-start-en-join-polish.md) — bewuste keuze (a): een
+  // herkende invite-link schakelt rechtstreeks door naar die flow in plaats
+  // van te proberen er een code uit te lezen.
+  codeInput.addEventListener('paste', (event) => {
+    const pasted = event.clipboardData?.getData('text') ?? '';
+    let pathname = null;
+    try {
+      pathname = new URL(pasted.trim()).pathname;
+    } catch {
+      return; // geen volledige URL geplakt — normale paste-afhandeling doet de rest
+    }
+    const route = resolveRoute(pathname);
+    if (route.route === 'join') {
+      event.preventDefault();
+      onNavigate(`/j/${route.inviteId}`);
+    }
+  });
+
   codeSubmitButton.addEventListener('click', () => {
-    const code = codeInput.value.trim();
+    const code = codeInput.value.replace(/\D/g, '');
     if (!CODE_FORMAT.test(code)) {
       codeError.textContent = t('home.codeInvalid');
       return;

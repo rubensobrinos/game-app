@@ -559,6 +559,14 @@ button {
   font-weight: 400;
 }
 
+/* S04: grafeemteller bij de naamlimiet, rechts uitgelijnd onder het veld. */
+.join-name-counter {
+  display: block;
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
 .field-error {
   color: var(--color-danger);
   background: var(--color-danger-surface);

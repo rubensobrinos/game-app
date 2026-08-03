@@ -143,10 +143,16 @@ export function createRoomHeader({ root, t, gameCode, joinUrl, onShareAction }) 
   };
 }
 
-/** `123456` → `123 456`: in twee groepen is een code hardop voor te lezen. */
-function formatCode(code) {
+/**
+ * `123456` → `123 456`: in twee groepen is een code hardop voor te lezen.
+ * Ook bruikbaar tijdens het typen (S03, `home.mjs`'s codeveld): bij minder
+ * dan 4 cijfers is er nog geen tweede groep, dus dan blijft de invoer
+ * ongewijzigd — geen strikte `=== 6`-eis, dat zou live formatteren tijdens
+ * het typen onmogelijk maken (dan is de waarde nooit tussentijds exact 6).
+ */
+export function formatCode(code) {
   const raw = String(code ?? '');
-  return raw.length === 6 ? `${raw.slice(0, 3)} ${raw.slice(3)}` : raw;
+  return raw.length > 3 ? `${raw.slice(0, 3)} ${raw.slice(3)}` : raw;
 }
 
 /** Toont de URL zonder schema — korter, en op een QR-kaart leest dat beter. */
