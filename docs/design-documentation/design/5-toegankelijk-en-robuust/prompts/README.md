@@ -17,13 +17,17 @@ gevaarlijker dan een eerlijke "0".
 | [`T5-4-falende-vlagafbeelding.md`](T5-4-falende-vlagafbeelding.md) | Falende asset laat gebroken afbeelding zien | bouwbare fix | niets |
 | [`T5-5-screenreader-testplan.md`](T5-5-screenreader-testplan.md) | Screenreader: aangenomen → gemeten | testplan voor een mens met een toestel | niets, maar **niet automatiseerbaar** |
 | [`T5-6-testmatrix-proces.md`](T5-6-testmatrix-proces.md) | `08` §9 als doorlopend proces, niet een eenmalig vinkje | proces/checklist | T5-1 t/m T5-5 als eerste vulling |
+| [`T5-7-medium-tablet-compositie.md`](T5-7-medium-tablet-compositie.md) | Tweekoloms lobby + tussenstand vanaf tabletbreedte | bouwbare compositie | niets |
+| [`T5-8-large-podium-compositie.md`](T5-8-large-podium-compositie.md) | Desktop/tv-podium: lobby-als-podium, grote code/QR, bredere leaderboard | gescoped bouwbare compositie | O-010 (antwoordverdeling) en thema 1/4's headline-engine blokkeren een deel, niet het geheel |
 
-**Bewust geen prompt voor medium/tablet- en large/podium-composities.** Dat is
-geen verificatie- of kleine-fixklus maar echt compositiewerk — nieuwe layouts,
-geen bestaande te testen. `10-IMPLEMENTATION-ROADMAP.md` zet dat ook pas in
-latere fasen (podiumcompositie is Fase 3/4-scope). Een prompt schrijven zou nu
-een bouwbare taak suggereren die zonder eerst `O-002`/`O-003` (thema 2) en een
-werkende large/stage-compositie geen stabiele basis heeft.
+**Correctie op een eerdere versie van deze README:** hier stond dat er bewust
+geen prompt was voor medium/tablet- en large/podium-composities, "geblokkeerd
+op `O-002`/`O-003`" resp. "Fase 3/4-scope". Beide waren fout — zie de
+toelichting bij `T5-7` en `T5-8` zelf, en de correctieregels in `PROGRESS.md`.
+Een tweekoloms breakpoint is een layoutvraag, geen typografie-/kleurvraag; en
+`10` §8 zet "podium" expliciet op Fase 2. `T5-8` is wél gescoped — een deel
+wacht écht op iets (`O-010`, een nog niet bestaande headline-engine), maar dat
+is een andere reden dan "verkeerde fase".
 
 **Al gedaan, niet als prompt hier** (zie `PROGRESS.md`, commit `58eba07`):
 contrast in het lichte thema (echte WCAG-berekening, geen aanname), `env(safe-
