@@ -101,6 +101,12 @@ export const nl = Object.freeze({
   'headline.comeback': '{naam} klimt {n} plaatsen! 📈',
   'standings.title': 'Tussenstand',
   'standings.you': 'Jij',
+  'standings.moveUp.one': '{n} plaats gestegen',
+  'standings.moveUp.other': '{n} plaatsen gestegen',
+  'standings.moveDown.one': '{n} plaats gedaald',
+  'standings.moveDown.other': '{n} plaatsen gedaald',
+  'standings.moveSame': 'Geen verandering',
+  'standings.sharedPlace': 'Gedeelde plaats',
   // S15: aria-label bij de bewegingsbadge (↑/↓/—) — de badge zelf is beknopt
   // beeldschrift, dit is wat een screenreader in plaats daarvan voorleest.
   'standings.moveUp.one': '{n} plaats gestegen',
@@ -173,6 +179,7 @@ export const nl = Object.freeze({
   'session.revoked': 'Je sessie is beëindigd.',
   'session.unknown': 'Je bent losgekoppeld.',
   'session.backToStart': 'Terug naar start',
+  'session.terminatedTitle': 'Sessie beëindigd',
   'session.duplicateTab': 'Deze game staat ook open in een ander tabblad. Dit tabblad kan een verouderde stand tonen.',
 
   // — UI5: Hostbalk (lock/kick/finish/next; pauze zit hierboven) —
@@ -197,6 +204,9 @@ export const nl = Object.freeze({
   'lobby.playerWaitingForHost': 'De host start zo',
   'lobby.playerInviteHint': 'Nodig iemand uit',
   'lobby.playerSelf': 'Je speelt als {naam}',
+  'lobby.recentJoins': 'Recent binnengekomen',
+  'lobby.viewAllShow': 'Bekijk alle spelers',
+  'lobby.viewAllHide': 'Verberg volledige lijst',
   // Telbaar via `tCount('lobby.playerCount', n)` — `{n}` wordt ingevuld.
   'lobby.playerCount.one': '{n} speler',
   'lobby.playerCount.other': '{n} spelers',

@@ -212,6 +212,73 @@ button.is-loading::after {
   }
 }
 
+/* ── Leaderboard-rij (T2-6, 05 §10) ────────────────────────────────────────
+   Vier kolommen: rank, naam, score, beweging.
+
+   De rank is een eigen kolom van vaste breedte en niet "de zoveelste rij",
+   omdat `04` S15 top vijf plús de eigen rij toont — de reeks is dus
+   discontinu (#1 t/m #5, dan #12). */
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 3.2ch minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 10px;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--r-sm);
+  padding: 12px 16px;
+}
+
+.leaderboard-rank {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+.leaderboard-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Het label naast de naam, niet ervoor: de naam blijft de eerste informatie. */
+.leaderboard-self-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-accent-primary-hover);
+}
+
+.leaderboard-score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  color: var(--color-accent-primary-hover);
+}
+
+/* Beweging — 05 §10. Symbool én getal, kleur alleen ondersteunend: 08 §2.3
+   verbiedt kleur als enige drager, dus een groene pijl zonder cijfer is niet
+   genoeg. De voorleesbare zin staat in `aria-label`. */
+.leaderboard-move {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-width: 3ch;
+  text-align: right;
+}
+
+.leaderboard-move.is-up { color: var(--color-success); }
+.leaderboard-move.is-down { color: var(--color-danger); }
+.leaderboard-move.is-same { color: var(--color-text-muted); }
+
+.leaderboard-row.is-self {
+  border-color: var(--color-accent-primary-hover);
+  box-shadow: 0 0 0 2px var(--color-accent-glow);
+}
+
 /* ── Spelerchip (T2-4, 05 §8, D-022) ───────────────────────────────────────
    Naam plus een tijdelijke kleur/symboolidentiteit. De kleur staat inline
    (berekend uit de playerId in player-chip.mjs); de vorm komt uit de klassen

@@ -63,6 +63,9 @@ const RECOVERED_MESSAGE_MS = 3000;
 // verschijnt. Geen brondocumentwaarde hiervoor — 8-10s uit de prompt, 9s als
 // middelste keuze.
 const RECONNECT_FALLBACK_MS = 9000;
+// T5-9: venster waarbinnen opeenvolgende room:player-changed-deltas worden
+// samengevoegd tot één render. `07` §9's eigen suggestie ("bv. 500 ms").
+const PLAYER_CHANGED_BATCH_MS = 500;
 
 // Codes waarbij een opgeslagen sessie principieel niet meer bruikbaar is —
 // verder proberen (reconnect, opnieuw snapshot ophalen) heeft geen zin, de
@@ -462,12 +465,22 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
 
     matchPhase = applyServerEvent(matchPhase, envelope);
 
+    // T5-9: bij een snelle reeks joins/leaves (bulktoetreding, of testen met
+    // veel spelers) zou elke losse `room:player-changed` anders zijn eigen
+    // volledige lobby-re-render triggeren — N events, N DOM-mutaties. Eerste
+    // wijziging in een rustig venster rendert meteen (geen kunstmatige
+    // vertraging voor de normale, geïsoleerde join); wat daarna binnen
+    // `PLAYER_CHANGED_BATCH_MS` bijkomt wordt samengevoegd tot één render aan
+    // het eind van het venster.
+    if (envelope.event === 'room:player-changed') {
+      applyPlayerChanged(envelope.payload);
+      scheduleBatchedRender();
+      return;
+    }
+
     switch (envelope.event) {
       case 'room:state':
         applyRoomState(envelope.payload);
-        break;
-      case 'room:player-changed':
-        applyPlayerChanged(envelope.payload);
         break;
       case 'room:lock-changed':
         locked = envelope.payload?.locked === true;
@@ -526,10 +539,33 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         break;
     }
 
+    renderAfterEvent();
+  }
+
+  function renderAfterEvent() {
     renderBanner();
     renderPauseOverlay();
     renderHostBar();
     routeToView();
+  }
+
+  let playerChangedBatchWindowOpen = false;
+  let playerChangedRenderPending = false;
+
+  function scheduleBatchedRender() {
+    if (!playerChangedBatchWindowOpen) {
+      playerChangedBatchWindowOpen = true;
+      renderAfterEvent();
+      setTimeout(() => {
+        playerChangedBatchWindowOpen = false;
+        if (playerChangedRenderPending) {
+          playerChangedRenderPending = false;
+          renderAfterEvent();
+        }
+      }, PLAYER_CHANGED_BATCH_MS);
+    } else {
+      playerChangedRenderPending = true;
+    }
   }
 
   function applyRoomState(payload) {
@@ -596,14 +632,17 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     root.textContent = '';
     const screen = document.createElement('div');
     screen.className = 'screen session-terminated';
+    const title = document.createElement('h2');
+    title.className = 'session-terminated-title';
+    title.textContent = t('session.terminatedTitle');
     const text = document.createElement('p');
     text.textContent = message;
     const backButton = document.createElement('button');
     backButton.type = 'button';
     backButton.className = 'btn-primary';
-    backButton.textContent = t('join.retry');
+    backButton.textContent = t('session.backToStart');
     backButton.addEventListener('click', onLeaveHome);
-    screen.append(text, backButton);
+    screen.append(title, text, backButton);
     root.appendChild(screen);
   }
 
