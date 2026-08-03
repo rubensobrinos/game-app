@@ -1,5 +1,19 @@
 # Prompt — 03: S06 — Eigen spelerslobby-variant
 
+**Status: gebouwd door thema 4 (T4-5), gevonden bij het uitvoeren van deze
+prompt (3 aug 2026) — hieronder staat de oorspronkelijke prompt nog ter
+referentie, maar er hoeft hier niets meer gebouwd te worden.** Concreet
+aanwezig in `lobby.mjs` (`lobby-player-status`, alleen zichtbaar voor
+niet-hosts): eigen naam uitgelicht (`Je speelt als {naam}`), bevestiging
+(`Je bent binnen`), status (`De host start zo`), `Nodig iemand uit`.
+Geverifieerd met Playwright (tweede, niet-host sessie tegen
+`transport-mock.mjs`): hostcontrols blijven verborgen, de kleinere
+deelactieset (geen `show-qr`/`show-code`, die verdwenen al voor iedereen in
+prompt 02) is aanwezig. Enige openstaande punt tegen `04` S06: "eigen naam
+**en symbool/kleur**" — het symbool/kleur-deel hangt op `D-021`
+(letter/vorm-identiteit bewust uitgesteld), geen bug om hier op te lossen.
+`../PROGRESS.md` is bijgewerkt.
+
 Onderdeel van thema 1 ([`../PROGRESS.md`](../PROGRESS.md)).
 
 ## Brondocument
