@@ -1,5 +1,10 @@
 # Prompt — M10: E14, Podium (niveau 1 → richting 2)
 
+**✅ Gedaan — commit `148a132`.** Entrance-animatie, confetti en een
+programmatische reduced-motion-gate (nieuw ontdekt gat: de stagger-keten
+liep door ongeacht de systeemvoorkeur) toegevoegd bovenop thema 1's
+al bestaande stagger/skip-mechanisme.
+
 **Herschreven 3 aug 2026 — de oorspronkelijke versie overlapte fors met
 werk dat thema 1 er intussen bij bouwde.** Terwijl deze prompt nog klaarlag,
 bouwde thema 1 (`b547c8f`, prompt 08 — S20) zelf al de 3→2→1-

@@ -1,5 +1,9 @@
 # Prompt — M9: E11, Rank movement (niveau 1 → richting 2)
 
+**✅ Gedaan — commit `158d531`.** FLIP-beweging + eigen-rij-emphasis
+toegevoegd bovenop thema 1's al bestaande data/tekst-laag, met een
+programmatische reduced-motion-check.
+
 **Herschreven 3 aug 2026 — de oorspronkelijke versie is grotendeels
 overbodig geworden.** Terwijl deze prompt nog klaarlag voor uitvoering,
 bouwde thema 1 (`b547c8f`, prompt 08 — S15/S20) zelfstandig al het grootste

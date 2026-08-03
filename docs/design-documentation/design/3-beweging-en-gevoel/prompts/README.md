@@ -23,11 +23,11 @@ antwoord hebben (`M8`, `M10`) en één open coördinatiepunt met thema 4 over
 | [`M5-performancebudget.md`](M5-performancebudget.md) | M5 | 🔵 klaar om te bouwen | `06` §9 als meetbare gate, direct ná M2 | M1, M2 (niet M3) |
 | [`M4-mute-mechanisme.md`](M4-mute-mechanisme.md) | M4 | ✅ gedaan (`0d94744`) | Alleen de voorkeurlaag (`loadMuted`/`saveMuted` + gedeelde `safeSet`) — **geen zichtbare schakelaar** tot er geluid is | niets |
 | [`M3-e16-dialoog-transities.md`](M3-e16-dialoog-transities.md) | M3 | ⏸️ geparkeerd | Voorstel `E16` — pas uitvoeren ná bevestiging + na ontwerp van een gedeelde dialog-lifecycle-helper | `E16` bevestigd, `M1` |
-| [`M6-e02-potje-maken.md`](M6-e02-potje-maken.md) | M6 | 🔵 gereviewd, klaar om te bouwen | E02 niveau 0→1: knop-label + progressindicator | niets |
-| [`M7-e03-speler-komt-binnen.md`](M7-e03-speler-komt-binnen.md) | M7 | 🔵 gereviewd, klaar om te bouwen | E03 niveau 0→1: chip-fade + tellerpuls + bulkjoin-debounce; vraagt eerst een reconciliatiefix in `lobby.mjs` | niets |
-| [`M8-e07-laatste-drie-seconden.md`](M8-e07-laatste-drie-seconden.md) | M8 | 🔵 gereviewd, klaar om te bouwen | E07 niveau 0→1: timer-urgentie (contrast + puls, gebruik `--color-warning`) | niets |
-| [`M9-e11-rank-movement.md`](M9-e11-rank-movement.md) | M9 | 🟠 gereviewd, tekst-notatie nog open | E11 niveau 0→1: FLIP-rankbeweging + `↑2`/`↓1`; vraagt eerst nieuwe "vorige positie"-state, ván de precieze delta-tekst eerst afstemmen met thema 4 (zie `REVIEW.md`) | niets |
-| [`M10-e14-podium.md`](M10-e14-podium.md) | M10 | 🔵 gereviewd, klaar om te bouwen | E14 niveau 0→1: 3→2→1-opbouw, begrensde confetti, skip (winnaar-accent via `--color-accent-competition`) | niets |
+| [`M6-e02-potje-maken.md`](M6-e02-potje-maken.md) | M6 | ✅ gedaan (`a6be5d4`) | E02 niveau 0→1: `setButtonLoading()` i.p.v. eigen indicator (correctie ná `0a4c9d6`) | niets |
+| [`M7-e03-speler-komt-binnen.md`](M7-e03-speler-komt-binnen.md) | M7 | ✅ gedaan (`ed6d313`) | E03 niveau 0→1: reconciliatie + chip-fade + gedebouncete tellerpuls | niets |
+| [`M8-e07-laatste-drie-seconden.md`](M8-e07-laatste-drie-seconden.md) | M8 | ✅ gedaan (`f8ef891`) | E07 niveau 0→1: puls op thema 2's timer-balk (bouwt op T2-3, niet de oorspronkelijke platte-tekst-aanpak) | niets |
+| [`M9-e11-rank-movement.md`](M9-e11-rank-movement.md) | M9 | ✅ gedaan (`158d531`) | E11 niveau 1→2-richting: FLIP-beweging + eigen-rij-emphasis bovenop thema 1's al bestaande data/badge | niets |
+| [`M10-e14-podium.md`](M10-e14-podium.md) | M10 | ✅ gedaan (`148a132`) | E14 niveau 1→2-richting: entrance-animatie + confetti + reduced-motion-gate bovenop thema 1's al bestaande stagger/skip | niets |
 
 ## Uitvoeringsvolgorde (herzien ná review)
 
@@ -44,9 +44,10 @@ antwoord hebben (`M8`, `M10`) en één open coördinatiepunt met thema 4 over
 6. **M3** — pas ná expliciete bevestiging van `E16` én ontwerp van een
    gedeelde lifecycle-helper (niet drie losse implementaties).
 
-**M6–M10 (nieuw, 3 aug 2026)** — de vijf resterende zelfstandige
-niveau-0-momenten (`E02`/`E03`/`E07`/`E11`/`E14`), onafhankelijk van
-elkaar en van `M1`–`M5` te bouwen. Nog niet uitgevoerd — wacht op review.
+✅ **M6–M10 (3 aug 2026)** — alle vijf gedaan. Twee (`M9`, `M10`) zijn
+onderweg herschreven omdat thema 1 zelfstandig al een deel van hun scope
+bouwde terwijl ze klaarlagen — zie `PROGRESS.md`'s "Afgerond"-sectie voor
+het volledige verhaal per prompt.
 
 **Bewust geen prompt voor `E04` (countdown), `E12`/`E13` (sociale
 headline/streak), geluidsarchitectuur of haptiek.** Die staan in
