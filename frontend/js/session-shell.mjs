@@ -59,6 +59,7 @@ import { createGameplayView } from './views/gameplay.mjs';
 import { createScoreboardView } from './views/scoreboard.mjs';
 import { createPodiumView } from './views/podium.mjs';
 import { createHostBar } from './views/hostbar.mjs';
+import { createRondoView } from './views/rondo.mjs';
 
 const GAMEPLAY_TICK_MS = 250;
 const RECOVERED_MESSAGE_MS = 3000;
@@ -112,6 +113,16 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   banner.hidden = true;
   banner.setAttribute('aria-live', 'assertive');
   banner.setAttribute('aria-atomic', 'true');
+
+  // BOUWSPRINT/Rondo: "overal waar je wacht" — de statustekst blijft de
+  // aria-live-bron (niet vervangen, alleen aangevuld), Rondo geeft de
+  // wachttijd tijdens een reconnect iets om naar te kijken. Decoratief:
+  // geen eigen aankondiging, `banner` draagt de tekst al.
+  const reconnectRondoRoot = document.createElement('div');
+  reconnectRondoRoot.className = 'session-reconnect-rondo';
+  reconnectRondoRoot.hidden = true;
+  reconnectRondoRoot.setAttribute('aria-hidden', 'true');
+  let reconnectRondoView = null;
 
   // Geruststelling naast (nooit in plaats van) de disconnected-tekst — eigen
   // element, want de twee kunnen tegelijk zichtbaar zijn.
@@ -195,7 +206,13 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   pauseCardWrap.className = 'session-pause-card';
   pauseCardWrap.tabIndex = -1; // focustarget voor een niet-host (geen knop om op te focussen)
   const pauseCard = document.createElement('p');
-  pauseCardWrap.appendChild(pauseCard);
+  // BOUWSPRINT/Rondo: "zelfde dode moment, zelfde oplossing" — alleen voor
+  // de speler (de host heeft de hostbalk in dit overlay, geen leeg wachten).
+  const pauseRondoRoot = document.createElement('div');
+  pauseRondoRoot.className = 'session-pause-rondo';
+  pauseRondoRoot.hidden = true;
+  let pauseRondoView = null;
+  pauseCardWrap.append(pauseCard, pauseRondoRoot);
   pauseOverlay.appendChild(pauseCardWrap);
   pauseOverlay.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && isHost()) {
@@ -205,7 +222,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     }
   });
 
-  root.append(banner, answerSavedNote, duplicateTabNotice, reconnectFallbackButton, hostBarRoot, phaseContainer, pauseOverlay);
+  root.append(banner, reconnectRondoRoot, answerSavedNote, duplicateTabNotice, reconnectFallbackButton, hostBarRoot, phaseContainer, pauseOverlay);
 
   let matchPhase = initialMatchPhaseState();
   let reconnect = initialReconnectState();
@@ -404,6 +421,19 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       answerSavedNote.textContent = t('connection.answerSaved');
     }
 
+    // BOUWSPRINT/Rondo: reconnect is per definitie een wachtmoment, nooit
+    // tegelijk met een actieve ronde-interactie — mount/unmount lazily,
+    // de statustekst hierboven blijft de aria-live-bron.
+    const showReconnectRondo = !showingRecoveredMessage && (reconnect.status === 'disconnected' || reconnect.status === 'reconnecting');
+    reconnectRondoRoot.hidden = !showReconnectRondo;
+    if (showReconnectRondo && reconnectRondoView === null) {
+      reconnectRondoView = createRondoView({ root: reconnectRondoRoot });
+    } else if (!showReconnectRondo && reconnectRondoView !== null) {
+      reconnectRondoView.destroy();
+      reconnectRondoView = null;
+      reconnectRondoRoot.textContent = '';
+    }
+
     // S19: pas tonen als de klok echt is afgelopen (`reconnectFallbackVisible`)
     // én we nog steeds niet verbonden zijn — een ondertussen geslaagd herstel
     // annuleert de klok al in `handleStatus`, maar dit is de render-kant van
@@ -418,6 +448,11 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     if (matchPhase.phase !== 'PAUSED') {
       pauseOverlay.hidden = true;
       restoreHostBarPosition();
+      if (pauseRondoView !== null) {
+        pauseRondoView.destroy();
+        pauseRondoView = null;
+        pauseRondoRoot.textContent = '';
+      }
       return;
     }
     const wasHidden = pauseOverlay.hidden;
@@ -430,6 +465,16 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     pauseOverlay.setAttribute('aria-label', cardText);
     pauseCard.textContent = cardText;
     pauseCard.classList.toggle('session-pause-card-host-stamp', isHost());
+    // BOUWSPRINT/Rondo: alleen voor de speler — de host heeft de hostbalk
+    // hier (zie hieronder), geen leeg wachtmoment.
+    pauseRondoRoot.hidden = isHost();
+    if (!isHost() && pauseRondoView === null) {
+      pauseRondoView = createRondoView({ root: pauseRondoRoot });
+    } else if (isHost() && pauseRondoView !== null) {
+      pauseRondoView.destroy();
+      pauseRondoView = null;
+      pauseRondoRoot.textContent = '';
+    }
     // S16: de overlay dekt het scherm (position: fixed, inset: 0) en zit vóór
     // de hostbalk in de DOM — die is dus onbereikbaar zolang de overlay open
     // is. In plaats van losse duplicaatknoppen voor lock/kick/finish (zoals

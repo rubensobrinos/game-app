@@ -8,6 +8,7 @@
 // navigatielogica.
 
 import { podiumTop3 } from './standings-model.mjs';
+import { createRondoView } from './rondo.mjs';
 
 // S20 (04): "korte, overslaanbare 3→2→1-opbouw". Geen motion-tokens (thema 3
 // levert die pas) — een vaste vertraging in dezelfde orde als de andere
@@ -82,6 +83,13 @@ export function createPodiumView({ root, t, isHost, capabilities, onRematch, onN
     wait.className = 'podium-wait';
     wait.textContent = t('podium.waitForHost');
     action.appendChild(wait);
+    // BOUWSPRINT/Rondo: wachten op revanche is een wachtmoment zonder
+    // interactie voor een niet-host — het podium zelf blijft ongewijzigd
+    // zichtbaar erboven, dit vult alleen het lege wachten eronder.
+    const rondoRoot = document.createElement('div');
+    rondoRoot.className = 'podium-rondo';
+    action.appendChild(rondoRoot);
+    createRondoView({ root: rondoRoot });
   }
 
   // Deel uitslag: alléén de eigen score/positie (privacyvriendelijk, 03
