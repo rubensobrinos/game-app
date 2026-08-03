@@ -30,7 +30,7 @@ De onderste laag: waar elk component uit put.
 
 | Component | Niveau | Criterium | Stand |
 |---|---|---|---|
-| Knophiërarchie | 1 | `05` §4 | Primary, secondary, quiet, destructive en gameplay-option staan los sinds `d3c900e` — het gedeelde regelblok waar §15 tegen waarschuwt is opgeruimd. **Verlaagd van 2 naar 1:** §4.1 eist een loadingvariant en die bestaat niet, en `quiet` heeft geen enkele gebruiker. **Gebieden 1 en 4 wachten hierop** voor `Potje maken…`. |
+| Knophiërarchie | 2 | `05` §4 | Primary, secondary, quiet, destructive en gameplay-option staan los sinds `d3c900e`. De loadingvariant uit §4.1 bestaat nu ook (`button-loading.mjs` + `.is-loading`): eigen uiterlijk, blokkeert dubbele taps, `aria-busy`, geen layoutshift, en de spinner staat stil onder `prefers-reduced-motion`. Gebied 1 en 4 zijn hiermee los. Rest: `quiet` heeft nog geen gebruiker. |
 | Loading / empty / error | 1 | `05` §13 | Foutteksten zijn specifiek en volledig vertaald — dat deel is af. Laadstatussen benoemen hun activiteit niet, lege staten verklaren zichzelf niet. Disabled is wél gerepareerd. **Gebieden 1 en 4 wachten hierop.** |
 | Timer en progress | 1 | `05` §9 | Numerieke aftelling op serveroffset, verder niets. §9 vraagt een horizontale progressbalk als basisvorm, met nadruk pas in de laatste drie seconden. **Gebied 1 wacht hierop** voor `S08`. |
 | Spelerchip | 1 | `05` §8 | Naam met afkapping. Geen tijdelijke kleur/symboolidentiteit, geen joinmotion. **Gebied 1 wacht hierop** voor `S05`/`S06`. |
@@ -48,7 +48,7 @@ De onderste laag: waar elk component uit put.
 | Niveau | 0 | 1 | 2 | 3 | ⏸ |
 |---|---|---|---|---|---|
 | Fundamenten | 0 | 3 | 3 | 0 | 2 |
-| Componenten | 0 | 9 | 3 | 0 | 0 |
+| Componenten | 0 | 8 | 4 | 0 | 0 |
 
 **Er staat niets meer op 0.** Wat er ligt is werk aan onderdelen die al
 bestaan, plus twee dingen die op hold staan omdat niemand ze kán bouwen:
