@@ -29,6 +29,11 @@ export function createLobbyView({ root, t, isHost, gameCode, onStart, onShareAct
   const list = document.createElement('ul');
   list.className = 'lobby-players';
 
+  // De vier deelacties als één omkaderde groep met een kop, in plaats van vier
+  // losse knoppen tussen de rest van het scherm. `lobby.share` ("Uitnodigen")
+  // bestond al in alle drie de locales maar werd nergens getoond.
+  const shareSection = el('section', 'lobby-share');
+  const shareTitle = el('h3', 'lobby-share-title');
   const shareRow = el('div', 'lobby-share-row');
   const shareButtons = new Map();
   for (const action of ['show-qr', 'native-share', 'copy-link', 'show-code']) {
@@ -102,7 +107,11 @@ export function createLobbyView({ root, t, isHost, gameCode, onStart, onShareAct
   });
   qrOverlay.append(qrImage, qrBack);
 
-  screen.append(title, waiting, countLine, list, shareRow, feedback, codeReveal, linkFallback, startButton);
+  // Feedback, code en link horen bij het deelblok — die stonden eerder los
+  // onder de knoppen, waardoor "Gekopieerd!" losgezongen van zijn actie
+  // verscheen.
+  shareSection.append(shareTitle, shareRow, feedback, codeReveal, linkFallback);
+  screen.append(title, waiting, countLine, list, shareSection, startButton);
   root.append(screen, qrOverlay);
 
   let availableActions = [];
@@ -179,6 +188,7 @@ export function createLobbyView({ root, t, isHost, gameCode, onStart, onShareAct
   function renderStatic() {
     title.textContent = t('lobby.title');
     waiting.textContent = t('lobby.waiting');
+    shareTitle.textContent = t('lobby.share');
     qrBack.textContent = t('lobby.back');
     startButton.textContent = t('lobby.start');
     qrOverlay.setAttribute('aria-label', t('lobby.shareQr'));

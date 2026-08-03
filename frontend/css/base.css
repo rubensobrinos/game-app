@@ -252,9 +252,16 @@ button {
 }
 
 /* Voor schermen die van boven af opbouwen (lobby, tussenstand) — centreren
-   heeft daar geen zin zodra de lijst groeit. */
+   heeft daar geen zin zodra de lijst groeit.
+
+   Ook geen `min-height` meer: zo'n scherm hoeft het viewport niet te vullen
+   (het staat toch bovenaan), en er kan van álles bóven staan — de hostbalk,
+   de reconnect-banner. Bleef die 100dvh staan, dan telde elk van die dingen
+   er weer bovenop en scrollde de pagina, precies zoals de header dat eerder
+   deed. De achtergrond komt van `body`, dus een korter scherm laat geen gat. */
 .screen.screen-top {
   justify-content: flex-start;
+  min-height: 0;
 }
 
 .app-logo {
@@ -322,10 +329,38 @@ button {
 }
 
 /* ── UI2: Lobby + Delen ────────────────────────────────────────────────── */
+
+/* `.screen`'s `gap` raakt alleen zijn eigen kinderen, en de lobby mount één
+   wrapper-div daarin — binnen die wrapper viel dus álles tegen elkaar aan.
+   Dit is waar het verticale ritme van dit scherm vandaan komt. */
+.lobby-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.lobby-title {
+  text-align: center;
+  margin: 0;
+}
+
 .lobby-waiting,
 .lobby-count {
   text-align: center;
   color: var(--text-muted);
+  margin: 0;
+}
+
+.lobby-waiting {
+  margin-top: -0.75rem; /* hoort bij de titel, niet als losse alinea ernaast */
+}
+
+/* Deelnemers als één blok: het aantal is de kop, de namen staan eronder. */
+.lobby-count {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .lobby-players {
@@ -340,7 +375,30 @@ button {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
-  padding: 0.6rem 0.9rem;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+}
+
+/* Deelblok: kop + de vier acties, als één herkenbare groep in plaats van vier
+   losse knoppen tussen de rest. */
+.lobby-share {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+}
+
+.lobby-share-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0;
+  text-align: center;
 }
 
 .lobby-share-row {
@@ -349,18 +407,45 @@ button {
   gap: 0.5rem;
 }
 
+/* Binnen het deelblok staan de knoppen al in een kaart; een tweede
+   kaartachtergrond eronder maakt het rommelig. */
+.lobby-share-row .btn-secondary {
+  background: var(--surface2);
+  font-size: 0.95rem;
+  padding: 12px 10px;
+}
+
+/* De hoofdactie krijgt lucht boven zich, zodat hij niet aan het deelblok
+   vastplakt. */
+.lobby-start {
+  margin-top: 0.5rem;
+}
+
+/* Alleen ruimte innemen zodra er iets te melden is — een permanent
+   gereserveerde regel liet een gat onder in het deelblok staan. De
+   `aria-live`-aankondiging werkt ook zonder vaste hoogte; het blok groeit
+   hooguit één regel, wat geen storende sprong geeft. */
 .lobby-share-feedback {
   text-align: center;
   color: var(--accent-light);
   font-size: 0.85rem;
-  min-height: 1.2em;
+  margin: 0;
+}
+
+.lobby-share-feedback:empty {
+  display: none;
 }
 
 .lobby-code-reveal {
   text-align: center;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
+  margin: 0;
+  padding: 0.6rem;
+  background: var(--surface2);
+  border-radius: var(--r-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .lobby-link-fallback {
@@ -435,22 +520,56 @@ button {
 /* ── UI5: Hostbalk (views/hostbar.mjs) ────────────────────────────────────
    Zichtbaar boven de fase-view, onder de reconnect-statusbalk — zelfde plek
    als de eerdere pauze-only-knop. */
+/* Hostbediening is gereedschap naast het scherm, geen inhoud ervan. Stond
+   eerder als drie volle-breedte knoppen bovenaan — die trokken alle aandacht
+   vóór de speler had gezien op welk scherm hij was. Nu een compacte strip:
+   eigen omkadering, kleinere knoppen op inhoudsbreedte, gedempte kleur. */
 .session-hostbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem 0;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  margin: 0.75rem 1.5rem 0;
   max-width: 480px;
-  margin: 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
 }
 
-.session-hostbar button {
-  flex: 1;
-  min-width: 7rem;
+@media (min-width: 512px) {
+  .session-hostbar {
+    margin-left: auto;
+    margin-right: auto;
+  }
 }
 
+/* `.btn-secondary` is volle breedte (components.css) — binnen deze strip
+   moeten knoppen juist naast elkaar passen. */
+.session-hostbar .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+  color: var(--text-muted);
+}
+
+.session-hostbar .btn-secondary:hover {
+  color: var(--text);
+}
+
+/* Past gewoon naast de andere knoppen; alleen de uitklappende lijst eronder
+   heeft de volle breedte nodig. */
 .session-hostbar-players-toggle {
-  flex-basis: 100%;
+  flex-basis: auto;
 }
 
 .session-hostbar-players {
