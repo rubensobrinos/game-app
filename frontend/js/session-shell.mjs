@@ -370,13 +370,25 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     if (showingRecoveredMessage) {
       banner.hidden = false;
       banner.classList.remove('is-disconnected');
+      // M2/E15: korte, stille successtransitie i.p.v. een instante
+      // kleurwissel — "successcue klein", geen viering (06 §4 E15).
+      banner.classList.add('session-banner-success');
       banner.textContent = t('connection.connected');
     } else {
       const key = messageForConnectionStatus(reconnect.status);
       banner.hidden = key === null;
       banner.classList.toggle('is-disconnected', reconnect.status === 'disconnected');
+      banner.classList.remove('session-banner-success');
       if (key !== null) {
-        banner.textContent = t(key);
+        // M2/E15: voortgang tonen tijdens reconnecting — `reconnect.attempt`
+        // bestond al (reconnect-state.mjs) maar werd nergens getoond.
+        // Nieuwe, aparte sleutel (niet `connection.reconnecting` zelf
+        // gewijzigd, die is al door thema 4 uitgevoerd) — coördinatiepunt,
+        // zie PROGRESS.md.
+        banner.textContent =
+          reconnect.status === 'reconnecting' && reconnect.attempt >= 1
+            ? tCount('connection.reconnectingAttempt', reconnect.attempt)
+            : t(key);
       }
     }
 
@@ -666,6 +678,11 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     stopGameplayTicker();
     phaseContainer.textContent = '';
     mountedViewName = viewName;
+    // T5-7: alleen lobby/tussenstand krijgen op tabletbreedte meer ruimte
+    // (`#app-root`'s `max-width` wordt hierdoor NIET globaal verruimd, zie
+    // base.css's `.app-root-wide`) — home/join/gameplay/podium blijven altijd
+    // op de compacte 480px-kolom.
+    root.classList.toggle('app-root-wide', viewName === 'lobby' || viewName === 'scoreboard');
 
     if (viewName === 'lobby') {
       mountedView = createLobbyView({

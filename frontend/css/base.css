@@ -922,6 +922,19 @@ button {
   color: var(--color-text-primary);
   background: var(--color-surface-2);
   border-bottom: 1px solid var(--color-border-subtle);
+  transition: background-color var(--motion-base) var(--ease-enter);
+}
+
+/* M2/E15: stille successtransitie ("klein", geen viering) zodra de balk
+   naar "we zijn weer verbonden" wisselt — een korte, kalme opacity-puls
+   bovenop de kleurovergang hierboven, niet in plaats daarvan. */
+.session-banner-success {
+  animation: session-banner-success var(--motion-emphasis) var(--ease-enter);
+}
+
+@keyframes session-banner-success {
+  0% { opacity: 0.4; }
+  100% { opacity: 1; }
 }
 
 .session-banner.is-disconnected {

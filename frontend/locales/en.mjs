@@ -138,6 +138,8 @@ export const en = Object.freeze({
 
   'connection.disconnected': 'Connection lost…',
   'connection.reconnecting': 'Reconnecting…',
+  'connection.reconnectingAttempt.one': 'Reconnecting… (attempt {n})',
+  'connection.reconnectingAttempt.other': 'Reconnecting… (attempt {n})',
   'connection.connected': "We're back online.",
   'connection.answerSaved': 'Your answer is safe.',
 

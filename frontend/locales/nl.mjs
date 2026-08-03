@@ -162,6 +162,12 @@ export const nl = Object.freeze({
   // — Verbindingsstatus (reconnect-state.mjs via messageForConnectionStatus) —
   'connection.disconnected': 'Verbinding verbroken…',
   'connection.reconnecting': 'Opnieuw verbinden…',
+  // M2/E15: voortgang tijdens reconnecting (06 §4 E15) — nieuwe, aparte
+  // sleutel naast `connection.reconnecting` (die al door thema 4 is
+  // uitgevoerd, niet zelf gewijzigd). Coördinatiepunt met thema 4, zie
+  // thema 3's PROGRESS.md.
+  'connection.reconnectingAttempt.one': 'Opnieuw verbinden… (poging {n})',
+  'connection.reconnectingAttempt.other': 'Opnieuw verbinden… (poging {n})',
   'connection.connected': 'We zijn weer verbonden.',
   'connection.answerSaved': 'Je antwoord blijft bewaard.',
 
