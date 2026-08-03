@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadLang, saveLang, loadTheme, saveTheme } from './preferences.mjs';
+import { loadLang, saveLang, loadTheme, saveTheme, loadMuted, saveMuted } from './preferences.mjs';
 
 function fakeStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -66,4 +66,65 @@ test('loadLang: een gooiende storage (bv. privacymodus) faalt niet, geeft null',
     },
   };
   assert.equal(loadLang(storage), null);
+});
+
+test('loadMuted: null zonder opgeslagen waarde', () => {
+  assert.equal(loadMuted(fakeStorage()), null);
+});
+
+test('loadMuted: geeft true terug bij opgeslagen "true"', () => {
+  assert.equal(loadMuted(fakeStorage({ 'mp:muted': 'true' })), true);
+});
+
+test('loadMuted: geeft false terug bij opgeslagen "false"', () => {
+  assert.equal(loadMuted(fakeStorage({ 'mp:muted': 'false' })), false);
+});
+
+test('loadMuted: negeert een ongeldige opgeslagen waarde', () => {
+  assert.equal(loadMuted(fakeStorage({ 'mp:muted': 'yes' })), null);
+});
+
+test('saveMuted: schrijft true weg', () => {
+  const storage = fakeStorage();
+  saveMuted(storage, true);
+  assert.equal(storage._map.get('mp:muted'), 'true');
+});
+
+test('saveMuted: schrijft false weg', () => {
+  const storage = fakeStorage();
+  saveMuted(storage, false);
+  assert.equal(storage._map.get('mp:muted'), 'false');
+});
+
+test('saveMuted: negeert een niet-boolean stilzwijgend', () => {
+  const storage = fakeStorage();
+  saveMuted(storage, 'true');
+  assert.equal(storage._map.has('mp:muted'), false);
+});
+
+test('saveLang: een gooiende storage faalt stil, geen exception', () => {
+  const storage = {
+    setItem() {
+      throw new Error('quota exceeded');
+    },
+  };
+  assert.doesNotThrow(() => saveLang(storage, 'en'));
+});
+
+test('saveTheme: een gooiende storage faalt stil, geen exception', () => {
+  const storage = {
+    setItem() {
+      throw new Error('quota exceeded');
+    },
+  };
+  assert.doesNotThrow(() => saveTheme(storage, 'dark'));
+});
+
+test('saveMuted: een gooiende storage faalt stil, geen exception', () => {
+  const storage = {
+    setItem() {
+      throw new Error('quota exceeded');
+    },
+  };
+  assert.doesNotThrow(() => saveMuted(storage, true));
 });

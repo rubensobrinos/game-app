@@ -7,6 +7,7 @@
 
 const LANG_KEY = 'mp:lang';
 const THEME_KEY = 'mp:theme';
+const MUTED_KEY = 'mp:muted';
 const VALID_LANGS = new Set(['nl', 'en', 'es']);
 const VALID_THEMES = new Set(['light', 'dark']);
 
@@ -19,7 +20,7 @@ export function loadLang(storage) {
 /** @param {{setItem:(k:string,v:string)=>void}} storage @param {string} lang */
 export function saveLang(storage, lang) {
   if (VALID_LANGS.has(lang)) {
-    storage.setItem(LANG_KEY, lang);
+    safeSet(storage, LANG_KEY, lang);
   }
 }
 
@@ -32,7 +33,27 @@ export function loadTheme(storage) {
 /** @param {{setItem:(k:string,v:string)=>void}} storage @param {string} theme */
 export function saveTheme(storage, theme) {
   if (VALID_THEMES.has(theme)) {
-    storage.setItem(THEME_KEY, theme);
+    safeSet(storage, THEME_KEY, theme);
+  }
+}
+
+/**
+ * Voorkeurlaag voor geluid-mute. Nog geen zichtbare schakelaar (die komt
+ * pas met het eerste echte audiosignaal) — alleen lezen/schrijven/valideren,
+ * zodat toekomstig geluidswerk hier meteen op kan bouwen.
+ * @param {{getItem:(k:string)=>string|null}} storage @returns {boolean|null} null als er niets geldigs is opgeslagen
+ */
+export function loadMuted(storage) {
+  const value = safeGet(storage, MUTED_KEY);
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return null;
+}
+
+/** @param {{setItem:(k:string,v:string)=>void}} storage @param {boolean} muted */
+export function saveMuted(storage, muted) {
+  if (typeof muted === 'boolean') {
+    safeSet(storage, MUTED_KEY, String(muted));
   }
 }
 
@@ -41,5 +62,17 @@ function safeGet(storage, key) {
     return storage.getItem(key);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Een gooiende storage (privacymodus, vol quotum) mag de rest van de UI niet
+ * blokkeren — de voorkeur blijft dan gewoon niet bewaard.
+ */
+function safeSet(storage, key, value) {
+  try {
+    storage.setItem(key, value);
+  } catch {
+    // stil falen, zie doc-comment hierboven
   }
 }
