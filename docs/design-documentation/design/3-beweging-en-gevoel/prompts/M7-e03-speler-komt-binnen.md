@@ -1,5 +1,10 @@
 # Prompt — M7: E03, Speler komt binnen (niveau 0 → 1)
 
+**✅ Gedaan — commit `ed6d313`.** Reconciliatie (bestaande rijen blijven hun
+DOM-node houden), nieuwe-chip-fade, gedebouncete (300ms) tellerpuls. Sound-
+clustering blijft geparkeerd op `O-008` (geen geluid om te clusteren) — de
+puls-debounce dekt de visuele kant van "bulkjoins geclusterd".
+
 Onderdeel van [`README.md`](README.md). Onafhankelijk van `M1`–`M5`, gebruikt
 wel thema 2's tokens (geleverd, `8eb1996`).
 

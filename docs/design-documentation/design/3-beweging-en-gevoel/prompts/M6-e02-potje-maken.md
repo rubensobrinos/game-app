@@ -1,5 +1,14 @@
 # Prompt — M6: E02, Potje maken (niveau 0 → 1)
 
+**✅ Gedaan — commit `a6be5d4`, ná correctie van `0a4c9d6`.** Eerste versie
+bouwde een eigen stippen-indicator; vlak daarna bleek thema 2's
+`button-loading.mjs` (T2-2) al hét gedeelde E02-mechanisme te zijn
+("thema 2 levert, thema 1 en 4 roepen het aan"), nog nergens gebruikt.
+`home.mjs` roept nu `setButtonLoading()` aan i.p.v. eigen dots — beter
+gedekt ook (breedte-lock tegen layoutshift, `aria-busy`, retry-label), en
+consistent met wat andere thema's straks voor dezelfde knop-laadstaat
+gebruiken.
+
 Onderdeel van [`README.md`](README.md). Vereist `M1` (thema 2's tokens) —
 inmiddels geleverd (`8eb1996`), dus dit is nu zelfstandig te bouwen.
 

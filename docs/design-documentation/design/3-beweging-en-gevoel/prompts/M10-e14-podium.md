@@ -1,87 +1,84 @@
-# Prompt — M10: E14, Podium (niveau 0 → 1)
+# Prompt — M10: E14, Podium (niveau 1 → richting 2)
+
+**Herschreven 3 aug 2026 — de oorspronkelijke versie overlapte fors met
+werk dat thema 1 er intussen bij bouwde.** Terwijl deze prompt nog klaarlag,
+bouwde thema 1 (`b547c8f`, prompt 08 — S20) zelf al de 3→2→1-
+reveal-volgorde (`revealNext()`, `PODIUM_STEP_DELAY_MS = 1400`) én de
+klik-om-te-skippen-interactie (`steps.onclick`) in `podium.mjs` — met het
+expliciete commentaar "geen motion-tokens (thema 3 levert die pas) — een
+vaste vertraging... geen eigen animatiesysteem vooruitlopend op dat werk."
+Ook de winnaar-accent (`.podium-step-1 { border-color:
+var(--color-accent-competition) }`) staat al, statisch, in `components.css`.
+
+**Wat dit betekent:** de stagger-logica, de skip-interactie en de
+winnaar-kleur zijn al klaar. Dit is dus geen nieuwe bouw van die dingen,
+maar het **toevoegen van motion bovenop hun bestaande reveal-mechanisme**
+(instant `hidden`-toggle → een échte entrance-animatie), plus confetti, plus
+een reduced-motion-check die er nog niet is: `revealNext()`'s timers lopen
+vandaag door ongeacht `prefers-reduced-motion`, wat `06` §7's "podium direct
+compleet" onder reduced motion schendt.
 
 Onderdeel van [`README.md`](README.md). Onafhankelijk van `M1`–`M9`, gebruikt
-thema 2's tokens (geleverd, `8eb1996`) — inclusief `--motion-stage` en
-`--ease-stage`, letterlijk voor dit moment bedoeld (`06` §3: "podium: stage
+thema 2's tokens — `--motion-stage`/`--ease-stage` (`06` §3: "podium: stage
 easing, niet cartoonesk stuiterend").
 
 ## Brondocument
 
-`06-MOTION-SOUND-AND-FEEDBACK.md` §4 E14: optioneel 3→2→1, opbouw kort,
-winnaar krijgt warme accenten, confetti beperkt, acties direct of uiterlijk
-na korte finale, skip/reduced motion toont volledig podium onmiddellijk.
-`11-DESIGN-QA-CHECKLIST.md` H: "Is confetti beperkt en
-reduced-motionvriendelijk?", "Kan de finale snel worden overgeslagen of
-verkort?" — de andere H-vragen (helderheid 1/2/3, eigen eindpositie voor
-niet-podiumspeler, Revanche primair) zijn **al voldaan** in `podium.mjs` en
-raken geen motion — zie hieronder, niet in deze prompt's scope.
+`06-MOTION-SOUND-AND-FEEDBACK.md` §4 E14 en `11-DESIGN-QA-CHECKLIST.md` H.
+Vier van de zes H-vragen zijn al voldaan (niet dit werk): "Zijn 1, 2, 3
+helder?" (bestaande styling), "Ziet een niet-podiumspeler zijn eigen
+eindpositie?" (`selfLine`), "Is `Revanche` primair?" (bestaande
+`.podium-rematch`-styling), "Kan de finale snel overgeslagen worden?"
+(`steps.onclick`, al gebouwd door thema 1). Twee resteren: "Is confetti
+beperkt en reduced-motionvriendelijk?" (niets gebouwd) en de motion zelf
+(instant toggle, geen entrance).
 
-## Wat er al klopt (geverifieerd in `podium.mjs`, niet aannemen dat het ontbreekt)
+## Wat dit is (het restant)
 
-- **Eigen eindpositie voor niet-podiumspeler**: `selfLine` toont
-  `standings.self`'s positie/score altijd, ongeacht of de speler in de
-  top 3 zit. Al goed, geen motion-werk hier.
-- **Revanche primair**: `.podium-rematch` heeft al eigen, onderscheidende
-  styling (`components.css`, incl. de `:active`/`:hover`-behandeling die
-  `M0` al meenam). Visuele hiërarchie is thema 2's domein, niet dit
-  moment's motion-vraag.
-- **Alle drie stappen verschijnen nu synchroon**: `podiumTop3(standings)`
-  wordt in één `forEach` gerenderd, geen enkele stagger of vertraging. Dit
-  is het daadwerkelijke gat: niveau 0 omdat er niets choreografeert, niet
-  omdat de content zelf onduidelijk is.
-
-## Wat dit is
-
-1. **Optionele 3→2→1-opbouw**: stagger de entrance van `.podium-step-3`,
-   dan `-2`, dan `-1` (brons eerst, winnaar laatst — bouwt spanning op,
-   suspense-conventie). `animation-delay` per stap via `--motion-stage`
-   (700–1200 ms totaal, dus elke stap ruwweg een derde daarvan uit elkaar),
-   `--ease-stage` voor de curve. Alleen `opacity`/`transform`
-   (translateY/scale), geen layout-eigenschappen.
-2. **Winnaar-accent**: `.podium-step-1` heeft al `border-color:
-   var(--color-accent-competition, #f59e0b)` (`components.css`). **Ná
-   review bevestigd (`REVIEW.md`): dit token bestaat en wordt al gebruikt**
-   — geen open punt meer. Gebruik `--color-accent-competition` ook voor de
-   entrance-emphasis (bv. een korte glow/scale-emphasis in diezelfde kleur
-   bovenop de stagger), geen nieuwe kleur verzinnen.
-3. **Confetti, bewust minimaal**: een klein, vast aantal DOM-elementen (bv.
-   12–20), CSS-only (`transform`/`opacity`, geen canvas/library), vaste
-   korte duur (~1.5–2 s), geen lus. Bewust conservatief begrensd zodat het
-   sowieso binnen `M5`'s classificatietabel past (transform/opacity-
-   voorkeur) — **toch expliciet aanmerken voor `M5`'s audit** zodra die
-   draait, niet aannemen dat "klein" automatisch "goedgekeurd" betekent.
-4. **Skip-mechanisme**: een klik/tik ergens op het podiumscherm (of
-   Escape) voltooit alle lopende stagger-/confetti-animaties direct naar
-   hun eindstaat — vult "kan de finale snel worden overgeslagen" in. Acties
-   (`Revanche`/wachttekst) blijven sowieso al meteen zichtbaar (bestaande
-   code rendert ze synchroon, niet pas ná de animatie) — dat deel van de
-   eis is dus al voldaan.
-5. **Reduced motion**: volledig podium **direct** compleet, geen stagger,
-   geen confetti — controleer dit programmatisch
-   (`matchMedia('(prefers-reduced-motion: reduce)')`) vóór de
-   stagger/confetti-stappen starten, niet alleen via CSS-duur (zelfde
-   patroon als `M9`'s FLIP-check, `06` §7 noemt dit letterlijk: "podium
-   direct compleet").
+1. **Echte entrance-animatie i.p.v. instant `hidden`-toggle.** `.podium-step
+   [hidden] { display: none }` bestaat al (nodig, niet aanraken) — een
+   CSS-`transition` kan niet animeren over een `display:none`-grens, dus
+   gebruik een `@keyframes`-animatie (`opacity`/`transform`) die start zodra
+   `hidden` weggaat, via een class die `podium.mjs`'s `revealNext()`
+   tegelijk met `item.hidden = false` toevoegt. Duur/easing:
+   `--motion-stage`/`--ease-stage`.
+2. **Skip blijft instant, niet "alles tegelijk animeren".** De bestaande
+   `steps.onclick`-handler zet alle overige stappen synchroon zichtbaar —
+   laat die **zonder** de entrance-class doen (`hidden = false` zonder de
+   animatieklasse), zodat skippen echt "direct volledig" is, niet een
+   burst van gelijktijdige animaties.
+3. **Reduced motion — nieuw gat, niet eerder gedekt.** `revealNext()`'s
+   `setTimeout`-keten (1400ms per stap) loopt vandaag door ongeacht
+   `prefers-reduced-motion`. Check
+   `window.matchMedia('(prefers-reduced-motion: reduce)').matches` aan het
+   begin van `update()`: zo ja, roep direct hetzelfde "toon alles nu"-pad
+   aan als de skip-klik gebruikt (geen timers, geen animatieklasse) i.p.v.
+   de staggerketen te starten.
+4. **Confetti, bewust minimaal.** Een klein, vast aantal DOM-elementen
+   (12–20), CSS-only (`transform`/`opacity`, geen canvas/library), vaste
+   korte duur (~1.5–2 s), geen lus, `aria-hidden="true"`. Alleen ná de
+   laatste stap (winnaar) verschenen, niet bij elke stap. Onder reduced
+   motion: helemaal niet tonen (`06` §7: "confetti uit"). **Expliciet
+   aanmerken voor `M5`'s audit** zodra die draait — niet aannemen dat
+   "klein" automatisch "goedgekeurd" betekent.
 
 ## Regels
 
-- Geen wijziging aan `.podium-rematch`'s styling, `selfLine`, of de
-  volgorde/inhoud van `podiumTop3` — dit raakt uitsluitend de
-  entrance-choreografie en confetti.
-- Confetti-elementen zijn decoratief (`aria-hidden="true"`) — de
-  screenreader-aankondiging van de uitslag hangt niet af van de confetti-DOM.
-- Geen eigen kleurbeslissing voor het winnaar-accent zonder eerst te
-  checken of er al een token voor bestaat.
+- Geen wijziging aan `revealNext()`'s volgorde, `PODIUM_STEP_DELAY_MS`, de
+  skip-logica zelf, `.podium-rematch`, `selfLine`, of `.podium-step-1`'s
+  bestaande kleur — dit raakt uitsluitend de motion-laag erbovenop.
+- Confetti is decoratief (`aria-hidden`) — de uitslag zelf is al meteen in
+  de DOM/accessibility tree (bestaand gedrag, niet hiervan afhankelijk).
 
 ## Definition of done
 
-- Handmatig geverifieerd: 3→2→1-opbouw zichtbaar, kort (binnen
-  `--motion-stage`'s bereik), confetti begrensd in aantal en duur.
-- Skip werkt: een klik tijdens de opbouw toont direct het volledige podium.
-- CDP-geverifieerd onder reduced motion: geen stagger, geen confetti,
-  volledig podium in één keer zichtbaar.
+- Handmatig geverifieerd: elke stap krijgt een zichtbare entrance
+  (opacity/transform) i.p.v. instant verschijnen; skip blijft instant voor
+  de resterende stappen; confetti begrensd in aantal/duur, alleen bij de
+  laatste stap.
+- CDP-geverifieerd onder reduced motion: geen stagger-vertraging (alles
+  direct zichtbaar, geen timers), geen entrance-animatie, geen confetti.
 - Genoemd als openstaand controlepunt voor `M5`: confetti's
   transform/opacity-only-opzet, ter bevestiging in die audit.
-- `PROGRESS.md`: E14 van niveau 0 naar 1, met de drie al-voldane
-  H-checklistpunten (eindpositie, Revanche, 1/2/3-helderheid) expliciet
-  benoemd als "niet dit werk, was al goed".
+- `PROGRESS.md`: E14 van niveau 1 (stagger/skip/winnaar-accent al aanwezig)
+  naar niveau 2-richting (motion + confetti + reduced-motion-gedekt).

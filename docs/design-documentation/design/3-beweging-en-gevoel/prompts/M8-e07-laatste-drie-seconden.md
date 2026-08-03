@@ -1,5 +1,15 @@
 # Prompt — M8: E07, Laatste drie seconden (niveau 0 → 1)
 
+**✅ Gedaan — commit `f8ef891`, herzien tijdens uitvoering.** Ná het
+schrijven van deze prompt bleek thema 2 al een `.timer`/`.timer-track`/
+`.timer-fill`-balkcomponent (T2-3, `05` §9) + de contrastkant van
+`.is-urgent` geleverd te hebben, met het expliciete commentaar "de puls
+is thema 3's werk" — dus niet de hieronder beschreven platte-tekst-
+aanpak, maar een puls bovenop hun al bestaande balk/kleur-structuur.
+`gameplay.mjs`'s oude `.gameplay-timer` (platte tekst) is vervangen door
+die balk; `totalSeconds`/`fillPercent` komen uit `model.startsAt`/
+`endsAt`, al aanwezig op het model.
+
 Onderdeel van [`README.md`](README.md). Onafhankelijk van `M1`–`M5`, gebruikt
 thema 2's tokens (geleverd, `8eb1996`). Raakt hetzelfde bestand als `M2`
 (`gameplay.mjs`) maar een ander moment — geen inhoudelijke overlap.
