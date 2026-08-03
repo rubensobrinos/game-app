@@ -1,8 +1,25 @@
 # Prompt — T5-7: Medium/tablet-compositie
 
-**Status: uitgevoerd en geverifieerd.** Alle drie de onderdelen gebouwd,
-tegen de échte server op 390/768/1024px gemeten (ad-hoc Playwright, geen
-projectdependency).
+**Status: lobby + tussenstand uitgevoerd en geverifieerd. Het
+menu-onderdeel heeft een nieuw, ná oplevering gevonden conflict —
+zie de waarschuwing hieronder.** Gebouwd en getest op 390/768/1024px
+(ad-hoc Playwright tegen de échte server, geen projectdependency).
+
+**⚠️ Conflict gevonden door thema 2, ná oplevering van dit ticket
+(`HANDOFF-UI.md` UI-20, 3 aug 2026) — nog niet opgelost.** Thema 2's eigen
+`T2-9` wil het voorkeurenpaneel op compact (390px) omzetten naar een bottom
+sheet; dit ticket eiste juist expliciet "geen regressie op compact portrait
+(390×844 blijft ongewijzigd)" voor exact hetzelfde paneel. Beide prompts
+spraken elkaar tegen zonder dat één van beide de ander noemde. Thema 2's
+voorstel (nog geen besluit): één ticket bij thema 5, thema 2 levert de
+sheet-component. Ook relevant: het paneel is vandaag een *disclosure*
+(`aria-haspopup`/`-expanded`/`-controls`), geen dialog — mijn CSS-only
+"altijd zichtbaar vanaf 768px"-oplossing hieronder liet die ARIA-vorm bewust
+ongemoeid (nergens een `role` toegevoegd), wat op zich correct is voor wat
+het nu doet, maar géén volwaardige sheet-omzetting is zoals UI-20
+uiteindelijk voorstelt. **Niet zelf verder gebouwd of teruggedraaid** — dit
+wacht op de UI-20-afstemming tussen thema 2 en thema 5, dezelfde discipline
+als `T5-8`'s wachten op thema 1's `S20`.
 
 **Correctie op de vorige versie van deze `PROGRESS.md`-pas:** die zei dat dit
 wacht op thema 2's open besluiten (`O-002` lettertype, `O-003` accentkleur).
@@ -76,13 +93,17 @@ vraagt niemand.
    768px meer ruimte (`max-width: 600px`, gecentreerd, grotere padding) —
    bewust alleen de scoreboard-selectors, niet de gedeelde
    `.podium-steps`/`.podium-step`, dus het podiumscherm blijft ongewijzigd.
-3. **Hamburgermenu**: vanaf 768px verdwijnt `.app-hamburger` en toont
-   `.app-menu` zich permanent inline in de header (`display: flex !important`
+3. **Hamburgermenu** — ⚠️ **zie UI-20 hierboven, mogelijk niet de
+   eindvorm.** Vanaf 768px verdwijnt `.app-hamburger` en toont `.app-menu`
+   zich permanent inline in de header (`display: flex !important`
    overschrijft het `hidden`-attribuut), horizontaal i.p.v. verticaal.
    `app-menu.mjs`'s `setOpen()`/Escape/klik-buiten-logica is ongewijzigd
    gelaten — die blijft intern gewoon `hidden`/`aria-expanded` bijhouden, dat
    heeft op dit breekpunt alleen geen zichtbaar effect meer. Geen aparte
-   tablet-tak in de JS nodig.
+   tablet-tak in de JS nodig, en geen ARIA-patroonwissel (blijft een
+   disclosure) — precies de minimale interim-oplossing die UI-20 als "geen
+   volledig patroon" typeert. Werkt voor wat het nu moet doen, maar UI-20's
+   sheet-voorstel zou dit onderdeel waarschijnlijk vervangen.
 
 `#app-root`'s `max-width` wordt alleen voor lobby/tussenstand verruimd naar
 760px (`session-shell.mjs` zet `.app-root-wide` per gemount scherm) — home,

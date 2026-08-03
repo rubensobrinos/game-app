@@ -27,10 +27,8 @@ Bewust nog geen prompt voor (geverifieerd tegen de code, niet aangenomen):
 
 - **Gelijke plaatsen** (§11) — vraagt eerst een productbesluit over de
   tie-regel zelf (wie staat bovenaan bij een gelijke stand?), niet alleen
-  tekst.
-- **Podium: delen/afsluiten** (§11) — `podium.mjs` heeft alleen een
-  rematch-knop; delen/afsluiten zijn geen ontbrekende tekst maar ontbrekende
-  knoppen/acties, dus eerder een schermgat (thema 1) dan tekstwerk.
+  tekst. Wel al een `standings.sharedPlace`-sleutel aanwezig, vooruitlopend
+  op `HANDOFF-UI.md` UI-15.
 - **Sociale headlines** (§10) — de copy-helft is van hier, maar zonder de
   selectielogica (thema 1, S14) heeft een templateset nergens een plek om te
   verschijnen. Wacht op afstemming met thema 1.
@@ -39,7 +37,24 @@ Bewust nog geen prompt voor (geverifieerd tegen de code, niet aangenomen):
   een apart signaal (`nameSource` onderscheidt alleen server-verzonnen van
   zelf-gekozen, niet "botste met een bestaande naam"). Vraagt een
   protocolveld, geen tekstwerk — buiten mijn bevoegdheid zonder overleg.
-- **Rank movement** (§9) — geblokkeerd: `standings-model.mjs` bewaart geen
-  vorige positie, dus "twee plaatsen omhoog" is niet af te leiden zonder een
-  nieuwe stukje state. (Puntendelta is inmiddels wél opgelost, als onderdeel
-  van de score-bugfix — zie `PROGRESS.md` §9.)
+- ~~**Rank movement** (§9)~~ — **niet meer geblokkeerd, en inmiddels
+  opgelost** (door thema 1/3, niet hier): `standings-model.mjs` heeft nu
+  `rankMovementFrom()` en `scoreboard.mjs` toont de ↑/↓-badge. Deze
+  auditronde vond dat de vorige versie van dit document dat nog niet had
+  bijgewerkt.
+- ~~**Podium: delen/afsluiten** (§11)~~ — **inmiddels ook opgelost** (niet
+  hier): `podium.mjs` heeft nu `podium.share`/`podium.newGame`/`podium.close`.
+
+**Nieuw gevonden tijdens de documentatie-auditronde (3 aug 2026), nog geen
+prompt voor:**
+
+- **Vraagtekst/correct-antwoord voor niet-`flags_mc`-spelvormen** (§7, §9) —
+  `round-model.mjs` ondersteunt al `real_or_fake_flag`/`higher_lower`, maar
+  `gameplay.mjs` is nog hardgecodeerd op vlaggen. Nog niet urgent:
+  `host-setup-state.mjs`'s `gameTypes` staat vast op `['flags_mc']`, dus
+  onbereikbaar voor een host — wél iets dat meteen kapot is zodra dat opengaat.
+  Geen prompt zolang dat niet aan de orde is.
+- **"Spel aanpassen"-scherm** (`host-setup.mjs`, 27 `hostSetup.*`-sleutels)
+  — nieuw scherm zonder eigen `09`-paragraaf om tegen te toetsen. Niet
+  volledig geaudit, alleen de link zelf (`09` §4) is bevestigd. Geen prompt
+  zolang er geen brondocument voor de inhoud van dit scherm is.

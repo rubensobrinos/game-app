@@ -3,7 +3,7 @@
 **Eigenaar:** UI (frontend-implementatie)
 **Documenten:** `09-CONTENT-AND-MICROCOPY.md`
 **Criteria uit:** `11-DESIGN-QA-CHECKLIST.md` sectie J · schaal: [`NIVEAUS.md`](../NIVEAUS.md)
-**Bijgewerkt:** 3 augustus 2026 — ná uitvoering van [`prompts/T4-1`](prompts/T4-1-terminologie-en-directe-correcties.md), [`T4-2a`](prompts/T4-2a-statusteksten-direct-uitvoerbaar.md), [`T4-3`](prompts/T4-3-vraagtekst-en-geen-antwoord-staat.md), de score-bugfix uit §9, en [`T4-4`](prompts/T4-4-pure-aanvullingen-zonder-afhankelijkheden.md)/[`T4-5`](prompts/T4-5-host-specifieke-copy.md) (elk met één correctie uit [`REVIEW.md`](prompts/REVIEW.md) F1/F2 vóór uitvoering). Alleen [`T4-2b`](prompts/T4-2b-reconnect-drempel-en-handmatige-retry.md) staat nog open, wacht op een PO-besluit.
+**Bijgewerkt:** 3 augustus 2026 — ná uitvoering van [`prompts/T4-1`](prompts/T4-1-terminologie-en-directe-correcties.md), [`T4-2a`](prompts/T4-2a-statusteksten-direct-uitvoerbaar.md), [`T4-3`](prompts/T4-3-vraagtekst-en-geen-antwoord-staat.md), de score-bugfix uit §9, en [`T4-4`](prompts/T4-4-pure-aanvullingen-zonder-afhankelijkheden.md)/[`T4-5`](prompts/T4-5-host-specifieke-copy.md) (elk met één correctie uit [`REVIEW.md`](prompts/REVIEW.md) F1/F2 vóór uitvoering), plus een audit-ronde die vijf inmiddels-verouderde claims corrigeerde (zie de notitie onderaan de Telling). Alleen [`T4-2b`](prompts/T4-2b-reconnect-drempel-en-handmatige-retry.md) staat nog open, wacht op een PO-besluit.
 
 Herzien: de vorige versie dekte `09` §4–§11 maar sloeg §12 (pauze/beheer) en
 §13 (reconnect) helemaal over, en had één onjuiste claim (foutcodedekking).
@@ -16,7 +16,7 @@ Wat de teksten mogelijk maakt.
 
 | Onderdeel | Niveau | Stand |
 |---|---|---|
-| Drietalige dekking | 2 | 101 sleutels, gelijk aantal in NL/EN/ES, geen scheefgroei. |
+| Drietalige dekking | 2 | 178 sleutels (was 101 — flink gegroeid door concurrent werk van andere thema's/agents sinds de vorige telling), gelijk aantal in NL/EN/ES, geen scheefgroei (`locales.test.mjs`, 4/4 groen). |
 | Sleutelvorm | 2 | Semantisch (`lobby.start`, `error.GAME_NOT_FOUND`), geen Nederlandse zin als sleutel. Volgt `09` §14. |
 | Pluralisatie | 2 | `tCount()` kiest `.one`/`.other`, vult `{n}` in. Live in gebruik (`lobby.playerCount`). Elke volgende telbare tekst hoort hem te gebruiken. |
 | Foutcodedekking | 1 | **Correctie op vorige versie:** niet "alle codes hebben een vervolgstap" — 9 van de 23 zijn puur constaterend, geen vervolgstap: `GAME_FULL`, `GAME_ALREADY_STARTED`, `ROOM_LOCKED`, `NOT_HOST`, `NOT_PLAYER`, `INVALID_PHASE`, `UNSUPPORTED_EVENT`, `NAME_TOO_LONG`, `NAME_INVALID`. Bij een aantal (`NOT_HOST`) is er ook geen zinnige vervolgstap te geven — dit is dus geen lijst die naar 100% moet, maar de eerdere claim was feitelijk onjuist. |
@@ -47,6 +47,9 @@ daar wijken we soms van af.
 | Belofte-regel | 2 | `home.promise`, altijd zichtbaar onder de titel (T4-4) | ✅ letterlijk gelijk |
 | Loadingstatussen | 1 | `Potje maken…` tijdens `state.status === 'creating'` (T4-2a) | ✅ voor Snel starten; `Gamecode controleren…`/`Je wordt toegevoegd…` bleven inhoudelijk gelijk aan de bestaande `join.mjs`-teksten, niet aangepast |
 | Errors | 2 | aanwezig, dekt alle gevallen uit dit `09`-lijstje | inhoudelijk gelijkwaardig aan `09`'s vijf voorbeelden |
+| Spel aanpassen-link | 2 | `home.hostSetupLink`/`hostSetup.title` = "Spel aanpassen" | ✅ letterlijk gelijk |
+
+**Nieuw sinds de vorige versie, niet door mij gebouwd/beoordeeld:** `views/host-setup.mjs` (het "Spel aanpassen"-scherm) bestaat nu, met 27 eigen `hostSetup.*`-sleutels (moeilijkheid, taal, rondes, pacing, snelheidsbonus e.d.). `09` heeft hiervoor geen eigen paragraaf — alleen de link zelf (hierboven) staat er letterlijk in — dus de inhoud van dit scherm is niet tegen een brondocument te toetsen zoals de rest van deze tabel. Steekproef: de labels lezen als korte, directe instructies, consistent met `09` §2's stijlregels, maar dit is geen volledige audit. Zie ook `HANDOFF-UI.md` UI-17 (teams/tijd-per-ronde staan in dit scherm nog als vaste tekst, geen echte instelling — datamodelgat, geen tekstgat).
 
 ## §5 — Naam kiezen
 
@@ -89,8 +92,23 @@ staat; voor de tekst zelf is het gat gedicht.
 |---|---|---|---|
 | Rondelabel | 2 | `Ronde 1/5` | inhoudelijk gelijk aan `Ronde 6 van 10` |
 | Voortgang tijdens antwoorden | 1 | `3/7 beantwoord` | `Wachten op 4 spelers…` |
-| Vraagtekst | 2 | `game.questionPrompt`: "Welke vlag is dit?", zichtbaar zolang de vraagstaat niet `empty` is (T4-3) | ✅ letterlijk gelijk |
+| Vraagtekst | 1 | `game.questionPrompt`: "Welke vlag is dit?" — **klopt alleen nog voor `flags_mc`** | ✅ letterlijk gelijk vóór de scope-uitbreiding hieronder |
 | Countdown-copy | 0 | scherm bestaat niet (thema 1, S07) | n.v.t. — volgt zodra het scherm er is |
+
+**Belangrijke, nieuwe bevinding uit deze auditronde — nog niet opgepakt, wel
+gerelativeerd.** `round-model.mjs` ondersteunt sinds "14-S09-S10" niet meer
+alleen `flags_mc`, maar ook `real_or_fake_flag` en `higher_lower`
+(`selectChoice`/`selectSide`/`answerPayloadFor` bestaan al). `gameplay.mjs`
+toont echter nog altijd hetzelfde hardgecodeerde `game.questionPrompt`
+("Welke vlag is dit?") en `countryName()`-gebaseerde correct-antwoordregel,
+ongeacht `model.gameType`. **Nog niet urgent:** `client/flow/host-setup-
+state.mjs`'s `defaultHostConfig().gameTypes` staat nog vast op `['flags_mc']`
+(`DECISIONS.md` #31/#32/#35) — de twee nieuwe spelvormen zijn dus nog
+nergens door een host te kiezen, dit tekstgat is voorbereid maar niet
+gebruikersbereikbaar. Wel iets om in de gaten te houden: zodra `gameTypes`
+wordt opengezet, is dit meteen zichtbaar kapot. Geen prompt nu — wacht op
+duidelijkheid over wanneer/of die spelvormen live gaan én wat `09` (of een
+opvolger) voor hun tekst wil.
 
 ## §8 — Antwoordfeedback
 
@@ -105,11 +123,11 @@ staat; voor de tekst zelf is het gat gedicht.
 
 | Waar | Niveau | Nu | Volgens `09` |
 |---|---|---|---|
-| Correct antwoord | 1 | zin: `Het juiste antwoord: Frankrijk` | `Japan` — kaler, als stempel bedoeld |
+| Correct antwoord | 1 | zin: `Het juiste antwoord: Frankrijk` via `countryName(model.result.correctOptionId, lang)` — **zelfde scope-gat als §7's vraagtekst**: gaat uit van een ISO2-landcode, wat niet klopt voor `real_or_fake_flag`/`higher_lower`'s `correctChoice`/`correctSide` | `Japan` — kaler, als stempel bedoeld |
 | Eigen resultaat | 2 | `game.resultCorrect`/`resultIncorrect`/`resultNoAnswer` als stempelwoorden (T4-3), leest nu `ownCorrect` — geverifieerd tegen de echte payloadvorm, niet meer alleen tegen de mock | ✅ letterlijk gelijk aan de bedoeling |
 | Geen antwoord ingediend | 2 | eigen, derde staat: `round-model.mjs`'s `hydrateFromSnapshot` + preciezere `selfNoAnswer`-logica (idle/`DEADLINE_PASSED` → geen antwoord, `ALREADY_ANSWERED`/geaccepteerd → wél een antwoord), niet langer verward met "fout" (T4-3) | ✅ — inclusief het reducer-fixje dat de vorige versie terecht als blokkade signaleerde |
 | Puntendelta | 1 | `game.roundPoints`: "Punten deze ronde: {n}" — punten van déze ronde, geen lopend totaal meer (bugfix) | vergelijkbaar met `+164 punten`, geen apart `Snelheidsbonus`-veld: de server geeft base+bonus samengevoegd, geen losse waarde beschikbaar |
-| Rank movement | 0 | bestaat niet | `Je stijgt naar #4` / `Twee plaatsen omhoog` — blijft geblokkeerd, `standings-model.mjs` bewaart geen vorige positie |
+| Rank movement | 2 | **bijgewerkt sinds vorige versie, niet door mij gebouwd.** `standings-model.mjs` heeft nu `rankMovementFrom()`, `session-shell.mjs` bewaart `previousStandings` (S15/prompt 08, thema 1/3) en `scoreboard.mjs` toont een ↑/↓-badge met `standings.moveUp`/`moveDown`-tekst als `aria-label` (`{n} plaats(en) gestegen/gedaald`) | inhoudelijk gelijk aan `Twee plaatsen omhoog`; gecontroleerd in de code, niet zelf browserverifieerd (niet mijn bouwwerk) |
 
 De T4-3-fix loste een groter, niet eerder benoemd gat mee op: vóór deze
 fix werd `roundModel` na een reconnect/reload nooit gehydrateerd uit de
@@ -157,9 +175,9 @@ opleveringen die moeten samenkomen:
 | Tussenstand-titel | 2 | `Tussenstand` | ~`TUSSENSTAND` — zelfde woord, ander hoofdlettergebruik (stijlkeuze, geen tekstgat) |
 | Eigen positie | 2 | `Jij: #1 — 100` | vrijwel gelijk aan `Jij: #12 — 610 punten` |
 | Eindstand-titel | 2 | `Eindstand` | ~`EINDSTAND` |
-| Revanche | 1 | `Nog een keer!` | `Revanche` (zie ook §3) |
-| **Gelijke plaatsen** | 0 | **bestaat niet** — `standings-model.mjs` kent geen tie-regel, positie is altijd `index + 1` | `Gedeelde eerste plaats` |
-| Deel/afsluiten | 0 | bestaat niet | `Deel uitslag`, `Nieuw spel`, `Afsluiten` |
+| Revanche | 2 | `podium.rematch` = "Revanche" (T4-1) — deze rij was hier nog niet bijgewerkt na T4-1, zie §3 waar dit al wel klopte | ✅ letterlijk gelijk |
+| **Gelijke plaatsen** | 0 | **bestaat niet** — `standings-model.mjs` kent geen tie-regel, positie is altijd `index + 1`. Wel al een `standings.sharedPlace`-sleutel ("Gedeelde plaats") in alle drie de locales, maar nog nergens gebruikt — vooruitlopend op `HANDOFF-UI.md` UI-15 (tie-regel al bevestigd bij PR, maar server/client lopen nog uit de pas), niet iets dat ik zelf kan afronden | `Gedeelde eerste plaats` |
+| Deel/afsluiten | 2 | **bijgewerkt sinds vorige versie, niet door mij gebouwd.** `podium.mjs` heeft nu alle drie de acties: `podium.share`/`podium.newGame`/`podium.close` | ✅ letterlijk gelijk ("Deel uitslag", "Nieuw spel", "Afsluiten") |
 
 ## §12 — Pauze en beheer
 
@@ -203,20 +221,29 @@ in `09`; wij hebben er één, en die ene wijkt af.
 | `Game App` | ✅ weg — nu Rounda |
 | `Submit`, `Success`, `Loading…`, `Error 500` | ✅ komen niet voor |
 | `Awaiting host action`, `Session initialized`, `User joined room` | ✅ komen niet voor |
-| `Show code` | ❌ **staat er nog** — `Toon code` in de lobby. Vervalt zodra `room-header.mjs` is ingehangen (`D-018`) — bestaat al (161 regels), wordt nergens geïmporteerd (thema 1). |
+| `Show code` | ✅ **opgelost sinds de vorige versie** — `room-header.mjs` is inmiddels ingehangen door thema 1 (`session-shell.mjs` importeert en mount 'm, `HANDOFF-UI.md` UI-10 staat op ✅ opgelost). `lobby.mjs` toont zelf geen `show-qr`/`show-code`-knop meer; `lobby.shareQr` leeft alleen nog voort als `aria-label` op `room-header.mjs`'s QR-knop, niet als zichtbare tekst. |
 
 ## Telling
 
 | Niveau | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| Aantal rijen hierboven (§4–§14) | 9 | 13 | 27 | 0 |
+| Aantal rijen hierboven (§4–§14) | 7 | 13 | 30 | 0 |
 
-Herteld ná uitvoering van T4-1/T4-2a/T4-3 + de score-bugfix (49 rijen,
+Herteld ná uitvoering van T4-1/T4-2a/T4-3 + de score-bugfix (50 rijen,
 §4–§14 — consistenter afgebakend dan de vorige telling van 17/15/12/0, die
-§14 niet meenam). Per rij is de niveauwijziging terug te vinden in de
-tabellen hierboven (elke gewijzigde rij noemt de prompt of fix erbij); geen
-losse opsomming hier om drift tussen deze samenvatting en de tabellen zelf te
-voorkomen.
+§14 niet meenam; één rij méér dan de vorige telling van 49 door de nieuwe
+"Spel aanpassen-link"-rij). Per rij is de niveauwijziging terug te vinden in
+de tabellen hierboven (elke gewijzigde rij noemt de prompt of fix erbij);
+geen losse opsomming hier om drift tussen deze samenvatting en de tabellen
+zelf te voorkomen.
+
+**Documentatie-auditronde (3 aug 2026, ná T4-4/T4-5).** Deze `PROGRESS.md`
+was op een aantal punten stil achterhaald geraakt door concurrent werk van
+andere thema's/agents, zonder dat ik dat had bijgewerkt: sleutelaantal
+(101→178), `Show code` (nu écht opgelost, `room-header.mjs` is ingehangen),
+Rank movement en Deel/afsluiten (allebei al gebouwd), Revanche (§11 was na
+T4-1 niet meegenomen, §3 wel), en het volledig nieuwe "Spel
+aanpassen"-scherm dat nog nergens stond. Allemaal hierboven gecorrigeerd.
 
 ## Wat dit voor de eerdere conclusie betekent
 
@@ -242,7 +269,10 @@ knopgedrag) dat niet aan een tekstcorrectie hangt, zie
 [`T4-2b`](prompts/T4-2b-reconnect-drempel-en-handmatige-retry.md).
 
 Resterende gaten zonder open productbesluit: **§5 sociaal bewijs bij
-naam-botsing** en **§9 puntendelta/rank-uitsplitsing** vragen allebei een
-protocolveld dat er nog niet is (zie `HANDOFF-UI.md` UI-12 voor het
-verwante §9-gat). §10's selectielogica en §11's tie-regel/podium-acties
-blijven bij thema 1 resp. een PO-besluit liggen, niet bij mij.
+naam-botsing** vraagt een protocolveld dat er nog niet is. **Rank movement**
+(§9) en **podium: deel/afsluiten** (§11) bleken bij deze doorloop al
+opgelost (door andere agents, niet door mij) — beide stonden hier nog als
+geblokkeerd terwijl de code inmiddels allebei al bevat; zie de bijgewerkte
+rijen hierboven. §10's selectielogica blijft bij thema 1, §11's tie-regel
+("Gelijke plaatsen") bij een PO/protocolbesluit (`HANDOFF-UI.md` UI-15) —
+geen van beide bij mij.

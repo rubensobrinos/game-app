@@ -17,7 +17,7 @@ gevaarlijker dan een eerlijke "0".
 | [`T5-4-falende-vlagafbeelding.md`](T5-4-falende-vlagafbeelding.md) | **uitgevoerd** — gebouwd en geverifieerd | Falende asset laat gebroken afbeelding zien | niets |
 | [`T5-5-screenreader-testplan.md`](T5-5-screenreader-testplan.md) | open — wacht op een mens met toestel | Screenreader: aangenomen → gemeten | niets, maar **niet automatiseerbaar** |
 | [`T5-6-testmatrix-proces.md`](T5-6-testmatrix-proces.md) | **laag 1 uitgevoerd** (`frontend/css/contrast.test.mjs`, draait mee in `npm test`, vond en fixte 2 echte AA-fouten), Playwright-sweep wacht op `deps`, laag 2 heeft nu een concreet moment | `08` §9 als doorlopend proces, niet een eenmalig vinkje | T5-1 t/m T5-5 als eerste vulling |
-| [`T5-7-medium-tablet-compositie.md`](T5-7-medium-tablet-compositie.md) | **uitgevoerd** — alle drie de onderdelen gebouwd en gemeten | Tweekoloms lobby + tussenstand + vast menu-panel vanaf tabletbreedte | niets |
+| [`T5-7-medium-tablet-compositie.md`](T5-7-medium-tablet-compositie.md) | **lobby/tussenstand uitgevoerd**, menu-paneel gebouwd maar op ⏸ (conflict met thema 2's `T2-9`, `HANDOFF-UI.md` UI-20) | Tweekoloms lobby + tussenstand + vast menu-panel vanaf tabletbreedte | Menu-paneel: afstemming met thema 2 (UI-20) |
 | [`T5-8-large-podium-compositie.md`](T5-8-large-podium-compositie.md) | **deels uitgevoerd** — bredere tussenstand/podium + spelerswand + grotere code op een nieuwe 1200px-laag, gemeten met Playwright op 390/900/1300px | Desktop/tv-podium: lobby-als-podium, grote code/QR, bredere leaderboard | Afstemming met thema 1's `S20` bleek inmiddels feitelijk beantwoord (S20 = mobiel, dit = desktop/tv, geen overlap). De permanente QR-kaart uit `07` §7 blijft open — zie `HANDOFF-UI.md` UI-21 (D-018 staat geen tweede QR-ingang naast `room-header.mjs` toe) |
 | [`T5-9-spelerslijst-bij-schaal.md`](T5-9-spelerslijst-bij-schaal.md) | **uitgevoerd** — gebouwd en gemeten tot 100 spelers | `07` §9's presentatietabel (0/1–8/9–20/21–35/36–100/100+) + joinbatching | niets |
 | [`T5-10-host-verliest-verbinding.md`](T5-10-host-verliest-verbinding.md) | **uitgevoerd als meting + HANDOFF** | Recovery: gemeten (werkt). Timeout/uitslagbehoud: geen server-side timeout gevonden, vastgelegd als `HANDOFF-UI.md` UI-18 | VIP-overdracht blijft expliciet buiten scope (open PO-besluit) |
@@ -41,10 +41,15 @@ nooit had gevonden.
 T5-7 en T5-9 (compositie- en schaalwerk, geen pure verificatie) zijn
 inmiddels ook gebouwd en met dezelfde ad-hoc-aanpak geverifieerd — de
 Playwright-notitie hierboven gold voor hun DoD-tekst, niet voor de bouw zelf.
-T5-8's afstemmingsvraag met thema 1's `S20` bleek inmiddels feitelijk
-beantwoord (zie de tabel hierboven), en het buildbare deel is gebouwd; alleen
-de permanente-QR-vraag (`HANDOFF-UI.md` UI-21) blijft open, geen Playwright-
-of `deps`-vraag meer. Zodra het `deps`-besluit ooit wél valt, worden de
+**T5-7's menu-paneel-onderdeel kreeg ná oplevering een nieuw
+afstemmingspunt**, ditmaal niet van Playwright maar van thema 2: `T2-9`
+claimt hetzelfde voorkeurenpaneel met een tegenstrijdige eis over compact
+portrait (`HANDOFF-UI.md` UI-20). Niet zelf teruggedraaid of doorgebouwd —
+zie de prompt zelf en `PROGRESS.md`. T5-8's afstemmingsvraag met thema 1's
+`S20` bleek inmiddels feitelijk beantwoord (zie de tabel hierboven), en het
+buildbare deel is gebouwd; alleen de permanente-QR-vraag (`HANDOFF-UI.md`
+UI-21) blijft open, geen Playwright- of `deps`-vraag meer. Zodra het
+`deps`-besluit ooit wél valt, worden de
 ad-hoc-scripts van T5-1–T5-4/T5-7–T5-9 de eerste laag-1-specs uit `T5-6`,
 niet iets wat opnieuw geschreven hoeft te worden. Los daarvan draait T5-6's
 contrastcontrole al wél als een committed, automatische `node --test`-check —
