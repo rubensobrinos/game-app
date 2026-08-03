@@ -25,3 +25,7 @@ coverage/
 
 # Keep README files even in ignored directories
 !build/README.md
+
+# Uitgeleverde documentatiearchieven — de inhoud staat gecommit in docs/,
+# het zip-bestand is dus een duplicaat.
+*.zip
