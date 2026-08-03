@@ -78,6 +78,13 @@ const TEXT_TOKENS = [
   '--color-warning',
   '--color-accent-competition',
   '--color-accent-primary-hover',
+  // Signaalpalet uit 1c — opgenomen als systeemtoken in `base.css` zodat
+  // licht en donker één bron delen. Alleen de tinten die als tekst kunnen
+  // dienen; `-lime-dim` is een vlakkleur en valt buiten scope.
+  '--color-signal-lime',
+  '--color-signal-magenta',
+  '--color-signal-cyan',
+  '--color-signal-warm',
 ];
 const BACKGROUND_TOKENS = ['--color-bg-canvas', '--color-surface-1', '--color-surface-2'];
 const AA_NORMAL_TEXT = 4.5;
@@ -96,6 +103,32 @@ for (const [themeName, vars] of [['donker', darkVars], ['licht', lightVars]]) {
         if (ratio < AA_NORMAL_TEXT) {
           failures.push(`${fg} (${fgValue}) op ${bg} (${bgValue}): ${ratio.toFixed(2)}:1`);
         }
+      }
+    }
+    assert.deepEqual(failures, [], `Contrast onder AA:\n${failures.join('\n')}`);
+  });
+}
+
+// "Inkt op lime": `.btn-primary`/`.podium-rematch`'s tekst is een hardcoded
+// `#0a0a0c` (components.css), geen token — de generieke sweep hierboven mist
+// 'm dus, want die kent alleen tokens als achtergrond. Dit is de daadwerkelijk
+// voorkomende combinatie (niet elke token-tegen-token-paar, dat zou hier
+// grotendeels onzinnige combinaties testen die nergens in de DOM samenkomen),
+// vastgelegd zodat een latere hertoewijzing (bv. `--color-text-primary`
+// i.p.v. het hardcoded ink-getal) niet stilzwijgend op een bijna-witte tekst
+// op lime uitkomt (1,05:1 — geverifieerd dat dát zou falen).
+const COMPONENT_PAIRS = [
+  { name: '.btn-primary/.podium-rematch tekst op --color-accent-primary ("inkt op lime")', fg: '#0a0a0c', bgToken: '--color-accent-primary' },
+];
+
+for (const [themeName, vars] of [['donker', darkVars], ['licht', lightVars]]) {
+  test(`WCAG AA (${AA_NORMAL_TEXT}:1) component-paren — ${themeName} thema`, () => {
+    const failures = [];
+    for (const pair of COMPONENT_PAIRS) {
+      const bgValue = vars[pair.bgToken];
+      const ratio = contrastRatio(pair.fg, bgValue);
+      if (ratio < AA_NORMAL_TEXT) {
+        failures.push(`${pair.name}: ${pair.fg} op ${bgValue}: ${ratio.toFixed(2)}:1`);
       }
     }
     assert.deepEqual(failures, [], `Contrast onder AA:\n${failures.join('\n')}`);
