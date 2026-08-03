@@ -25,6 +25,7 @@ import { displayState, optionsLocked } from './round-model.mjs';
 import { headlineRevealed } from './reveal-model.mjs';
 import { socialHeadlineFor } from './social-headline.mjs';
 import { renderFlagSpec } from './flag-renderer.mjs';
+import { createTimerBar } from '../timer-bar.mjs';
 
 /** Waarde die de speler net gekozen heeft, ongeacht gameType. */
 function selectedValueFor(model) {
@@ -60,17 +61,14 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
 
   const header = el('div', 'gameplay-header');
   const roundLabel = el('p', 'gameplay-round');
-  // M8/E07: thema 2 leverde de balkvorm (`.timer`/`.timer-track`/
-  // `.timer-fill`, T2-3, 05 §9) en de contrast-kant van `.is-urgent`
-  // (`components.css`) al, met expliciet "de puls is thema 3's werk" — dit
-  // bouwt op die structuur voort i.p.v. een eigen platte-tekst-timer.
-  const timer = el('div', 'timer');
-  const timerTrack = el('div', 'timer-track');
-  const timerFill = el('div', 'timer-fill');
-  timerTrack.appendChild(timerFill);
-  const timerValue = el('p', 'timer-value');
-  timer.append(timerTrack, timerValue);
-  header.append(roundLabel, timer);
+  // M8/E07: de timer komt uit thema 2's module (`timer-bar.mjs`), niet meer
+  // hier handmatig opgebouwd. Die inline versie animeerde `width` (reflow bij
+  // elke tik, de enige overtreding uit thema 3's performancebudget), had de
+  // urgentiegrens hardgecodeerd op 3, en kondigde niets aan een screenreader
+  // aan. De module lost alle drie op en is de 12-segmentenvorm uit 1c.
+  const timerHost = el('div', 'gameplay-timer-host');
+  const timer = createTimerBar({ root: timerHost, t });
+  header.append(roundLabel, timerHost);
 
   const questionPrompt = el('p', 'gameplay-question');
 
@@ -244,9 +242,8 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
 
     if (state === 'empty') {
       roundLabel.textContent = '';
-      timerValue.textContent = '';
-      timerFill.style.width = '100%';
-      timer.classList.remove('is-urgent');
+      timer.update({ secondsLeft: null, totalSeconds: null });
+      timer.reset();
       questionPrompt.hidden = true;
       flag.removeAttribute('src');
       flag.hidden = false;
@@ -312,27 +309,20 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
 
     // Timer en voortgang (verborgen zodra de uitslag er is)
     if (model.result === null) {
-      timerValue.textContent = secondsLeft === null ? '' : String(Math.max(0, secondsLeft));
-      // M8/E07: `.timer-fill`'s breedte volgt de resterende tijd —
       // `model.startsAt`/`endsAt` staan al op het model (round-model.mjs),
-      // geen aparte totaalduur-parameter nodig. Urgentie (contrast + puls)
-      // pas in de laatste drie seconden (06 §4 E07, checklist F).
+      // dus de totaalduur komt daaruit — geen aparte parameter. De module
+      // bepaalt zelf hoeveel segmenten branden en wanneer de urgente zone
+      // begint; dit scherm levert alleen de twee getallen.
       const totalSeconds =
         model.startsAt !== null && model.endsAt !== null
           ? Math.max(1, Math.round((model.endsAt - model.startsAt) / 1000))
           : null;
-      const fillPercent =
-        totalSeconds !== null && secondsLeft !== null
-          ? Math.max(0, Math.min(100, (Math.max(0, secondsLeft) / totalSeconds) * 100))
-          : 100;
-      timerFill.style.width = `${fillPercent}%`;
-      timer.classList.toggle('is-urgent', secondsLeft !== null && secondsLeft <= 3);
+      timer.update({ secondsLeft, totalSeconds });
       progress.textContent = model.progress
         ? `${model.progress.answeredCount}/${model.progress.eligiblePlayerCount} ${t('game.answered')}`
         : '';
     } else {
-      timerValue.textContent = '';
-      timer.classList.remove('is-urgent');
+      timer.update({ secondsLeft: null, totalSeconds: null });
       progress.textContent = '';
     }
 
@@ -370,7 +360,18 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
         scoreSrOnly.textContent = String(model.result.roundPoints);
         score.append(scoreAnimated, scoreSrOnly);
         result.append(score);
-        animateScoreCount(scoreAnimated, model.result.roundPoints);
+        // BOUWSPRINT/reveal-choreografie: `score` deelt `.gameplay-reveal-
+        // enter` met `correct`/`own` (opacity 0 tijdens `--motion-emphasis`,
+        // zie components.css) — zonder deze vertraging liep de telling
+        // onzichtbaar al (deels) af vóórdat het element zelf zichtbaar werd.
+        // Reduced motion: geen wachttijd, `animateScoreCount` toont dan toch
+        // meteen de eindwaarde.
+        const reduceMotionForReveal =
+          typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        setTimeout(
+          () => animateScoreCount(scoreAnimated, model.result.roundPoints),
+          reduceMotionForReveal ? 0 : REVEAL_TEXT_DELAY_MS,
+        );
       }
       // M2/E09: correcte optie krijgt eerst accent (deze klasse, direct) —
       // het tekstblok hierboven verschijnt daarna (animation-delay in CSS),
@@ -464,6 +465,13 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
 // definitief). Reduced motion expliciet gecheckt: dit is JS-gedreven
 // (requestAnimationFrame), M0's CSS-blanket-regel raakt dit niet.
 const SCORE_COUNT_DURATION_MS = 500;
+// BOUWSPRINT/reveal-choreografie: komt overeen met --motion-emphasis
+// (components.css se `.gameplay-reveal-enter`) — de vertraging vóór het
+// resultaatblok zichtbaar wordt. Geen `getComputedStyle`-koppeling: dat zou
+// een synchrone stijlberekening op elke reveal forceren voor iets dat toch
+// al als vaste waarde in beide bestanden staat (zelfde patroon als M8's
+// SCORE_COUNT_DURATION_MS hierboven, ook geen live CSS-read).
+const REVEAL_TEXT_DELAY_MS = 400;
 
 function animateScoreCount(node, target) {
   const reduceMotion =
