@@ -17,6 +17,13 @@ Bij tegenstrijdigheid geldt deze volgorde:
 
 Onderzoeksrapporten verklaren waarom keuzes zijn gemaakt, maar zijn niet rechtstreeks uitvoerbaar. Een agent mag geen concurrerende observatie uit een onderzoeksrapport boven een later ontwerpbesluit plaatsen.
 
+De nummers hierboven zijn documentnummers, niet mappen. De elf documenten zijn
+verdeeld over vijf gebieden (`1-schermen-en-flow/` t/m
+`5-toegankelijk-en-robuust/`), elk met een eigen `PROGRESS.md` en één eigenaar;
+`00`, `01`, `10` en `11` gaan over alle vijf en staan los in `design/`. Zie
+[`package-readme/README.md`](../package-readme/README.md) voor de volledige
+indeling. Verwijzingen op nummer (`zie 05 §2.3`) blijven ongewijzigd geldig.
+
 ## 2. Scope van deze documentatieset
 
 Deze baseline dekt:
