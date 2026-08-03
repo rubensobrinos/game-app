@@ -32,11 +32,11 @@ verzinnen dat niet bestaat.
 1. **`.gameplay-timer.is-urgent`**-klasse zodra `secondsLeft !== null &&
    secondsLeft <= 3` (en `model.result === null`, al gedekt doordat de
    timer dan sowieso leeg is).
-2. **Contrast**: kleur/`font-weight` verandert naar een waarschuwingskleur
-   (bestaande designtoken, geen nieuwe kleur verzinnen — check
-   `2-vorm-en-systeem`'s kleurtokens voor een bestaande
-   warning/urgentiekleur vóór er een nieuwe wordt toegevoegd; zo niet, meld
-   het als open punt i.p.v. zelf een kleur te kiezen).
+2. **Contrast**: kleur/`font-weight` verandert naar `--color-warning`
+   (`base.css:36`, `#f59e0b`/licht `#9a5b0a`, commentaar *"P12: tijd of
+   aandacht, niet fout"* — vrijwel woordelijk deze eventomschrijving).
+   **Ná review bevestigd (`REVIEW.md`): dit token bestaat al** (thema 2,
+   `9ca5af0`, T2-1) — geen open punt meer, direct gebruiken.
 3. **Subtiele puls**: een `@keyframes`-animatie op `.is-urgent`,
    `animation: <naam> 1s <ease> infinite` — één keer de klasse toevoegen
    volstaat, de animatie zelf loopt door zolang de klasse staat (geen JS
@@ -60,8 +60,7 @@ waarschuwingskleur nog zichtbaar.
 ## Regels
 
 - Geen alarmgeluid — blijft geparkeerd op `O-008`.
-- Geen nieuwe kleur zonder eerst te checken of er al een
-  warning/urgentietoken bestaat in het designsysteem.
+- Gebruik `--color-warning`, geen eigen kleurwaarde.
 
 ## Definition of done
 

@@ -1,5 +1,11 @@
 # Prompt — M9: E11, Rank movement (niveau 0 → 1)
 
+**🟠 Gereviewd, gedeeltelijk vrijgegeven (`REVIEW.md`).** State, pure
+delta-functie en FLIP-beweging (stappen 1, 2, 4, 5 hieronder) zijn klaar om
+te bouwen. Stap 3 (de precieze `↑2`/`↓1`-tekst) wacht op een
+coördinatievraag met thema 4 over `09-CONTENT-AND-MICROCOPY.md` §9/§10 —
+zie die stap voor de vraag, niet hier zelf beslist.
+
 Onderdeel van [`README.md`](README.md). Onafhankelijk van `M1`–`M5`, gebruikt
 thema 2's tokens (geleverd, `8eb1996`) — inclusief `--ease-rank`, die
 letterlijk voor dit moment is bedoeld (`06` §3: "rank movement:
@@ -44,10 +50,21 @@ node-reconciliatie nodig zoals bij `lobby.mjs`.
    vorige `entries` (per `playerId`) combineert tot entries met een
    `delta: number | null` (positief = omhoog, negatief = omlaag, `null` =
    nieuw/onbekend, geen delta tonen).
-3. **Tekstuele weergave**: `↑2`/`↓1` (of gelokaliseerde variant, check
-   `09-CONTENT-AND-MICROCOPY.md`) naast elke rij in `scoreboard.mjs` —
-   **altijd zichtbaar, ongeacht reduced motion** (dit is tekst, geen
-   motion, `06` §7 vraagt niet om tekst te verbergen).
+3. **Tekstuele weergave — nog niet vrijgegeven, open coördinatiepunt met
+   thema 4 (`REVIEW.md`).** `09-CONTENT-AND-MICROCOPY.md` §9 geeft al
+   copy voor een rank-moment (`Je stijgt naar #4`, `Twee plaatsen omhoog`)
+   maar in dezelfde paragraaf als het ronde-reveal-stempel
+   (`JUIST`/`ONJUIST`/`+164 punten`) — vermoedelijk het reveal-moment in
+   `gameplay.mjs`, niet per se `E11`'s tussenstand-rij in `scoreboard.mjs`.
+   `09` §10 heeft daarnaast een derde variant (`Ruben stijgt vijf
+   plaatsen`) die bij de nog ongebouwde sociale-headline-engine hoort.
+   Drie mogelijk-verschillende momenten, nergens expliciet uit elkaar
+   getrokken. **Vraag aan thema 3 én 4 samen, niet hier zelf beslist:** is
+   de compacte `↑2`/`↓1`-notatie in de tussenstand een apart, derde ding
+   náást `09`'s twee voorbeelden, of moet deze rij een van die bestaande
+   zinnen hergebruiken? **Bouw deze stap pas ná antwoord** — de rest van
+   `M9` (state, pure delta-functie, FLIP) staat er los van en kan intussen
+   gewoon gebouwd worden.
 4. **Visuele beweging (FLIP)**: vóór de lijst herbouwd wordt, meet de
    `boundingClientRect` van elke bestaande rij (op `playerId`); ná de
    herbouw, voor elke rij die zowel vóór als ná bestond: zet direct een
