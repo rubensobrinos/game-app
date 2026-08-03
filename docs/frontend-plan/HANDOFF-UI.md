@@ -23,6 +23,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-18 | INT-A / PR | 🔵 open | Geen server-side timeout ná `host_disconnected` — een hostloze room blijft voor onbepaalde tijd gepauzeerd, geen uitslagbehoud-event mogelijk (thema 5, T5-10) |
 | UI-19 | INT-A / PR | 🔵 open | Geen protocolmoment tussen "ronde actief" en "uitslag compleet" — `round:closing` bestaat niet, thema 3 voegt E08 daarom samen met E09's begin |
 | UI-20 | thema 5 / thema 2 | 🔵 open | `T2-9` en `T5-7` claimen allebei het voorkeurenpaneel; de een wijzigt compact portrait, de ander eist dat het ongewijzigd blijft |
+| UI-21 | thema 1 | 🔵 open | Vier componenten van thema 2 (timer, spelerchip, leaderboard-rij, lege/foutstaten) zijn gebouwd maar hangen nergens — dode code tot ze zijn ingehangen |
 | UI-21 | producteigenaar | 🔵 open | T5-8 (large/podium): moet de compacte `room-header.mjs`-code+modal-QR op grote breedte plaatsmaken voor een permanente QR-kaart in de lobby (`07` §7), of blijft de header de enige QR-ingang (D-018) en groeit alleen zijn typografie? Niet zelf beslist — een tweede QR-ingang zou D-018 schenden, maar `07` §7 vraagt expliciet om een permanente kaart |
 
 ---
@@ -864,3 +865,60 @@ verbouwing — wie alleen een `role` toevoegt levert een half patroon op.
 Ook nog: `05` §12 verbiedt een popover over een onbeantwoorde vraag "behalve
 essentiële mute/noodactie", en die uitzondering telt hier — `06` §5 eist dat
 mute altijd bereikbaar is, en die komt straks in dit paneel (`O-008`).
+
+---
+
+## UI-21 — vier componenten van thema 2 hangen nergens (thema 2, 3 aug 2026)
+
+**Voor:** thema 1 (schermen en flow). **Urgentie:** hoog qua zichtbaarheid —
+dit is werk dat af is en dat niemand ziet.
+
+Thema 2 heeft acht tickets gebouwd. Eén ervan is in gebruik
+(`button-loading.mjs`, door `home.mjs`). De andere vier componenten zijn
+gebouwd, getest en gestyled, maar worden door geen enkel scherm aangeroepen:
+
+| Component | Vervangt | Scherm |
+| --- | --- | --- |
+| `timer-bar.mjs` | het kale getal in `.gameplay-timer` | `S08` |
+| `player-chip.mjs` | de tekstregel in `.lobby-player` | `S05`, `S06` |
+| `leaderboard-row.mjs` | de rij in `scoreboard.mjs` | `S15` |
+| `state-message.mjs` | `.lobby-empty`, `.field-error`, het terminale foutscherm | meerdere |
+
+**Dit is precies de fout die ik eerder bij `room-header.mjs` aanwees**
+(`UI-10`), en ik heb hem herhaald: een component opleveren zonder hem in te
+hangen levert dode code op, en de winst is nul tot iemand hem gebruikt. Dat is
+mijn schuld, niet die van thema 1.
+
+### Wat elke component verwacht
+
+```js
+// timer-bar.mjs — vervangt de handmatige getalweergave; de ticker blijft van session-shell
+const timer = createTimerBar({ root, t, urgentVanaf: 3 });
+timer.update({ secondsLeft, totalSeconds });   // per tick
+timer.reset();                                  // bij een nieuwe ronde
+
+// player-chip.mjs — geeft een <span> terug, plaats 'm in de bestaande <li>
+const chip = createPlayerChip({ name, playerId, isSelf });
+
+// leaderboard-row.mjs — één <li> per speler; `delta` komt uit standings-model
+const rij = createLeaderboardRow({ root, t, tCount });
+rij.update({ rank, name, score, delta, isSelf, gedeeld });
+
+// state-message.mjs — teksten komen van de aanroeper (thema 4), niet uit de module
+createEmptyState({ root, title, hint, action: { label, onClick } });
+createErrorState({ root, message, title, variant: 'inline'|'page', action });
+```
+
+### Twee dingen om op te letten bij het inhangen
+
+1. **`leaderboard-row` verwacht een `delta`** en `standings-model.mjs` kent de
+   vorige stand nog niet. Zonder die berekening toont elke rij `—`. Die
+   berekening staat in thema 1's `08-leaderboard-en-podium.md`.
+2. **`state-message` bevat geen tekst.** Bij het omzetten van `.lobby-empty` en
+   de foutschermen komen de woorden uit thema 4's locales; ontbreekt er een
+   sleutel, dan is dat een item voor hen en geen reden om er een string in te
+   hardcoderen.
+
+Thema 2 onderhoudt de componenten; wie ze inhangt is aan ons samen. Zeg het als
+je wilt dat ik het zelf doe — de schermen zijn van jou, dus ik doe het niet
+ongevraagd.
