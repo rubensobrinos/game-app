@@ -1,0 +1,313 @@
+/* rounda-1c.css — DE TRANSPLANTATIELAAG (richting 1c "Nachtdienst").
+   Bron: rounda-1c.html van de producteigenaar (Claude Design, 3 aug 2026).
+   Laadt NÁ base.css en components.css en overschrijft gericht: dit bestand
+   bezit de compositie/look van de vier ontworpen schermen, de onderliggende
+   lagen houden layoutmechanica, states en toegankelijkheid.
+   Eigenaar: regie. Thema's schrijven hier niet in; zie STATUS.md
+   (verfkwasten-bevriezing) en NIVEAUS regel 0. */
+
+:root {
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Archivo', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+  --rounda-ink: #0a0a0c;
+  --rounda-lime: #d8ff3e;
+  --rounda-lime-dim: #3d4a10;
+  --rounda-magenta: #ff3ea5;
+  --rounda-cyan: #4ad2ff;
+  --rounda-orange: #ffa63e;
+  --rounda-row: #14141a;
+  --rounda-row-border: #23232c;
+}
+
+body { font-family: var(--font-body); }
+
+/* ── Merk: het rad vervangt de emoji (CSS-only, geen DOM-wijziging).
+   Het hele rad draait — inclusief de R (producteigenaar, 3 aug: "de R
+   draait mee"). Binnenin draait een halve gloed er even snel tegenin
+   (-720° conic per omwenteling van +360° transform = netto tegengesteld).
+   Reduced motion: stilstaand. ── */
+@property --rad-a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@property --rad-b { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+
+.app-logo {
+  font-size: 0;
+  width: 78px;
+  height: 78px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: conic-gradient(from var(--rad-a), var(--rounda-lime) 0 25%, #17171d 25% 50%, var(--rounda-lime) 50% 75%, #17171d 75%);
+  position: relative;
+}
+.app-logo::before {
+  content: '';
+  position: absolute;
+  inset: 14px;
+  border-radius: 50%;
+  background:
+    conic-gradient(from var(--rad-b), transparent 0 50%, rgba(216, 255, 62, 0.16) 50% 100%),
+    var(--rounda-ink);
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* De R draait MEE met het rad (producteigenaar): het hele element
+     roteert. De halve gloed binnenin krijgt -720° per omwenteling — netto
+     draait die daardoor even snel de ándere kant op. */
+  .app-logo { animation: rad-draai 14s linear infinite; }
+  .app-logo::before { animation: rad-tegenin 14s linear infinite; }
+  @keyframes rad-draai { to { transform: rotate(360deg); } }
+  @keyframes rad-tegenin { to { --rad-b: -720deg; } }
+}
+.app-logo::after {
+  content: 'R';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 22px/1 var(--font-display);
+  color: var(--rounda-lime);
+}
+
+/* ── Koppen: wordmark-taal, geen gradient-inflatie ── */
+h1, h2 {
+  font-family: var(--font-display);
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: var(--color-text-primary);
+  letter-spacing: -0.03em;
+}
+.home-title {
+  text-transform: uppercase;
+  font-size: 46px;
+  line-height: 0.95;
+  letter-spacing: -0.045em;
+}
+
+/* ── Start: de lime hero-pil ── */
+.home-quick-start,
+.lobby-start,
+.podium-rematch {
+  border-radius: 999px;
+  font: 700 22px/1 var(--font-display);
+  letter-spacing: -0.03em;
+  padding: 22px 28px;
+  box-shadow: 0 0 0 1px rgba(216, 255, 62, 0.5), 0 18px 44px rgba(216, 255, 62, 0.2);
+}
+
+/* ── Code-invoer: mono machinerie in een eigen donkere kaart ── */
+.home-code-label { display: block; }
+.home-code-label .field-label-text,
+.room-header-code-label {
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+}
+.home-code-input {
+  background: #17171d;
+  border-radius: 10px;
+  font: 700 23px/1 var(--font-mono);
+  text-align: center;
+  letter-spacing: 0.45em;
+  color: var(--color-text-primary);
+}
+
+/* ── Host-lobby: het oplichtende paneel is de ster ── */
+.room-header-slot { width: 100%; }
+.room-header {
+  border-radius: 26px;
+  background: linear-gradient(160deg, #1b2208, #0f0f13 62%);
+  border: 1px solid rgba(216, 255, 62, 0.22);
+  padding: 16px 20px;
+  gap: 12px;
+}
+.room-header-code-value {
+  font: 700 clamp(30px, 9vw, 44px)/0.95 var(--font-mono);
+  color: var(--rounda-lime);
+  letter-spacing: 0.04em;
+}
+.room-header-qr { border-radius: 12px; background: #f4f4f6; color: var(--rounda-ink); }
+.room-qr-image { border-radius: 12px; background: #f4f4f6; padding: 8px; }
+
+/* ── Spelerslijst: donkere rijkaarten, nieuwste licht op ── */
+.lobby-players { display: flex; flex-direction: column; gap: 8px; }
+.lobby-player {
+  border-radius: 12px;
+  background: #101015;
+  border: none;
+  padding: 9px 12px;
+  font-family: var(--font-display);
+}
+.lobby-player-enter {
+  background: rgba(216, 255, 62, 0.08);
+  border-left: 2px solid var(--rounda-lime);
+  border-radius: 0 12px 12px 0;
+}
+
+/* ── Hostacties: stille pillen onder de startknop ── */
+.session-hostbar { background: none; border: none; padding: 0; }
+.session-hostbar .btn-secondary {
+  border-radius: 999px;
+  background: var(--rounda-row);
+  border: none;
+  color: #b9b9c6;
+  font: 500 12.5px/1 var(--font-body);
+  padding: 11px 14px;
+}
+.btn-destructive { border-radius: 999px; }
+
+/* ── De vraag: mono-machinerie boven, pillen onder ── */
+.gameplay-round,
+.gameplay-progress,
+.gameplay-status {
+  font: 700 12px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gameplay-timer {
+  font: 700 26px/1 var(--font-mono);
+  color: var(--rounda-lime);
+}
+.gameplay-flag {
+  border-radius: 20px;
+  border: 1px solid var(--rounda-row-border);
+  box-shadow: none;
+}
+
+/* Antwoordpillen met vorm-identiteit: Ruit / Bol / Piek / Blok.
+   De vorm komt uit ::before per positie — geen DOM-wijziging nodig; de
+   volgorde van de opties is stabiel binnen een ronde (round-model). Kleur is
+   nooit de enige drager: vorm verschilt ook (P12/a11y). */
+.gameplay-option {
+  border-radius: 999px;
+  background: var(--rounda-row);
+  border: 1px solid var(--rounda-row-border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font: 500 16px/1.2 var(--font-display);
+  padding: 14px 18px;
+  text-align: left;
+}
+.gameplay-option::before {
+  content: '';
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+.gameplay-option:nth-of-type(1)::before { background: var(--rounda-magenta); clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.gameplay-option:nth-of-type(2)::before { background: var(--rounda-lime); border-radius: 50%; }
+.gameplay-option:nth-of-type(3)::before { background: var(--rounda-cyan); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.gameplay-option:nth-of-type(4)::before { background: var(--rounda-orange); border-radius: 7px; }
+
+.gameplay-option.is-selected {
+  background: var(--rounda-lime);
+  border-color: var(--rounda-lime);
+  color: var(--rounda-ink);
+  box-shadow: 0 14px 34px rgba(216, 255, 62, 0.22);
+}
+.gameplay-option.is-selected::before { background: var(--rounda-ink); border-radius: 50%; clip-path: none; }
+.gameplay-option.is-correct {
+  border-color: var(--rounda-lime);
+  background: rgba(216, 255, 62, 0.12);
+}
+
+/* ── Tussenstand & podium: mono-scores, rijkaarten ── */
+.scoreboard-entry, .podium-step {
+  border-radius: 12px;
+  background: #101015;
+  border: 1px solid var(--rounda-row-border);
+  font-family: var(--font-display);
+}
+.scoreboard-score, .podium-score {
+  font: 700 18px/1 var(--font-mono);
+  color: var(--rounda-lime);
+}
+.podium-step-1 { border-color: var(--rounda-magenta); }
+
+/* ── Licht thema: de 1c-look is donker-eerst; licht krijgt dezelfde vormen
+   met de licht-tokens uit base.css (geen aparte uitwerking hier — de
+   tokenlaag regelt kleur, dit bestand regelt vorm). ── */
+:root[data-theme='light'] .room-header {
+  background: linear-gradient(160deg, #eef6d4, #ffffff 62%);
+  border-color: rgba(111, 148, 26, 0.35);
+}
+:root[data-theme='light'] .room-header-code-value { color: #55731a; }
+:root[data-theme='light'] .lobby-player,
+:root[data-theme='light'] .gameplay-option,
+:root[data-theme='light'] .scoreboard-entry,
+:root[data-theme='light'] .podium-step { background: var(--color-surface-1); border-color: var(--color-border-subtle); }
+:root[data-theme='light'] .app-logo::before { background: var(--color-bg-canvas); }
+:root[data-theme='light'] .app-logo::after { color: #55731a; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .lobby-player-enter { animation: rounda-pop 0.5s ease-out; }
+  @keyframes rounda-pop {
+    0% { transform: translateY(14px) scale(0.94); opacity: 0; }
+    60% { transform: translateY(0) scale(1.03); opacity: 1; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   COMPOSITIE (3 aug, avond) — de posities uit de 1c-mockups, CSS-only.
+   Wat DOM vereist (sublabels, +N MEER-stapel, segmententimer, vraagregel)
+   staat op de transplantatie-backlog en hoort niet in dit blok.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Elk scherm is een telefooncanvas: smal, links uitgelijnd, volle hoogte,
+   met de belangrijkste actie onderaan in duimbereik (mockup-grondwet). */
+.screen {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 430px;
+  margin-inline: auto;
+  min-height: calc(100dvh - 140px);
+  text-align: left;
+}
+
+/* ── Start: merkblok linksboven, lucht in het midden, START onderaan ── */
+.home-screen .app-logo { margin: 28px 0 20px; }
+.home-screen .home-title { text-align: left; margin: 0 0 10px; }
+.home-screen > p, .home-screen .home-tagline { text-align: left; max-width: 26ch; }
+.home-quick-start { margin-top: auto; }
+.home-divider {
+  text-align: center;
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+}
+.home-host-setup-link { align-self: flex-end; }
+
+/* ── Sessieschermen: inhoud boven, primaire actie onderaan ── */
+.screen-top .lobby-start { margin-top: auto; }
+.screen-top:has(.gameplay-options) .gameplay-options { margin-top: auto; }
+.screen-top .gameplay-header {
+  align-items: center;
+  font: 700 12px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+}
+.gameplay-flag { max-width: 100%; }
+
+/* Tussenstand/podium: lijst vult, eigen regel + actie zakken mee */
+.screen-top .podium-action { margin-top: auto; }
+
+/* Uitnodigen-rij (delen/kopieer) als stille pillen naast elkaar */
+.lobby-share-row { display: flex; gap: 8px; }
+.lobby-share-row .btn-secondary {
+  border-radius: 999px;
+  background: var(--rounda-row);
+  border: none;
+  color: #b9b9c6;
+  font: 500 12.5px/1 var(--font-body);
+}
+
+/* Grote schermen: het canvas blijft een telefoon, gecentreerd op het doek —
+   het ontwerp ís portrait; een hostlaptop krijgt hetzelfde beeld, groter
+   ademend, niet uitgesmeerd. (De 1200px-wand van thema 5 voor tussenstand/
+   podium blijft werken: die selectors zijn specifieker.) */
+@media (min-width: 700px) {
+  .screen { min-height: calc(100dvh - 180px); }
+}

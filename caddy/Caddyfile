@@ -102,9 +102,20 @@
 	}
 }
 
-# Publieke route. Achter Cloudflare Tunnel praat cloudflared intern HTTP met
+# Publieke routes. Achter Cloudflare Tunnel praat cloudflared intern HTTP met
 # Caddy; TLS ligt dan aan de edge bij Cloudflare.
 http://play.aseso.nl {
+	import app
+}
+
+# rounda.io — het eigen domein (besluit 39). Zelfde app; play.aseso.nl blijft
+# gewoon werken zodat bestaande QR's en links nooit breken. Vereist naast dit
+# blok: (1) rounda.io als site in Cloudflare + nameservers bij de registrar,
+# (2) een extra Public Hostname op de bestaande Cloudflare-tunnel die
+# rounda.io (en www) naar dezelfde service wijst als play.aseso.nl.
+# PUBLIC_APP_URL in .env pas omzetten naar https://rounda.io als dit werkt —
+# dat bepaalt de joinUrl in QR-codes.
+http://rounda.io, http://www.rounda.io {
 	import app
 }
 

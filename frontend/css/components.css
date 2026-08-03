@@ -30,13 +30,14 @@ h2 {
 h1 { font-size: var(--type-heading-1); margin: 12px 0 20px; }
 h2 { font-size: var(--type-heading-2); margin: 8px 0 16px; }
 
-/* De merklock-up — het enige element dat de gradient nog draagt. */
+/* De merklock-up. 1c-besluit (producteigenaar, 3 aug): de wordmark is
+   EFFEN wit — geen gradient, nergens. Lime is schaars (actie/energie); het
+   rad draagt het lime in het merkbeeld, het woord blijft rustig. De klasse
+   blijft bestaan als haakje voor de lock-up, alleen de verf is anders. */
 .brand-title {
-  background: linear-gradient(135deg, #a855f7, #60a5fa);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
+  color: var(--color-text-primary);
+  -webkit-text-fill-color: currentColor;
+  background: none;
 }
 
 p { color: var(--color-text-muted); }
@@ -60,6 +61,7 @@ p { color: var(--color-text-muted); }
 .leaderboard-rank,
 .leaderboard-score,
 .leaderboard-move,
+.scoreboard-rank,
 .scoreboard-score,
 .podium-score,
 .type-numeric {
@@ -100,7 +102,7 @@ p { color: var(--color-text-muted); }
 .btn-primary,
 .podium-rematch {
   background: var(--color-accent-primary);
-  color: #fff;
+  color: #0a0a0c;
   border: 1px solid var(--color-accent-primary);
   font-weight: 700;
 }
@@ -200,7 +202,7 @@ button.is-loading {
 button.is-loading.btn-primary,
 button.is-loading.podium-rematch {
   background: var(--color-accent-primary);
-  color: #fff;
+  color: #0a0a0c;
   border-color: var(--color-accent-primary);
 }
 
@@ -841,6 +843,16 @@ button.is-loading::after {
    rangwijziging — bovenop de FLIP-beweging (scoreboard.mjs), niet in
    plaats daarvan. Elke rij is een vers <li> per render, dus geen
    restart-truc nodig zoals bij een hergebruikte node. */
+/* S15/`05` §10: vaste breedte, rechts uitgelijnd en tabulair — anders staan
+   `#1` en `#12` niet onder elkaar en oogt de kolom scheef. */
+.scoreboard-rank {
+  flex: none;
+  min-width: 3.2ch;
+  text-align: right;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
 .scoreboard-entry-emphasis {
   animation: scoreboard-entry-emphasis var(--motion-emphasis) var(--ease-enter);
 }
@@ -875,6 +887,7 @@ button.is-loading::after {
 .scoreboard-move.is-up { color: var(--color-success); }
 .scoreboard-move.is-down { color: var(--color-danger); }
 
+.scoreboard-rank,
 .scoreboard-score,
 .podium-score {
   font-weight: 800;
