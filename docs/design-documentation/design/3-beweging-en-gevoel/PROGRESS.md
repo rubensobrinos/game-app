@@ -44,7 +44,7 @@ de laag die pas zin heeft als de schermen eronder staan.
 | E10 | Punten tellen | reveal | 1 | Eindwaarde staat direct in de DOM — goed voor toegankelijkheid. Geen oplopende telling. Nog steeds `M2`'s werk. |
 | E11 | Rank movement | tussenstand | 1 | **Data/tekst door thema 1** (`b547c8f`): `rankMovementFrom()`, `↑2`/`↓1`-badge met kleur + volledige-zin-`aria-label`. **Visuele beweging door mij** (`M9`, commit `158d531`): FLIP-transform + eigen-rij-emphasis, reduced-motion-gate. Dicht bij niveau 2, maar (nog) niet volledig: "een niveau geldt pas als het volledig gehaald is" (`NIVEAUS.md`) — geen echte apparaat-verificatie van de FLIP-beweging, alleen headless. "Geen complexe animatie bij 100+" was al gedekt door de bestaande `slice(0, 5)`. |
 | E12 | Sociale headline | reveal | 1 | **Niet langer afhankelijk — thema 1 bouwde dit volledig** (`6700436`, `social-headline.mjs`): self-sole-correct/comeback/everyone-correct/everyone-wrong/misleading-answer, gewogen tegen expliciete drempels. Streak (E13) bewust buiten scope gehouden — "geen client heeft zicht op andermans streaks", zelfde conclusie als hieronder. |
-| E13 | Streak | reveal | 0 | Bestaat niet — **bevestigd niet-clientzijdig-bouwbaar** (thema 1's eigen analyse in `social-headline.mjs`: "geen client heeft zicht op andermans streaks"). Dit is geen afhankelijkheid meer op thema 1/4 leveren, maar een protocolgat (server zou streak-data moeten meesturen) — zelfde soort bevinding als E08, nog niet als `HANDOFF-UI`-item gelogd. |
+| E13 | Streak | reveal | 0 | **Correctie (`REVIEW.md`, tweede ronde): de vorige regel hier was achterhaald.** Geen protocolgat — thema 1 trok die analyse zelf in (`HANDOFF-UI` UI-16, herzien): **eigen** streak is al af te leiden uit de bestaande `round:ended`-geschiedenis, alleen nog niet gebouwd. Uitgewerkt als voorstel in [`11-verzoek-streak-reactiezinnen.md`](../1-schermen-en-flow/prompts/11-verzoek-streak-reactiezinnen.md) (thema 1's scope: `streak-model.mjs` + reactiezin + opt-out), wacht daar op bevestiging. Zodra dat gebouwd is, heeft thema 3 nog een kleine motion-laag te doen (`06`'s "kleine persoonlijke viering") — niet eerder. Geen `HANDOFF-UI`-item hier aanmaken, dat zou dupliceren tegen een al ingetrokken analyse. **Andermans** streak (het sociale feit, "Sanne zit op een streak") blijft wél niet-bouwbaar — dat is een ander soort moment dan dit, en zit terecht niet in `social-headline.mjs`. |
 | E14 | Podium | eind | 1 | **Stagger/skip door thema 1** (`b547c8f`): 3→2→1-reveal-volgorde, klik-om-te-skippen, winnaar-accent (`--color-accent-competition`, statisch). **Motion door mij** (`M10`, commit `148a132`): entrance-animatie, begrensde confetti, en een programmatische reduced-motion-gate die er nog niet was. Dicht bij niveau 2, maar confetti's performancebudget-conformiteit staat nog niet vastgelegd (wacht op `M5`'s audit) en niets is op een echt apparaat getest. |
 | E15 | Reconnecting | overal | 1 | Statusbalk verschijnt en verdwijnt. Geen voortgang, geen successcue. |
 
@@ -57,7 +57,12 @@ werk te zijn.
 ## Voorgestelde toevoeging: E16 — Overlay/dialoog open-dicht
 
 **Niet stilzwijgend toegevoegd — expliciet voorstel voor `06`, nog niet
-bevestigd.** De vijftien momenten dekken geen enkele dialoogtransitie. Drie
+bevestigd.** **Correctie (`REVIEW.md`, tweede ronde): die bevestiging was tot
+nu toe aan niemand gevraagd** — er stond geen `HANDOFF-UI`-item of
+besluitverzoek tegenover deze regel, dus `M3`'s "wacht op bevestiging" was
+een doodlopend spoor. Rechtgezet met
+[`prompts/M11-besluitverzoek-E16-dialoog-transities.md`](prompts/M11-besluitverzoek-E16-dialoog-transities.md),
+gericht aan de producteigenaar. De vijftien momenten dekken geen enkele dialoogtransitie. Drie
 bestaande dialogen (hamburgermenu, QR-overlay, pauze-overlay) wisselen nu
 puur via `hidden`/`display:none` — geen fade, geen scale, niets. Dat is een
 reëel gat, geen editorial keuze: deze drie zijn precies de plekken waar `06`
@@ -98,7 +103,8 @@ in de toelichtingskolom, niet in de Niveau-kolom zelf.
 Grote sprong t.o.v. de vorige telling (8 op niveau 0) — niet allemaal mijn
 werk: `M6`–`M10` deden vijf momenten, thema 1 deed zelfstandig E04/E11
 (deels)/E12 terwijl deze prompts nog klaarlagen. Alleen **E13 (streak)**
-staat nog op 0, en dat is nu een bevestigd protocolgat, geen wachtrij meer.
+staat nog op 0 — geen protocolgat (ingetrokken), maar een bouwbare feature
+die op bevestiging wacht (`11-verzoek-streak-reactiezinnen.md`).
 
 ## Afhankelijkheden van andere thema's
 
@@ -107,12 +113,10 @@ bouwde E04 en E12 zelfstandig terwijl deze prompts nog klaarlagen voor
 review, dus die afhankelijkheid is ingehaald door de praktijk. Zie de
 momententabel hierboven voor de actuele stand per moment.
 
-- **E13 (streak)** is de enige die nog op 0 staat, en niet omdat een ander
-  thema nog iets moet leveren: thema 1's eigen analyse concludeerde dat
-  geen enkele client zicht heeft op andermans streaks. Dit is een
-  protocolgat (de server zou streak-data moeten meesturen), niet een
-  thema-afhankelijkheid — nog niet als `HANDOFF-UI`-item gelogd, zou dat
-  wel moeten worden.
+- **E13 (streak)** is de enige die nog op 0 staat — niet een protocolgat
+  (die analyse is ingetrokken, zie de E13-rij hierboven), maar een
+  niet-gebouwde, wél bouwbare feature binnen thema 1's scope
+  (`11-verzoek-streak-reactiezinnen.md`), die zelf nog op bevestiging wacht.
 
 ## Volgorde die ik zou aanhouden (herzien ná review, 3 aug 2026)
 

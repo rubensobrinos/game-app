@@ -7,6 +7,14 @@ zonder bevestiging — "een gat vul je met een besluit", niet met een aanname),
 legt vast wat er wél nodig is, zodat de prompt klaarstaat zodra `E16`
 bevestigd is — het is geen werk om nu al te starten.
 
+**Correctie (tweede reviewronde, `REVIEW.md`):** die bevestiging was tot nu
+toe aan niemand gevraagd — `E16` bestond alleen als voorstel binnen
+`PROGRESS.md`, zonder `HANDOFF-UI`-item of besluitverzoek. Dat maakte `M3`
+niet geparkeerd maar zoek. Rechtgezet met
+[`M11-besluitverzoek-E16-dialoog-transities.md`](M11-besluitverzoek-E16-dialoog-transities.md),
+gericht aan de producteigenaar. `M3` wacht nu op een echt antwoord daarop,
+niet meer op een bevestiging die in het luchtledige hing.
+
 Onderdeel van [`README.md`](README.md), fase M3. Vereist `M1` én expliciete
 bevestiging van `E16` als spec-toevoeging aan `06`.
 

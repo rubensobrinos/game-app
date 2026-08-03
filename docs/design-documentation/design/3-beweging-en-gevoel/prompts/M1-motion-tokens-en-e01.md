@@ -22,7 +22,7 @@ tokens daadwerkelijk bestaan.
 hoe bestaande tokens (`--r`, `--r-sm`, kleuren) zijn opgezet — motion-tokens
 volgen dezelfde naamgevingsstijl, geen eigen conventie ernaast.
 
-## Wat er nu staat — volledige inventaris (bijgewerkt ná review)
+## Wat er nu staat — volledige inventaris (bijgewerkt ná tweede reviewronde, `REVIEW.md`)
 
 Geverifieerd tegen de daadwerkelijke CSS, niet uit het geheugen:
 
@@ -34,8 +34,8 @@ Geverifieerd tegen de daadwerkelijke CSS, niet uit het geheugen:
 | `.btn-destructive` | `scale(0.99)` | `0.12s` losse waarde |
 | `.gameplay-option:not(:disabled)` | `scale(0.99)` | `0.12s` losse waarde |
 | `.btn-quiet` | **geen enkele** — geverifieerd, geen `:active`-regel bestaat | — |
-| `.btn-opt` | geen | `transition: all 0.18s` |
-| `.btn-icon` | geen | `transition: border-color 0.2s` |
+| `.btn-opt` | **geen enkele** — geverifieerd, geen `:active`-regel | **Al gemigreerd** (`base.css:448-450`, vermoedelijk met `8eb1996`): `border-color`/`background-color`/`color` via `var(--motion-fast) var(--ease-press)`, met een commentaar dat al naar `06` §9 verwijst. Geen `0.18s`/`all` meer. |
+| `.btn-icon` | **geen enkele** — geverifieerd, geen `:active`-regel | **Al gemigreerd** (`base.css:393`): `border-color var(--motion-fast) var(--ease-enter)`. Geen `0.2s` meer. |
 
 `.podium-rematch` hoort dus niet als apart werkitem in de lijst (die
 pressfeedback bestaat al), maar wél expliciet in de inventaris zodat 'm niet
@@ -71,11 +71,10 @@ ergens gebruikt moet de pressfeedback er al staan.
 
 2. **E01 uitbreiden naar `.btn-quiet`, `.btn-opt` en `.btn-icon`** — zelfde
    pressfeedback-patroon (kleine scale, geen layoutshift), niet een nieuw
-   mechanisme. `.btn-opt`'s `transition: all 0.18s` en `.btn-icon`'s losse
-   `transition: border-color 0.2s` vervallen — beide krijgen de
-   tokengebaseerde, per-eigenschap lijst uit punt 1. `all` verdwijnt
-   sowieso: het maakt toekomstige layoutwijzigingen onbedoeld animeerbaar
-   (reviewbevinding), los van of het token gebruikt.
+   mechanisme. **Bijgesteld ná tweede reviewronde:** `.btn-opt` en
+   `.btn-icon` hebben hun tokengebaseerde transitionlijst al (zie inventaris
+   hierboven) — dit punt is dus alléén nog "voeg een `:active`-scale toe aan
+   hun bestaande lijst", niet meer "migreer weg van een losse ms-waarde".
 
 3. **Non-scale reduced-motion-alternatief, nu onderdeel van M1 zelf, niet
    later.** `M0` verwijdert `transform` onder reduced motion voor de vier

@@ -10,6 +10,15 @@ M0/M4 zijn intussen gebouwd; thema 2 heeft de motion-tokens geleverd
 (`8eb1996`), dus M1 is niet langer geblokkeerd. M6–M10 zijn nieuw
 geschreven voor de vijf resterende zelfstandige niveau-0-momenten.
 
+**Tweede reviewronde (3 aug 2026) — de restlijst, zie [`REVIEW.md`](REVIEW.md).**
+Statuslijst klopt en M1 is echt gedeblokkeerd. Drie punten verwerkt:
+`E13`'s protocolgat-framing is uit `PROGRESS.md` gehaald (verwijst nu naar
+`11-verzoek-streak-reactiezinnen.md`), `E16` heeft nu een echt besluitverzoek
+([`M11`](M11-besluitverzoek-E16-dialoog-transities.md), gericht aan de
+producteigenaar) i.p.v. een bevestiging die aan niemand gevraagd was, en
+`M1`'s inventaris is bijgewerkt (`.btn-opt`/`.btn-icon` waren al gemigreerd
+naar `--motion-fast`).
+
 **M6–M10 zijn gereviewd, zie [`REVIEW.md`](REVIEW.md).** Geen blokkerende
 fouten — wel twee kleurtoken-verwijzingen die inmiddels een concreet
 antwoord hebben (`M8`, `M10`) en één open coördinatiepunt met thema 4 over
@@ -22,7 +31,8 @@ antwoord hebben (`M8`, `M10`) en één open coördinatiepunt met thema 4 over
 | [`M2-choreografie-niveau1-naar-2.md`](M2-choreografie-niveau1-naar-2.md) | M2 | 🔵 klaar om te bouwen | E05/E06/E09/E10/E15 naar niveau 2. E08 samengevoegd met E09 (protocolgat, gemeld) | M1 |
 | [`M5-performancebudget.md`](M5-performancebudget.md) | M5 | 🔵 klaar om te bouwen | `06` §9 als meetbare gate, direct ná M2 | M1, M2 (niet M3) |
 | [`M4-mute-mechanisme.md`](M4-mute-mechanisme.md) | M4 | ✅ gedaan (`0d94744`) | Alleen de voorkeurlaag (`loadMuted`/`saveMuted` + gedeelde `safeSet`) — **geen zichtbare schakelaar** tot er geluid is | niets |
-| [`M3-e16-dialoog-transities.md`](M3-e16-dialoog-transities.md) | M3 | ⏸️ geparkeerd | Voorstel `E16` — pas uitvoeren ná bevestiging + na ontwerp van een gedeelde dialog-lifecycle-helper | `E16` bevestigd, `M1` |
+| [`M3-e16-dialoog-transities.md`](M3-e16-dialoog-transities.md) | M3 | ⏸️ geparkeerd, besluitverzoek ingediend | Voorstel `E16` — pas uitvoeren ná bevestiging + na ontwerp van een gedeelde dialog-lifecycle-helper | `E16` bevestigd via `M11`, `M1` |
+| [`M11-besluitverzoek-E16-dialoog-transities.md`](M11-besluitverzoek-E16-dialoog-transities.md) | M11 | 🟡 wacht op producteigenaar | Besluitverzoek: `E16` toevoegen aan `06`, plus een gedeelde dialog-lifecycle-helper | niets — dit ís het verzoek waar `M3` op wacht |
 | [`M6-e02-potje-maken.md`](M6-e02-potje-maken.md) | M6 | ✅ gedaan (`a6be5d4`) | E02 niveau 0→1: `setButtonLoading()` i.p.v. eigen indicator (correctie ná `0a4c9d6`) | niets |
 | [`M7-e03-speler-komt-binnen.md`](M7-e03-speler-komt-binnen.md) | M7 | ✅ gedaan (`ed6d313`) | E03 niveau 0→1: reconciliatie + chip-fade + gedebouncete tellerpuls | niets |
 | [`M8-e07-laatste-drie-seconden.md`](M8-e07-laatste-drie-seconden.md) | M8 | ✅ gedaan (`f8ef891`) | E07 niveau 0→1: puls op thema 2's timer-balk (bouwt op T2-3, niet de oorspronkelijke platte-tekst-aanpak) | niets |
@@ -49,8 +59,7 @@ onderweg herschreven omdat thema 1 zelfstandig al een deel van hun scope
 bouwde terwijl ze klaarlagen — zie `PROGRESS.md`'s "Afgerond"-sectie voor
 het volledige verhaal per prompt.
 
-**Bewust geen prompt voor `E04` (countdown), `E12`/`E13` (sociale
-headline/streak), geluidsarchitectuur of haptiek.** Die staan in
-`PROGRESS.md` §"Afhankelijkheden van andere thema's" resp. blokkeren op
-`O-008`. Die volgen zodra thema 1/4 hun deel leveren, of zodra de Product
-Owner `O-008` beslist.
+**Geen prompt hier voor `E04`/`E12`** — thema 1 bouwde beide zelfstandig
+(zie `PROGRESS.md`). **`E13` (streak)** wacht op thema 1's eigen
+`11-verzoek-streak-reactiezinnen.md`, niet op iets van thema 3. Geluidsarchitectuur
+en haptiek blokkeren op `O-008`.
