@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rounda — voortgang</title>
+    <style>
+      /* Zelfde tokens als frontend/css/base.css — één product, één gezicht. */
+      :root {
+        --bg: #0d0d1a;
+        --surface: #16162a;
+        --surface2: #1e1e38;
+        --border: #2a2a4a;
+        --accent: #7c3aed;
+        --accent-light: #a855f7;
+        --text: #f1f5f9;
+        --muted: #8b92b0;
+        --l0: #ef4444;
+        --l1: #f59e0b;
+        --l2: #22c55e;
+        --l3: #60a5fa;
+        --r: 14px;
+        --r-sm: 10px;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 16px/1.5 'Segoe UI', system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 20px 64px; }
+      header { border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 28px; }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        background: linear-gradient(135deg, #a855f7, #60a5fa);
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: transparent;
+      }
+      .sub { color: var(--muted); font-size: 0.9rem; }
+      h2 { font-size: 1.3rem; margin: 32px 0 12px; }
+      h3 { font-size: 1rem; margin: 24px 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+      nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+      nav button {
+        font: inherit; font-size: 0.9rem; font-weight: 600;
+        background: var(--surface); color: var(--muted);
+        border: 1px solid var(--border); border-radius: var(--r-sm);
+        padding: 9px 14px; cursor: pointer;
+      }
+      nav button:hover { color: var(--text); border-color: var(--accent-light); }
+      nav button[aria-current='true'] { background: var(--accent); border-color: var(--accent); color: #fff; }
+      :focus-visible { outline: 3px solid var(--text); outline-offset: 2px; border-radius: var(--r-sm); }
+
+      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+      .card {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--r); padding: 18px; cursor: pointer; text-align: left;
+        font: inherit; color: inherit; width: 100%;
+      }
+      .card:hover { border-color: var(--accent-light); }
+      .card h3 { margin: 0 0 4px; color: var(--text); text-transform: none; letter-spacing: 0; font-size: 1.05rem; font-weight: 700; }
+      .card .meta { color: var(--muted); font-size: 0.82rem; margin-bottom: 12px; }
+
+      .bar { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--surface2); }
+      .bar span { display: block; }
+      .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 0.78rem; color: var(--muted); }
+      .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: middle; font-style: normal; }
+
+      table { width: 100%; border-collapse: collapse; margin: 10px 0 22px; font-size: 0.9rem; }
+      th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+      th { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+      td code, p code, li code { background: var(--surface2); padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+      tbody tr:hover { background: var(--surface); }
+
+      .lv { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 7px; font-weight: 800; font-size: 0.85rem; color: #0d0d1a; }
+      .lv0 { background: var(--l0); } .lv1 { background: var(--l1); }
+      .lv2 { background: var(--l2); } .lv3 { background: var(--l3); }
+
+      .note { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent-light); border-radius: var(--r-sm); padding: 14px 16px; margin: 18px 0; }
+      .note p { margin: 0 0 8px; } .note p:last-child { margin: 0; }
+      a { color: var(--accent-light); }
+      .err { color: var(--l0); }
+      .tot { font-size: 0.85rem; color: var(--muted); margin-top: 6px; }
+      ul { padding-left: 20px; } li { margin-bottom: 4px; }
+      @media (max-width: 640px) { table { font-size: 0.82rem; } th, td { padding: 7px 6px; } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>Rounda — voortgang</h1>
+        <p class="sub" id="sub">Laden…</p>
+      </header>
+      <nav id="nav"></nav>
+      <main id="main"></main>
+    </div>
+
+    <script type="module">
+      // Eén bron van waarheid: dit dashboard bewaart zelf geen cijfers, het
+      // leest de vijf PROGRESS.md-bestanden die de eigenaren bijhouden. Wie
+      // een niveau wijzigt, doet dat daar — nooit hier.
+      const AREAS = [
+        { id: '1-schermen-en-flow', naam: '1. Schermen en flow', docs: '03, 04' },
+        { id: '2-vorm-en-systeem', naam: '2. Vorm en systeem', docs: '02, 05' },
+        { id: '3-beweging-en-gevoel', naam: '3. Beweging en gevoel', docs: '06' },
+        { id: '4-taal-en-tekst', naam: '4. Taal en tekst', docs: '09' },
+        { id: '5-toegankelijk-en-robuust', naam: '5. Toegankelijk en robuust', docs: '07, 08' },
+      ];
+      const BASE = '../design-documentation/design/';
+
+      /** Splitst een markdown-tabelregel in cellen. */
+      const cells = (line) =>
+        line.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+
+      /**
+       * Haalt uit een markdownbestand alle tabellen met een `Niveau`-kolom.
+       * Tolerant: een tabel zonder die kolom wordt overgeslagen, een rij met
+       * een onleesbaar niveau ook — dan mist er hooguit een regel in plaats
+       * van dat de hele pagina leeg blijft.
+       */
+      function parse(md) {
+        const lines = md.split('\n');
+        const secties = [];
+        let kop = null;
+        let i = 0;
+        while (i < lines.length) {
+          const line = lines[i];
+          const h = line.match(/^##\s+(.*)/);
+          if (h) { kop = h[1].trim(); i++; continue; }
+          if (line.trim().startsWith('|') && lines[i + 1]?.includes('---')) {
+            const head = cells(line);
+            const niveauKol = head.findIndex((h2) => /niveau/i.test(h2));
+            const rows = [];
+            i += 2;
+            while (i < lines.length && lines[i].trim().startsWith('|')) {
+              rows.push(cells(lines[i]));
+              i++;
+            }
+            // Alleen tabellen die per regel een niveau geven; de tellingen
+            // onderaan een bestand (Niveau als kopkolom) vallen hier af.
+            if (niveauKol !== -1 && rows.some((r) => /^[0-3]$/.test(r[niveauKol] ?? ''))) {
+              secties.push({ kop, head, niveauKol, rows });
+            }
+            continue;
+          }
+          i++;
+        }
+        return secties;
+      }
+
+      const telling = (secties) => {
+        const t = [0, 0, 0, 0];
+        for (const s of secties)
+          for (const r of s.rows) {
+            const v = r[s.niveauKol];
+            if (/^[0-3]$/.test(v)) t[Number(v)]++;
+          }
+        return t;
+      };
+
+      const esc = (s) =>
+        String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+      /** Minimale inline-markdown: `code` en **vet**. Nooit ruwe HTML. */
+      const inline = (s) =>
+        esc(s)
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+      function balk(t) {
+        const som = t.reduce((a, b) => a + b, 0) || 1;
+        return `<div class="bar">${t
+          .map((n, lv) => (n ? `<span class="lv${lv}" style="width:${(n / som) * 100}%;background:var(--l${lv})" title="niveau ${lv}: ${n}"></span>` : ''))
+          .join('')}</div>`;
+      }
+
+      const LEGENDA = `<div class="legend">
+        <span><i style="background:var(--l0)"></i>0 bestaat niet</span>
+        <span><i style="background:var(--l1)"></i>1 staat er</span>
+        <span><i style="background:var(--l2)"></i>2 ontworpen</span>
+        <span><i style="background:var(--l3)"></i>3 leeft</span>
+      </div>`;
+
+      const data = new Map();
+
+      async function laad() {
+        await Promise.all(
+          AREAS.map(async (a) => {
+            try {
+              const res = await fetch(`${BASE}${a.id}/PROGRESS.md`);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const md = await res.text();
+              data.set(a.id, { secties: parse(md), fout: null });
+            } catch (e) {
+              data.set(a.id, { secties: [], fout: e.message });
+            }
+          }),
+        );
+      }
+
+      function toonOverzicht() {
+        const totaal = [0, 0, 0, 0];
+        const kaarten = AREAS.map((a) => {
+          const d = data.get(a.id);
+          if (d.fout) {
+            return `<button class="card" data-area="${a.id}"><h3>${esc(a.naam)}</h3>
+              <p class="err">Niet gelezen: ${esc(d.fout)}</p></button>`;
+          }
+          const t = telling(d.secties);
+          t.forEach((n, i2) => (totaal[i2] += n));
+          const som = t.reduce((x, y) => x + y, 0);
+          return `<button class="card" data-area="${a.id}">
+            <h3>${esc(a.naam)}</h3>
+            <p class="meta">docs ${esc(a.docs)} · ${som} onderdelen</p>
+            ${balk(t)}
+            <p class="tot">${t.map((n, lv) => `<b>${n}</b>&nbsp;op&nbsp;${lv}`).join(' · ')}</p>
+          </button>`;
+        }).join('');
+
+        const som = totaal.reduce((a, b) => a + b, 0);
+        document.getElementById('main').innerHTML = `
+          <h2>Waar staan we</h2>
+          <p class="sub">${som} onderdelen over vijf gebieden. ${balk(totaal)}</p>
+          ${LEGENDA}
+          <div class="note">
+            <p><strong>Niveau 0 betekent bouwen, niveau 1 betekent verbeteren.</strong>
+            Die twee samenvoegen kost precies het onderscheid dat de werkvolgorde bepaalt.</p>
+            <p>Een niveau geldt pas als het volledig gehaald is — half niveau 2 blijft 1.
+            De criteria komen uit <code>11-DESIGN-QA-CHECKLIST.md</code>, niet uit een gevoel.</p>
+          </div>
+          <h3>Per gebied</h3>
+          <div class="cards">${kaarten}</div>
+          <h3>De drie grootste gaten</h3>
+          <ul>
+            <li><strong>De ronde heeft geen dramaturgie.</strong> Countdown (0), reveal (1) en sociale headline (0) zijn samen wat de roadmap "reveal/leaderboard" noemt en op zeer hoge impact zet.</li>
+            <li><strong>Geen eigen visuele grammatica.</strong> Wereldmotieven en iconografie staan op 0 — precies het risico dat de roadmap als <code>R3</code> benoemt.</li>
+            <li><strong>Niets is op een echt apparaat getest.</strong> Alles is gecontroleerd in headless Chromium op één viewport; nooit een screenreader, nooit een telefoon.</li>
+          </ul>`;
+        document.getElementById('main').querySelectorAll('.card').forEach((b) =>
+          b.addEventListener('click', () => ga(b.dataset.area)),
+        );
+      }
+
+      function toonGebied(id) {
+        const a = AREAS.find((x) => x.id === id);
+        const d = data.get(id);
+        if (d.fout) {
+          document.getElementById('main').innerHTML =
+            `<h2>${esc(a.naam)}</h2><p class="err">Kon <code>${esc(id)}/PROGRESS.md</code> niet lezen: ${esc(d.fout)}</p>`;
+          return;
+        }
+        const t = telling(d.secties);
+        const tabellen = d.secties.map((s) => `
+          ${s.kop ? `<h3>${esc(s.kop)}</h3>` : ''}
+          <table>
+            <thead><tr>${s.head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+            <tbody>${s.rows.map((r) => `<tr>${r.map((c, i) =>
+              i === s.niveauKol && /^[0-3]$/.test(c)
+                ? `<td><span class="lv lv${c}">${c}</span></td>`
+                : `<td>${inline(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>`).join('');
+
+        document.getElementById('main').innerHTML = `
+          <h2>${esc(a.naam)}</h2>
+          <p class="sub">Bron: <a href="${BASE}${id}/PROGRESS.md">${esc(id)}/PROGRESS.md</a> · documenten ${esc(a.docs)}</p>
+          ${balk(t)}${LEGENDA}
+          ${tabellen || '<p class="err">Geen tabel met een <code>Niveau</code>-kolom gevonden.</p>'}`;
+      }
+
+      function ga(id) {
+        location.hash = id === 'overzicht' ? '' : id;
+        render();
+      }
+
+      function render() {
+        const id = location.hash.slice(1);
+        const geldig = AREAS.some((a) => a.id === id) ? id : 'overzicht';
+        document.querySelectorAll('#nav button').forEach((b) =>
+          b.setAttribute('aria-current', String(b.dataset.area === geldig)),
+        );
+        if (geldig === 'overzicht') toonOverzicht();
+        else toonGebied(geldig);
+      }
+
+      document.getElementById('nav').innerHTML =
+        [{ id: 'overzicht', naam: 'Overzicht' }, ...AREAS]
+          .map((a) => `<button data-area="${a.id}">${esc(a.naam)}</button>`)
+          .join('');
+      document.getElementById('nav').querySelectorAll('button').forEach((b) =>
+        b.addEventListener('click', () => ga(b.dataset.area)),
+      );
+
+      await laad();
+      document.getElementById('sub').textContent =
+        'Gelezen uit de vijf PROGRESS.md-bestanden · ' + new Date().toLocaleString('nl-NL');
+      window.addEventListener('hashchange', render);
+      render();
+    </script>
+  </body>
+</html>
