@@ -54,8 +54,14 @@ Per scherm worden vastgelegd:
 1. spelvorm;
 2. moeilijkheid en inhoud;
 3. aantal rondes/tijd;
-4. teams of individuele modus;
-5. aanvullende regels.
+4. aanvullende regels.
+
+> **Niet in deze MVP:** een keuze tussen teams en individuele modus. `DECISIONS.md`
+> besluit 8 schrapt teams voor nu — er is geen teamkeuzecontract, teammodel of
+> teamscoring. De serverconfiguratie **weigert** `mode: "teams"` actief
+> (`server/data/types/game-configuration.js`), zodat een instelscherm dat het
+> tóch aanbiedt hard faalt in plaats van een match te starten die "teams" heet
+> maar individueel speelt. Deze stap komt terug zodra teams gebouwd worden.
 
 **Primaire actie:** `Start met deze instellingen`.
 

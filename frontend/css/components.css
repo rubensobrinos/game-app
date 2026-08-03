@@ -27,8 +27,8 @@ h2 {
   letter-spacing: -0.02em;
 }
 
-h1 { font-size: 2.2rem; margin: 12px 0 20px; }
-h2 { font-size: 1.5rem; margin: 8px 0 16px; }
+h1 { font-size: var(--type-heading-1); margin: 12px 0 20px; }
+h2 { font-size: var(--type-heading-2); margin: 8px 0 16px; }
 
 /* De merklock-up — het enige element dat de gradient nog draagt. */
 .brand-title {
@@ -40,6 +40,31 @@ h2 { font-size: 1.5rem; margin: 8px 0 16px; }
 }
 
 p { color: var(--color-text-muted); }
+
+/* ── Numerieke rol (05 §2.3) ───────────────────────────────────────────────
+   `tabular-nums` stond op negen losse plekken. Alles wat een getal toont dat
+   verandert of uitgelijnd moet blijven — code, score, rank, timer — hoort
+   hier bij te staan, niet zijn eigen regel te herhalen.
+
+   Waarom het ertoe doet: zonder tabulaire cijfers is een `1` smaller dan een
+   `8`, dus springt een aftellende timer of een oplopende score zijwaarts heen
+   en weer bij elke wijziging.
+
+   `.type-numeric` staat erbij voor nieuwe gebruikers die nog geen eigen
+   selector hebben. */
+.room-header-code-value,
+.room-qr-code,
+.lobby-code-reveal,
+.gameplay-timer,
+.timer-value,
+.leaderboard-rank,
+.leaderboard-score,
+.leaderboard-move,
+.scoreboard-score,
+.podium-score,
+.type-numeric {
+  font-variant-numeric: tabular-nums;
+}
 
 /* ── Knophiërarchie ───────────────────────────────────────────────────────
    05-DESIGN-SYSTEM §15 waarschuwt letterlijk tegen "één gedeeld regelblok dat
@@ -61,7 +86,7 @@ p { color: var(--color-text-muted); }
   padding: 14px 20px;
   border-radius: var(--r);
   font: inherit;
-  font-size: 1.05rem;
+  font-size: var(--type-label);
   font-weight: 600;
   cursor: pointer;
   transition: transform var(--motion-instant) var(--ease-press),
@@ -103,7 +128,7 @@ p { color: var(--color-text-muted); }
   color: var(--color-text-muted);
   border: 1px solid transparent;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: var(--type-body-sm);
 }
 
 .btn-quiet:hover {
@@ -234,7 +259,6 @@ button.is-loading::after {
 }
 
 .leaderboard-rank {
-  font-variant-numeric: tabular-nums;
   font-weight: 700;
   color: var(--color-text-muted);
   text-align: right;
@@ -250,7 +274,7 @@ button.is-loading::after {
 
 /* Het label naast de naam, niet ervoor: de naam blijft de eerste informatie. */
 .leaderboard-self-tag {
-  font-size: 0.72rem;
+  font-size: var(--type-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -258,7 +282,6 @@ button.is-loading::after {
 }
 
 .leaderboard-score {
-  font-variant-numeric: tabular-nums;
   font-weight: 800;
   color: var(--color-accent-primary-hover);
 }
@@ -267,9 +290,8 @@ button.is-loading::after {
    verbiedt kleur als enige drager, dus een groene pijl zonder cijfer is niet
    genoeg. De voorleesbare zin staat in `aria-label`. */
 .leaderboard-move {
-  font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: var(--type-caption);
   min-width: 3ch;
   text-align: right;
 }
@@ -352,7 +374,7 @@ button.is-loading::after {
   background: var(--color-surface-2);
   color: var(--color-text-primary);
   font: inherit;
-  font-size: 1.1rem;
+  font-size: var(--type-body-lg);
 }
 
 /* Géén `outline: none` meer op de basisregel: die stond later in de cascade
@@ -467,9 +489,8 @@ button.is-loading::after {
    elke servergekozen duur. */
 .gameplay-countdown {
   text-align: center;
-  font-size: 5rem;
+  font-size: var(--type-display-xl);
   font-weight: 800;
-  font-variant-numeric: tabular-nums;
   color: var(--color-accent-primary-hover);
   margin: 2rem 0;
 }
@@ -507,9 +528,8 @@ button.is-loading::after {
 }
 
 .timer-value {
-  font-variant-numeric: tabular-nums;
   font-weight: 800;
-  font-size: 1.15rem;
+  font-size: var(--type-body-lg);
   color: var(--color-text-muted);
   min-width: 2.5ch;
   text-align: right;
@@ -574,13 +594,39 @@ button.is-loading::after {
   box-shadow: 0 0 0 3px var(--color-accent-glow);
 }
 
+/* M2/E06: dimmen pas ná `accepted` (gameplay.mjs bepaalt wannéér, dit is
+   uitsluitend de visuele kant). `opacity` i.p.v. een kleurwissel — geen
+   informatie verloren (tekst blijft leesbaar), puur nadruk verminderen. */
+.gameplay-option.is-dimmed {
+  opacity: 0.55;
+  transition: opacity var(--motion-fast) var(--ease-enter);
+}
+
 .gameplay-option.is-correct {
   border-color: var(--color-success);
   background: var(--color-success-surface);
 }
 
+/* M2/E09: foute eigen keuze — kleur is nooit de enige informatiedrager
+   (11 K / D-006-geest). `::after` met een niet-kleur-icoon náást de rand,
+   plus een sr-only-label (zie gameplay.mjs) voor wie geen icoon ziet. */
+.gameplay-option.is-wrong {
+  border-color: var(--color-danger);
+  position: relative;
+}
+
+.gameplay-option.is-wrong::after {
+  content: '✕';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-danger);
+  font-weight: 800;
+}
+
 .gameplay-status { min-height: 1.4em; margin: 12px 0 0; font-weight: 600; }
-.gameplay-progress { margin: 4px 0 0; font-size: 0.95rem; }
+.gameplay-progress { margin: 4px 0 0; font-size: var(--type-body-sm); }
 
 .gameplay-question { color: var(--color-text-muted); font-weight: 600; margin: 4px 0 0; }
 
@@ -667,9 +713,8 @@ button.is-loading::after {
    consistent met hoe de rest van de app "beter"/"slechter" al kleurt. */
 .scoreboard-move {
   flex: none;
-  font-size: 0.85rem;
+  font-size: var(--type-caption);
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
 }
 
@@ -679,8 +724,25 @@ button.is-loading::after {
 .scoreboard-score,
 .podium-score {
   font-weight: 800;
-  font-variant-numeric: tabular-nums;
   color: var(--color-accent-primary-hover);
+}
+
+/* T5-7: ruimere leaderboardweergave vanaf tabletbreedte (`07` §6) — alleen
+   `.scoreboard-list`, niet de gedeelde `.podium-steps`-selector hierboven,
+   dus het podiumscherm blijft ongewijzigd. Gecentreerd in de verruimde
+   `#app-root` (session-shell.mjs zet `.app-root-wide` alleen voor dit
+   scherm), niet edge-to-edge over de volle 760px. */
+@media (min-width: 768px) {
+  .scoreboard-list {
+    max-width: 600px;
+    margin: 0 auto;
+    gap: 12px;
+  }
+
+  .scoreboard-entry {
+    padding: 16px 20px;
+    font-size: var(--type-label);
+  }
 }
 
 .podium-step-1 { border-color: var(--color-accent-competition, #f59e0b); }
@@ -689,7 +751,7 @@ button.is-loading::after {
    `display: flex` hierboven (auteurscascade na de UA-stylesheet), en blijft
    een "verborgen" stap gewoon zichtbaar. */
 .podium-step[hidden] { display: none; }
-.podium-medal { font-size: 1.3rem; }
+.podium-medal { font-size: var(--type-heading-3); }
 
 /* M10/E14: entrance-animatie bovenop S20's `hidden`-toggle. Een
    `transition` kan niet animeren over de `display:none`-grens hierboven,
@@ -750,7 +812,7 @@ button.is-loading::after {
 .podium-share-feedback {
   text-align: center;
   color: var(--color-text-muted);
-  font-size: 0.85rem;
+  font-size: var(--type-caption);
   min-height: 1.2em;
   margin: 8px 0 0;
 }

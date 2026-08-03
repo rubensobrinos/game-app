@@ -228,7 +228,13 @@ Normale joinflow.
 Afhankelijk van late-joininstelling:
 
 - toegestaan: speler komt in veilige wachtstate en start volgende ronde;
-- niet toegestaan: heldere melding en eventueel spectator/wachtoptie.
+- niet toegestaan: heldere melding met een route terug naar de homepage.
+
+> **Niet in deze MVP:** een spectatoroptie. `DECISIONS.md` besluit 9 schrapt
+> spectators — geen rol, geen token, geen projectie — en er bestaat geen
+> spectatorcode in `server/`, `client/` of `shared/`. Een wachtoptie voor wie
+> niet mag joinen is wél denkbaar, maar dat is dan een gewone speler die op de
+> volgende ronde wacht, niet een aparte rol.
 
 ### Host verliest verbinding
 

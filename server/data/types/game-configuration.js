@@ -34,7 +34,23 @@
  */
 
 const LANGUAGE_VALUES = Object.freeze(['nl', 'en', 'es']);
+
+// `teams` staat wél in de typedef (DATA-MODEL.md kent het veld, en het komt
+// terug zodra teams gebouwd worden) maar wordt HIER GEWEIGERD zolang
+// DECISIONS.md besluit 8 geldt: "Teams worden nu niet gebouwd. Er wordt geen
+// teamkeuzecontract, teammodel of teamscoring aan de huidige MVP toegevoegd."
+//
+// Waarom weigeren en niet stilzwijgend accepteren: er is geen teamscoring, geen
+// teamindeling en geen teamweergave. Een geaccepteerde `mode: "teams"` levert
+// dus een match op die zich gewoon individueel gedraagt, zonder dat iemand het
+// merkt — stil verkeerd gedrag. `04-SCREEN-SPECIFICATIONS.md` beschrijft een
+// instelscherm met "teams of individuele modus" als stap 4, dus dit is een
+// realistisch pad en geen theoretisch randgeval.
+//
+// Terugdraaien zodra teams gebouwd worden: zet `teams` terug in
+// ACCEPTED_MODE_VALUES. De typedef en MODE_VALUES hoeven dan niet mee.
 const MODE_VALUES = Object.freeze(['individual', 'teams']);
+const ACCEPTED_MODE_VALUES = Object.freeze(['individual']);
 
 // Golf 1-gameTypes: gedeeld met Round.gameType (DM3) via types/game-types.js,
 // niet hier apart gedefinieerd. Zie dat bestand voor de herkomst/onderbouwing.
@@ -136,7 +152,7 @@ function assertGameConfigurationShape(value) {
   assertClosedEnum(value.pacing, 'pacing', PACING_VALUES);
   assertBoolean(value.speedBonus, 'speedBonus');
   assertNumber(value.deadlineGraceMs, 'deadlineGraceMs');
-  assertClosedEnum(value.mode, 'mode', MODE_VALUES);
+  assertClosedEnum(value.mode, 'mode', ACCEPTED_MODE_VALUES);
   assertStringArray(value.teamNames, 'teamNames');
   assertString(value.metricMode, 'metricMode');
   assertNumber(value.maxPlayers, 'maxPlayers');
@@ -148,5 +164,6 @@ module.exports = {
   GOLF_1_GAME_TYPES,
   LANGUAGE_VALUES,
   MODE_VALUES,
+  ACCEPTED_MODE_VALUES,
   PACING_VALUES,
 };

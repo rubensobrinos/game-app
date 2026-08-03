@@ -24,6 +24,8 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INT-15 | DM + **INT-B** | 🔴 **hoog, nu beslissen** | `(roomId, tokenHash)` zou de socket-handshake onbouwbaar maken — input voor INTB-9/10 |
 | INT-16 | DM + **INT-B** | 🟠 ter akkoord | Crash-atomaire fasewissel: fase + projectie + `pausedState` in één operatie, met verwachte oude fase |
 | INT-17 | PR | 🔴 **hoog** | `GET /games/{code}/state` geeft 500 in de lobby — elke reconnect loopt hierdoor |
+| INT-19 | PR + GF | 🔵 open | Reveal-choreografie: tijdstempels in `round:ended`, geen extra fasewaarden |
+| INT-20 | DM | 🔵 open | Antwoordverdeling: `listAnswersForRound` i.p.v. een gameType-bewuste poortmethode |
 | INT-12 | PD | 🔵 open | `shared/product/quick-start-preset.mjs` is stale naast een nieuwere variant |
 | INT-18 | ~~INT-B + PR~~ **OPGELOST (regie, `389edab`)** | ✅ was: blokkeerde de Redis-store volledig | Opgelost via richting 2 (scoped): `assertFinalHashSegment` staat `:` toe in het láátste sleutelsegment; fixtures nu uit echte `hashToken`. Zie de resolutie onder het item. |
 
@@ -813,3 +815,78 @@ gebruikt, bewijst niets over het echte pad.
 geïsoleerde kopie draait de volledige keten-test 6/6 groen tegen Redis, en
 herstelt een procesherstart midden in een match room, match, spelers, scores en
 het sessietoken.
+
+---
+
+## INT-19 — reveal-choreografie: tijdstempels in `round:ended` in plaats van extra fasen
+
+**Voor:** PR (payloadvorm), cc GF en AR. **Naar aanleiding van:** DM's observatie
+over statengranulariteit (`docs/data-model-plan/observatie-statengranulariteit-design-vs-matchphase.md`).
+
+De designdocumentatie beschrijft zeventien UI-states; `Match.phase` kent er zeven.
+DM legt terecht twee routes voor: substaten client-side houden, of er echte
+fasewaarden van maken.
+
+**AR's antwoord: route 1 — geen extra fasewaarden.** De toets die dat beslist:
+gedraagt de server zich anders in die toestand? Bij `ROUND_CLOSED`, `REVEAL` en
+`SOCIAL_HIGHLIGHT` weigert hij precies hetzelfde (de ronde is voorbij), accepteert
+hij dezelfde hostacties en produceert hij dezelfde snapshotvorm. Geen enkel
+serverbesluit valt anders uit, dus het is geen fase. Hetzelfde geldt voor
+`LEADERBOARD` binnen `SCOREBOARD` en `PODIUM` na `FINISHED`.
+
+De kosten van route 2 worden in de observatie onderschat: het is geen
+enum-uitbreiding maar vier extra knopen in de reducer, elk met pacing-regels,
+pauzeerbaarheid en een hervat-bestemming. `pausedState.previousPhase` krijgt vier
+nieuwe waarden en `RECOVERY_RESUME` — die alleen naar `COUNTDOWN` mag — moet gaan
+beslissen wat er gebeurt bij een crash tijdens `SOCIAL_HIGHLIGHT`. Plus drie
+extra atomaire schrijfacties per ronde per room.
+
+**Maar route 1 is niet "niets doen", en dat mist de observatie.** Laat de client
+de choreografie zelf timen, dan zien host en spelers de reveal op verschillende
+momenten en landt de sociale headline uit de maat. Dat breekt het samen-reageren
+waar `PRODUCT.md` het hele kernmoment op bouwt.
+
+**Voorstel aan PR:** geef `round:ended` absolute tijdstempels voor de substappen
+mee, in dezelfde vorm als `startsAt`/`endsAt` bij een vraag. De server plant, de
+client rendert — precies principe 2 uit `ARCHITECTURE.md`, dat nergens zegt dat
+het tot vraagtimers beperkt is. `Match.phase` blijft op zeven; de choreografie
+wordt synchroon zonder één extra fase.
+
+De exacte velden zijn aan PR. De vraag die daaronder ligt: welke substappen
+hebben een gedeeld moment nodig, en welke mag elk toestel zelf bepalen?
+
+---
+
+## INT-20 — antwoordverdeling: de poort mag geen gameType-kennis krijgen
+
+**Voor:** DM. **Naar aanleiding van:** DM's eigen observatie
+(`docs/data-model-plan/observatie-antwoordverdeling-poortbehoefte.md`).
+
+De observatie klopt: drie designdocumenten noemen de antwoordverdeling als reëel
+UI-element, en de poort kan alleen één antwoord van één speler ophalen. De twee
+genoemde complicaties kloppen ook — met name dat aggregeren hoort te gebeuren op
+het moment van reveal en niet als teller in het antwoordpad, conform
+`ARCHITECTURE.md` principe 9.
+
+**Eén correctie op de geschetste vorm.** `getAnswerDistribution(...)` zou moeten
+weten dat `flags_mc` een `optionId` draagt, `higher_lower` een `side` en
+`odd_one_out` een `cardIndex`. Dat is domeinkennis in een opslagabstractie: bij
+elke nieuwe spelvorm moet de storage dan mee, en er ontstaat een tweede plek die
+weet wat `answer-flow.js`'s `buildRoundContext()` al weet.
+
+**Voorstel:** splits het.
+
+```js
+listAnswersForRound(roomId, matchId, roundId) → Promise<Answer[]>
+```
+
+Pure ophaling, geen interpretatie. De rules-laag telt en weet welk veld per
+`gameType` de optiesleutel is.
+
+**Twee behoeften komen hier samen**, wat meestal betekent dat het de juiste
+methode is: `endRound` in de compositie leest de antwoorden nu per speler op —
+tegen Redis honderd rondgangen per ronde bij een volle room. Dezelfde methode
+lost dat N+1-probleem op.
+
+Geen haast: de verdeling staat niet in de vroege fases van
+`10-IMPLEMENTATION-ROADMAP.md`. Maar áls hij gebouwd wordt, graag in deze vorm.

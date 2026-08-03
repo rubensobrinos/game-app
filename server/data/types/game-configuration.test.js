@@ -48,6 +48,18 @@ describe('assertGameConfigurationShape — gesloten enums falen op ongeldige waa
     assert.throws(() => assertGameConfigurationShape({ ...VALID_CONFIG, language: 'fr' }), RangeError);
   });
 
+  test('mode "teams" wordt geweigerd zolang besluit 8 geldt, niet stilzwijgend geaccepteerd', () => {
+    // `teams` staat in de typedef en in MODE_VALUES, maar besluit 8 zegt dat
+    // teams nu niet gebouwd worden — er is geen teamscoring, -indeling of
+    // -weergave. Zou de validator het accepteren, dan draait een match die
+    // "teams" heet gewoon individueel zonder dat iemand het merkt.
+    // `04-SCREEN-SPECIFICATIONS.md` §Instellingen beschrijft stap 4 als "teams
+    // of individuele modus", dus dit is een realistisch pad.
+    //
+    // Draai deze assertie om zodra teams gebouwd worden.
+    assert.throws(() => assertGameConfigurationShape({ ...VALID_CONFIG, mode: 'teams' }), RangeError);
+  });
+
   test('#20 mode met ongeldige waarde -> RangeError', () => {
     assert.throws(() => assertGameConfigurationShape({ ...VALID_CONFIG, mode: 'solo' }), RangeError);
   });
