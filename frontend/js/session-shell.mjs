@@ -547,6 +547,14 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     // reconnect altijd `'idle'` ook als de server al een antwoord had
     // geaccepteerd (reviewfeedback T4-3).
     roundModel = hydrateFromSnapshot(payload?.currentRound, payload?.self?.answeredCurrentRound === true);
+    // Zelfde reden als hierboven: `room:state` draagt `scoreboard: { top,
+    // self }` (PROTOCOL.md), maar dat werd tot nu toe genegeerd — een reload
+    // tijdens SCOREBOARD/FINISHED liet de tussenstand/eindstand dus leeg
+    // achter i.p.v. hem uit de snapshot te herstellen (T5-3, gemeten via
+    // Playwright tegen de echte server: eindstand verdween volledig ná reload).
+    if (payload?.scoreboard) {
+      standingsPayload = payload.scoreboard;
+    }
     if (payload?.self && typeof payload.self.playerId === 'string') {
       selfInfo = payload.self;
       participants.set(payload.self.playerId, payload.self.effectiveName ?? '');
