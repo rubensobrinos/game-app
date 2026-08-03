@@ -3,7 +3,7 @@
 **Eigenaar:** UI (frontend-implementatie)
 **Documenten:** `09-CONTENT-AND-MICROCOPY.md`
 **Criteria uit:** `11-DESIGN-QA-CHECKLIST.md` sectie J · schaal: [`NIVEAUS.md`](../NIVEAUS.md)
-**Bijgewerkt:** 3 augustus 2026 — ná uitvoering van [`prompts/T4-1`](prompts/T4-1-terminologie-en-directe-correcties.md), [`T4-2a`](prompts/T4-2a-statusteksten-direct-uitvoerbaar.md), [`T4-3`](prompts/T4-3-vraagtekst-en-geen-antwoord-staat.md), de score-bugfix uit §9, en [`T4-4`](prompts/T4-4-pure-aanvullingen-zonder-afhankelijkheden.md)/[`T4-5`](prompts/T4-5-host-specifieke-copy.md) (elk met één correctie uit [`REVIEW.md`](prompts/REVIEW.md) F1/F2 vóór uitvoering), plus een audit-ronde die vijf inmiddels-verouderde claims corrigeerde (zie de notitie onderaan de Telling). Alleen [`T4-2b`](prompts/T4-2b-reconnect-drempel-en-handmatige-retry.md) staat nog open, wacht op een PO-besluit.
+**Bijgewerkt:** 3 augustus 2026 — ná uitvoering van [`prompts/T4-1`](prompts/T4-1-terminologie-en-directe-correcties.md), [`T4-2a`](prompts/T4-2a-statusteksten-direct-uitvoerbaar.md), [`T4-3`](prompts/T4-3-vraagtekst-en-geen-antwoord-staat.md), de score-bugfix uit §9, [`T4-4`](prompts/T4-4-pure-aanvullingen-zonder-afhankelijkheden.md)/[`T4-5`](prompts/T4-5-host-specifieke-copy.md), een audit-ronde die vijf inmiddels-verouderde claims corrigeerde, en [`T4-6`](prompts/T4-6-bouwsprint-1c-content.md) (BOUWSPRINT, geen review vooraf — regie reviewt achteraf). Alleen [`T4-2b`](prompts/T4-2b-reconnect-drempel-en-handmatige-retry.md) staat nog open, wacht op een PO-besluit.
 
 Herzien: de vorige versie dekte `09` §4–§11 maar sloeg §12 (pauze/beheer) en
 §13 (reconnect) helemaal over, en had één onjuiste claim (foutcodedekking).
@@ -65,7 +65,7 @@ daar wijken we soms van af.
 |---|---|---|---|
 | Deelactie-titel | 2 | `Uitnodigen` | inhoudelijk gelijk aan `Scan om mee te doen` |
 | Spelersaantal | 2 | `tCount('lobby.playerCount', n)` | `7 spelers aanwezig` — dekt zich |
-| Startknop | 2 | `Start Rounda` | wijkt bewust af van `Start game — N spelers` (`D-020`, expliciet besloten) |
+| Startknop | 2 | `Start Rounda` + subregel `lobby.startSub` ("Iedereen mee? Dan kun je beginnen", T4-6) | wijkt bewust af van `Start game — N spelers` (`D-020`, expliciet besloten); de subregel noemt bewust geen rondeaantal/tijdsduur — `lobby.mjs` krijgt de hostconfig niet door, een vast getal zou hier per host kunnen liegen |
 | Lege lobby | 2 | `lobby.emptyTitle` + `lobby.emptyHint` tonen i.p.v. de telling zolang `playerCount === 0` (T4-2a) | ✅ letterlijk gelijk |
 | Vergrendelstatus | 2 | `lobby.locked` zolang `locked === true`; kort `lobby.unlocked` ná het ontgrendelen (3s, T4-4) | ✅ letterlijk gelijk |
 
@@ -92,23 +92,17 @@ staat; voor de tekst zelf is het gat gedicht.
 |---|---|---|---|
 | Rondelabel | 2 | `Ronde 1/5` | inhoudelijk gelijk aan `Ronde 6 van 10` |
 | Voortgang tijdens antwoorden | 1 | `3/7 beantwoord` | `Wachten op 4 spelers…` |
-| Vraagtekst | 1 | `game.questionPrompt`: "Welke vlag is dit?" — **klopt alleen nog voor `flags_mc`** | ✅ letterlijk gelijk vóór de scope-uitbreiding hieronder |
-| Countdown-copy | 0 | scherm bestaat niet (thema 1, S07) | n.v.t. — volgt zodra het scherm er is |
+| Vraagtekst | 2 | **opgelost sinds vorige versie, niet door mij gebouwd.** `gameplay.mjs` takt nu af op `model.gameType`: `game.questionPrompt` (flags_mc), `game.realOrFakePrompt`, `game.higherLowerPrompt` — de hieronder beschreven scope-uitbreiding is inmiddels gedicht | ✅ letterlijk gelijk, nu voor alle drie spelvormen |
+| Countdown-copy | 2 | `game.countdownLabel` ("Zo begint de vraag") boven het getal, T4-6 — kaal getal had geen tekst errond, voor een screenreader waren "5… 4… 3…" losse getallen zonder context | volgt geen letterlijk `09`-voorbeeld (dat had nog geen countdown-paragraaf), wel zijn stijl (kort, geen leesteken) |
 
-**Belangrijke, nieuwe bevinding uit deze auditronde — nog niet opgepakt, wel
-gerelativeerd.** `round-model.mjs` ondersteunt sinds "14-S09-S10" niet meer
-alleen `flags_mc`, maar ook `real_or_fake_flag` en `higher_lower`
-(`selectChoice`/`selectSide`/`answerPayloadFor` bestaan al). `gameplay.mjs`
-toont echter nog altijd hetzelfde hardgecodeerde `game.questionPrompt`
-("Welke vlag is dit?") en `countryName()`-gebaseerde correct-antwoordregel,
-ongeacht `model.gameType`. **Nog niet urgent:** `client/flow/host-setup-
-state.mjs`'s `defaultHostConfig().gameTypes` staat nog vast op `['flags_mc']`
-(`DECISIONS.md` #31/#32/#35) — de twee nieuwe spelvormen zijn dus nog
-nergens door een host te kiezen, dit tekstgat is voorbereid maar niet
-gebruikersbereikbaar. Wel iets om in de gaten te houden: zodra `gameTypes`
-wordt opengezet, is dit meteen zichtbaar kapot. Geen prompt nu — wacht op
-duidelijkheid over wanneer/of die spelvormen live gaan én wat `09` (of een
-opvolger) voor hun tekst wil.
+**Update (T4-6-audit): de vorige-versie-bevinding hierboven is inmiddels
+gedicht, niet door mij.** `gameplay.mjs` had het `model.gameType`-gat nog
+open toen de vorige `PROGRESS.md`-versie werd geschreven; sindsdien is zowel
+de vraagtekst (hierboven) als het correct-antwoordstempel (§9 hieronder) door
+een andere agent afgetakt per spelvorm. `client/flow/host-setup-state.mjs`'s
+`defaultHostConfig().gameTypes` staat overigens nog steeds vast op
+`['flags_mc']` — de twee nieuwe spelvormen zijn dus nog nergens door een host
+te kiezen, maar de tekstlaag ligt nu al klaar voor zodra dat opengaat.
 
 ## §8 — Antwoordfeedback
 
@@ -123,7 +117,7 @@ opvolger) voor hun tekst wil.
 
 | Waar | Niveau | Nu | Volgens `09` |
 |---|---|---|---|
-| Correct antwoord | 1 | zin: `Het juiste antwoord: Frankrijk` via `countryName(model.result.correctOptionId, lang)` — **zelfde scope-gat als §7's vraagtekst**: gaat uit van een ISO2-landcode, wat niet klopt voor `real_or_fake_flag`/`higher_lower`'s `correctChoice`/`correctSide` | `Japan` — kaler, als stempel bedoeld |
+| Correct antwoord | 2 | **opgelost sinds vorige versie, niet door mij gebouwd** — niet langer alleen `Het juiste antwoord: Frankrijk` via `countryName()`; `gameplay.mjs` takt nu af op `model.gameType` met eigen stempels: `game.wasReal`/`wasFake` (real_or_fake_flag) en `game.higherLowerResult`/`{country}`+`{metric}` (higher_lower) | `Japan` — kaler, als stempel bedoeld; onze versie blijft iets voller ("Het juiste antwoord: …"), dat verschil bestond al vóór deze scope-uitbreiding |
 | Eigen resultaat | 2 | `game.resultCorrect`/`resultIncorrect`/`resultNoAnswer` als stempelwoorden (T4-3), leest nu `ownCorrect` — geverifieerd tegen de echte payloadvorm, niet meer alleen tegen de mock | ✅ letterlijk gelijk aan de bedoeling |
 | Geen antwoord ingediend | 2 | eigen, derde staat: `round-model.mjs`'s `hydrateFromSnapshot` + preciezere `selfNoAnswer`-logica (idle/`DEADLINE_PASSED` → geen antwoord, `ALREADY_ANSWERED`/geaccepteerd → wél een antwoord), niet langer verward met "fout" (T4-3) | ✅ — inclusief het reducer-fixje dat de vorige versie terecht als blokkade signaleerde |
 | Puntendelta | 1 | `game.roundPoints`: "Punten deze ronde: {n}" — punten van déze ronde, geen lopend totaal meer (bugfix) | vergelijkbaar met `+164 punten`, geen apart `Snelheidsbonus`-veld: de server geeft base+bonus samengevoegd, geen losse waarde beschikbaar |
@@ -223,19 +217,41 @@ in `09`; wij hebben er één, en die ene wijkt af.
 | `Awaiting host action`, `Session initialized`, `User joined room` | ✅ komen niet voor |
 | `Show code` | ✅ **opgelost sinds de vorige versie** — `room-header.mjs` is inmiddels ingehangen door thema 1 (`session-shell.mjs` importeert en mount 'm, `HANDOFF-UI.md` UI-10 staat op ✅ opgelost). `lobby.mjs` toont zelf geen `show-qr`/`show-code`-knop meer; `lobby.shareQr` leeft alleen nog voort als `aria-label` op `room-header.mjs`'s QR-knop, niet als zichtbare tekst. |
 
+## Nieuw: BOUWSPRINT-content zonder eigen scherm (vooruitlopend)
+
+**3 augustus 2026, BOUWSPRINT-opdracht ("geen review, geen wachten").** Twee
+sleutelsets die geen bestaande component of grond in de repo hadden — geen
+mockup, geen bouwticket-copy, geen bestaand scherm. Expliciet aan de
+producteigenaar voorgelegd (te veel gok voor een `design`/`ux`-beslissing);
+antwoord: "Ik verzin en leg zelf vast." Dus: zelf vastgelegd, niet uit een
+brondocument overgenomen, en hieronder ook zo genoteerd — niet als "0" (niets
+geblokkeerd, gewoon nog niet af) maar als expliciet placeholder-werk.
+
+| Onderdeel | Niveau | Stand |
+|---|---|---|
+| Vormnamen (RUIT/BOL/PIEK/BLOK) | 0 | `shapes.diamond`/`sphere`/`peak`/`block`, drietalig. Geen enkele component gebruikt ze — `player-chip.mjs` (thema 2) heeft al een eigen, ander vormenstelsel (cirkel/vierkant/driehoek/ruit/vijfhoek/zeshoek/ster/kruis, CSS-`clip-path`, geen i18n nodig want puur decoratief). Deze vier staan klaar voor wie ze wél nodig krijgt (vermoedelijk de 1c-visuele richting), niet gekoppeld aan `player-chip.mjs`. |
+| Rondo-vocabulaire (uitleg/lobbyrecord/pauzemelding) | 0 | `rondo.explanation`/`lobbyRecord`/`pauseMessage`, drietalig. `BOUWTICKET-rondo-lobbygame.md` (bron: producteigenaar) specificeert zelf geen enkele letter copy; het component (`rondo.mjs`) bestaat nog niet en hoort bij thema 1+3, niet hier. Sleutels staan klaar om in te haken zodra dat component er is. |
+
+**Wél meteen gebruikt (geen losse placeholder, echte wiring binnen mijn eigen
+bestanden):** `lobby.startSub` (zie §6 hierboven) en `lobby.moreCount`
+("+{n} meer" naast "Bekijk alle spelers" in de samengevouwen 36+-weergave uit
+thema 5's T5-9) en `game.countdownLabel` (zie §7 hierboven).
+
 ## Telling
 
 | Niveau | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| Aantal rijen hierboven (§4–§14) | 7 | 13 | 30 | 0 |
+| Aantal rijen hierboven (§4–§14 + BOUWSPRINT-sectie) | 8 | 11 | 33 | 0 |
 
-Herteld ná uitvoering van T4-1/T4-2a/T4-3 + de score-bugfix (50 rijen,
-§4–§14 — consistenter afgebakend dan de vorige telling van 17/15/12/0, die
-§14 niet meenam; één rij méér dan de vorige telling van 49 door de nieuwe
-"Spel aanpassen-link"-rij). Per rij is de niveauwijziging terug te vinden in
-de tabellen hierboven (elke gewijzigde rij noemt de prompt of fix erbij);
-geen losse opsomming hier om drift tussen deze samenvatting en de tabellen
-zelf te voorkomen.
+Herteld ná T4-6 (BOUWSPRINT): drie rijen bleken door concurrent werk van
+andere agents al hoger dan de vorige telling liet zien — Vraagtekst (§7,
+1→2), Countdown-copy (§7, 0→2) en Correct antwoord (§9, 1→2) — en er kwamen
+twee nieuwe, bewust op niveau 0 genoteerde placeholder-rijen bij (vormnamen,
+Rondo-vocabulaire). Netto: 52 rijen (was 50), 0/1/2/3 = 8/11/33/0 (was
+7/13/30/0). Per rij is de niveauwijziging terug te vinden in de tabellen
+hierboven (elke gewijzigde rij noemt de prompt of fix erbij); geen losse
+opsomming hier om drift tussen deze samenvatting en de tabellen zelf te
+voorkomen.
 
 **Documentatie-auditronde (3 aug 2026, ná T4-4/T4-5).** Deze `PROGRESS.md`
 was op een aantal punten stil achterhaald geraakt door concurrent werk van

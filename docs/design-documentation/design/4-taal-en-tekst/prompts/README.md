@@ -12,6 +12,7 @@ voor/na-tekst, Regels, Definition of Done.
 | [`T4-3-vraagtekst-en-geen-antwoord-staat.md`](T4-3-vraagtekst-en-geen-antwoord-staat.md) | uitgevoerd, herontworpen ná reviewfeedback | Vraagtekst + snapshot-hydratatie zodat `GEEN ANTWOORD` server-autoritatief is | niets |
 | [`T4-4-pure-aanvullingen-zonder-afhankelijkheden.md`](T4-4-pure-aanvullingen-zonder-afhankelijkheden.md) | uitgevoerd, F2 verwerkt vóór uitvoering | Belofte-regel, sociaal bewijs ná uitnodigingslink, vergrendelstatus in de lobby | niets |
 | [`T4-5-host-specifieke-copy.md`](T4-5-host-specifieke-copy.md) | uitgevoerd, F1 verwerkt vóór uitvoering (`selfName`-prop toegevoegd) | Spelerslobby-copy + host-pauzestempel | niets |
+| [`T4-6-bouwsprint-1c-content.md`](T4-6-bouwsprint-1c-content.md) | uitgevoerd (BOUWSPRINT, geen review vooraf) | Startknop-subregel, "+N meer", countdown-copy, zelf vastgelegde vormnamen + Rondo-vocabulaire, sweep (niets gevonden), §12/§13-hercontrole | niets |
 
 [`REVIEW.md`](REVIEW.md) — feitelijke controle van T4-4/T4-5 en de
 (inmiddels opgeloste) bugmelding tegen de code (3 aug 2026). Zes bevindingen;
@@ -32,7 +33,8 @@ Bewust nog geen prompt voor (geverifieerd tegen de code, niet aangenomen):
 - **Sociale headlines** (§10) — de copy-helft is van hier, maar zonder de
   selectielogica (thema 1, S14) heeft een templateset nergens een plek om te
   verschijnen. Wacht op afstemming met thema 1.
-- **Countdown-copy** (§7) — het scherm zelf bestaat nog niet (thema 1, S07).
+- ~~**Countdown-copy** (§7)~~ — **opgelost (T4-6)**: `game.countdownLabel`
+  boven het bestaande aftellende getal.
 - **Naam-botsingsmelding** (§5) — de server voegt de suffix stil toe zonder
   een apart signaal (`nameSource` onderscheidt alleen server-verzonnen van
   zelf-gekozen, niet "botste met een bestaande naam"). Vraagt een
@@ -48,12 +50,9 @@ Bewust nog geen prompt voor (geverifieerd tegen de code, niet aangenomen):
 **Nieuw gevonden tijdens de documentatie-auditronde (3 aug 2026), nog geen
 prompt voor:**
 
-- **Vraagtekst/correct-antwoord voor niet-`flags_mc`-spelvormen** (§7, §9) —
-  `round-model.mjs` ondersteunt al `real_or_fake_flag`/`higher_lower`, maar
-  `gameplay.mjs` is nog hardgecodeerd op vlaggen. Nog niet urgent:
-  `host-setup-state.mjs`'s `gameTypes` staat vast op `['flags_mc']`, dus
-  onbereikbaar voor een host — wél iets dat meteen kapot is zodra dat opengaat.
-  Geen prompt zolang dat niet aan de orde is.
+- ~~**Vraagtekst/correct-antwoord voor niet-`flags_mc`-spelvormen** (§7,
+  §9)~~ — **inmiddels opgelost, niet hier** (zie T4-6): `gameplay.mjs` takt
+  nu af op `model.gameType` voor vraagtekst én correct-antwoordstempel.
 - **"Spel aanpassen"-scherm** (`host-setup.mjs`, 27 `hostSetup.*`-sleutels)
   — nieuw scherm zonder eigen `09`-paragraaf om tegen te toetsen. Niet
   volledig geaudit, alleen de link zelf (`09` §4) is bevestigd. Geen prompt
