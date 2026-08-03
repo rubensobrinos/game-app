@@ -10,6 +10,36 @@
 // referenties tussen tests) en merget `overrides` er ondiep overheen.
 
 /**
+ * Standaard `GameConfiguration` — dezelfde vorm als `assertGameConfigurationShape`
+ * eist (server/data/types/game-configuration.js, 16 velden), waarden gelijk aan
+ * wat `POST /api/v1/games` in de praktijk teruggeeft voor het `quick_start`-preset.
+ * @param {object} [overrides]
+ * @returns {object} GameConfiguration
+ */
+function makeGameConfiguration(overrides = {}) {
+  return {
+    preset: 'quick_start',
+    gameTypes: ['flags_mc'],
+    language: 'nl',
+    difficulty: 'normal',
+    totalRounds: 10,
+    questionSeconds: 15,
+    resultSeconds: 5,
+    scoreboardSeconds: 4,
+    scoreboardFrequency: 'every_round',
+    pacing: 'auto',
+    speedBonus: true,
+    deadlineGraceMs: 250,
+    mode: 'individual',
+    teamNames: [],
+    metricMode: 'mixed',
+    maxPlayers: 100,
+    allowLateJoin: true,
+    ...overrides,
+  };
+}
+
+/**
  * @param {object} [overrides]
  * @returns {object} Room — DATA-MODEL.md, sectie "Room".
  */
@@ -23,10 +53,12 @@ function makeRoom(overrides = {}) {
     lastActivityAt: 1785623412000,
     hostSessionIds: ['sess_01J...'],
     locked: false,
-    config: {},
+    config: makeGameConfiguration(),
     currentMatchId: null,
-    contentVersion: '2026.08.1',
-    rendererVersion: 'flag-renderer-1',
+    // GEEN contentVersion/rendererVersion hier: DECISIONS.md #21 legt vast dat
+    // die twee canoniek en onveranderlijk op Match horen, niet op Room (zie
+    // makeMatch() hieronder en server/data/types/room.js's kopcommentaar).
+    // INTB-8 signaleerde dat deze fixture ze eerder juist omgekeerd had.
     ...overrides,
   };
 }
@@ -93,6 +125,10 @@ function makeMatch(overrides = {}) {
     usedQuestionKeys: ['flags:jp'],
     previousMatchQuestionKeys: ['flags:br'],
     pausedState: null,
+    // DECISIONS.md #21: canoniek en onveranderlijk op Match, niet op Room —
+    // zie makeRoom() hierboven en server/data/types/match.js.
+    contentVersion: '2026.08.1',
+    rendererVersion: 'flag-renderer-1',
     ...overrides,
   };
 }
@@ -135,6 +171,7 @@ function makeAnswer(overrides = {}) {
 }
 
 module.exports = {
+  makeGameConfiguration,
   makeRoom,
   makeSession,
   makePlayer,
