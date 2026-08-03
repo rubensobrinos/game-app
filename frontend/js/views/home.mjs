@@ -17,6 +17,7 @@ import { messageForErrorCode } from '../../../client/flow/edge-case-messaging.mj
 import { resolveRoute } from '../../../client/flow/route-resolver.mjs';
 import { formatCode } from './room-header.mjs';
 import { createHostSetupView } from './host-setup.mjs';
+import { setButtonLoading } from '../button-loading.mjs';
 
 const CODE_FORMAT = /^[0-9]{6}$/;
 
@@ -34,15 +35,11 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   quickStartButton.type = 'button';
   quickStartButton.className = 'home-quick-start btn-primary';
   const quickStartError = el('p', 'home-quick-start-error field-error');
-  // M6/E02: twee kanalen, één betekenis. `quickStartProgress` is de
-  // zichtbare, decoratieve indicator (geen tekstduplicaat van de knop);
-  // `quickStartStatus` blijft de aria-live-aankondiging maar is nu
-  // visueel verborgen (`sr-only`) zodat "Potje maken…" niet twee keer
-  // zichtbaar op het scherm staat (knop + paragraaf).
-  const quickStartProgress = el('div', 'home-quick-start-progress');
-  quickStartProgress.hidden = true;
-  quickStartProgress.setAttribute('aria-hidden', 'true');
-  quickStartProgress.append(el('span', 'home-quick-start-dot'), el('span', 'home-quick-start-dot'), el('span', 'home-quick-start-dot'));
+  // M6/E02: `setButtonLoading` (thema 2, T2-2) is de gedeelde laadstaat-
+  // mechanisme voor precies dit moment — label, spinner, breedte-lock,
+  // `aria-busy` en `disabled` in één aanroep. `quickStartStatus` blijft
+  // uitsluitend de aria-live-aankondiging (sr-only, geen zichtbare
+  // tekstverdubbeling met de knop).
   const quickStartStatus = el('p', 'home-quick-start-status sr-only');
   quickStartStatus.setAttribute('aria-live', 'polite');
 
@@ -73,7 +70,7 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   hostSetupLink.className = 'home-host-setup-link btn-quiet';
   hostSetupLink.addEventListener('click', () => dispatch({ type: 'OPEN_ADVANCED' }));
 
-  const quickStartGroup = [logo, title, promise, quickStartButton, quickStartProgress, quickStartStatus, quickStartError, divider, codeLabel, codeError, codeSubmitButton, hostSetupLink];
+  const quickStartGroup = [logo, title, promise, quickStartButton, quickStartStatus, quickStartError, divider, codeLabel, codeError, codeSubmitButton, hostSetupLink];
   screen.append(...quickStartGroup);
 
   // S02: los scherm, hergebruikt dezelfde HostSetupState-instantie (geen
@@ -201,12 +198,12 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
     title.textContent = t('home.title');
     promise.textContent = t('home.promise');
     codeLabelText.textContent = t('home.codeLabel');
-    // M6/E02: de knop-tekst zelf wisselt naar de "bezig"-copy (checklist C:
-    // "Verandert de knop direct naar `Potje maken…`?") i.p.v. alleen een
-    // aparte paragraaf ernaast.
-    quickStartButton.textContent = state.status === 'creating' ? t('home.creating') : t('home.quickStart');
-    quickStartButton.disabled = state.status === 'creating';
-    quickStartProgress.hidden = state.status !== 'creating';
+    // M6/E02: `setButtonLoading` verzorgt label, spinner, breedte-lock,
+    // `aria-busy` en `disabled` in één aanroep (checklist C: "Verandert de
+    // knop direct naar `Potje maken…`?"). Idle-label eerst zetten zodat
+    // `loading: false` altijd iets zinnigs heeft om op terug te vallen.
+    quickStartButton.textContent = t('home.quickStart');
+    setButtonLoading(quickStartButton, { loading: state.status === 'creating', label: state.status === 'creating' ? t('home.creating') : null });
     divider.hidden = state.status === 'creating';
     codeLabel.hidden = state.status === 'creating';
     codeSubmitButton.hidden = state.status === 'creating';
