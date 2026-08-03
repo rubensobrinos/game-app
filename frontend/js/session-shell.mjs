@@ -169,6 +169,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   let matchPhase = initialMatchPhaseState();
   let reconnect = initialReconnectState();
   let roundModel = initialRoundModel();
+  let countdownEndsAt = null; // S07: alleen relevant tijdens matchPhase.phase === 'COUNTDOWN'
   let standingsPayload = null;
   let participants = new Map();
   let playerCount = 0;
@@ -432,7 +433,14 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       case 'room:lock-changed':
         locked = envelope.payload?.locked === true;
         break;
+      case 'game:started':
+        // S07: `countdownEndsAt` is de enige plek waar dit tijdstip binnenkomt
+        // — `match-phase-state.mjs` bewaart 'm bewust niet (net als rondedata),
+        // dus hier lokaal bijhouden, zelfde patroon als `roundModel`.
+        countdownEndsAt = typeof envelope.payload?.countdownEndsAt === 'number' ? envelope.payload.countdownEndsAt : null;
+        break;
       case 'round:started':
+        countdownEndsAt = null;
         roundModel = applyRoundStarted(envelope.payload);
         break;
       case 'round:answer-accepted':
@@ -617,7 +625,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       return;
     }
     if (viewName === 'gameplay') {
-      mountedView.update(roundModel, { secondsLeft: secondsRemaining(roundModel.startsAt, roundModel.endsAt, offsetMs) });
+      mountedView.update(roundModel, gameplayUpdateOptions());
       return;
     }
     if (viewName === 'scoreboard' || viewName === 'podium') {
@@ -625,11 +633,22 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     }
   }
 
+  // S07: tijdens `COUNTDOWN` heeft `gameplay.mjs` de fase nodig (roundModel is
+  // dan nog leeg) plus het afgeteld-getal, berekend uit `countdownEndsAt` —
+  // zelfde patroon (`secondsRemaining()` + `offsetMs`) als de rondetimer.
+  function gameplayUpdateOptions() {
+    return {
+      secondsLeft: secondsRemaining(roundModel.startsAt, roundModel.endsAt, offsetMs),
+      phase: matchPhase.phase,
+      countdownSecondsLeft: countdownEndsAt === null ? null : secondsRemaining(0, countdownEndsAt, offsetMs),
+    };
+  }
+
   function startGameplayTicker() {
     stopGameplayTicker();
     gameplayTimer = setInterval(() => {
       if (mountedViewName === 'gameplay' && mountedView !== null) {
-        mountedView.update(roundModel, { secondsLeft: secondsRemaining(roundModel.startsAt, roundModel.endsAt, offsetMs) });
+        mountedView.update(roundModel, gameplayUpdateOptions());
       }
     }, GAMEPLAY_TICK_MS);
   }

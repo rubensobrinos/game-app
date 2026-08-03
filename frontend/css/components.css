@@ -198,6 +198,17 @@ button:disabled:hover {
 
 .gameplay-round { color: var(--color-text-muted); font-weight: 600; }
 
+/* S07: groot getal, geen vaste 3/2/1-aanname (zie gameplay.mjs) — werkt bij
+   elke servergekozen duur. */
+.gameplay-countdown {
+  text-align: center;
+  font-size: 5rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-accent-primary-hover);
+  margin: 2rem 0;
+}
+
 .gameplay-timer {
   font-size: 1.6rem;
   font-weight: 800;

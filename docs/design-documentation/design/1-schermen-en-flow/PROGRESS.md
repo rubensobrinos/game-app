@@ -32,7 +32,7 @@ de huidige lanceerscope — die blijven bewust op 0.
 
 | # | Scherm | Niveau | Wat er nog mist |
 |---|---|---|---|
-| S07 | Countdown | 0 | Bestaat niet. De vraag verschijnt direct; geen gezamenlijk startmoment. |
+| S07 | Countdown | 1 | **Gebouwd (prompt 04), route A gekozen:** countdown als sub-state van `gameplay.mjs` (geen aparte view/mount-cyclus) — groot getal, afgeleid van `secondsRemaining(countdownEndsAt, offsetMs)`, geen vaste `3`/`2`/`1`-aanname (werkt bij elke serverduur). Geverifieerd met Playwright: verschijnt direct na `Start de game`, telt zichtbaar af, gaat zonder wit scherm over in de eerste vraag. **`UI-13` (HANDOFF-UI.md):** `transport-mock.mjs`'s `COUNTDOWN_MS` (1,2s) is intern tegenstrijdig met `03` §6's richtduur (2,5–3,0s) — aan INT-A of/welke leidend is; de weergave zelf werkt bij beide. Niet gebouwd: rondecontext klein tijdens de countdown, en de vraaginhoud zelf vooraf laden (die twee zijn `04`-niveau-2-composities, geen bug — het huidige protocol levert de vraag toch pas ná de countdown, zie de prompt voor de afweging). |
 | S08 | Meerkeuzevraag | 1 | Vraag, vlag, opties en timer werken. Letter/vorm-identiteit bewust uitgesteld (D-021). Timer is een getal, geen progressbalk. |
 | S09 | Echt of Nep | 0 | Niet in multiplayer gebouwd; alleen singleplayer. |
 | S10 | Hoger of Lager | 0 | Buiten de huidige lanceerscope. |
@@ -80,7 +80,7 @@ andere vier.
 
 | Niveau | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| Aantal schermen | 6 | 15 | 0 | 0 |
+| Aantal schermen | 5 | 16 | 0 | 0 |
 | Randgevallen (nieuw) | 1 | 1 | 0 | 0 |
 
 ## Waar de reis hapert
@@ -96,11 +96,10 @@ document suggereerde.
 Los daarvan valt met de tabel als doorloop nog steeds hetzelfde gat op zodra
 de game zelf begint:
 
-`S07 countdown = 0` → er is geen gezamenlijk startmoment.
+`S07 countdown = 1` → het gezamenlijke startmoment bestaat nu (prompt 04).
 `S13 reveal = 1` → de uitslag is een tekstregel.
 `S14 sociale headline = 0` → er is geen groepsmoment.
 
-Dat is precies wat de roadmap "reveal/leaderboard" noemt en op *zeer hoge*
-impact zet. Drie schermen die samen bepalen of dit als een game voelt of als
-een formulier — en het is het dunste stuk van de hele reis. Dat blijft de
-grootste hefboom, ook na de correctie hierboven.
+Twee van de drie blijven, en dat is precies wat de roadmap "reveal/
+leaderboard" noemt en op *zeer hoge* impact zet — het dunste stuk van de
+reis blijft ná de uitslag, niet ervoor. Dat blijft de grootste hefboom.

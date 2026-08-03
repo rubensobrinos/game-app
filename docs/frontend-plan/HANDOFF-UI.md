@@ -15,6 +15,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-10 | thema 1 | ✅ opgelost | `room-header.mjs` is dode code — `D-018` daardoor nog niet zichtbaar |
 | UI-11 | producteigenaar | 🔵 open | `O-002`/`O-003` blokkeren wereldmotieven en iconografie (thema 2) |
 | UI-12 | PR | 🟡 informatief, klein verzoek | `PROTOCOL.md` specificeert `round:ended`'s persoonlijke velden nergens — client las ze verkeerd, nu client-side gefixt |
+| UI-13 | INT-A | 🔵 open | `COUNTDOWN_MS` (1,2s) in `transport-mock.mjs` wijkt af van `03` §6's richtduur (2,5–3,0s) — welke is leidend? |
 
 ---
 
@@ -513,3 +514,29 @@ persoonlijke velden (`ownPoints`, `ownCorrect`, `ownResponseTimeMs`) en hun
 vorm/semantiek, zodat dit specifieke gat niet terugkeert. Geen haast, geen
 codewijziging nodig — puur het protocoldocument in lijn brengen met wat de
 server al (correct) doet.
+
+---
+
+## UI-13 — Countdown-duur: mock (1,2s) vs. `03` §6 (2,5–3,0s) (thema 1, 3 aug 2026)
+
+**Voor:** INT-A (eigenaar van `transport-mock.mjs`/het protocol — dit is een
+serverwaarde, geen clientkeuze).
+
+Bij het bouwen van `S07` (countdown, `1-schermen-en-flow/prompts/
+04-S07-countdown.md`) bleek `transport-mock.mjs`'s `COUNTDOWN_MS` vast op
+1200ms te staan, terwijl `03-GAME-FLOW-AND-STATES.md` §6 een richtduur van
+2,5–3,0s noemt. Dat is geen afrondingsverschil: bij 1,2s past een aftelling
+met discrete hele-secondestappen (`3`→`2`→`1`) domweg niet — in de praktijk
+telt de client nu af vanaf `2`, niet vanaf `3`.
+
+**Client-side al robuust tegen beide:** `gameplay.mjs`'s countdown-substaat
+rekent het getal uit `secondsRemaining(countdownEndsAt, offsetMs)`, geen
+vaste 3-2-1-reeks aangenomen — welke duur de server ook uiteindelijk stuurt,
+de weergave klopt zonder clientwijziging. Dit item is dus puur ter
+bevestiging van de juiste waarde, niet blokkerend voor `S07` zelf (al
+opgeleverd op niveau 1).
+
+**Verzoek:** bevestig welke van de twee leidend is — een bewuste
+mock-vereenvoudiging die in productie richting 2,5–3,0s gaat, of is `03` §6
+verouderd en is 1,2s de werkelijke waarde? Update de afwijkende bron zodat
+de twee documenten niet langer tegenspreken.

@@ -22,6 +22,14 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   const screenTitle = el('h2', 'sr-only');
   screenTitle.textContent = t('game.screenTitle');
 
+  // S07: countdown als sub-state van dit scherm (geen aparte view/mount-
+  // cyclus, zie 04-S07-countdown.md) — `model` (roundModel) is tijdens
+  // `COUNTDOWN` nog leeg, dus dit vervangt tijdelijk alles eronder i.p.v. er
+  // "boven" te zitten.
+  const countdown = el('p', 'gameplay-countdown');
+  countdown.setAttribute('aria-live', 'polite');
+  countdown.hidden = true;
+
   const header = el('div', 'gameplay-header');
   const roundLabel = el('p', 'gameplay-round');
   const timer = el('p', 'gameplay-timer');
@@ -46,12 +54,21 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   result.setAttribute('aria-live', 'polite');
   result.setAttribute('aria-atomic', 'true');
 
-  root.append(screenTitle, header, questionPrompt, flag, options, status, progress, result);
+  root.append(screenTitle, countdown, header, questionPrompt, flag, options, status, progress, result);
 
   let renderedRoundId = null;
   let optionButtons = new Map();
 
-  function update(model, { secondsLeft = null } = {}) {
+  function update(model, { secondsLeft = null, phase = null, countdownSecondsLeft = null } = {}) {
+    // Reken het getal uit de resterende tijd (`secondsRemaining()` rondt al af
+    // op hele seconden) — geen vaste `3`/`2`/`1`-reeks aannemen, want de
+    // serverduur kan afwijken (zie 04-S07-countdown.md's HANDOFF-punt over
+    // `COUNTDOWN_MS` vs. `03` §6).
+    countdown.hidden = phase !== 'COUNTDOWN';
+    if (!countdown.hidden) {
+      countdown.textContent = countdownSecondsLeft === null ? '' : String(countdownSecondsLeft);
+    }
+
     const state = displayState(model);
 
     if (state === 'empty') {
