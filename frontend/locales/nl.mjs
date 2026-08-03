@@ -119,6 +119,7 @@ export const nl = Object.freeze({
   'session.revoked': 'Je sessie is beëindigd.',
   'session.unknown': 'Je bent losgekoppeld.',
   'session.backToStart': 'Terug naar start',
+  'session.duplicateTab': 'Deze game staat ook open in een ander tabblad. Dit tabblad kan een verouderde stand tonen.',
 
   // — UI5: Hostbalk (lock/kick/finish/next; pauze zit hierboven) —
   'hostbar.lock': 'Room vergrendelen',

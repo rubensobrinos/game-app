@@ -46,6 +46,42 @@ export function messageForConnectionStatus(status) {
   return null;
 }
 
+// Prompt 05, punt 1 (03 §5.1: "iedere fout heeft een specifieke vervolgstap").
+// Uitsluitend de foutcodes die `previewInvite`/`joinGame` daadwerkelijk kunnen
+// opleveren (PROTOCOL.md's join-/create-sectie en `rest-games-create-join.mjs`'s
+// eigen opsomming) — niet de volledige 23, de meeste horen bij een lopende
+// ronde, niet bij joinen.
+const PERMANENTLY_INVALID_JOIN_CODES = new Set(['GAME_NOT_FOUND', 'INVITE_INVALID']);
+const MAY_CHANGE_LATER_JOIN_CODES = new Set([
+  'GAME_FULL',
+  'ROOM_LOCKED',
+  'GAME_ALREADY_STARTED',
+  'LATE_JOIN_DISABLED',
+]);
+
+/**
+ * Welke vervolgactie(s) een joinfout rechtvaardigt. `retry` blijft altijd
+ * mogelijk (de gebruiker kan het altijd proberen), maar voor de eerste twee
+ * categorieën is dat zinloos — dezelfde code/link/naam blijft dezelfde fout
+ * geven — dus daar hoort "terug naar start" als (mede-)primaire actie bij.
+ * @param {string | null | undefined} errorCode
+ * @returns {'permanently-invalid' | 'may-change-later' | 'retry-only'}
+ */
+export function joinErrorCategoryFor(errorCode) {
+  if (typeof errorCode === 'string' && PERMANENTLY_INVALID_JOIN_CODES.has(errorCode)) {
+    return 'permanently-invalid';
+  }
+  if (typeof errorCode === 'string' && MAY_CHANGE_LATER_JOIN_CODES.has(errorCode)) {
+    return 'may-change-later';
+  }
+  // NAME_INVALID/NAME_TOO_LONG: join-state.mjs's eigen RETRY-afhandeling wist
+  // al de ingevoerde naam en gaat terug naar name-entry — dat IS al de juiste
+  // vervolgstap, geen aparte categorie nodig. CODE_RATE_LIMITED en een
+  // netwerkfout (geen `.code`) horen hier ook: simpelweg opnieuw proberen
+  // blijft daar de zinnige actie.
+  return 'retry-only';
+}
+
 /** @param {'kicked' | 'revoked'} kind @param {string | null} [reason] @returns {string} */
 export function messageForSessionTermination(kind, reason) {
   if (kind === 'kicked') {

@@ -785,6 +785,18 @@ button {
   margin: 0;
 }
 
+/* Randgeval "dubbele tab" (prompt 05) — informatief, geen foutkleur: dit
+   tabblad werkt door, het is alleen mogelijk niet meer de actuele stand. */
+.session-duplicate-tab {
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-surface-2);
+  padding: 0.5rem 1rem;
+  margin: 0;
+}
+
 /* S19: terugvalroute na een reconnect die te lang duurt — verschijnt onder
    de statusbalk, niet erin (blijft zo een aparte, tikbare actie). */
 .session-reconnect-fallback {

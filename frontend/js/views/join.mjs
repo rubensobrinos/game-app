@@ -25,9 +25,9 @@ import {
   NAME_MAX_GRAPHEMES,
 } from '../../../client/flow/join-state.mjs';
 import { saveSession } from '../../../client/flow/session-store.mjs';
-import { messageForErrorCode } from '../../../client/flow/edge-case-messaging.mjs';
+import { messageForErrorCode, joinErrorCategoryFor } from '../../../client/flow/edge-case-messaging.mjs';
 
-export function createJoinView({ root, t, tCount, transport, storage, onJoined }) {
+export function createJoinView({ root, t, tCount, transport, storage, onJoined, onLeaveHome }) {
   root.textContent = '';
 
   const screen = el('div', 'screen join-screen');
@@ -62,8 +62,15 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined }
   const retryButton = document.createElement('button');
   retryButton.type = 'button';
   retryButton.className = 'join-retry btn-secondary';
+  // Prompt 05, punt 1: sommige foutcodes rechtvaardigen geen "opnieuw
+  // proberen" (dezelfde ongeldige code/link/volle room geeft toch weer
+  // dezelfde fout) — die tonen dit i.p.v./naast de retry-knop.
+  const backToStartButton = document.createElement('button');
+  backToStartButton.type = 'button';
+  backToStartButton.className = 'join-back-to-start btn-primary';
+  backToStartButton.addEventListener('click', () => onLeaveHome?.());
 
-  screen.append(title, status, waitingCount, nameLabel, errorMessage, submitButton, retryButton);
+  screen.append(title, status, waitingCount, nameLabel, errorMessage, submitButton, backToStartButton, retryButton);
   root.append(screen);
 
   let state = initialJoinState();
@@ -135,6 +142,7 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined }
     title.textContent = t('join.title');
     errorMessage.textContent = '';
     retryButton.hidden = true;
+    backToStartButton.hidden = true;
     submitButton.hidden = true;
     nameLabel.hidden = true;
     waitingCount.hidden = true;
@@ -170,7 +178,17 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined }
     if (state.status === 'error') {
       status.textContent = '';
       errorMessage.textContent = t(`error.${messageForErrorCode(state.code)}`);
-      retryButton.hidden = false;
+      // Prompt 05, punt 1: welke knop(pen) hangt af van de foutcategorie, niet
+      // altijd dezelfde ene "Opnieuw proberen" — zie edge-case-messaging.mjs.
+      const category = joinErrorCategoryFor(state.code);
+      backToStartButton.hidden = category === 'retry-only';
+      backToStartButton.textContent = t('session.backToStart');
+      // Blijvend ongeldig (dezelfde code/link geeft toch weer dezelfde fout):
+      // geen "opnieuw proberen" aanbieden, dat is hier gewoon zinloos. Bij de
+      // andere twee categorieën blijft retry staan — secundair (`btn-
+      // secondary`, al zo gestyled) zodra "terug naar start" ernaast staat,
+      // nooit twee even dominante knoppen (04's S01-regel, zelfde principe).
+      retryButton.hidden = category === 'permanently-invalid';
       retryButton.textContent = t('join.retry');
       return;
     }

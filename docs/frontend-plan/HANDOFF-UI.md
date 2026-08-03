@@ -16,6 +16,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-11 | producteigenaar | 🔵 open | `O-002`/`O-003` blokkeren wereldmotieven en iconografie (thema 2) |
 | UI-12 | PR | 🟡 informatief, klein verzoek | `PROTOCOL.md` specificeert `round:ended`'s persoonlijke velden nergens — client las ze verkeerd, nu client-side gefixt |
 | UI-13 | INT-A | 🔵 open | `COUNTDOWN_MS` (1,2s) in `transport-mock.mjs` wijkt af van `03` §6's richtduur (2,5–3,0s) — welke is leidend? |
+| UI-14 | producteigenaar | 🔵 open, voorstel al gebouwd | Dubbele tab: `BroadcastChannel`-gebaseerde detectie toegevoegd (geen nieuwe dependency) — bevestig of dit de gewenste aanpak is |
 
 ---
 
@@ -540,3 +541,39 @@ opgeleverd op niveau 1).
 mock-vereenvoudiging die in productie richting 2,5–3,0s gaat, of is `03` §6
 verouderd en is 1,2s de werkelijke waarde? Update de afwijkende bron zodat
 de twee documenten niet langer tegenspreken.
+
+---
+
+## UI-14 — Dubbele tab: `BroadcastChannel`-detectie (thema 1, 3 aug 2026)
+
+**Voor:** de producteigenaar (`00-DESIGN-INDEX.md` §6 punt 9 — een nieuwe
+aanpak/afhankelijkheid vastleggen als voorstel, niet stilzwijgend beslissen).
+
+Bij het uitvoeren van `1-schermen-en-flow/prompts/05-randgevallen.md` is het
+dubbele-tab-probleem eerst gereproduceerd tegen `transport-mock.mjs`
+(reproductiescript + een Playwright-test met twee tabs in dezelfde
+browsercontext): een tweede `connect()` met dezelfde `sessionToken`
+overschrijft stilzwijgend de listener-entry van de eerste tab
+(`room.listeners.set(sessionToken, listener)`), waardoor die tab nooit meer
+een event ontvangt zonder dat 'ie dat zelf weet. Bevestigd, niet aangenomen.
+
+`03` §7 vraagt om "de nieuwste of eerste actieve sessie deterministisch
+leidend" én dat de andere tab een uitleg toont in plaats van stil dood te
+gaan. Het eerste deel gebeurt al vanzelf (de nieuwste `connect()` wint de
+Map-entry); het tweede deel ontbrak volledig.
+
+**Gebouwd (voorstel, geen definitief besluit):** `session-shell.mjs` maakt nu
+een `BroadcastChannel` per sessie (`rounda-session-{code}`, browser-native,
+geen nieuwe dependency) en kondigt bij het mounten zijn eigen `tabId` +
+tijdstip aan. Een tab die een latere aankondiging voor dezelfde sessie ziet
+toont een informatieve banner (`session.duplicateTab`, alle drie de locales)
+i.p.v. stil door te blijven draaien. Lost de onderliggende Map-overschrijving
+zelf niet op (transportlaag-gedrag, expliciet niet aangeraakt) — maakt de
+situatie alleen zichtbaar voor wie 'm treft. Geverifieerd met Playwright: de
+oudere tab toont de banner zodra de nieuwere opent, de nieuwere tab niet.
+
+**Verzoek:** bevestig of `BroadcastChannel` de gewenste aanpak is voor dit
+soort cross-tab-signalering (het is de enige client-side optie zonder een
+nieuw serverbouwstuk — alternatief zou een `localStorage`-event zijn, functie
+gelijk maar minder direct), en of een banner volstaat of dat er ook een
+actieve stap gewenst is (bv. de oudere tab z'n socket zelf laten sluiten).

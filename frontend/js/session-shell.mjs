@@ -123,6 +123,41 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   reconnectFallbackButton.hidden = true;
   reconnectFallbackButton.addEventListener('click', onLeaveHome);
 
+  // Randgeval "dubbele tab" (03 §7, prompt 05): gereproduceerd tegen
+  // transport-mock.mjs — een tweede `connect()` met dezelfde sessionToken
+  // overschrijft stilzwijgend de listener-entry van de eerste tab
+  // (`room.listeners.set(sessionToken, ...)`), waardoor de EERSTE tab nooit
+  // meer een event ontvangt zonder dat 'ie dat zelf weet. Er is geen
+  // betrouwbare manier om dit client-side te detecteren zonder een
+  // cross-tab-mechanisme — dit is een VOORSTEL (00-DESIGN-INDEX.md §6 punt 9),
+  // geen stilzwijgend besluit: `BroadcastChannel` (browser-native, geen
+  // nieuwe dependency) laat elke tab zijn opening aankondigen; een tab die
+  // een latere aankondiging voor dezelfde sessie ziet, toont deze banner
+  // i.p.v. stil door te blijven draaien alsof niets gebeurd is. Lost de
+  // onderliggende Map-overschrijving niet op (dat is transportlaag-gedrag,
+  // niet aanraken) — maakt 'm alleen zichtbaar voor wie het overkomt.
+  const duplicateTabNotice = document.createElement('p');
+  duplicateTabNotice.className = 'session-duplicate-tab';
+  duplicateTabNotice.hidden = true;
+  duplicateTabNotice.setAttribute('role', 'status');
+  const tabId = globalThis.crypto.randomUUID();
+  const tabClaimedAt = Date.now();
+  const tabChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(`rounda-session-${code}`) : null;
+  tabChannel?.addEventListener('message', (event) => {
+    const claim = event.data;
+    if (
+      claim !== null &&
+      typeof claim === 'object' &&
+      claim.tabId !== tabId &&
+      typeof claim.claimedAt === 'number' &&
+      claim.claimedAt > tabClaimedAt
+    ) {
+      duplicateTabNotice.hidden = false;
+      duplicateTabNotice.textContent = t('session.duplicateTab');
+    }
+  });
+  tabChannel?.postMessage({ tabId, claimedAt: tabClaimedAt });
+
   // UI5: de hostbalk (pauzeren/hervatten, vergrendelen, spelers verwijderen,
   // handmatig volgende ronde bij hostgestuurde pacing). Vervangt de eerdere
   // minimale pauze-only-knop die er stond vooruitlopend op dit werk.
@@ -164,7 +199,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     }
   });
 
-  root.append(banner, answerSavedNote, reconnectFallbackButton, hostBarRoot, phaseContainer, pauseOverlay);
+  root.append(banner, answerSavedNote, duplicateTabNotice, reconnectFallbackButton, hostBarRoot, phaseContainer, pauseOverlay);
 
   let matchPhase = initialMatchPhaseState();
   let reconnect = initialReconnectState();
@@ -530,6 +565,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     stopGameplayTicker();
     cancelRecoveredMessage();
     cancelReconnectFallback();
+    tabChannel?.close();
     socket.close();
     clearSession(storage, code);
     // D-018: code/QR verdwijnen pas als de sessie eindigt — dit IS dat moment.
@@ -717,6 +753,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       stopGameplayTicker();
       cancelRecoveredMessage();
       cancelReconnectFallback();
+      tabChannel?.close();
       socket.close();
       // D-018: verlaat de route (app.mjs mount een andere screen) → sessie
       // is voorbij voor déze client, dus ook de headercode verdwijnt.

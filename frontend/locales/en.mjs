@@ -101,6 +101,7 @@ export const en = Object.freeze({
   'session.revoked': 'Your session has ended.',
   'session.unknown': 'You were disconnected.',
   'session.backToStart': 'Back to start',
+  'session.duplicateTab': 'This game is also open in another tab. This tab may show an outdated state.',
 
   'hostbar.lock': 'Lock the room',
   'hostbar.unlock': 'Unlock the room',

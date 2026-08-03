@@ -99,6 +99,7 @@ export const es = Object.freeze({
   'session.revoked': 'Tu sesión ha finalizado.',
   'session.unknown': 'Te has desconectado.',
   'session.backToStart': 'Volver al inicio',
+  'session.duplicateTab': 'Esta partida también está abierta en otra pestaña. Esta pestaña puede mostrar un estado desactualizado.',
 
   'hostbar.lock': 'Bloquear la sala',
   'hostbar.unlock': 'Desbloquear la sala',

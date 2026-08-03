@@ -74,6 +74,7 @@ function mountJoin(root, locator) {
     transport,
     storage,
     onJoined: (session) => navigate(`/game/${session.gameCode}`),
+    onLeaveHome: () => navigate('/'),
   });
   view.start(locator);
   return view;

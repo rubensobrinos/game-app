@@ -73,15 +73,15 @@ andere vier.
 
 | Randgeval | Niveau | Toelichting |
 |---|---|---|
-| Dubbele tab (`03` §7) | 0 | "De nieuwste of eerste actieve sessie moet deterministisch leidend zijn." Niets in de code regelt dit; twee tabs met dezelfde `sessionToken` roepen allebei `connect()` aan met onbekend resultaat. Ongetest. |
-| Gedifferentieerde foutafhandeling bij `ROOM_VALIDATING` (`03` §5.1) | 1 | "Iedere fout heeft een specifieke vervolgstap" — maar `join.mjs` toont voor alle 23 foutcodes dezelfde generieke `Opnieuw proberen`-knop. `Room zit vol` of `code bestaat niet` opnieuw proberen is zinloos; dat verdient een andere vervolgactie (terug naar start) dan een netwerkfout. De teksten zelf zijn wel compleet en vertaald (zie thema 4) — dit gaat om de vervolgáctie per fout, niet om de tekst. |
+| Dubbele tab (`03` §7) | 1 | **Gereproduceerd én gedeeltelijk gefixt (prompt 05).** Bevestigd tegen `transport-mock.mjs` (reproductiescript + Playwright, twee tabs in dezelfde browsercontext): een tweede `connect()` met dezelfde `sessionToken` overschrijft stilzwijgend de listener-entry van de eerste tab (`room.listeners.set()`) — die tab ontvangt daarna nooit meer een event, zonder dat 'ie dat zelf weet. **Voorstel, geen vastgelegd besluit** (`00-DESIGN-INDEX.md` §6 punt 9): `BroadcastChannel` (browser-native) laat elke tab zijn opening aankondigen; de oudere tab toont nu een banner zodra een nieuwere tab dezelfde sessie claimt, i.p.v. stil door te draaien. Dit lost de onderliggende overschrijving niet op (transportlaag-gedrag, niet aangeraakt) — maakt 'm alleen zichtbaar. Blijft niveau 1: geen diepere reconciliatie (welke tab definitief "wint", geen geforceerde redirect), en het voorstel zelf wacht nog op bevestiging. |
+| Gedifferentieerde foutafhandeling bij `ROOM_VALIDATING` (`03` §5.1) | 2 | **Criterium volledig gehaald (prompt 05):** `join-error-category` (nieuw, `edge-case-messaging.mjs`) onderscheidt drie categorieën op basis van de daadwerkelijk mogelijke join-foutcodes (niet alle 23 — de meeste horen bij een lopende ronde). Blijvend ongeldig (`GAME_NOT_FOUND`/`INVITE_INVALID`): alléén "Terug naar start", geen zinloze retry. Kan veranderen (`GAME_FULL`/`ROOM_LOCKED`/`GAME_ALREADY_STARTED`/`LATE_JOIN_DISABLED`): beide knoppen, "Terug naar start" primair. Tijdelijk/naamfout: ongewijzigd, retry blijft de juiste actie (join-state.mjs's eigen `RETRY`-afhandeling wist de naam al). Geverifieerd met Playwright tegen twee echte scenario's (`GAME_NOT_FOUND`, `ROOM_LOCKED`). |
 
 ## Telling
 
 | Niveau | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
 | Aantal schermen | 5 | 16 | 0 | 0 |
-| Randgevallen (nieuw) | 1 | 1 | 0 | 0 |
+| Randgevallen (nieuw) | 0 | 1 | 1 | 0 |
 
 ## Waar de reis hapert
 
