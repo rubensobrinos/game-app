@@ -50,8 +50,8 @@ geen nieuwe fase. Wie hier tickets van maakt op rijgrootte alleen, onderschat
 
 | # | Scherm | Niveau | Wat er nog mist |
 |---|---|---|---|
-| S13 | Ronde-reveal | 1 | Correct antwoord, eigen keuze en punten verschijnen. Geen eigen fase met opbouw, geen rankbeweging, geen antwoordverdeling. |
-| S14 | Sociale headline | 0 | Bestaat niet. Geen selectielogica, geen copy, geen plek in de flow. |
+| S13 | Ronde-reveal | 1 | **Opbouw als reeks gebouwd (prompt 07), bewust twee stappen i.p.v. zes:** `reveal-model.mjs` (puur, `node:test`) bepaalt of de sociale headline al getoond mag worden — resultaat (antwoord/eigen keuze/label/punten, die vier horen bij hetzelfde moment) verschijnt meteen, de headline pas na 1,4s (overslaanbaar met een tik op de uitslag, geverifieerd met Playwright). Rankbeweging zit bewust NIET in deze opbouw: `round:ended` komt vóór `scoreboard:updated` (transport-mock.mjs), de bijgewerkte stand voor déze ronde bestaat dus nog niet op het moment dat dit scherm 'm zou tonen — die stap landt op scoreboard.mjs (S15), waar de data wél al klopt. Antwoordverdeling zelf blijft impliciet (via de headline-condities), geen los diagram — dat vroeg `04` ook niet expliciet. |
+| S14 | Sociale headline | 1 | **Vier van de zeven typen gebouwd (prompt 07):** `social-headline.mjs` (puur, 14 `node:test`-gevallen) selecteert in prioriteitsvolgorde: (1) enige correct — alléén de self-variant, (2) comeback (≥ 2 plaatsen, gedeeld met S15's `rankMovementFrom()`, toont op scoreboard.mjs), (4) iedereen correct (vergeleken met `eligiblePlayerCount`, niet totaal aantal antwoorden), (5) iedereen fout (met databorging tegen "niemand antwoordde"), (6) opvallende misleider (fout antwoord minstens zo vaak gekozen als het juiste). Geverifieerd met Playwright tegen `transport-mock.mjs`: een ronde goed beantwoord toont "iedereen correct", een ronde fout beantwoord toont "iedereen fout"; comeback apart geverifieerd met een testharnas. Drie typen blijven `HANDOFF` (`UI-16`): "enige correct" voor een ándere speler, snelste speler, streak — alle drie vereisen serverdata die er nu niet is. Niet naar niveau 2: drie van de zeven typen ontbreken nog. |
 | S15 | Leaderboard | 1 | **Bewegingsindicatie gebouwd (prompt 08):** `standings-model.mjs`'s nieuwe `rankMovementFrom()` (gedeeld met 07's comeback-detectie, één implementatie) vergelijkt de vorige met de huidige stand; `scoreboard.mjs` toont `↑2`/`↓1`/`—` per rij met een vertaald `aria-label`. Geverifieerd met `node:test` (3 nieuwe gevallen: stijgen, dalen, nieuwe speler zonder vorige positie). **Tie-regel blijft bewust open** (`UI-15`, HANDOFF-UI.md): getest met een tie-scenario, servervolgorde wordt getoond zonder gedeelde-plaats-indicatie — geen eigen aanname, `04` noemt dit zelf al een openstaand productbesluit. Geen rankanimatie (thema 3's territorium, motion-tokens nog niet toegepast hier). |
 | S20 | Podium | 1 | **Alle drie de gevraagde stukken gebouwd (prompt 08):** 3→2→1-opbouw (brons→zilver→goud, 1,4s per stap, overslaanbaar met een tik op het podium — geverifieerd met een losse testharnas: 1→2→3 zichtbare stappen na resp. 0/1,5s/1,5s, en direct 3 na de tik); `Deel uitslag` (alléén de eigen score/positie, privacyvriendelijk, geen roomcode/link — klembord-fallback geverifieerd); `Nieuw spel` (host, terug naar start — directe route naar `09-S02-spel-aanpassen.md` zodra die bestaat). Ook toegevoegd, niet expliciet gevraagd maar een reëel gat: `Afsluiten`, nu ook voor niet-hosts (die zaten eerder vast te wachten op een revanche zonder enige uitweg). Emoji-medailles blijven placeholders (D-015), niet aangeraakt. |
 
@@ -80,7 +80,7 @@ andere vier.
 
 | Niveau | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| Aantal schermen | 5 | 16 | 0 | 0 |
+| Aantal schermen | 4 | 17 | 0 | 0 |
 | Randgevallen (nieuw) | 0 | 1 | 1 | 0 |
 
 ## Waar de reis hapert
@@ -97,9 +97,11 @@ Los daarvan valt met de tabel als doorloop nog steeds hetzelfde gat op zodra
 de game zelf begint:
 
 `S07 countdown = 1` → het gezamenlijke startmoment bestaat nu (prompt 04).
-`S13 reveal = 1` → de uitslag is een tekstregel.
-`S14 sociale headline = 0` → er is geen groepsmoment.
+`S13 reveal = 1` → een opbouw in twee stappen, niet meer één tekstregel (prompt 07).
+`S14 sociale headline = 1` → vier van de zeven groepsmomenten bestaan nu (prompt 07).
 
-Twee van de drie blijven, en dat is precies wat de roadmap "reveal/
-leaderboard" noemt en op *zeer hoge* impact zet — het dunste stuk van de
-reis blijft ná de uitslag, niet ervoor. Dat blijft de grootste hefboom.
+Alle drie zijn niet langer "0" of "één tekstregel", maar geen enkele staat op
+niveau 2 — dat blijft precies wat de roadmap "reveal/leaderboard" noemt, zeer
+hoge impact, nog steeds het dunste stuk van de reis om tot een écht ontworpen
+niveau te tillen. De grootste hefboom is dus verschoven van "bestaat het al"
+naar "voelt het als een game" — een ander soort werk, niet minder werk.

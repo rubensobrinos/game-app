@@ -258,6 +258,16 @@ button:disabled:hover {
 .gameplay-own.is-noanswer { color: var(--color-text-muted); }
 .gameplay-score { color: var(--color-accent-competition, #f59e0b); font-weight: 700; }
 
+/* S14: hooguit één sociale headline, pas ná de reveal-vertraging. */
+.gameplay-headline {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: var(--r-sm);
+  background: var(--color-surface-2);
+  font-weight: 700;
+  text-align: center;
+}
+
 /* ── Tussenstand & podium (UI4) ───────────────────────────────────── */
 
 .scoreboard-list,

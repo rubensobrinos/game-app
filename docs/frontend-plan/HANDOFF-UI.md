@@ -18,6 +18,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-13 | INT-A | 🔵 open | `COUNTDOWN_MS` (1,2s) in `transport-mock.mjs` wijkt af van `03` §6's richtduur (2,5–3,0s) — welke is leidend? |
 | UI-14 | producteigenaar | 🔵 open, voorstel al gebouwd | Dubbele tab: `BroadcastChannel`-gebaseerde detectie toegevoegd (geen nieuwe dependency) — bevestig of dit de gewenste aanpak is |
 | UI-15 | producteigenaar | 🔵 open | Tie-regel bij gelijke scores (S15/S20): `04` noemt dit expliciet nog te beslissen; `transport-mock.mjs` heeft al een ongedocumenteerde tiebreak (`joinedAt` ascending) — client toont gewoon de servervolgorde, geen gedeelde-plaats-indicator |
+| UI-16 | INT-A | 🔵 open | S14: drie sociale-headline-typen niet bouwbaar zonder protocolwijziging (naam bij "enige correct" voor een ANDERE speler, antwoordtijd voor "snelste speler", streak-historie) |
 
 ---
 
@@ -605,3 +606,30 @@ tiebreak, of bv. snelste gemiddelde antwoordtijd), en (b) of dat besluit ook
 in `04`/`03` vastgelegd moet worden zodat de mock het niet langer stilzwijgend
 bepaalt. De client (`standings-model.mjs`) doet zelf bewust geen eigen
 ranking — die volgt zodra de servervolgorde dat besluit weerspiegelt.
+
+---
+
+## UI-16 — Drie S14-headlinetypen niet bouwbaar zonder protocolwijziging (thema 1, 3 aug 2026)
+
+**Voor:** INT-A. `04`'s S14-prioriteitslijst noemt zeven headlinetypen; vier
+zijn client-side bouwbaar (`social-headline.mjs`, `1-schermen-en-flow/
+prompts/07-reveal-en-sociale-headline.md`) — deze drie niet, telkens omdat de
+benodigde data nergens voor andere clients zichtbaar is:
+
+1. **"Enige correct" voor een ándere speler.** `round:ended`'s `distribution`
+   telt alleen (`[{optionId, count}]`), geen speleridentiteiten. Wél bouwbaar
+   — en gebouwd — is de self-variant: als JÍJ de enige correcte speler was
+   (`ownCorrect === true` + telling correcte optie `=== 1`), weet je dat via
+   je eigen `round:ended`. Alleen "welke ándere speler het was" ontbreekt.
+2. **Uitzonderlijk snelle speler.** Geen antwoordtijd per speler zichtbaar
+   voor andere clients in het huidige protocol (`round:ended` geeft alleen de
+   eigen `ownResponseTimeMs`, PROTOCOL.md).
+3. **Streak (opeenvolgende juiste antwoorden).** Vereist historie over
+   meerdere rondes per speler; geen client heeft zicht op andermans streaks,
+   alleen op de eigen (die zou een lokale teller kunnen bijhouden, maar dat
+   is iets anders dan een gedeeld sociaal feit tonen).
+
+**Verzoek:** als een van deze drie alsnog gewenst is, is dat een
+protocoluitbreiding (bv. `round:ended` uitbreiden met per-speler-identiteit
+bij precies één correcte respons, of een aparte "snelste"/"streak"-broadcast)
+— geen aanname die de client zelf zou moeten verzinnen.

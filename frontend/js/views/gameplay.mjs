@@ -12,6 +12,8 @@
 
 import { countryName, flagAssetPath } from './country-names.mjs';
 import { displayState, optionsLocked } from './round-model.mjs';
+import { headlineRevealed } from './reveal-model.mjs';
+import { socialHeadlineFor } from './social-headline.mjs';
 
 export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   root.textContent = '';
@@ -54,10 +56,30 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   result.setAttribute('aria-live', 'polite');
   result.setAttribute('aria-atomic', 'true');
 
-  root.append(screenTitle, countdown, header, questionPrompt, flag, options, status, progress, result);
+  // S13/S14: sociale headline, hooguit één, pas ná een korte vertraging
+  // (reveal-model.mjs) — een tik op de uitslag toont 'm meteen (overslaanbaar,
+  // zelfde patroon als podium.mjs's 3→2→1-opbouw).
+  const headline = el('p', 'gameplay-headline');
+  headline.setAttribute('aria-live', 'polite');
+  headline.hidden = true;
+  result.addEventListener('click', () => {
+    if (revealedRoundId !== null) {
+      skippedReveal = true;
+      renderHeadline();
+    }
+  });
+
+  root.append(screenTitle, countdown, header, questionPrompt, flag, options, status, progress, result, headline);
 
   let renderedRoundId = null;
   let optionButtons = new Map();
+  // Reveal-pacing (S13): lokale Date.now(), geen servertijd nodig — dit
+  // bepaalt alleen hoe lang dít scherm wacht vóór het de headline toont, geen
+  // cross-client-gesynchroniseerd moment zoals de rondetimer.
+  let revealedRoundId = null;
+  let revealedAt = null;
+  let skippedReveal = false;
+  let lastRoundModel = null;
 
   function update(model, { secondsLeft = null, phase = null, countdownSecondsLeft = null } = {}) {
     // Reken het getal uit de resterende tijd (`secondsRemaining()` rondt al af
@@ -81,8 +103,12 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
       progress.textContent = '';
       result.textContent = '';
       renderedRoundId = null;
+      headline.hidden = true;
+      revealedRoundId = null;
       return;
     }
+
+    lastRoundModel = model;
 
     questionPrompt.hidden = false;
 
@@ -170,6 +196,62 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
       const correctBtn = optionButtons.get(model.result.correctOptionId);
       if (correctBtn) correctBtn.classList.add('is-correct');
     }
+
+    // S13: eerste keer dat dít ronderesultaat verschijnt — reveal-klok
+    // starten. Ná dezelfde-ronde-ticks (elke 250ms, session-shell.mjs's
+    // ticker) blijft dit ongewijzigd, geen herstart per tick.
+    if (model.result !== null && revealedRoundId !== model.roundId) {
+      revealedRoundId = model.roundId;
+      revealedAt = Date.now();
+      skippedReveal = false;
+    }
+    renderHeadline();
+  }
+
+  // S14: hooguit één sociale headline, alleen ná de reveal-vertraging (of een
+  // tik om te skippen). Puur uit rondelokale data (distribution/eligible-
+  // PlayerCount) — comeback vuurt hier bewust nooit (movement leeg, zie
+  // reveal-model.mjs voor waarom), die hoort bij scoreboard.mjs.
+  function renderHeadline() {
+    if (lastRoundModel === null || lastRoundModel.result === null || revealedRoundId !== lastRoundModel.roundId) {
+      headline.hidden = true;
+      return;
+    }
+    const elapsedMs = revealedAt === null ? null : Date.now() - revealedAt;
+    if (!headlineRevealed(elapsedMs, skippedReveal)) {
+      headline.hidden = true;
+      return;
+    }
+    const found = socialHeadlineFor({
+      distribution: lastRoundModel.result.distribution,
+      correctOptionId: lastRoundModel.result.correctOptionId,
+      eligiblePlayerCount: lastRoundModel.progress?.eligiblePlayerCount ?? null,
+      movement: new Map(),
+      participants: new Map(),
+      selfCorrect: lastRoundModel.result.selfCorrect,
+    });
+    if (found === null) {
+      headline.hidden = true;
+      return;
+    }
+    headline.hidden = false;
+    headline.textContent = textForHeadline(found);
+  }
+
+  function textForHeadline(found) {
+    if (found.type === 'self-sole-correct') {
+      return t('headline.selfSoleCorrect');
+    }
+    if (found.type === 'everyone-correct') {
+      return t('headline.everyoneCorrect');
+    }
+    if (found.type === 'everyone-wrong') {
+      return t('headline.everyoneWrong');
+    }
+    if (found.type === 'misleading-answer') {
+      return t('headline.misleadingAnswer').replace('{country}', countryName(found.optionId, lang));
+    }
+    return '';
   }
 
   return { update };

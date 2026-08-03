@@ -60,6 +60,13 @@ export const nl = Object.freeze({
   'game.resultIncorrect': 'Onjuist',
   'game.resultNoAnswer': 'Geen antwoord',
   'game.roundPoints': 'Punten deze ronde',
+  // S14: sociale headline, hooguit één per ronde (gameplay.mjs) / stand
+  // (scoreboard.mjs) — zie social-headline.mjs voor de selectielogica.
+  'headline.selfSoleCorrect': 'Jij was de enige met het juiste antwoord! ⭐',
+  'headline.everyoneCorrect': 'Iedereen had het goed! 🎉',
+  'headline.everyoneWrong': 'Niemand had het goed deze ronde!',
+  'headline.misleadingAnswer': 'Veel spelers dachten dat het {country} was!',
+  'headline.comeback': '{naam} klimt {n} plaatsen! 📈',
   'standings.title': 'Tussenstand',
   'standings.you': 'Jij',
   // S15: aria-label bij de bewegingsbadge (↑/↓/—) — de badge zelf is beknopt

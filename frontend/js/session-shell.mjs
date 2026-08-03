@@ -681,9 +681,16 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       mountedView.update(roundModel, gameplayUpdateOptions());
       return;
     }
-    if (viewName === 'scoreboard' || viewName === 'podium') {
+    if (viewName === 'scoreboard') {
       const currentStandings = standingsFrom(standingsPayload ?? {});
-      mountedView.update(currentStandings, { movement: rankMovementFrom(previousStandings, currentStandings) });
+      mountedView.update(currentStandings, {
+        movement: rankMovementFrom(previousStandings, currentStandings),
+        participants,
+      });
+      return;
+    }
+    if (viewName === 'podium') {
+      mountedView.update(standingsFrom(standingsPayload ?? {}));
     }
   }
 
