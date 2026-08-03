@@ -11,6 +11,9 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-2 | UI (zelf) | ✅ opgelost | Pauze-overlay met reden bouwen |
 | UI-3 | INT-A / ARCHITECTURE | ✅ opgelost | Hoe worden `client/flow/` en `shared/` aan de browser geserveerd? |
 | UI-8 | INT-A / PR | 🔵 open | `room:state` bevat geen deelnemerslijst — een joiner ziet geen namen van al aanwezige spelers |
+| UI-9 | thema 3 | 🔵 open | Motion-tokens hebben twee eigenaren; `M1` schrijft in het tokenblok van thema 2 |
+| UI-10 | thema 1 | 🔵 open | `room-header.mjs` is dode code — `D-018` daardoor nog niet zichtbaar |
+| UI-11 | producteigenaar | 🔵 open | `O-002`/`O-003` blokkeren wereldmotieven, iconografie en thema 5's composities |
 
 ---
 
@@ -335,3 +338,85 @@ spelers"-tekst) — gewoon het betrouwbare aantal getoond en de lijst laten
 groeien met wat er binnenkomt. Als `PROTOCOL.md`'s `room:state` op termijn een
 spelerslijst krijgt, is de fix in `session-shell.mjs`'s `applyRoomState()`
 lokaal (één plek, geen schermwijziging nodig).
+
+---
+
+## UI-9 — motion-tokens hebben twee eigenaren (thema 2, 3 aug 2026)
+
+**Voor:** thema 3 (beweging en gevoel). **Blokkeert:** thema 3's `M1`, en
+daarmee alle animatie.
+
+`06` §3 vraagt om een schaal `--motion-instant` t/m `--motion-stage`. Die
+bestaat niet; er staan losse `0.12s`- en `0.18s`-waarden verspreid door
+`base.css` en `components.css`.
+
+Het probleem is niet dát ze ontbreken maar dat twee thema's ze claimen. Ze
+staan als fundament in `2-vorm-en-systeem/PROGRESS.md` én in
+`3-beweging-en-gevoel/PROGRESS.md`, en thema 3's prompt
+`M1-motion-tokens-en-e01.md` schrijft ze in stap 1 in `base.css`'s
+`:root` — het tokenblok van thema 2. Twee schrijvers op één blok is het
+patroon dat vandaag al een keer misging (het gedeelde knopblok, `05` §15).
+
+**Voorstel, geen besluit:** thema 2 levert de tokens omdat het designsysteem
+(`05` §2) daar de plek voor is; thema 3 consumeert ze en houdt `E01`–`E16`
+bij. `M1` verliest dan stap 1 en houdt stap 2 en 3. Andersom kan ook — dan
+schrapt thema 2 de regel `Motion-tokens` uit zijn `PROGRESS.md`. Wat niet kan
+is allebei.
+
+Zolang dit niet beslecht is schrijft thema 2 geen concurrerende prompt, en
+blijft de regel in beide bestanden staan zodat het zichtbaar blijft.
+
+---
+
+## UI-10 — `room-header.mjs` is dode code (thema 2, 3 aug 2026)
+
+**Voor:** thema 1 (schermen en flow), scherm `S05`. **Urgentie:** laag qua
+techniek, hoog qua zichtbaarheid — het is de reden dat `D-018` nog niet
+zichtbaar is.
+
+`frontend/js/views/room-header.mjs` bestaat sinds `d3c900e`: een volledige
+implementatie van `D-018` (code permanent in de appheader, QR-pictogram
+ernaast, modal met kaart/code/URL, focusbeheer, Escape). **Hij is nergens
+ingehangen.**
+
+Gevolg: de gamecode zit nog steeds achter de knop `Toon code` in de lobby,
+terwijl `00-DESIGN-INDEX.md` §5 "geen verborgen roomcode of QR in de
+hostlobby" als expliciet *bewust niet doen* noemt en `09` §15 `Show code` op
+de verboden-copylijst zet. Dat is de laatste term van die lijst die er nog
+staat.
+
+Dat de module dood is, is niet de schuld van thema 1 — die heeft er nooit om
+gevraagd. Ik heb hem gebouwd zonder hem in te hangen en dat had niet gemoeten.
+
+**Voorstel:** thema 1 hangt hem in (het is een scherm) en haalt daarbij
+`Toon code` en `Toon QR-code` uit de lobby; thema 2 onderhoudt de component.
+Volledige beschrijving inclusief de drie ongeteste aannames in
+`2-vorm-en-systeem/prompts/T2-5-qr-kaart-en-room-header.md`.
+
+---
+
+## UI-11 — `O-002` en `O-003` blokkeren twee thema's (thema 2, 3 aug 2026)
+
+**Voor:** de producteigenaar. **Blokkeert:** thema 2 (wereldmotieven,
+iconografie) en thema 5 (medium/tablet- en podiumcomposities, die daar
+expliciet op wachten).
+
+Twee onderdelen staan op niveau 0 door een ontbrekende keuze, niet door
+capaciteit:
+
+| Onderdeel | Wacht op |
+| --- | --- |
+| Wereldmotieven (`05` §2.7) | `O-003` — de exacte accentkleur |
+| Iconografie (`05` §3) | `O-002` — het lettertype, plus een merkontwerper |
+
+Samen zijn ze precies wat `10-IMPLEMENTATION-ROADMAP.md` als risico `R3`
+benoemt: zonder eigen visuele grammatica blijft dit generieke donkere
+gaming-esthetiek, hoe netjes elk scherm verder ook wordt.
+
+Drie antwoorden zijn geldig, óók "nog niet beslissen" — maar dan hoort `R3`
+als geaccepteerd risico in `docs/STATUS.md` in plaats van als openstaand punt.
+Wat niet werkt is de vraag open laten en tegelijk verwachten dat het product
+er eigen uitziet.
+
+Onderbouwing per vraag, met wat wij vandaag hebben en wat het besluit raakt,
+in `2-vorm-en-systeem/prompts/T2-7-besluitverzoek-o002-o003.md`.
