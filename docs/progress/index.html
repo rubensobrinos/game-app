@@ -187,20 +187,48 @@
       </div>`;
 
       const data = new Map();
+      let laatstGeladen = null;
 
       async function laad() {
+        // Cache-buster: de pagina draait achter Cloudflare, en een dashboard
+        // dat een half uur oude cijfers toont is erger dan een dashboard dat
+        // niet bestaat — je gaat erop vertrouwen. nginx stuurt weliswaar
+        // `no-cache` mee, maar dit sluit elke tussenliggende cache uit zonder
+        // dat we van iemands configuratie afhankelijk zijn.
+        const bust = `?t=${Date.now()}`;
         await Promise.all(
           AREAS.map(async (a) => {
             try {
-              const res = await fetch(`${BASE}${a.id}/PROGRESS.md`);
+              const res = await fetch(`${BASE}${a.id}/PROGRESS.md${bust}`, { cache: 'no-store' });
               if (!res.ok) throw new Error(`HTTP ${res.status}`);
               const md = await res.text();
               data.set(a.id, { secties: parse(md), fout: null });
             } catch (e) {
-              data.set(a.id, { secties: [], fout: e.message });
+              // Bestaande data laten staan bij een mislukte verversing: een
+              // korte netwerkhapering hoort geen gevulde pagina leeg te maken.
+              const vorig = data.get(a.id);
+              data.set(a.id, { secties: vorig?.secties ?? [], fout: e.message });
             }
           }),
         );
+        laatstGeladen = new Date();
+      }
+
+      function toonTijdstempel() {
+        const tijd = laatstGeladen.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+        const mislukt = [...data.values()].filter((d) => d.fout).length;
+        document.getElementById('sub').textContent =
+          `Gelezen uit de vijf PROGRESS.md-bestanden · bijgewerkt ${tijd}` +
+          (mislukt ? ` · ${mislukt} bestand(en) niet gelezen` : '') +
+          ' · ververst elke 30 min';
+      }
+
+      /** Haalt opnieuw op en tekent het huidige beeld — zonder paginaherlaad,
+          zodat de gekozen weergave en de scrollpositie blijven staan. */
+      async function ververs() {
+        await laad();
+        toonTijdstempel();
+        render();
       }
 
       function toonOverzicht() {
@@ -296,10 +324,27 @@
       );
 
       await laad();
-      document.getElementById('sub').textContent =
-        'Gelezen uit de vijf PROGRESS.md-bestanden · ' + new Date().toLocaleString('nl-NL');
+      toonTijdstempel();
       window.addEventListener('hashchange', render);
       render();
+
+      // ── Zelfverversend ────────────────────────────────────────────────
+      // Vijf agents werken tegelijk in deze repo; een tab die een uur
+      // openstaat toont anders cijfers van een uur geleden zonder dat te
+      // verraden. Dat is de gevaarlijke variant: je vertrouwt een dashboard.
+      const HALF_UUR = 30 * 60 * 1000;
+      setInterval(ververs, HALF_UUR);
+
+      // Terugkomen op de tab telt als "ik wil het nú weten". Zonder deze
+      // regel wacht iemand die na twee uur terugkeert alsnog tot de volgende
+      // tik. De drempel voorkomt dat snel wisselen tussen tabs het elke keer
+      // opnieuw ophaalt.
+      const DREMPEL = 60 * 1000;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && Date.now() - laatstGeladen.getTime() > DREMPEL) {
+          ververs();
+        }
+      });
     </script>
   </body>
 </html>
