@@ -212,6 +212,65 @@ button.is-loading::after {
   }
 }
 
+/* ── Spelerchip (T2-4, 05 §8, D-022) ───────────────────────────────────────
+   Naam plus een tijdelijke kleur/symboolidentiteit. De kleur staat inline
+   (berekend uit de playerId in player-chip.mjs); de vorm komt uit de klassen
+   hieronder.
+
+   Acht vormen als `clip-path`: geen SVG, geen emoji, geen extra assets — en
+   `05` §3 vraagt om geometrische vormen. */
+.player-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0; /* zonder dit kapt de naam niet af in een flex-ouder */
+}
+
+.player-chip-mark {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  /* Achtergrondkleur komt inline; hier alleen de vorm en de maat. */
+}
+
+.player-chip-name {
+  /* `min-width: 0` moet óók op het flex-item zelf, niet alleen op de
+     container: een flex-item krimpt standaard niet onder zijn inhoudsbreedte,
+     dus zonder deze regel duwt een lange naam de hele rij breder en scrollt de
+     pagina zijwaarts. Met een naam van 60 tekens (de invoerlimiet) op 320px
+     gemeten. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* De eigen rij mag opvallen — 05 §10 en 04 S06 vragen om herkenning van
+   jezelf in een lijst. */
+.player-chip.is-self .player-chip-name {
+  color: var(--color-accent-primary-hover);
+}
+
+.player-chip-mark.is-cirkel { border-radius: 50%; }
+.player-chip-mark.is-vierkant { border-radius: 3px; }
+.player-chip-mark.is-driehoek { clip-path: polygon(50% 0%, 100% 100%, 0% 100%); }
+.player-chip-mark.is-ruit { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
+.player-chip-mark.is-vijfhoek {
+  clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+}
+.player-chip-mark.is-zeshoek {
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+.player-chip-mark.is-ster {
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%,
+    50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
+.player-chip-mark.is-kruis {
+  clip-path: polygon(35% 0%, 65% 0%, 65% 35%, 100% 35%, 100% 65%,
+    65% 65%, 65% 100%, 35% 100%, 35% 65%, 0% 65%, 0% 35%, 35% 35%);
+}
+
 /* Invoervelden */
 .field-input {
   display: block;

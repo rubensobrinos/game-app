@@ -671,6 +671,12 @@ button {
   margin: 0;
   padding: 0;
   display: grid;
+  /* `minmax(0, 1fr)` en niet de impliciete `auto`: een roosteritem krimpt
+     standaard niet onder zijn inhoudsbreedte, dus een lange naam met
+     `white-space: nowrap` (spelerchip) duwde de hele rij breder dan het
+     rooster en liet de pagina zijwaarts scrollen. Gemeten op 320px met een
+     naam van 60 tekens — de invoerlimiet. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
 }
 
