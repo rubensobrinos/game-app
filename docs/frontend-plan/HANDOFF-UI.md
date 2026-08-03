@@ -23,7 +23,8 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-18 | INT-A / PR | 🔵 open | Geen server-side timeout ná `host_disconnected` — een hostloze room blijft voor onbepaalde tijd gepauzeerd, geen uitslagbehoud-event mogelijk (thema 5, T5-10) |
 | UI-19 | INT-A / PR | 🔵 open | Geen protocolmoment tussen "ronde actief" en "uitslag compleet" — `round:closing` bestaat niet, thema 3 voegt E08 daarom samen met E09's begin |
 | UI-20 | thema 5 / thema 2 | 🔵 open | `T2-9` en `T5-7` claimen allebei het voorkeurenpaneel; de een wijzigt compact portrait, de ander eist dat het ongewijzigd blijft |
-| UI-21 | thema 1 | 🔵 open | Vier componenten van thema 2 (timer, spelerchip, leaderboard-rij, lege/foutstaten) zijn gebouwd maar hangen nergens — dode code tot ze zijn ingehangen |
+| UI-21 | thema 1 | ✅ gesloten | Vier componenten van thema 2 hingen nergens. Timer en spelerchip zijn ingehangen, de foutstaat hangt aan het terminale sessiescherm, de leaderboard-rij is verwijderd — zie onderaan |
+| UI-22 | regie | 🔵 open | `rounda-1c.css` stylet per instantie i.p.v. per rol; `.gameplay-timer` is sinds de segmententimer een dode selector, en de knopvorm stond op zeven losse knoppen — zie onderaan |
 | UI-21 | producteigenaar | 🔵 open | T5-8 (large/podium): moet de compacte `room-header.mjs`-code+modal-QR op grote breedte plaatsmaken voor een permanente QR-kaart in de lobby (`07` §7), of blijft de header de enige QR-ingang (D-018) en groeit alleen zijn typografie? Niet zelf beslist — een tweede QR-ingang zou D-018 schenden, maar `07` §7 vraagt expliciet om een permanente kaart |
 
 ---
@@ -868,57 +869,72 @@ mute altijd bereikbaar is, en die komt straks in dit paneel (`O-008`).
 
 ---
 
-## UI-21 — vier componenten van thema 2 hangen nergens (thema 2, 3 aug 2026)
+## UI-21 — vier componenten van thema 2 hingen nergens ✅ (thema 2, 3 aug 2026)
 
-**Voor:** thema 1 (schermen en flow). **Urgentie:** hoog qua zichtbaarheid —
-dit is werk dat af is en dat niemand ziet.
+**Gesloten in de bouwsprint.** Regel 0 uit `NIVEAUS.md`: een component telt pas
+als af wanneer een scherm hem gebruikt. Alle vier zijn beslist — ingehangen of
+verwijderd, niets geparkeerd.
 
-Thema 2 heeft acht tickets gebouwd. Eén ervan is in gebruik
-(`button-loading.mjs`, door `home.mjs`). De andere vier componenten zijn
-gebouwd, getest en gestyled, maar worden door geen enkel scherm aangeroepen:
-
-| Component | Vervangt | Scherm |
+| Component | Uitkomst | Commit |
 | --- | --- | --- |
-| `timer-bar.mjs` | het kale getal in `.gameplay-timer` | `S08` |
-| `player-chip.mjs` | de tekstregel in `.lobby-player` | `S05`, `S06` |
-| `leaderboard-row.mjs` | de rij in `scoreboard.mjs` | `S15` |
-| `state-message.mjs` | `.lobby-empty`, `.field-error`, het terminale foutscherm | meerdere |
+| `timer-bar.mjs` | Ingehangen in `gameplay.mjs`, als 12-segmentenvorm uit 1c; de inline timer daar is weg | `7479280` |
+| `player-chip.mjs` | Ingehangen in `lobby.mjs` | `fc3199d` |
+| `state-message.mjs` | Foutstaat ingehangen op het terminale sessiescherm (`terminate()`) | `af4503b` |
+| `leaderboard-row.mjs` | **Verwijderd** — zie hieronder | `af4503b` |
 
-**Dit is precies de fout die ik eerder bij `room-header.mjs` aanwees**
-(`UI-10`), en ik heb hem herhaald: een component opleveren zonder hem in te
-hangen levert dode code op, en de winst is nul tot iemand hem gebruikt. Dat is
-mijn schuld, niet die van thema 1.
+De inline timer die eruit ging had drie gebreken die de component niet heeft:
+hij animeerde `width` (reflow bij elke tik — de enige overtreding uit thema 3's
+performancebudget), had de urgentiegrens hardgecodeerd op 3, en kondigde niets
+aan een screenreader aan.
 
-### Wat elke component verwacht
+`leaderboard-row.mjs` is verwijderd in plaats van ingehangen. Het was een tweede
+tussenstandrij naast `.scoreboard-*`, en `scoreboard.mjs` was er inmiddels
+overheen gegroeid: `data-playerId` voor de FLIP-animatie (`E11`) en
+`.scoreboard-entry` gestyled in `rounda-1c.css`. Omhangen zou die twee moeten
+meeslepen zonder dat een speler er iets van merkt. De rangkolom, de
+bewegingskolom en de eigen-rij-markering die `T2-6` opleverde zitten inmiddels
+in het scherm zelf.
+
+Wat nog openstaat is klein en van thema 1: de drie `.field-error`-plekken
+(`join.mjs`, twee in `home.mjs`) en `.lobby-empty` zijn nog eigen opbouw. De
+component ligt klaar:
 
 ```js
-// timer-bar.mjs — vervangt de handmatige getalweergave; de ticker blijft van session-shell
-const timer = createTimerBar({ root, t, urgentVanaf: 3 });
-timer.update({ secondsLeft, totalSeconds });   // per tick
-timer.reset();                                  // bij een nieuwe ronde
-
-// player-chip.mjs — geeft een <span> terug, plaats 'm in de bestaande <li>
-const chip = createPlayerChip({ name, playerId, isSelf });
-
-// leaderboard-row.mjs — één <li> per speler; `delta` komt uit standings-model
-const rij = createLeaderboardRow({ root, t, tCount });
-rij.update({ rank, name, score, delta, isSelf, gedeeld });
-
-// state-message.mjs — teksten komen van de aanroeper (thema 4), niet uit de module
 createEmptyState({ root, title, hint, action: { label, onClick } });
 createErrorState({ root, message, title, variant: 'inline'|'page', action });
 ```
 
-### Twee dingen om op te letten bij het inhangen
+`state-message` bevat geen tekst — de woorden komen uit thema 4's locales.
+Ontbreekt er een sleutel, dan is dat een item voor hen en geen reden om er een
+string in te hardcoderen.
 
-1. **`leaderboard-row` verwacht een `delta`** en `standings-model.mjs` kent de
-   vorige stand nog niet. Zonder die berekening toont elke rij `—`. Die
-   berekening staat in thema 1's `08-leaderboard-en-podium.md`.
-2. **`state-message` bevat geen tekst.** Bij het omzetten van `.lobby-empty` en
-   de foutschermen komen de woorden uit thema 4's locales; ontbreekt er een
-   sleutel, dan is dat een item voor hen en geen reden om er een string in te
-   hardcoderen.
+## UI-22 — `rounda-1c.css` stylet per instantie, niet per rol (thema 2, 3 aug 2026)
 
-Thema 2 onderhoudt de componenten; wie ze inhangt is aan ons samen. Zeg het als
-je wilt dat ik het zelf doe — de schermen zijn van jou, dus ik doe het niet
-ongevraagd.
+**Voor:** regie (eigenaar van `rounda-1c.css`). **Urgentie:** laag technisch,
+hoog structureel — hetzelfde patroon is nu twee keer misgegaan.
+
+Dat bestand is hier niet aangeraakt. Twee waarnemingen:
+
+1. **Dode selector.** `.gameplay-timer` (regel 167: mono, 26px, lime) wijst
+   sinds `7479280` nergens meer naar — de platte-tekst-timer bestaat niet meer.
+   Die vormgeving is opnieuw opgebouwd op `.timer-value` in `components.css`,
+   met systeemtokens, zodat het lichte thema meekomt. De regel in 1c mag weg.
+2. **Knopvorm zat op instanties.** `border-radius: 999px` stond op zeven
+   specifieke knoppen (`.home-quick-start`, `.lobby-start`, `.podium-rematch`,
+   `.gameplay-option`, `.btn-destructive`, twee `.btn-secondary`-plekken) en
+   niet op de rollen. Daardoor bleven `.btn-quiet` en een gewone `.btn-primary`
+   als enige rechthoekig, en las `Game beëindigen` in de hostbalk als een
+   rechthoek van 14px tussen vier pillen van 12,5px. Nu `--r-pill` als token,
+   toegepast op de hele familie (`974ba34`). De per-instantie-regels in 1c
+   zetten dezelfde waarde en zijn dus onschadelijk, maar overbodig.
+
+Voorstel: wat een *rol* beschrijft (vorm, maat, kleurrol) verhuist naar de
+tokens en de componentlaag; wat écht één plek betreft blijft in 1c. Dat is geen
+verhuizing die ik eenzijdig doe — het bestand is van jullie.
+
+Losse melding uit dezelfde sprint: `.home-code-cells` (de zes-cellen-codeinvoer
+uit `home.mjs`) had nergens CSS, waardoor de zes cellen als volle-breedte
+velden ónder elkaar op de voorpagina stonden, en de sublabel van de startknop
+aan het label plakte ("Start direct een gameJe bent de spelleider"). Beide
+gerepareerd in `974ba34` in `components.css`; de opbouw in `home.mjs` is niet
+aangeraakt.
