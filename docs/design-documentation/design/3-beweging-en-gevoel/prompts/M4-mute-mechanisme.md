@@ -1,5 +1,10 @@
 # Prompt — M4: Voorkeurlaag voor mute (zonder zichtbare schakelaar, nog geen geluid)
 
+**✅ Gedaan — commit `0d94744`.** `loadMuted`/`saveMuted` staan in
+`preferences.mjs`, getest in `preferences.test.mjs` (incl. een gooiende
+storage voor alle drie voorkeuren). Geen menuwijziging, geen `<audio>`, geen
+mixer — zoals bedoeld. `node --test`: 378/378 groen.
+
 Onderdeel van [`README.md`](README.md), fase M4. Vereist niets — onafhankelijk
 van `M0`–`M3` en van `O-008`.
 

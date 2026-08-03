@@ -13,7 +13,7 @@ uit die review, niet meer de oorspronkelijke volgorde uit `PROGRESS.md`.
 | [`M1-motion-tokens-en-e01.md`](M1-motion-tokens-en-e01.md) | M1 | 🔵 klaar om te bouwen | E01 op álle acht controls (volledige inventaris), transities aanvullen i.p.v. vervangen | M0, **thema 2's motion-tokens** (`HANDOFF-UI` UI-9) |
 | [`M2-choreografie-niveau1-naar-2.md`](M2-choreografie-niveau1-naar-2.md) | M2 | 🔵 klaar om te bouwen | E05/E06/E09/E10/E15 naar niveau 2. E08 samengevoegd met E09 (protocolgat, gemeld) | M1 |
 | [`M5-performancebudget.md`](M5-performancebudget.md) | M5 | 🔵 klaar om te bouwen | `06` §9 als meetbare gate, direct ná M2 | M1, M2 (niet M3) |
-| [`M4-mute-mechanisme.md`](M4-mute-mechanisme.md) | M4 | 🔵 klaar om te bouwen (herzien) | Alleen de voorkeurlaag (`loadMuted`/`saveMuted` + gedeelde `safeSet`) — **geen zichtbare schakelaar** tot er geluid is | niets |
+| [`M4-mute-mechanisme.md`](M4-mute-mechanisme.md) | M4 | ✅ gedaan (`0d94744`) | Alleen de voorkeurlaag (`loadMuted`/`saveMuted` + gedeelde `safeSet`) — **geen zichtbare schakelaar** tot er geluid is | niets |
 | [`M3-e16-dialoog-transities.md`](M3-e16-dialoog-transities.md) | M3 | ⏸️ geparkeerd | Voorstel `E16` — pas uitvoeren ná bevestiging + na ontwerp van een gedeelde dialog-lifecycle-helper | `E16` bevestigd, `M1` |
 
 ## Uitvoeringsvolgorde (herzien ná review)
@@ -26,8 +26,8 @@ uit die review, niet meer de oorspronkelijke volgorde uit `PROGRESS.md`.
    bij `sending`.
 4. **M5** — direct ná M2, als meetbare kwaliteitsgate, niet als
    losse observatie achteraf.
-5. **M4** — alleen de opslaglaag; de zichtbare mute-control wacht op het
-   eerste echte audiosignaal.
+5. ✅ **M4** — gedaan (`0d94744`): alleen de opslaglaag; de zichtbare
+   mute-control wacht op het eerste echte audiosignaal.
 6. **M3** — pas ná expliciete bevestiging van `E16` én ontwerp van een
    gedeelde lifecycle-helper (niet drie losse implementaties).
 
