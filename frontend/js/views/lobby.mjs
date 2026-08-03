@@ -101,6 +101,15 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   // mounten (locked: false) al een "ontgrendeld"-flits toont; die hoort
   // alleen bij een échte overgang van vergrendeld naar ontgrendeld.
   let previousLocked = null;
+  // M7/E03: bestaande rijen per playerId, zodat een nieuwe join alleen die
+  // ene rij toevoegt i.p.v. de hele lijst te herbouwen (dat zou élke
+  // bestaande rij opnieuw laten fade-in'en bij elke join — precies de ruis
+  // die 06 §2/§7 willen vermijden).
+  const renderedRows = new Map();
+  // null = nog geen telling gezien — voorkomt een puls bij het allereerste
+  // render-moment (dat is geen "join", dat is de startstand).
+  let lastPulsedCount = null;
+  let pulseTimer = null;
 
   async function handleShareAction(action) {
     onShareAction(action);
@@ -199,21 +208,58 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     list.hidden = empty;
 
     if (!empty) {
-      // `tCount` en niet `${n} ${t(...)}`: dat laatste gaf "1 spelers".
+      // `tCount` en niet `${n} ${t(...)}`: dat laatste gaf "1 spelers". De
+      // tekst zelf is altijd meteen up-to-date — alleen de puls (decoratief)
+      // is hieronder gedebouncet, niet de data.
       countLine.textContent = tCount('lobby.playerCount', model.playerCount);
-      list.textContent = '';
+      if (lastPulsedCount === null) {
+        lastPulsedCount = model.playerCount;
+      } else if (model.playerCount !== lastPulsedCount) {
+        // M7/E03: "teller pulseert één keer" — bij een snelle reeks joins
+        // (bulkjoin) pulseert de teller dus één keer ná de rustmoment, niet
+        // eenmaal per join. Geluid-clustering (06 §2) is hier niet van
+        // toepassing: er is nog geen join-cue om te clusteren (geparkeerd op
+        // `O-008`, zie `M4`) — alleen deze visuele puls wordt gedebouncet.
+        clearTimeout(pulseTimer);
+        pulseTimer = setTimeout(() => {
+          countLine.classList.remove('lobby-count-pulse');
+          void countLine.offsetWidth; // forceer reflow, anders herstart de animatie niet
+          countLine.classList.add('lobby-count-pulse');
+          lastPulsedCount = model.playerCount;
+        }, 300);
+      }
+
+      // M7/E03: reconciliatie i.p.v. volledige herbouw — bestaande rijen
+      // blijven hun eigen DOM-node houden (geen hertriggerde animatie),
+      // alleen écht nieuwe `playerId`'s krijgen een nieuwe, geanimeerde rij.
+      const currentIds = new Set(model.participants.keys());
+      for (const [playerId, entry] of renderedRows) {
+        if (!currentIds.has(playerId)) {
+          entry.item.remove();
+          renderedRows.delete(playerId);
+        }
+      }
       for (const [playerId, name] of model.participants) {
+        const existing = renderedRows.get(playerId);
+        if (existing !== undefined) {
+          // Rename-delta: naam (en kickknop-label) bijwerken zonder de rij
+          // opnieuw te animeren.
+          existing.label.textContent = name;
+          existing.kickButton?.setAttribute('aria-label', `${t('hostbar.kick')} ${name}`);
+          continue;
+        }
         const item = document.createElement('li');
-        item.className = 'lobby-player';
+        item.className = 'lobby-player lobby-player-enter';
         const label = document.createElement('span');
         label.textContent = name;
         item.appendChild(label);
+        let kickButton;
         // S17: dit is nu de enige plek die deelnemersnamen toont tijdens
         // LOBBY (hostbar.mjs's eigen lijst blijft daar bewust verborgen) —
         // de host krijgt de verwijderknop daarom hier, inline, niet in een
         // tweede lijst elders.
         if (isHost && model.canKick) {
-          const kickButton = document.createElement('button');
+          kickButton = document.createElement('button');
           kickButton.type = 'button';
           kickButton.className = 'btn-secondary lobby-player-kick';
           kickButton.textContent = t('hostbar.kick');
@@ -226,6 +272,7 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
           item.appendChild(kickButton);
         }
         list.appendChild(item);
+        renderedRows.set(playerId, { item, label, kickButton });
       }
     }
 

@@ -642,6 +642,30 @@ button {
   letter-spacing: 0.06em;
 }
 
+/* M7/E03: teller pulseert één keer bij een daadwerkelijke wijziging
+   (gedebouncet in lobby.mjs, niet hier) — de klasse wordt door JS
+   verwijderd+teruggezet om de animatie te laten herhalen. */
+.lobby-count-pulse {
+  animation: lobby-count-pulse var(--motion-fast) var(--ease-enter);
+}
+
+@keyframes lobby-count-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+/* M7/E03: alleen écht nieuwe rijen krijgen dit (lobby.mjs reconcilieert
+   i.p.v. de lijst steeds te herbouwen) — bestaande rijen blijven ongemoeid. */
+.lobby-player-enter {
+  animation: lobby-player-enter var(--motion-base) var(--ease-enter);
+}
+
+@keyframes lobby-player-enter {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .lobby-players {
   list-style: none;
   margin: 0;
@@ -654,12 +678,22 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.75rem;
   background: var(--color-surface-1);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--r-sm);
   padding: 0.75rem 1rem;
   font-weight: 600;
+}
+
+/* T5-1 (gemeten): de naam-span had geen `min-width`, dus flexbox' default
+   `min-width: auto` weigerde 'm te laten krimpen — bij 200%-zoom/tekst duwde
+   een lange naam + de verwijderknop de rij (en daarmee de pagina) horizontaal
+   uit. `min-width: 0` laat 'm krimpen/afbreken i.p.v. de rij te verbreden. */
+.lobby-player > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* S17: inline verwijderknop voor de host — zelfde compacte stijl als
