@@ -22,7 +22,7 @@
    Dit beslecht ook UI-5 in HANDOFF-UI, dat het omgekeerde vroeg. */
 h1,
 h2 {
-  color: var(--text);
+  color: var(--color-text-primary);
   font-weight: 800;
   letter-spacing: -0.02em;
 }
@@ -39,7 +39,7 @@ h2 { font-size: 1.5rem; margin: 8px 0 16px; }
   color: transparent;
 }
 
-p { color: var(--text-muted); }
+p { color: var(--color-text-muted); }
 
 /* ── Knophiërarchie ───────────────────────────────────────────────────────
    05-DESIGN-SYSTEM §15 waarschuwt letterlijk tegen "één gedeeld regelblok dat
@@ -74,9 +74,9 @@ p { color: var(--text-muted); }
 /* Primary — de ene dominante actie per scherm (Start Rounda, Meedoen). */
 .btn-primary,
 .podium-rematch {
-  background: var(--accent);
+  background: var(--color-accent-primary);
   color: #fff;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--color-accent-primary);
   font-weight: 700;
 }
 
@@ -84,31 +84,31 @@ p { color: var(--text-muted); }
 .podium-rematch:active { transform: scale(0.98); }
 
 .btn-primary:hover,
-.podium-rematch:hover { box-shadow: 0 0 0 4px var(--accent-glow); }
+.podium-rematch:hover { box-shadow: 0 0 0 4px var(--color-accent-glow); }
 
 /* Secondary — een echt alternatief, zichtbaar maar niet dominant. */
 .btn-secondary {
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
+  background: var(--color-surface-1);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-subtle);
 }
 
-.btn-secondary:hover { border-color: var(--accent-light); }
+.btn-secondary:hover { border-color: var(--color-accent-primary-hover); }
 .btn-secondary:active { transform: scale(0.99); }
 
 /* Quiet — lage prioriteit (Delen, Voorkeuren, Spel aanpassen). Geen vlak,
    geen rand: het mag gevonden worden, niet opvallen. */
 .btn-quiet {
   background: transparent;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   border: 1px solid transparent;
   font-weight: 600;
   font-size: 0.95rem;
 }
 
 .btn-quiet:hover {
-  color: var(--text);
-  background: var(--surface);
+  color: var(--color-text-primary);
+  background: var(--color-surface-1);
 }
 
 /* Destructive — beëindigen, verwijderen. Rood is hier een rand en tekst, geen
@@ -116,24 +116,24 @@ p { color: var(--text-muted); }
    view, en het mag nooit op primary lijken. */
 .btn-destructive {
   background: transparent;
-  color: var(--error);
-  border: 1px solid var(--error);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
 }
 
-.btn-destructive:hover { background: var(--error-bg); }
+.btn-destructive:hover { background: var(--color-danger-surface); }
 .btn-destructive:active { transform: scale(0.99); }
 
 /* Gameplay option — géén secondary-knop (05 §5). Vorm blijft nu gelijk
    (D-021 stelt letter/vorm-identiteit bewust uit), maar de regel staat apart
    zodat die wijziging later niet de hele knoplaag meesleept. */
 .gameplay-option {
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
+  background: var(--color-surface-1);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-subtle);
   text-align: left;
 }
 
-.gameplay-option:not(:disabled):hover { border-color: var(--accent-light); }
+.gameplay-option:not(:disabled):hover { border-color: var(--color-accent-primary-hover); }
 .gameplay-option:not(:disabled):active { transform: scale(0.99); }
 
 /* Disabled — 05 §13 en de QA-checklist verbieden "alleen opacity 0.5":
@@ -141,16 +141,16 @@ p { color: var(--text-muted); }
    plaats van tijdelijk niet-beschikbaar. Nu: gedempt vlak, leesbare tekst. */
 button:disabled {
   cursor: not-allowed;
-  background: var(--surface2);
-  color: var(--text-muted);
-  border-color: var(--border);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  border-color: var(--color-border-subtle);
   box-shadow: none;
   transform: none;
   opacity: 1;
 }
 
 button:disabled:hover {
-  border-color: var(--border);
+  border-color: var(--color-border-subtle);
   box-shadow: none;
 }
 
@@ -160,9 +160,9 @@ button:disabled:hover {
   width: 100%;
   padding: 13px 16px;
   border-radius: var(--r-sm);
-  border: 1px solid var(--border);
-  background: var(--surface2);
-  color: var(--text);
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-2);
+  color: var(--color-text-primary);
   font: inherit;
   font-size: 1.1rem;
 }
@@ -173,11 +173,11 @@ button:disabled:hover {
    toetsenbordfocus. De accentgloed hieronder is de visuele stijl, de ring uit
    base.css blijft de toegankelijkheidsgarantie. */
 .field-input:focus {
-  border-color: var(--accent-light);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  border-color: var(--color-accent-primary-hover);
+  box-shadow: 0 0 0 3px var(--color-accent-glow);
 }
 
-.field-input::placeholder { color: var(--text-muted); }
+.field-input::placeholder { color: var(--color-text-muted); }
 
 /* Verticale ritmiek voor de formulier-achtige schermen */
 .home-quick-start,
@@ -196,12 +196,12 @@ button:disabled:hover {
   align-items: baseline;
 }
 
-.gameplay-round { color: var(--text-muted); font-weight: 600; }
+.gameplay-round { color: var(--color-text-muted); font-weight: 600; }
 
 .gameplay-timer {
   font-size: 1.6rem;
   font-weight: 800;
-  color: var(--accent-light);
+  color: var(--color-accent-primary-hover);
   font-variant-numeric: tabular-nums;
 }
 
@@ -211,29 +211,29 @@ button:disabled:hover {
   max-width: 340px;
   margin: 8px auto 18px;
   border-radius: var(--r-sm);
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border-subtle);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
 }
 
 .gameplay-options { display: grid; gap: 10px; }
 
 .gameplay-option.is-selected {
-  border-color: var(--accent-light);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  border-color: var(--color-accent-primary-hover);
+  box-shadow: 0 0 0 3px var(--color-accent-glow);
 }
 
 .gameplay-option.is-correct {
-  border-color: var(--success);
-  background: var(--success-bg);
+  border-color: var(--color-success);
+  background: var(--color-success-surface);
 }
 
 .gameplay-status { min-height: 1.4em; margin: 12px 0 0; font-weight: 600; }
 .gameplay-progress { margin: 4px 0 0; font-size: 0.95rem; }
 
-.gameplay-question { color: var(--text-muted); font-weight: 600; margin: 4px 0 0; }
+.gameplay-question { color: var(--color-text-muted); font-weight: 600; margin: 4px 0 0; }
 
 .gameplay-result { margin-top: 16px; }
-.gameplay-correct { color: var(--text); font-weight: 600; }
+.gameplay-correct { color: var(--color-text-primary); font-weight: 600; }
 /* Resultaatstempel (09-CONTENT-AND-MICROCOPY.md §9): hoofdletters via CSS,
    niet in de vertaalwaarde — beter lokaliseerbaar dan `JUIST` als string. */
 .gameplay-own {
@@ -241,10 +241,10 @@ button:disabled:hover {
   letter-spacing: 0.03em;
   font-weight: 700;
 }
-.gameplay-own.is-correct { color: var(--success); }
-.gameplay-own.is-wrong { color: var(--error); }
-.gameplay-own.is-noanswer { color: var(--text-muted); }
-.gameplay-score { color: var(--gold, #f59e0b); font-weight: 700; }
+.gameplay-own.is-correct { color: var(--color-success); }
+.gameplay-own.is-wrong { color: var(--color-danger); }
+.gameplay-own.is-noanswer { color: var(--color-text-muted); }
+.gameplay-score { color: var(--color-accent-competition, #f59e0b); font-weight: 700; }
 
 /* ── Tussenstand & podium (UI4) ───────────────────────────────────── */
 
@@ -263,16 +263,16 @@ button:disabled:hover {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-subtle);
   border-radius: var(--r-sm);
   padding: 12px 16px;
 }
 
 .scoreboard-entry.is-self,
 .podium-step.is-self {
-  border-color: var(--accent-light);
-  box-shadow: 0 0 0 2px var(--accent-glow);
+  border-color: var(--color-accent-primary-hover);
+  box-shadow: 0 0 0 2px var(--color-accent-glow);
 }
 
 .scoreboard-name,
@@ -286,14 +286,14 @@ button:disabled:hover {
 .podium-score {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: var(--accent-light);
+  color: var(--color-accent-primary-hover);
 }
 
-.podium-step-1 { border-color: var(--gold, #f59e0b); }
+.podium-step-1 { border-color: var(--color-accent-competition, #f59e0b); }
 .podium-medal { font-size: 1.3rem; }
 
 .scoreboard-self,
-.podium-self { margin-top: 14px; font-weight: 600; color: var(--text); }
+.podium-self { margin-top: 14px; font-weight: 600; color: var(--color-text-primary); }
 
 .podium-action { margin-top: 20px; }
 .podium-wait { text-align: center; }

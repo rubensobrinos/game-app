@@ -1,7 +1,10 @@
 /* base.css — UI0/UI1. Mobile-first basis + tokens. Portret telefoonscherm is
-   het primaire doelwit. Kleurvariabelen zijn bewust gelijk aan de root-app se
-   `style.css` (zelfde --accent/--surface/--r enz.) — dit is dezelfde
-   productfamilie, geen eigen visuele taal.
+   het primaire doelwit. De kleurwáárden zijn bewust gelijk aan de root-app se
+   `style.css` — dit is dezelfde productfamilie, geen eigen visuele taal. De
+   namen lopen sinds T2-1 wél uiteen: hier semantische rollen (`05` §2.1,
+   `--color-bg-canvas`), in `style.css` nog de presentatieve namen (`--bg`).
+   Die hernoeming stopt bewust bij de multiplayer; de singleplayer heeft een
+   eigen levenscyclus en wordt niet meegesleept.
 
    Componentstijl (btn-primary/secondary, field-input, gameplay-*,
    scoreboard-*, podium-*) zit in `components.css` (CT/regie, HANDOFF-UI
@@ -11,20 +14,28 @@
    components.css al stylet — dat raakt anders stilzwijgend uit sync. */
 
 :root {
-  --bg: #0d0d1a;
-  --surface: #16162a;
-  --surface2: #1e1e38;
-  --border: #2a2a4a;
-  --accent: #7c3aed;
-  --accent-light: #a855f7;
-  --accent-glow: rgba(168, 85, 247, 0.25);
-  --success: #22c55e;
-  --success-bg: rgba(34, 197, 94, 0.12);
-  --error: #ef4444;
-  --error-bg: rgba(239, 68, 68, 0.12);
-  --text: #f1f5f9;
-  --text-muted: #8b92b0;
-  --gold: #f59e0b;
+  --color-bg-canvas: #0d0d1a;
+  --color-surface-1: #16162a;
+  --color-surface-2: #1e1e38;
+  --color-border-subtle: #2a2a4a;
+  --color-accent-primary: #7c3aed;
+  --color-accent-primary-hover: #a855f7;
+  --color-accent-glow: rgba(168, 85, 247, 0.25);
+  --color-success: #22c55e;
+  --color-success-surface: rgba(34, 197, 94, 0.12);
+  --color-danger: #ef4444;
+  --color-danger-surface: rgba(239, 68, 68, 0.12);
+  --color-text-primary: #f1f5f9;
+  --color-text-muted: #8b92b0;
+  --color-accent-competition: #f59e0b;
+
+  /* Rollen uit 05 §2.1 die nog niet bestonden. Alleen die met een echte
+     toepassing — een ongebruikte rol nodigt uit tot verkeerd gebruik. */
+  --color-focus: #f1f5f9;              /* focusring; 05 §2.6 scheidt dit
+                                          nadrukkelijk van de decoratieve glow */
+  --color-warning: #f59e0b;            /* P12: tijd of aandacht, niet fout */
+  --color-overlay: rgba(0, 0, 0, 0.7); /* backdrop van modals */
+
   --r: 14px;
   --r-sm: 10px;
 
@@ -63,31 +74,42 @@
    productgevoel, andere helderheid. Toegepast via
    `document.documentElement.dataset.theme` (`app-menu.mjs`). */
 :root[data-theme='light'] {
-  --bg: #f4f4fa;
-  --surface: #ffffff;
-  --surface2: #ececf6;
-  --border: #dcdce8;
-  --text: #14141f;
-  --text-muted: #5b5b70;
-  --success-bg: rgba(34, 197, 94, 0.14);
-  --error-bg: rgba(239, 68, 68, 0.1);
+  --color-bg-canvas: #f4f4fa;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #ececf6;
+  --color-border-subtle: #dcdce8;
+  --color-text-primary: #14141f;
+  --color-text-muted: #5b5b70;
+  --color-success-surface: rgba(34, 197, 94, 0.14);
+  --color-danger-surface: rgba(239, 68, 68, 0.1);
 
   /* Thema 5-bevinding (echt gemeten, niet aangenomen): de donkere-thema-tinten
      van accent-light/error/success/gold zijn ontworpen om op een bijna-zwarte
      achtergrond te lichten — als tekst op dit lichte thema zakken ze onder
      WCAG AA (accent-light 3.61:1, error 3.43:1, success 2.08:1, gold 1.96:1
-     op --bg; berekend met de standaard relatieve-luminantieformule, geen
+     op --color-bg-canvas; berekend met de standaard relatieve-luminantieformule, geen
      schatting). Hieronder donkerdere varianten die op elke huidige
      toepassing (tekst én rand) minimaal AA (4.5:1) halen, incl. de lastigste
      combinatie: `.btn-opt.active`'s eigen tekstkleur op zijn eigen
-     `--accent-glow`-achtergrond (vandaar ook een aangepaste, minder
+     `--color-accent-glow`-achtergrond (vandaar ook een aangepaste, minder
      verzadigde glow — de originele 25%-paars-tint komt op een lichte
      achtergrond nooit boven 3,9:1 uit, ongeacht hoe donker de tekst wordt). */
-  --accent-light: #7c3aed;
-  --accent-glow: rgba(124, 58, 237, 0.08);
-  --error: #b91c1c;
-  --success: #166534;
-  --gold: #9a5b0a;
+  --color-accent-primary-hover: #7c3aed;
+  --color-accent-glow: rgba(124, 58, 237, 0.08);
+  --color-danger: #b91c1c;
+  --color-success: #166534;
+  --color-accent-competition: #9a5b0a;
+
+  /* De focusring volgde vóór de rolhernoeming `--text` en draaide dus vanzelf
+     mee met het thema. Als eigen rol moet die omslag expliciet, anders staat
+     er een bijna-witte ring op een bijna-witte achtergrond. Zelfde waarde als
+     de primaire tekstkleur hier — het gaat om maximaal contrast met de
+     ondergrond, niet om een eigen kleur. */
+  --color-focus: #14141f;
+  /* Waarschuwing volgt dezelfde correctie als competition: het donkere-thema-
+     goud haalt op een lichte achtergrond geen AA. Nog geen gebruiker, maar
+     dan staat hij er goed zodra T2-3 hem pakt. */
+  --color-warning: #9a5b0a;
 }
 
 /* Beweging: systeemvoorkeur altijd respecteren (08 §2.4, QA-checklist K).
@@ -129,20 +151,20 @@
 
   .btn-primary:active,
   .podium-rematch:active {
-    box-shadow: 0 0 0 4px var(--accent-glow);
+    box-shadow: 0 0 0 4px var(--color-accent-glow);
   }
 
   .btn-secondary:active {
-    border-color: var(--accent-light);
+    border-color: var(--color-accent-primary-hover);
   }
 
   .btn-destructive:active {
-    background: var(--error-bg);
+    background: var(--color-danger-surface);
   }
 
   .gameplay-option:not(:disabled):active {
-    border-color: var(--accent-light);
-    box-shadow: 0 0 0 3px var(--accent-glow);
+    border-color: var(--color-accent-primary-hover);
+    box-shadow: 0 0 0 3px var(--color-accent-glow);
   }
 }
 
@@ -164,8 +186,8 @@ body {
   font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
   font-size: 1rem;
   line-height: 1.4;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--color-bg-canvas);
+  color: var(--color-text-primary);
   -webkit-tap-highlight-color: transparent;
   /* `viewport-fit=cover` (index.html) tekent al onder de notch/homebar door
      zonder dit — die meta-tag beloofde het, maar er stond nergens een
@@ -239,11 +261,11 @@ button {
    ring weg bij een muisklik op een knop, maar toont 'm bij Tab — en bij
    tekstvelden altijd, want daar matcht `:focus-visible` per spec ook op klik.
 
-   De ring staat bewust op --text i.p.v. --accent-light: het accent is óók de
+   De ring staat bewust op --color-text-primary i.p.v. --color-accent-primary-hover: het accent is óók de
    kleur van "geselecteerd" (.btn-opt.active, .gameplay-option.is-selected),
    en focus mag niet lijken op selectie. */
 :focus-visible {
-  outline: 3px solid var(--text);
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }
@@ -260,17 +282,105 @@ button {
   top: 0;
   z-index: 60;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   padding: 0.75rem 1rem 0;
   max-width: 480px;
   margin: 0 auto;
 }
 
-.btn-icon {
-  background: var(--surface);
-  border: 1.5px solid var(--border);
+/* S05/D-018/D-019 (room-header.mjs): permanente code + QR-knop, alleen
+   gemount zolang een sessie loopt. `display: contents` op de slot zelf zodat
+   `.room-header` rechtstreeks een flex-item van `#app-header` wordt;
+   `margin-right: auto` duwt 'm naar links, ongeacht of hij er wel/niet is —
+   het hamburgermenu (`#app-header`'s `justify-content: flex-end`) blijft zo
+   altijd rechts, zonder een aparte regel voor de "geen sessie"-situatie. */
+.room-header-slot {
+  display: contents;
+}
+
+.room-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-right: auto;
+}
+
+.room-header-code {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  background: var(--color-surface-1);
+  border: 1.5px solid var(--color-border-subtle);
   border-radius: var(--r-sm);
-  color: var(--text);
+  padding: 0.4rem 0.7rem;
+}
+
+.room-header-code-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+/* Een getal dat wordt voorgelezen en overgetypt, geen gewone tekst. */
+.room-header-code-value {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.room-qr-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  background: var(--color-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.room-qr-card {
+  background: var(--color-surface-1);
+  border: 1.5px solid var(--color-border-subtle);
+  border-radius: var(--r);
+  padding: 1.5rem;
+  text-align: center;
+  max-width: 340px;
+  width: 100%;
+}
+
+.room-qr-title {
+  margin: 0 0 1rem;
+}
+
+.room-qr-image {
+  width: min(80vw, 280px);
+  height: min(80vw, 280px);
+  background: #fff;
+  border-radius: var(--r-sm);
+  padding: 1rem;
+}
+
+.room-qr-code {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.1em;
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin: 1rem 0 0;
+}
+
+.room-qr-url {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  word-break: break-all;
+  margin: 0.25rem 0 1rem;
+}
+
+.btn-icon {
+  background: var(--color-surface-1);
+  border: 1.5px solid var(--color-border-subtle);
+  border-radius: var(--r-sm);
+  color: var(--color-text-primary);
   width: 2.75rem;
   height: 2.75rem;
   display: flex;
@@ -284,7 +394,7 @@ button {
 }
 
 .btn-icon:hover {
-  border-color: var(--accent-light);
+  border-color: var(--color-accent-primary-hover);
 }
 
 .app-menu {
@@ -293,8 +403,8 @@ button {
   right: 1rem;
   z-index: 61;
   width: min(260px, calc(100vw - 2rem));
-  background: var(--surface);
-  border: 1.5px solid var(--border);
+  background: var(--color-surface-1);
+  border: 1.5px solid var(--color-border-subtle);
   border-radius: var(--r);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   padding: 1rem;
@@ -312,7 +422,7 @@ button {
 .app-menu-label {
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -325,9 +435,9 @@ button {
 .btn-opt {
   flex: 1;
   background: transparent;
-  border: 1.5px solid var(--border);
+  border: 1.5px solid var(--color-border-subtle);
   border-radius: var(--r-sm);
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   padding: 0.5rem 0.4rem;
   min-height: 40px;
   font-size: 0.8rem;
@@ -342,14 +452,14 @@ button {
 }
 
 .btn-opt:hover {
-  border-color: var(--accent-light);
-  color: var(--text);
+  border-color: var(--color-accent-primary-hover);
+  color: var(--color-text-primary);
 }
 
 .btn-opt.active {
-  border-color: var(--accent-light);
-  background: var(--accent-glow);
-  color: var(--accent-light);
+  border-color: var(--color-accent-primary-hover);
+  background: var(--color-accent-glow);
+  color: var(--color-accent-primary-hover);
 }
 
 /* ── Scherm-layout ─────────────────────────────────────────────────────── */
@@ -401,14 +511,14 @@ button {
 
 .join-status {
   text-align: center;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   font-size: 0.9rem;
   min-height: 1.2em;
 }
 
 .home-divider {
   text-align: center;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -425,19 +535,19 @@ button {
 
 .field-label-text {
   font-size: 0.78rem;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   font-weight: 600;
 }
 
 .field-label-hint {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   font-weight: 400;
 }
 
 .field-error {
-  color: var(--error);
-  background: var(--error-bg);
+  color: var(--color-danger);
+  background: var(--color-danger-surface);
   border-radius: var(--r-sm);
   font-size: 0.85rem;
   text-align: center;
@@ -469,7 +579,7 @@ button {
 .lobby-waiting,
 .lobby-count {
   text-align: center;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   margin: 0;
 }
 
@@ -498,8 +608,8 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-subtle);
   border-radius: var(--r-sm);
   padding: 0.75rem 1rem;
   font-weight: 600;
@@ -516,8 +626,8 @@ button {
 
 .lobby-empty {
   text-align: center;
-  background: var(--surface);
-  border: 1px dashed var(--border);
+  background: var(--color-surface-1);
+  border: 1px dashed var(--color-border-subtle);
   border-radius: var(--r-sm);
   padding: 1.5rem 1rem;
 }
@@ -528,7 +638,7 @@ button {
 }
 
 .lobby-empty-hint {
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   font-size: 0.85rem;
   margin: 0;
 }
@@ -540,15 +650,15 @@ button {
   flex-direction: column;
   gap: 0.6rem;
   padding: 1rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-subtle);
   border-radius: var(--r);
 }
 
 .lobby-share-title {
   font-size: 0.78rem;
   font-weight: 700;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin: 0;
@@ -564,7 +674,7 @@ button {
 /* Binnen het deelblok staan de knoppen al in een kaart; een tweede
    kaartachtergrond eronder maakt het rommelig. */
 .lobby-share-row .btn-secondary {
-  background: var(--surface2);
+  background: var(--color-surface-2);
   font-size: 0.95rem;
   padding: 12px 10px;
 }
@@ -581,7 +691,7 @@ button {
    hooguit één regel, wat geen storende sprong geeft. */
 .lobby-share-feedback {
   text-align: center;
-  color: var(--accent-light);
+  color: var(--color-accent-primary-hover);
   font-size: 0.85rem;
   margin: 0;
 }
@@ -590,41 +700,8 @@ button {
   display: none;
 }
 
-.lobby-code-reveal {
-  text-align: center;
-  font-size: 1.5rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  margin: 0;
-  padding: 0.6rem;
-  background: var(--surface2);
-  border-radius: var(--r-sm);
-  font-variant-numeric: tabular-nums;
-}
-
 .lobby-link-fallback {
   text-align: center;
-}
-
-.lobby-qr-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  background: rgba(0, 0, 0, 0.85);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1.5rem;
-  padding: 1.5rem;
-}
-
-.lobby-qr-image {
-  width: min(80vw, 340px);
-  height: min(80vw, 340px);
-  background: #fff;
-  border-radius: var(--r);
-  padding: 1rem;
 }
 
 /* ── Reconnect-status + pauze-overlay (session-shell.mjs) ─────────────────
@@ -633,20 +710,20 @@ button {
   text-align: center;
   font-size: 0.85rem;
   padding: 0.5rem 1rem;
-  color: var(--text);
-  background: var(--surface2);
-  border-bottom: 1px solid var(--border);
+  color: var(--color-text-primary);
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .session-banner.is-disconnected {
-  background: var(--error-bg);
-  color: var(--error);
+  background: var(--color-danger-surface);
+  color: var(--color-danger);
 }
 
 .session-answer-saved {
   text-align: center;
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   padding: 0.35rem 1rem 0;
   margin: 0;
 }
@@ -663,7 +740,7 @@ button {
   position: fixed;
   inset: 0;
   z-index: 70;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -671,8 +748,8 @@ button {
 }
 
 .session-pause-card {
-  background: var(--surface);
-  border: 1.5px solid var(--border);
+  background: var(--color-surface-1);
+  border: 1.5px solid var(--color-border-subtle);
   border-radius: var(--r);
   padding: 2rem 1.5rem;
   text-align: center;
@@ -707,8 +784,8 @@ button {
   padding: 0.5rem 0.6rem;
   margin: 0.75rem 1.5rem 0;
   max-width: 480px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-subtle);
   border-radius: var(--r-sm);
 }
 
@@ -734,25 +811,25 @@ button {
   font-size: 0.85rem;
   font-weight: 600;
   border-radius: var(--r-sm);
-  background: var(--surface2);
-  color: var(--text-muted);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
 }
 
 .session-hostbar .btn-secondary:hover {
-  color: var(--text);
+  color: var(--color-text-primary);
 }
 
 /* Beëindigen blijft ook in de compacte strip herkenbaar destructief, maar
    zonder de hele balk rood te maken. */
 .session-hostbar .btn-destructive {
   background: transparent;
-  color: var(--error);
-  border-color: var(--error);
+  color: var(--color-danger);
+  border-color: var(--color-danger);
 }
 
 .session-hostbar .btn-destructive:hover {
-  background: var(--error-bg);
-  color: var(--error);
+  background: var(--color-danger-surface);
+  color: var(--color-danger);
 }
 
 /* Past gewoon naast de andere knoppen; alleen de uitklappende lijst eronder
@@ -775,8 +852,8 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-subtle);
   border-radius: var(--r-sm);
   padding: 0.5rem 0.75rem;
 }
