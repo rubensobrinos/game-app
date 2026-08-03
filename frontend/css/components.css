@@ -675,6 +675,35 @@ button.is-loading::after {
 
 .gameplay-options { display: grid; gap: 10px; }
 
+/* 14-S09-S10: higher_lower — elke zijde van het duel is zelf de knop
+   (`04`'s "directe side-select"), met een eigen kleine vlag boven de
+   landnaam i.p.v. de gedeelde `.gameplay-flag` erboven (die toont hier niets,
+   er is geen "de" vraagvlag — twee landen, gelijkwaardig). Twee kolommen,
+   niet één rij onder elkaar zoals de vier `flags_mc`-opties: dit ís de
+   vergelijking, side-by-side leest sneller als "welke van deze twee". Eigen
+   klasse i.p.v. `:has()` (nergens anders in deze codebase gebruikt) — die zet
+   `gameplay.mjs` zelf op `options` zolang `gameType === 'higher_lower'`. */
+.gameplay-options-duel {
+  grid-template-columns: 1fr 1fr;
+}
+
+.gameplay-option-duel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.gameplay-option-duel-flag {
+  width: 100%;
+  max-width: 120px;
+  aspect-ratio: 3 / 2;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--color-border-subtle);
+  object-fit: cover;
+}
+
 .gameplay-option.is-selected {
   border-color: var(--color-accent-primary-hover);
   box-shadow: 0 0 0 3px var(--color-accent-glow);

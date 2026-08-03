@@ -44,6 +44,9 @@ import {
   applyRoundStarted,
   hydrateFromSnapshot,
   selectOption,
+  selectChoice,
+  selectSide,
+  answerPayloadFor,
   applyAnswerAccepted,
   applyAnswerRejected,
   applyProgress,
@@ -788,13 +791,27 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     }
   }
 
-  async function sendAnswer(optionId) {
-    roundModel = selectOption(roundModel, optionId);
+  // 14-S09-S10: `value` is de iso2 (flags_mc), 'real'/'fake'
+  // (real_or_fake_flag) of 0/1 (higher_lower) — welke van de drie hangt af
+  // van `roundModel.gameType`, dezelfde bron die `answerPayloadFor` leest.
+  // gameplay.mjs kent die vorm zelf niet, roept alleen `onAnswer(value)` aan.
+  async function sendAnswer(value) {
+    if (roundModel.gameType === 'real_or_fake_flag') {
+      roundModel = selectChoice(roundModel, value);
+    } else if (roundModel.gameType === 'higher_lower') {
+      roundModel = selectSide(roundModel, value);
+    } else {
+      roundModel = selectOption(roundModel, value);
+    }
     updateMountedView('gameplay');
+    const answer = answerPayloadFor(roundModel);
+    if (answer === null) {
+      return; // ongeldige/no-op selectie (round-model.mjs wees 'm al af)
+    }
     try {
       await socket.send('round:answer', randomActionId(), {
         roundId: roundModel.roundId,
-        answer: { optionId },
+        answer,
         clientAnsweredAt: Date.now(),
       });
       // Acceptatie komt via het `round:answer-accepted`-event (handleEvent),

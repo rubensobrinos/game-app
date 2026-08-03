@@ -95,6 +95,18 @@ export const nl = Object.freeze({
   // niet in plaats van (11 K: kleur nooit de enige informatiedrager).
   'game.ownAnswer': 'Jouw antwoord',
   'game.roundPoints': 'Punten deze ronde',
+  // 14-S09-S10: real_or_fake_flag + higher_lower — zelfde shell als hierboven,
+  // eigen vraagtekst/keuzes/stempel.
+  'game.realOrFakePrompt': 'Is deze vlag echt of nep?',
+  'game.choiceReal': 'Echt',
+  'game.choiceFake': 'Nep',
+  'game.wasReal': 'Dit was een echte vlag',
+  'game.wasFake': 'Dit was een nepvlag',
+  'game.higherLowerPrompt': 'Welk land heeft meer {metric}?',
+  'game.higherLowerResult': '{country} had de meeste {metric}',
+  // Eén per bekende `metric`-waarde (`question-selection.js`) — een
+  // onbekende metric toont de rauwe waarde i.p.v. te crashen (zie gameplay.mjs).
+  'game.metric.population': 'inwoners',
   // S14: sociale headline, hooguit één per ronde (gameplay.mjs) / stand
   // (scoreboard.mjs) — zie social-headline.mjs voor de selectielogica.
   'headline.selfSoleCorrect': 'Jij was de enige met het juiste antwoord! ⭐',

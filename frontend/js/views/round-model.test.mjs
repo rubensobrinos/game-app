@@ -8,6 +8,9 @@ import {
   applyRoundStarted,
   hydrateFromSnapshot,
   selectOption,
+  selectChoice,
+  selectSide,
+  answerPayloadFor,
   applyAnswerAccepted,
   applyAnswerRejected,
   applyProgress,
@@ -81,6 +84,8 @@ test('round:ended is de enige bron van goed/fout en negeert de verkeerde ronde',
   assert.equal(displayState(ended), 'result');
   assert.deepEqual(ended.result, {
     correctOptionId: 'FR',
+    correctChoice: null,
+    correctSide: null,
     selfCorrect: true,
     selfNoAnswer: false,
     roundPoints: 187,
@@ -148,4 +153,77 @@ test('modellen zijn bevroren', () => {
   const m = applyRoundStarted(STARTED);
   assert.throws(() => { m.answerStatus = 'accepted'; }, TypeError);
   assert.throws(() => { initialRoundModel().roundId = 'x'; }, TypeError);
+});
+
+// ---------------------------------------------------------------------------
+// 14-S09-S10: gameType-generalisatie. Bestaande callers sturen geen gameType
+// mee (transport-mock.mjs, alle tests hierboven) — flags_mc blijft de
+// default, geen van de bestaande tests hierboven hoefde te wijzigen op dat
+// punt.
+
+test('gameType: ontbreekt in de payload -> flags_mc (bestaande callers blijven werken)', () => {
+  assert.equal(applyRoundStarted(STARTED).gameType, 'flags_mc');
+  assert.equal(initialRoundModel().gameType, null);
+});
+
+test('gameType: komt letterlijk uit round:started mee', () => {
+  const model = applyRoundStarted({ ...STARTED, gameType: 'real_or_fake_flag', question: { kind: 'real', iso2: 'IT' } });
+  assert.equal(model.gameType, 'real_or_fake_flag');
+});
+
+test('selectChoice (S09): vergrendelt op geldige keuze, negeert ongeldige/tweede tik', () => {
+  const started = applyRoundStarted({ ...STARTED, gameType: 'real_or_fake_flag', question: { kind: 'real', iso2: 'IT' } });
+  const once = selectChoice(started, 'real');
+  assert.equal(once.answerStatus, 'sending');
+  assert.equal(once.selectedChoice, 'real');
+  assert.equal(optionsLocked(once), true);
+  assert.equal(selectChoice(once, 'fake'), once);
+  assert.equal(selectChoice(started, 'onzin'), started);
+});
+
+test('selectSide (S10): vergrendelt op geldige zijde (0 of 1), negeert ongeldige/tweede tik', () => {
+  const question = { metric: 'population', sides: [{ side: 0, iso2: 'DE' }, { side: 1, iso2: 'PT' }] };
+  const started = applyRoundStarted({ ...STARTED, gameType: 'higher_lower', question });
+  const once = selectSide(started, 0);
+  assert.equal(once.answerStatus, 'sending');
+  assert.equal(once.selectedSide, 0);
+  assert.equal(optionsLocked(once), true);
+  assert.equal(selectSide(once, 1), once);
+  assert.equal(selectSide(started, 2), started);
+  // 0 is falsy — regressietest tegen een `!side`/`side ||`-achtige bug.
+  const zeroSelected = selectSide(applyRoundStarted({ ...STARTED, gameType: 'higher_lower', question }), 0);
+  assert.equal(zeroSelected.selectedSide, 0);
+});
+
+test('answerPayloadFor: levert de juiste round:answer-vorm per gameType, null zolang niets gekozen is', () => {
+  const flagsMc = selectOption(applyRoundStarted(STARTED), 'FR');
+  assert.deepEqual(answerPayloadFor(flagsMc), { optionId: 'FR' });
+  assert.equal(answerPayloadFor(applyRoundStarted(STARTED)), null);
+
+  const rofQuestion = { kind: 'real', iso2: 'IT' };
+  const rof = selectChoice(applyRoundStarted({ ...STARTED, gameType: 'real_or_fake_flag', question: rofQuestion }), 'fake');
+  assert.deepEqual(answerPayloadFor(rof), { choice: 'fake' });
+
+  const hlQuestion = { metric: 'population', sides: [{ side: 0, iso2: 'DE' }, { side: 1, iso2: 'PT' }] };
+  const hl = selectSide(applyRoundStarted({ ...STARTED, gameType: 'higher_lower', question: hlQuestion }), 1);
+  assert.deepEqual(answerPayloadFor(hl), { side: 1 });
+});
+
+test('applyRoundEnded: correctChoice/correctSide komen uit correctAnswer, ongeacht gameType', () => {
+  const rofEnded = applyRoundEnded(
+    selectChoice(applyRoundStarted({ ...STARTED, gameType: 'real_or_fake_flag', question: { kind: 'real', iso2: 'IT' } }), 'real'),
+    { roundId: 'round_03', correctAnswer: { choice: 'real' }, ownCorrect: true, ownPoints: 150 },
+  );
+  assert.equal(rofEnded.result.correctChoice, 'real');
+  assert.equal(rofEnded.result.correctOptionId, null);
+  assert.equal(rofEnded.result.correctSide, null);
+
+  const hlQuestion = { metric: 'population', sides: [{ side: 0, iso2: 'DE' }, { side: 1, iso2: 'PT' }] };
+  const hlEnded = applyRoundEnded(
+    selectSide(applyRoundStarted({ ...STARTED, gameType: 'higher_lower', question: hlQuestion }), 0),
+    { roundId: 'round_03', correctAnswer: { side: 0 }, ownCorrect: true, ownPoints: 120 },
+  );
+  assert.equal(hlEnded.result.correctSide, 0);
+  assert.equal(hlEnded.result.correctChoice, null);
+  assert.equal(hlEnded.result.correctOptionId, null);
 });

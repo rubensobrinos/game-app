@@ -1,19 +1,45 @@
-// views/gameplay.mjs — UI3. DOM-laag van het spelscherm (flags_mc). Alle
-// logica zit in round-model.mjs (puur, getest); dit bestand rendert alleen en
-// vertaalt tikken naar callbacks. Regels (UI3-gameplay-screen.md):
-// nooit innerHTML voor payloadcontent, nooit goed/fout vóór round:ended,
-// timer via secondsRemaining herberekend per render-tick.
+// views/gameplay.mjs — UI3. DOM-laag van het spelscherm. Alle logica zit in
+// round-model.mjs (puur, getest); dit bestand rendert alleen en vertaalt
+// tikken naar callbacks. Regels (UI3-gameplay-screen.md): nooit innerHTML
+// voor payloadcontent, nooit goed/fout vóór round:ended, timer via
+// secondsRemaining herberekend per render-tick.
+//
+// 14-S09-S10: dit bestand was ooit flags_mc-only. De "shell" (kop, timer,
+// status, voortgang, uitslagstempel, sociale headline) is gedeeld over alle
+// drie de spelvormen; alleen de vraagopbouw en de correcte-antwoord-tekst
+// takken af op `model.gameType`. `options`/`.gameplay-option` wordt voor alle
+// drie hergebruikt (vier landknoppen / Echt-Nep / de twee zijden van een
+// duel) — geen los `duel`-blok, minder nieuwe structuur.
 //
 // Gebruik (bedrading door app.mjs / de viewswitcher, UI0):
 //   const view = createGameplayView({ root, t, onAnswer });
 //   view.update(model, { secondsLeft });   // bij elk event of timer-tick
-// `onAnswer(optionId)` doet zelf de transport-send; de aanroeper past daarna
-// het model aan (selectOption / applyAnswerRejected) en roept update opnieuw.
+// `onAnswer(value)` doet zelf de transport-send; `value` is de iso2 (flags_mc),
+// 'real'/'fake' (real_or_fake_flag) of 0/1 (higher_lower) — de aanroeper (
+// session-shell.mjs) weet via `roundModel.gameType`/`answerPayloadFor()` welke
+// `round:answer`-vorm daarbij hoort. De aanroeper past daarna het model aan
+// (selectOption/selectChoice/selectSide) en roept update opnieuw.
 
 import { countryName, flagAssetPath } from './country-names.mjs';
 import { displayState, optionsLocked } from './round-model.mjs';
 import { headlineRevealed } from './reveal-model.mjs';
 import { socialHeadlineFor } from './social-headline.mjs';
+import { renderFlagSpec } from './flag-renderer.mjs';
+
+/** Waarde die de speler net gekozen heeft, ongeacht gameType. */
+function selectedValueFor(model) {
+  if (model.gameType === 'real_or_fake_flag') return model.selectedChoice;
+  if (model.gameType === 'higher_lower') return model.selectedSide;
+  return model.selectedOptionId;
+}
+
+/** Het bevestigde juiste antwoord (pas ná round:ended), ongeacht gameType. */
+function correctValueFor(model) {
+  if (model.result === null) return null;
+  if (model.gameType === 'real_or_fake_flag') return model.result.correctChoice;
+  if (model.gameType === 'higher_lower') return model.result.correctSide;
+  return model.result.correctOptionId;
+}
 
 export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   root.textContent = '';
@@ -47,7 +73,6 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   header.append(roundLabel, timer);
 
   const questionPrompt = el('p', 'gameplay-question');
-  questionPrompt.textContent = t('game.questionPrompt');
 
   const flag = document.createElement('img');
   flag.className = 'gameplay-flag';
@@ -68,6 +93,15 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     flagFallback.hidden = false;
     flagFallback.textContent = t('game.flagAlt');
   });
+
+  // S09, `question.kind === 'generated'`: geen bestaand vlagasset, canvas
+  // tekent `flag-renderer.mjs`'s poort van de singleplayer-renderer i.p.v.
+  // een <img src>. Zelfde `alt`-discipline als `flag` hierboven (geen
+  // landnaam-lek — hier is er sowieso geen bestaand land).
+  const flagCanvas = document.createElement('canvas');
+  flagCanvas.className = 'gameplay-flag gameplay-flag-canvas';
+  flagCanvas.setAttribute('role', 'img');
+  flagCanvas.hidden = true;
 
   const options = el('div', 'gameplay-options');
   const status = el('p', 'gameplay-status');
@@ -90,10 +124,10 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     }
   });
 
-  root.append(screenTitle, countdown, header, questionPrompt, flag, flagFallback, options, status, progress, result, headline);
+  root.append(screenTitle, countdown, header, questionPrompt, flag, flagCanvas, flagFallback, options, status, progress, result, headline);
 
   let renderedRoundId = null;
-  let optionButtons = new Map();
+  let optionButtons = new Map(); // value (iso2 | 'real'/'fake' | 0/1) -> button
   // Reveal-pacing (S13): lokale Date.now(), geen servertijd nodig — dit
   // bepaalt alleen hoe lang dít scherm wacht vóór het de headline toont, geen
   // cross-client-gesynchroniseerd moment zoals de rondetimer.
@@ -101,6 +135,100 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   let revealedAt = null;
   let skippedReveal = false;
   let lastRoundModel = null;
+
+  /** Bouwt de vraag opnieuw op — takt af op `model.gameType`. */
+  function buildQuestion(model) {
+    flag.hidden = true;
+    flagFallback.hidden = true;
+    flagCanvas.hidden = true;
+    options.textContent = '';
+    options.classList.toggle('gameplay-options-duel', model.gameType === 'higher_lower');
+    optionButtons = new Map();
+
+    if (model.gameType === 'real_or_fake_flag') {
+      questionPrompt.textContent = t('game.realOrFakePrompt');
+      const q = model.question;
+      if (q.kind === 'real') {
+        flag.hidden = false;
+        flag.src = flagAssetPath(q.iso2);
+      } else {
+        flagCanvas.hidden = false;
+        flagCanvas.setAttribute('aria-label', t('game.flagAlt'));
+        renderFlagSpec(flagCanvas, q.spec);
+      }
+      for (const choice of ['real', 'fake']) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'gameplay-option';
+        btn.textContent = t(choice === 'real' ? 'game.choiceReal' : 'game.choiceFake');
+        btn.setAttribute('aria-pressed', 'false');
+        btn.addEventListener('click', () => onAnswer(choice));
+        optionButtons.set(choice, btn);
+        options.appendChild(btn);
+      }
+      return;
+    }
+
+    if (model.gameType === 'higher_lower') {
+      const metricLabel = t(`game.metric.${model.question.metric}`);
+      // Geen vertaling voor een onbekende metric bekend: toon de rauwe
+      // waarde i.p.v. een lege/kapotte string — expliciet punt voor
+      // ../PROGRESS.md, geen aanname over een vaste metric-set (14's DoD).
+      questionPrompt.textContent = t('game.higherLowerPrompt').replace(
+        '{metric}',
+        metricLabel === `game.metric.${model.question.metric}` ? model.question.metric : metricLabel,
+      );
+      for (const { side, iso2 } of model.question.sides) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'gameplay-option gameplay-option-duel';
+        const btnFlag = document.createElement('img');
+        btnFlag.className = 'gameplay-option-duel-flag';
+        btnFlag.src = flagAssetPath(iso2);
+        btnFlag.alt = '';
+        btnFlag.setAttribute('aria-hidden', 'true');
+        const btnName = document.createElement('span');
+        btnName.textContent = countryName(iso2, lang);
+        btn.append(btnFlag, btnName);
+        btn.setAttribute('aria-pressed', 'false');
+        btn.addEventListener('click', () => onAnswer(side));
+        optionButtons.set(side, btn);
+        options.appendChild(btn);
+      }
+      return;
+    }
+
+    // flags_mc (default)
+    questionPrompt.textContent = t('game.questionPrompt');
+    flag.hidden = false;
+    flag.src = flagAssetPath(model.question.targetIso2);
+    for (const iso2 of model.question.optionIso2s) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'gameplay-option';
+      btn.textContent = countryName(iso2, lang);
+      btn.setAttribute('aria-pressed', 'false');
+      btn.addEventListener('click', () => onAnswer(iso2));
+      optionButtons.set(iso2, btn);
+      options.appendChild(btn);
+    }
+  }
+
+  /** Tekst + eventuele markering voor de correcte-antwoord-stempel, per gameType. */
+  function correctAnswerStampText(model) {
+    if (model.gameType === 'real_or_fake_flag') {
+      return t(model.result.correctChoice === 'real' ? 'game.wasReal' : 'game.wasFake');
+    }
+    if (model.gameType === 'higher_lower') {
+      const side = model.question.sides.find((s) => s.side === model.result.correctSide);
+      const name = side ? countryName(side.iso2, lang) : '';
+      const metricLabel = t(`game.metric.${model.question.metric}`);
+      return t('game.higherLowerResult')
+        .replace('{country}', name)
+        .replace('{metric}', metricLabel === `game.metric.${model.question.metric}` ? model.question.metric : metricLabel);
+    }
+    return `${t('game.correctAnswer')}: ${countryName(model.result.correctOptionId, lang)}`;
+  }
 
   function update(model, { secondsLeft = null, phase = null, countdownSecondsLeft = null } = {}) {
     // Reken het getal uit de resterende tijd (`secondsRemaining()` rondt al af
@@ -123,6 +251,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
       flag.removeAttribute('src');
       flag.hidden = false;
       flagFallback.hidden = true;
+      flagCanvas.hidden = true;
       options.textContent = '';
       status.textContent = '';
       progress.textContent = '';
@@ -146,35 +275,20 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     // Vraag (her)opbouwen bij een nieuwe ronde
     if (model.roundId !== renderedRoundId) {
       renderedRoundId = model.roundId;
-      // Reset vóór de nieuwe src: een fallback van de vorige ronde mag niet
-      // blijven hangen als deze ronde's vlag wél laadt.
-      flag.hidden = false;
-      flagFallback.hidden = true;
-      flag.src = flagAssetPath(model.question.targetIso2);
-      options.textContent = '';
-      optionButtons = new Map();
-      for (const iso2 of model.question.optionIso2s) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'gameplay-option';
-        btn.textContent = countryName(iso2, lang);
-        btn.setAttribute('aria-pressed', 'false');
-        btn.addEventListener('click', () => onAnswer(iso2));
-        optionButtons.set(iso2, btn);
-        options.appendChild(btn);
-      }
+      buildQuestion(model);
       result.textContent = '';
     }
 
     // Vergrendeling + eigen selectie zichtbaar (géén goed/fout-kleur vóór ended)
     const locked = optionsLocked(model);
+    const selectedValue = selectedValueFor(model);
     // M2/E06: dimmen pas ná serverbevestiging (`accepted`), niet al tijdens
     // `sending` — dat zou een bevestiging suggereren die er nog niet is
     // (reviewbevinding, exacte toestandstabel in M2's prompt).
     const dimOthers = model.answerStatus === 'accepted';
-    for (const [iso2, btn] of optionButtons) {
+    for (const [value, btn] of optionButtons) {
       btn.disabled = locked;
-      const selected = iso2 === model.selectedOptionId;
+      const selected = value === selectedValue;
       btn.classList.toggle('is-selected', selected);
       btn.classList.toggle('is-dimmed', dimOthers && !selected);
       // `.is-selected`/`.is-dimmed` zijn puur visueel; `aria-pressed` is wat
@@ -232,7 +346,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
       // tree ophoudt) — `gameplay-reveal-enter` hieronder is uitsluitend een
       // visuele fade, geen vertraagde tekstinvoeging.
       const correct = el('p', 'gameplay-correct gameplay-reveal-enter');
-      correct.textContent = `${t('game.correctAnswer')}: ${countryName(model.result.correctOptionId, lang)}`;
+      correct.textContent = correctAnswerStampText(model);
       const resultClass = model.result.selfNoAnswer ? 'is-noanswer' : model.result.selfCorrect ? 'is-correct' : 'is-wrong';
       const resultKey = model.result.selfNoAnswer
         ? 'game.resultNoAnswer'
@@ -261,17 +375,15 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
       // M2/E09: correcte optie krijgt eerst accent (deze klasse, direct) —
       // het tekstblok hierboven verschijnt daarna (animation-delay in CSS),
       // een vaste, korte opbouwvolgorde i.p.v. alles ineens.
-      const correctBtn = optionButtons.get(model.result.correctOptionId);
+      const correctValue = correctValueFor(model);
+      const correctBtn = optionButtons.get(correctValue);
       if (correctBtn) correctBtn.classList.add('is-correct');
       // M2/E09: foute eigen keuze — kleur is nooit de enige informatiedrager
       // (11 K). `.is-wrong` (niet-kleur ✕-icoon, components.css) plus een
       // sr-only-label direct op de knop, náást de al bestaande
       // aria-live-tekst in `.gameplay-own`.
-      if (
-        model.selectedOptionId !== null &&
-        model.selectedOptionId !== model.result.correctOptionId
-      ) {
-        const wrongBtn = optionButtons.get(model.selectedOptionId);
+      if (selectedValue !== null && selectedValue !== correctValue) {
+        const wrongBtn = optionButtons.get(selectedValue);
         if (wrongBtn) {
           wrongBtn.classList.add('is-wrong');
           const ownAnswerLabel = el('span', 'sr-only');
@@ -295,7 +407,9 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   // S14: hooguit één sociale headline, alleen ná de reveal-vertraging (of een
   // tik om te skippen). Puur uit rondelokale data (distribution/eligible-
   // PlayerCount) — comeback vuurt hier bewust nooit (movement leeg, zie
-  // reveal-model.mjs voor waarom), die hoort bij scoreboard.mjs.
+  // reveal-model.mjs voor waarom), die hoort bij scoreboard.mjs. Werkt
+  // ongewijzigd voor alle drie de spelvormen: `distribution` is altijd een
+  // telling per antwoordwaarde, ongeacht wat die waarde betekent.
   function renderHeadline() {
     if (lastRoundModel === null || lastRoundModel.result === null || revealedRoundId !== lastRoundModel.roundId) {
       headline.hidden = true;
@@ -308,7 +422,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     }
     const found = socialHeadlineFor({
       distribution: lastRoundModel.result.distribution,
-      correctOptionId: lastRoundModel.result.correctOptionId,
+      correctOptionId: correctValueFor(lastRoundModel),
       eligiblePlayerCount: lastRoundModel.progress?.eligiblePlayerCount ?? null,
       movement: new Map(),
       participants: new Map(),
@@ -333,6 +447,10 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
       return t('headline.everyoneWrong');
     }
     if (found.type === 'misleading-answer') {
+      // Alleen zinvol voor flags_mc: het misleidende antwoord is daar een
+      // land. Voor de andere twee spelvormen levert `socialHeadlineFor` dit
+      // type sowieso niet op zinvolle wijze op (optionId is dan 'real'/'fake'
+      // of 0/1) — geen aparte tekst hiervoor nodig zolang dat pad niet vuurt.
       return t('headline.misleadingAnswer').replace('{country}', countryName(found.optionId, lang));
     }
     return '';

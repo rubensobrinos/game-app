@@ -1,7 +1,7 @@
 // views/round-model.mjs — UI3. Pure, lokale rondedata-state voor het
-// spelscherm (flags_mc). Bewust GEEN onderdeel van client/flow's
-// match-phase-state: dat bewaart alleen fase + matchId + pausedState; rondedata
-// (vraag, opties, eigen antwoordstatus, voortgang, uitslag) is expliciet de
+// spelscherm. Bewust GEEN onderdeel van client/flow's match-phase-state: dat
+// bewaart alleen fase + matchId + pausedState; rondedata (vraag, opties,
+// eigen antwoordstatus, voortgang, uitslag) is expliciet de
 // verantwoordelijkheid van dit scherm (UI3-gameplay-screen.md §Regels).
 //
 // Zelfde reducer-stijl als client/flow: pure functies, geen DOM, geen timers,
@@ -9,25 +9,37 @@
 // (gameplay.mjs) rendert uitsluitend wat hier staat en stuurt gebruikers-
 // intenties hierheen.
 //
+// 14-S09-S10: dit model was ooit flags_mc-only. `gameType` bepaalt nu welke
+// van de drie selectie-vormen (`selectedOptionId`/`selectedChoice`/
+// `selectedSide`) en welk deel van `result` (`correctOptionId`/`correctChoice`/
+// `correctSide`) relevant is — de niet-toepasselijke velden blijven `null`,
+// geen aparte modelvorm per spelvorm. `answerPayloadFor()` is de ene plek die
+// weet welke velden bij welk `gameType` horen; de DOM-laag hoeft dat zelf niet
+// te weten.
+//
 // Serverwaarheid: goed/fout of punten worden hier nooit berekend of voorspeld
 // — alles komt letterlijk uit de payloads (round:ended). Vóór round:ended
 // bestaat er geen goed/fout, alleen een verzendstatus.
 
 /** @typedef {'idle' | 'sending' | 'accepted' | 'rejected'} AnswerStatus */
+/** @typedef {'flags_mc' | 'real_or_fake_flag' | 'higher_lower'} GameType */
 
 export function initialRoundModel() {
   return Object.freeze({
     roundId: null,
     roundNumber: null,
     totalRounds: null,
-    question: null, // { targetIso2, optionIso2s } — iso2's zoals de payload ze geeft
+    gameType: null, // PROTOCOL.md `round:started`'s `gameType`
+    question: null, // vorm hangt van `gameType` af — zie PROTOCOL.md per type
     startsAt: null,
     endsAt: null,
-    selectedOptionId: null,
+    selectedOptionId: null, // flags_mc
+    selectedChoice: null, // real_or_fake_flag: 'real' | 'fake'
+    selectedSide: null, // higher_lower: 0 | 1
     answerStatus: /** @type {AnswerStatus} */ ('idle'),
     rejectionCode: null,
     progress: null, // { answeredCount, eligiblePlayerCount }
-    result: null, // { correctOptionId, selfCorrect, selfNoAnswer, roundPoints, distribution }
+    result: null, // { correctOptionId, correctChoice, correctSide, selfCorrect, selfNoAnswer, roundPoints, distribution }
   });
 }
 
@@ -42,6 +54,9 @@ export function applyRoundStarted(payload) {
     roundId: payload.roundId,
     roundNumber: payload.roundNumber ?? null,
     totalRounds: payload.totalRounds ?? null,
+    // Bestaande callers (transport-mock.mjs, alle huidige tests) sturen geen
+    // `gameType` mee — `flags_mc` blijft de default zodat niets daarvan breekt.
+    gameType: payload.gameType ?? 'flags_mc',
     question: payload.question ?? null,
     startsAt: payload.startsAt ?? null,
     endsAt: payload.endsAt ?? null,
@@ -88,6 +103,44 @@ export function selectOption(model, optionId) {
     return model;
   }
   return Object.freeze({ ...model, selectedOptionId: optionId, answerStatus: 'sending' });
+}
+
+/** `real_or_fake_flag` — S09. Zelfde vergrendelregels als `selectOption`. */
+export function selectChoice(model, choice) {
+  if (model.answerStatus !== 'idle' || model.question === null) {
+    return model;
+  }
+  if (choice !== 'real' && choice !== 'fake') {
+    return model;
+  }
+  return Object.freeze({ ...model, selectedChoice: choice, answerStatus: 'sending' });
+}
+
+/** `higher_lower` — S10. Zelfde vergrendelregels als `selectOption`. */
+export function selectSide(model, side) {
+  if (model.answerStatus !== 'idle' || model.question === null) {
+    return model;
+  }
+  if (side !== 0 && side !== 1) {
+    return model;
+  }
+  return Object.freeze({ ...model, selectedSide: side, answerStatus: 'sending' });
+}
+
+/**
+ * De ene plek die weet welke `round:answer`-payloadvorm bij welk `gameType`
+ * hoort (`PROTOCOL.md` per type) — de DOM-/transportlaag hoeft dat zelf niet
+ * te weten, roept alleen `selectOption`/`selectChoice`/`selectSide` aan en
+ * leest hier de vorm terug. `null` als er (nog) niets geselecteerd is.
+ */
+export function answerPayloadFor(model) {
+  if (model.gameType === 'real_or_fake_flag') {
+    return model.selectedChoice === null ? null : { choice: model.selectedChoice };
+  }
+  if (model.gameType === 'higher_lower') {
+    return model.selectedSide === null ? null : { side: model.selectedSide };
+  }
+  return model.selectedOptionId === null ? null : { optionId: model.selectedOptionId };
 }
 
 /** `round:answer-accepted` — alleen voor de actieve ronde. */
@@ -149,6 +202,11 @@ export function applyRoundEnded(model, payload) {
     ...model,
     result: {
       correctOptionId: payload.correctAnswer?.optionId ?? null,
+      // 14-S09-S10: correctAnswer's vorm hangt van `gameType` af
+      // (`{optionId}` | `{choice}` | `{side}`, PROTOCOL.md) — alle drie
+      // staan hier altijd op het model, niet-toepasselijke blijven `null`.
+      correctChoice: payload.correctAnswer?.choice ?? null,
+      correctSide: typeof payload.correctAnswer?.side === 'number' ? payload.correctAnswer.side : null,
       selfCorrect: payload.ownCorrect === true,
       selfNoAnswer,
       // Punten van déze ronde, geen lopend totaal — dat laatste bestaat

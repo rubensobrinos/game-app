@@ -27,11 +27,21 @@ scherm en `docs/frontend-plan/HANDOFF-UI.md` (`UI-13` t/m `UI-17`) voor de
 opengebleven punten die uit het uitvoeren volgden.
 
 Een tiende bouwprompt kwam er ná die negen bij, niet uit review maar uit een
-gecorrigeerde scope-aanname:
+gecorrigeerde scope-aanname. **Uitgevoerd (3 aug 2026).**
 
 | # | Bestand | Dekt | Fase (roadmap) |
 | --- | --- | --- | --- |
 | 14 | [`14-S09-S10-echt-of-nep-en-hoger-of-lager.md`](14-S09-S10-echt-of-nep-en-hoger-of-lager.md) | S09, S10 — bevestigde Golf-1-spelvormen, server/protocol staan al klaar | 1, ten onrechte als "buiten scope" gemarkeerd |
+
+`gameplay.mjs`/`round-model.mjs` takken nu af op `gameType`; nieuw
+`flag-renderer.mjs` (canvas, poort van de singleplayer-renderer) voor S09's
+`kind: "generated"`. Geverifieerd zonder `client/flow/`'s (nog vaste)
+spelvorm-selector nodig te hebben, via een losse testharnas die
+`createGameplayView` rechtstreeks aanstuurt met een hand-gebouwd
+`round:started`-model per `gameType` — zie `../PROGRESS.md` S09/S10 voor de
+volledige verificatie en één gevonden kanttekening (S10's reveal toont geen
+rauwe metriekwaarden; `PROTOCOL.md` suggereert dat ze er wel zijn, de
+daadwerkelijke serverimplementatie stuurt ze niet mee).
 
 ## Verzoeken/besluiten die uit het uitvoeren volgden
 
