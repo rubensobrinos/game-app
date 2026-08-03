@@ -835,6 +835,14 @@ blijft E08 samengevoegd met E09, vastgelegd in
 
 ## UI-20 — twee prompts claimen het voorkeurenpaneel (thema 2, 3 aug 2026)
 
+> **BESLOTEN (producteigenaar, 3 aug 2026, via regie): niemand bouwt een
+> nieuw paneel — het bestaande voorkeurenpaneel (T5-7, gebouwd en
+> functioneel) blijft zoals het is.** T2-9's bottom-sheet-variant vervalt
+> voor dit onderdeel; thema 2 haalt 'm uit de eigen backlog. T5-7 gaat van
+> ⏸ terug naar de status die het werk verdient. Herontwerp van dit paneel
+> is pas weer bespreekbaar als gebruikersfeedback uit de pilots erom vraagt.
+
+
 **Voor:** thema 5, en thema 2 zelf. **Blokkeert:** `T2-9` (thema 2) en
 `T5-7` (thema 5) — allebei, tot dit één ticket is.
 
