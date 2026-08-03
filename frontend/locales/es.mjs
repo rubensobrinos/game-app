@@ -88,6 +88,7 @@ export const es = Object.freeze({
   'session.resume': 'Reanudar',
   'session.revoked': 'Tu sesión ha finalizado.',
   'session.unknown': 'Te has desconectado.',
+  'session.backToStart': 'Volver al inicio',
 
   'hostbar.lock': 'Bloquear',
   'hostbar.unlock': 'Desbloquear',

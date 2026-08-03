@@ -99,6 +99,7 @@ export const nl = Object.freeze({
   'session.resume': 'Hervat',
   'session.revoked': 'Je sessie is beëindigd.',
   'session.unknown': 'Je bent losgekoppeld.',
+  'session.backToStart': 'Terug naar start',
 
   // — UI5: Hostbalk (lock/kick/finish/next; pauze zit hierboven) —
   'hostbar.lock': 'Vergrendel',

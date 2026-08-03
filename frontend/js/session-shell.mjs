@@ -57,6 +57,20 @@ import { createHostBar } from './views/hostbar.mjs';
 
 const GAMEPLAY_TICK_MS = 250;
 
+// Codes waarbij een opgeslagen sessie principieel niet meer bruikbaar is —
+// verder proberen (reconnect, opnieuw snapshot ophalen) heeft geen zin, de
+// enige zinvolle actie is terug naar start. Zie 08 §6 "roomfouten": elke rij
+// in die tabel heeft precies deze twee eigenschappen (specifieke tekst +
+// terugkeeractie), wat hier voor de verbindings-/sessiekant van die tabel
+// geldt (ROOM_LOCKED/GAME_FULL/LATE_JOIN_DISABLED horen niet hier: die zijn
+// alleen relevant bij een póging tot join, niet bij een al bestaande sessie).
+const TERMINAL_SNAPSHOT_ERROR_CODES = new Set([
+  'GAME_NOT_FOUND',
+  'TOKEN_INVALID',
+  'TOKEN_EXPIRED',
+  'SESSION_REVOKED',
+]);
+
 export function createSessionShell({ root, t, tCount, transport, storage, code, isHostRoute, session, onLeaveHome }) {
   root.textContent = '';
 
@@ -197,9 +211,18 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
     try {
       const snapshot = await transport.fetchState(code, session.sessionToken);
       handleEvent({ event: 'room:state', payload: snapshot });
-    } catch {
-      // Een mislukte snapshotaanvraag blokkeert de rest van de UI niet — de
-      // eerstvolgende serverevent of hertoegang herstelt vanzelf.
+    } catch (err) {
+      // Thema 5-bevinding: dit ving vroeger élke fout stil af — ook een
+      // room die niet meer bestaat (verlopen, verwijderd) of een sessie die
+      // niet meer geldig is (verlopen token, elders ingetrokken). Een
+      // opgeslagen sessie die naar zo'n room wijst laadde dan in een
+      // permanent lege, onverklaarde staat: geen fout, geen weg terug (08 §6
+      // "roomfouten", ontbrekend `S21`-scherm). Terminale codes krijgen nu
+      // wél een bestemming; alles anders (netwerkhapering) blijft stil, want
+      // dat herstelt zichzelf via de eerstvolgende serverevent of reconnect.
+      if (TERMINAL_SNAPSHOT_ERROR_CODES.has(err?.code)) {
+        terminate(t(`error.${messageForErrorCode(err.code)}`));
+      }
     }
   }
 

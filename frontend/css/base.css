@@ -48,6 +48,40 @@
   --text-muted: #5b5b70;
   --success-bg: rgba(34, 197, 94, 0.14);
   --error-bg: rgba(239, 68, 68, 0.1);
+
+  /* Thema 5-bevinding (echt gemeten, niet aangenomen): de donkere-thema-tinten
+     van accent-light/error/success/gold zijn ontworpen om op een bijna-zwarte
+     achtergrond te lichten — als tekst op dit lichte thema zakken ze onder
+     WCAG AA (accent-light 3.61:1, error 3.43:1, success 2.08:1, gold 1.96:1
+     op --bg; berekend met de standaard relatieve-luminantieformule, geen
+     schatting). Hieronder donkerdere varianten die op elke huidige
+     toepassing (tekst én rand) minimaal AA (4.5:1) halen, incl. de lastigste
+     combinatie: `.btn-opt.active`'s eigen tekstkleur op zijn eigen
+     `--accent-glow`-achtergrond (vandaar ook een aangepaste, minder
+     verzadigde glow — de originele 25%-paars-tint komt op een lichte
+     achtergrond nooit boven 3,9:1 uit, ongeacht hoe donker de tekst wordt). */
+  --accent-light: #7c3aed;
+  --accent-glow: rgba(124, 58, 237, 0.08);
+  --error: #b91c1c;
+  --success: #166534;
+  --gold: #9a5b0a;
+}
+
+/* Beweging: systeemvoorkeur altijd respecteren (08 §2.4, QA-checklist K).
+   Staat hier — vóór er serieus motion-werk bijkomt — juist omdat het na dat
+   werk overal opnieuw teruggebouwd zou moeten worden; nu is het één regel.
+   Vervangt duur (niet transitions verwijderen: een instant statuswissel is
+   nog steeds een statuswissel, alleen zonder de overgang ernaartoe) en zet
+   scroll-gedrag op instant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 *,
@@ -71,6 +105,18 @@ body {
   background: var(--bg);
   color: var(--text);
   -webkit-tap-highlight-color: transparent;
+  /* `viewport-fit=cover` (index.html) tekent al onder de notch/homebar door
+     zonder dit — die meta-tag beloofde het, maar er stond nergens een
+     `env(safe-area-inset-*)`. Top/left/right hier: de sticky header en
+     `#app-root` zijn beide horizontaal gecentreerd via margin, dus padding
+     op `body` (niet op de header zelf) houdt `--header-h` exact — die zou
+     anders weer stilzwijgend fout gaan, zoals eerder al eens gebeurde toen
+     `#app-root`/`.screen` allebei een eigen min-height hadden. Bottom staat
+     op `.screen`, niet hier, want home/join/lobby/gameplay wisselen elkaar
+     áf in dezelfde `#app-root` en delen dus geen gezamenlijke bodemrand. */
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 /* Géén min-height hier: `.screen` vult zelf de resthoogte onder de header.
@@ -248,7 +294,7 @@ button {
   justify-content: safe center;
   align-items: stretch;
   gap: 1rem;
-  padding: 2rem 1.5rem;
+  padding: 2rem 1.5rem calc(2rem + env(safe-area-inset-bottom));
 }
 
 /* Voor schermen die van boven af opbouwen (lobby, tussenstand) — centreren

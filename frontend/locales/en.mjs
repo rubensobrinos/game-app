@@ -90,6 +90,7 @@ export const en = Object.freeze({
   'session.resume': 'Resume',
   'session.revoked': 'Your session has ended.',
   'session.unknown': 'You were disconnected.',
+  'session.backToStart': 'Back to start',
 
   'hostbar.lock': 'Lock',
   'hostbar.unlock': 'Unlock',
