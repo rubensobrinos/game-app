@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadLang, saveLang, loadTheme, saveTheme, loadMuted, saveMuted } from './preferences.mjs';
+import {
+  loadLang,
+  saveLang,
+  loadTheme,
+  saveTheme,
+  loadMuted,
+  saveMuted,
+  loadReactionsEnabled,
+  saveReactionsEnabled,
+} from './preferences.mjs';
 
 function fakeStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -127,4 +136,41 @@ test('saveMuted: een gooiende storage faalt stil, geen exception', () => {
     },
   };
   assert.doesNotThrow(() => saveMuted(storage, true));
+});
+
+// 11-verzoek (BOUWSPRINT doel 4)
+
+test('loadReactionsEnabled: null zonder opgeslagen waarde (aanroeper valt terug op standaard-aan)', () => {
+  assert.equal(loadReactionsEnabled(fakeStorage()), null);
+});
+
+test('loadReactionsEnabled: geeft true terug bij opgeslagen "true"', () => {
+  assert.equal(loadReactionsEnabled(fakeStorage({ 'mp:reactionsEnabled': 'true' })), true);
+});
+
+test('loadReactionsEnabled: geeft false terug bij opgeslagen "false"', () => {
+  assert.equal(loadReactionsEnabled(fakeStorage({ 'mp:reactionsEnabled': 'false' })), false);
+});
+
+test('loadReactionsEnabled: negeert een ongeldige opgeslagen waarde', () => {
+  assert.equal(loadReactionsEnabled(fakeStorage({ 'mp:reactionsEnabled': 'nope' })), null);
+});
+
+test('saveReactionsEnabled: schrijft true/false weg, negeert een niet-boolean', () => {
+  const storage = fakeStorage();
+  saveReactionsEnabled(storage, false);
+  assert.equal(storage._map.get('mp:reactionsEnabled'), 'false');
+  saveReactionsEnabled(storage, true);
+  assert.equal(storage._map.get('mp:reactionsEnabled'), 'true');
+  saveReactionsEnabled(storage, 'true');
+  assert.equal(storage._map.get('mp:reactionsEnabled'), 'true'); // ongewijzigd, niet overschreven met de string
+});
+
+test('saveReactionsEnabled: een gooiende storage faalt stil, geen exception', () => {
+  const storage = {
+    setItem() {
+      throw new Error('quota exceeded');
+    },
+  };
+  assert.doesNotThrow(() => saveReactionsEnabled(storage, true));
 });

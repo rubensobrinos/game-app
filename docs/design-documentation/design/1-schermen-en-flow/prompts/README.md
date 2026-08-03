@@ -55,7 +55,7 @@ intrekking of correctie waar van toepassing (principe 8):
 | # | Bestand | Voor | Status |
 | --- | --- | --- | --- |
 | 10 | [`10-besluitverzoek-UI-15-tie-regel.md`](10-besluitverzoek-UI-15-tie-regel.md) | INT-A | Tie-regel zelf is al bevestigd; `scoreboard:updated` en `game:finished` passen 'm inconsistent toe |
-| 11 | [`11-verzoek-streak-reactiezinnen.md`](11-verzoek-streak-reactiezinnen.md) | producteigenaar | Ontdekt: streak-reactiezinnen zijn client-side bouwbaar (eigen-speler, geen protocolgat) — niet gebouwd |
+| 11 | [`11-verzoek-streak-reactiezinnen.md`](11-verzoek-streak-reactiezinnen.md) | — | **Uitgevoerd (BOUWSPRINT doel 4, 3 aug 2026):** de opgeschorte "bevestig eerst"-vraag is door de bouwsprint zelf beantwoord (expliciet doel 4) — `views/streak-model.mjs`, opt-out in `app-menu.mjs`, zie `../PROGRESS.md` S14. |
 | 12 | [`12-besluitverzoek-UI-14-dubbele-tab.md`](12-besluitverzoek-UI-14-dubbele-tab.md) | producteigenaar | Bevestig de al-gebouwde `BroadcastChannel`-aanpak voor dubbele tabs |
 | 13 | [`13-verzoek-UI-17-tijd-per-ronde-en-teams.md`](13-verzoek-UI-17-tijd-per-ronde-en-teams.md) | `client/flow/`-eigenaar | Tijd-per-ronde heeft al een bevestigde default+range zonder veld; teams zijn al bevestigd voor "fase 1.5" |
 

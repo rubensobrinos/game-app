@@ -53,6 +53,8 @@ import {
   applyProgress,
   applyRoundEnded,
 } from './views/round-model.mjs';
+import { initialStreakModel, applyRoundResult as applyStreakResult } from './views/streak-model.mjs';
+import { loadReactionsEnabled } from './preferences.mjs';
 import { standingsFrom, rankMovementFrom } from './views/standings-model.mjs';
 import { createRoomHeader } from './views/room-header.mjs';
 import { createLobbyView } from './views/lobby.mjs';
@@ -228,6 +230,9 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   let matchPhase = initialMatchPhaseState();
   let reconnect = initialReconnectState();
   let roundModel = initialRoundModel();
+  // 11-verzoek (BOUWSPRINT doel 4): sessieniveau, zie de toelichting bij
+  // `round:ended` hieronder voor waarom dit niet in gameplay.mjs zelf kan.
+  let streakModel = initialStreakModel();
   let countdownEndsAt = null; // S07: alleen relevant tijdens matchPhase.phase === 'COUNTDOWN'
   let standingsPayload = null;
   // S15/prompt 08: vorige `standingsFrom()`-uitkomst, voor `rankMovementFrom()`
@@ -564,6 +569,12 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         break;
       case 'round:ended':
         roundModel = applyRoundEnded(roundModel, envelope.payload);
+        // 11-verzoek (BOUWSPRINT doel 4): op sessieniveau bijgehouden, niet in
+        // gameplay.mjs's eigen closure — die wordt elke ronde herbouwd zodra
+        // de tussenstand-fase ertussen zit (mountView()), en zou een lokale
+        // teller dus elke ronde verliezen. Precies één keer per round:ended,
+        // niet bij elke render.
+        streakModel = applyStreakResult(streakModel, roundModel.result?.selfCorrect === true);
         break;
       case 'scoreboard:updated':
         // S15: de OUDE stand snapshotten vóórdat 'ie overschreven wordt —
@@ -820,6 +831,12 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       secondsLeft: secondsRemaining(roundModel.startsAt, roundModel.endsAt, offsetMs),
       phase: matchPhase.phase,
       countdownSecondsLeft: countdownEndsAt === null ? null : secondsRemaining(0, countdownEndsAt, offsetMs),
+      // 11-verzoek (BOUWSPRINT doel 4): live gelezen (niet eenmalig
+      // gesnapshot bij mount) — het voorkeurenpaneel is op elk scherm
+      // bereikbaar, dus kan mid-match omgezet worden. `0` i.p.v. het echte
+      // streaknummer bij uitgezet: gameplay.mjs hoeft de voorkeur zelf niet
+      // te kennen, alleen het getal dat 'm al dan niet over de drempel tilt.
+      streak: (loadReactionsEnabled(storage) ?? true) ? streakModel.current : 0,
     };
   }
 

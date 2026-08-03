@@ -1,19 +1,27 @@
 // app-menu.mjs — UI1. Het hamburgermenu in de appheader, zichtbaar op élk
 // scherm (gemount in `#app-header`, buiten `#app-root` — dat laatste wordt
-// bij elke routewissel leeggemaakt, de header niet). Twee losse keuzes:
+// bij elke routewissel leeggemaakt, de header niet). Drie losse keuzes:
 //
 //   - Taal van de app-UI zelf (menu's, knoppen, foutmeldingen) — niet de taal
 //     waarin vragen gesteld worden, dat is een aparte game-instelling
 //     (`host-setup-state`'s `config.language`).
 //   - Licht/donker-thema, toegepast via `document.documentElement.dataset.theme`
 //     (CSS-variabelen in `base.css` onder `:root[data-theme="light"]`).
+//   - Reactiezinnen (11-verzoek, BOUWSPRINT doel 4): GAME-RULES.md eist "per
+//     speler uitzetbaar" — bewust NIET via app.mjs bedraad zoals taal/thema
+//     (dat bestand is voor deze sprint "blijf uit"): dit paneel beheert de
+//     voorkeur zelfstandig via `preferences.mjs`, met `storage` als optionele
+//     parameter (default `window.localStorage`) zodat de bestaande aanroep
+//     in app.mjs ongewijzigd kan blijven — geen nieuwe verplichte parameter.
 //
 // Gebruik: createAppMenu({ root, t, initialLang, initialTheme, onLangChange,
-// onThemeChange }) bouwt de hamburgerknop + het paneel; `refresh()` ververst
-// de labels/actieve-status ná een taalwissel (dezelfde aanroeper-ververst-
-// conventie als de schermmodules).
+// onThemeChange, storage? }) bouwt de hamburgerknop + het paneel; `refresh()`
+// ververst de labels/actieve-status ná een taalwissel (dezelfde aanroeper-
+// ververst-conventie als de schermmodules).
 
-export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange, onThemeChange }) {
+import { loadReactionsEnabled, saveReactionsEnabled } from './preferences.mjs';
+
+export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange, onThemeChange, storage = window.localStorage }) {
   root.textContent = '';
 
   const hamburger = document.createElement('button');
@@ -76,7 +84,31 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
   const themeSection = el('div', 'app-menu-section');
   themeSection.append(themeLabel, themeGroup);
 
-  panel.append(langSection, themeSection);
+  const reactionsLabel = el('span', 'app-menu-label');
+  reactionsLabel.id = REACTIONS_LABEL_ID;
+  const reactionsGroup = el('div', 'btn-group');
+  reactionsGroup.setAttribute('role', 'group');
+  reactionsGroup.setAttribute('aria-labelledby', REACTIONS_LABEL_ID);
+  const reactionsButtons = new Map();
+  for (const enabled of [true, false]) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-opt';
+    const textSpan = document.createElement('span');
+    textSpan.dataset.reactionsLabel = String(enabled);
+    btn.append(textSpan);
+    btn.addEventListener('click', () => {
+      reactionsEnabled = enabled;
+      saveReactionsEnabled(storage, enabled);
+      refresh();
+    });
+    reactionsButtons.set(enabled, btn);
+    reactionsGroup.appendChild(btn);
+  }
+  const reactionsSection = el('div', 'app-menu-section');
+  reactionsSection.append(reactionsLabel, reactionsGroup);
+
+  panel.append(langSection, themeSection, reactionsSection);
   root.append(hamburger, panel);
 
   hamburger.setAttribute('aria-label', t('menu.open'));
@@ -118,6 +150,9 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
 
   let currentLang = initialLang;
   let currentTheme = initialTheme;
+  // GAME-RULES.md: "staan standaard aan" — `null` (nooit ingesteld) valt dus
+  // op `true`, niet op `false` zoals `loadMuted`'s consumenten dat zouden doen.
+  let reactionsEnabled = loadReactionsEnabled(storage) ?? true;
 
   function refresh() {
     hamburger.setAttribute('aria-label', t('menu.open'));
@@ -135,6 +170,13 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
       btn.setAttribute('aria-pressed', String(theme === currentTheme));
       btn.classList.toggle('active', theme === currentTheme);
       btn.querySelector('[data-theme-label]').textContent = t(theme === 'dark' ? 'menu.themeDark' : 'menu.themeLight');
+    }
+    reactionsLabel.textContent = t('menu.reactions');
+    for (const [enabled, btn] of reactionsButtons) {
+      const active = enabled === reactionsEnabled;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
+      btn.querySelector('[data-reactions-label]').textContent = t(enabled ? 'menu.reactionsOn' : 'menu.reactionsOff');
     }
   }
 
@@ -160,6 +202,7 @@ const LANG_FLAG = { nl: '🇳🇱', en: '🇬🇧', es: '🇪🇸' };
 const PANEL_ID = 'app-menu-panel';
 const LANG_LABEL_ID = 'app-menu-lang-label';
 const THEME_LABEL_ID = 'app-menu-theme-label';
+const REACTIONS_LABEL_ID = 'app-menu-reactions-label';
 
 function el(tag, className) {
   const node = document.createElement(tag);

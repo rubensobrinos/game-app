@@ -8,6 +8,7 @@
 const LANG_KEY = 'mp:lang';
 const THEME_KEY = 'mp:theme';
 const MUTED_KEY = 'mp:muted';
+const REACTIONS_ENABLED_KEY = 'mp:reactionsEnabled';
 const VALID_LANGS = new Set(['nl', 'en', 'es']);
 const VALID_THEMES = new Set(['light', 'dark']);
 
@@ -54,6 +55,28 @@ export function loadMuted(storage) {
 export function saveMuted(storage, muted) {
   if (typeof muted === 'boolean') {
     safeSet(storage, MUTED_KEY, String(muted));
+  }
+}
+
+/**
+ * 11-verzoek (BOUWSPRINT doel 4): reactiezinnen/streaks staan standaard AAN
+ * (GAME-RULES.md §Reactiezinnen en streaks: "staan standaard aan", "zijn per
+ * speler uitzetbaar") — de aanroeper vertaalt `null` (nooit ingesteld) dus
+ * naar `true`, anders dan `loadMuted` waar `null` niet impliciet naar `false`
+ * hoort te vallen.
+ * @param {{getItem:(k:string)=>string|null}} storage @returns {boolean|null} null als er niets geldigs is opgeslagen
+ */
+export function loadReactionsEnabled(storage) {
+  const value = safeGet(storage, REACTIONS_ENABLED_KEY);
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return null;
+}
+
+/** @param {{setItem:(k:string,v:string)=>void}} storage @param {boolean} enabled */
+export function saveReactionsEnabled(storage, enabled) {
+  if (typeof enabled === 'boolean') {
+    safeSet(storage, REACTIONS_ENABLED_KEY, String(enabled));
   }
 }
 
