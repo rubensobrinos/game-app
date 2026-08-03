@@ -25,7 +25,7 @@ de huidige lanceerscope — die blijven bewust op 0.
 
 | # | Scherm | Niveau | Wat er nog mist |
 |---|---|---|---|
-| S05 | Hostlobby | 1 | Compositie, ruimte en deelblok staan, maar drie `04`-criteria ontbreken tegelijk: permanente QR/code (`D-018`, een BESLOTEN eis — `room-header.mjs` bestaat al maar hangt nergens), een lege staat met uitnodigingstekst, en een sticky startknop. Drie missende criteria is geen 2 (`NIVEAUS.md` regel 1). |
+| S05 | Hostlobby | 1 | **Permanente QR/code en sticky startknop gebouwd (prompt 02):** `room-header.mjs` hangt nu permanent in `#app-header` (D-018/D-019, geverifieerd met Playwright: zichtbaar tijdens lobby/gameplay/pauze, ook na vergrendelen, verdwijnt pas bij het verlaten van de sessie); `lobby.mjs`'s eigen `show-qr`/`show-code` zijn bewust verwijderd (dubbele ingang) — `native-share`/`copy-link` blijven staan. Startknop is nu `position: sticky` op mobiel. De lege-staattekst bleek al eerder gebouwd (niet nieuw). Blijft op niveau 1: `04` vraagt ook een geluidstoggle in de kop en een tweekoloms compositie op groot scherm — geen van beide bestaat, en de lege staat toont een geruststellende tekst i.p.v. de letterlijk gevraagde `0 spelers`-teller (de teller verbergt zichzelf juist in die staat). Dat zijn compositiecriteria voor niveau 2, geen functionele bugs — buiten scope van deze prompt. |
 | S06 | Spelerslobby | 1 | Geen eigen variant: speler ziet hetzelfde scherm als de host (toevallig geen hostcontrols dankzij een generieke `isHost`-check, geen bewust ontworpen spelersscherm), zonder eigen naam/identiteit en zonder `Nodig iemand uit`. Grensgeval met niveau 0 — er is nooit een los spelersscherm gebouwd, alleen hergebruikt. |
 
 ## Ronde

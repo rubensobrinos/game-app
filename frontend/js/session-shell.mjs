@@ -50,6 +50,7 @@ import {
   applyRoundEnded,
 } from './views/round-model.mjs';
 import { standingsFrom } from './views/standings-model.mjs';
+import { createRoomHeader } from './views/room-header.mjs';
 import { createLobbyView } from './views/lobby.mjs';
 import { createGameplayView } from './views/gameplay.mjs';
 import { createScoreboardView } from './views/scoreboard.mjs';
@@ -77,8 +78,28 @@ const TERMINAL_SNAPSHOT_ERROR_CODES = new Set([
   'SESSION_REVOKED',
 ]);
 
-export function createSessionShell({ root, t, tCount, transport, storage, code, isHostRoute, session, onLeaveHome }) {
+export function createSessionShell({ root, headerRoot, t, tCount, transport, storage, code, isHostRoute, session, onLeaveHome }) {
   root.textContent = '';
+
+  // S05/D-018/D-019: de code + QR staan permanent in `#app-header` (buiten
+  // `#app-root`, overleeft dus geen route-wissel vanzelf) zolang déze sessie
+  // loopt — session-shell.mjs mount daarom zijn eigen kindnode in de
+  // meegegeven `headerRoot`, net zoals het al `hostBarRoot` binnen `root`
+  // doet, en ruimt 'm zelf weer op (`destroy()`/`terminate()`). Geen
+  // `headerRoot` (bv. in een test zonder appheader) is geen fout — gewoon
+  // niets te mounten.
+  const roomHeaderRoot = document.createElement('div');
+  roomHeaderRoot.className = 'room-header-slot';
+  const roomHeader = createRoomHeader({
+    root: roomHeaderRoot,
+    t,
+    gameCode: code,
+    joinUrl: '',
+    onShareAction: (action) => sendShareOpened(action),
+  });
+  if (headerRoot != null) {
+    headerRoot.insertBefore(roomHeaderRoot, headerRoot.firstChild);
+  }
 
   const banner = document.createElement('p');
   banner.className = 'session-banner';
@@ -344,8 +365,13 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
     const wasHidden = pauseOverlay.hidden;
     const reasonText = t(messageForPauseReason(matchPhase.pausedState?.reason));
     pauseOverlay.hidden = false;
-    pauseOverlay.setAttribute('aria-label', reasonText);
-    pauseCard.textContent = reasonText;
+    // Host ziet een stempel i.p.v. de kalme spelerszin — geen aparte staat om
+    // te bouwen, alleen andere tekst op hetzelfde element (T4-5).
+    const hostText = t('pause.hostStamp');
+    const cardText = isHost() ? hostText : reasonText;
+    pauseOverlay.setAttribute('aria-label', cardText);
+    pauseCard.textContent = cardText;
+    pauseCard.classList.toggle('session-pause-card-host-stamp', isHost());
     // S16: de overlay dekt het scherm (position: fixed, inset: 0) en zit vóór
     // de hostbalk in de DOM — die is dus onbereikbaar zolang de overlay open
     // is. In plaats van losse duplicaatknoppen voor lock/kick/finish (zoals
@@ -453,6 +479,7 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
     const room = payload?.room ?? {};
     playerCount = typeof room.playerCount === 'number' ? room.playerCount : playerCount;
     joinUrl = typeof room.joinUrl === 'string' ? room.joinUrl : joinUrl;
+    roomHeader.setJoinUrl(joinUrl);
     locked = typeof room.locked === 'boolean' ? room.locked : locked;
     pacing = room.config?.pacing === 'host' ? 'host' : 'auto';
     // `room:state` komt alleen bij de eerste verbinding en ná een reconnect
@@ -497,6 +524,9 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
     cancelReconnectFallback();
     socket.close();
     clearSession(storage, code);
+    // D-018: code/QR verdwijnen pas als de sessie eindigt — dit IS dat moment.
+    roomHeader.destroy();
+    roomHeaderRoot.remove();
     root.textContent = '';
     const screen = document.createElement('div');
     screen.className = 'screen session-terminated';
@@ -538,7 +568,6 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
         t,
         tCount,
         isHost: isHost(),
-        gameCode: code,
         onStart: () => sendHostAction('start'),
         onShareAction: (action) => sendShareOpened(action),
         onKickPlayer: (playerId) => sendHostAction('kick', { playerId }),
@@ -580,6 +609,8 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
         participants,
         canStart: availableHostActions(buildHostContext()).includes('start'),
         canKick: availableHostActions(buildHostContext()).includes('kick'),
+        locked,
+        selfName: selfInfo?.effectiveName ?? null,
         capabilities,
         joinUrl,
       });
@@ -668,6 +699,10 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
       cancelRecoveredMessage();
       cancelReconnectFallback();
       socket.close();
+      // D-018: verlaat de route (app.mjs mount een andere screen) → sessie
+      // is voorbij voor déze client, dus ook de headercode verdwijnt.
+      roomHeader.destroy();
+      roomHeaderRoot.remove();
     },
   };
 }

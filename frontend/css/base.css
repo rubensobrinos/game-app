@@ -516,6 +516,20 @@ button {
   min-height: 1.2em;
 }
 
+.home-promise {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+
+.join-waiting-count {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin: 0 0 0.5rem;
+}
+
 .home-divider {
   text-align: center;
   color: var(--color-text-muted);
@@ -585,6 +599,31 @@ button {
 
 .lobby-waiting {
   margin-top: -0.75rem; /* hoort bij de titel, niet als losse alinea ernaast */
+}
+
+.lobby-locked {
+  text-align: center;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  margin: -0.75rem 0 0;
+}
+
+.lobby-player-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: center;
+  margin-top: -0.75rem;
+}
+
+.lobby-player-status p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.lobby-player-status .lobby-player-joined {
+  font-weight: 700;
+  color: var(--color-text-primary);
 }
 
 /* Deelnemers als één blok: het aantal is de kop, de namen staan eronder. */
@@ -680,9 +719,19 @@ button {
 }
 
 /* De hoofdactie krijgt lucht boven zich, zodat hij niet aan het deelblok
-   vastplakt. */
+   vastplakt. S05 (04): sticky op mobiel — bij een groeiende deelnemerslijst
+   moet de startknop bereikbaar blijven zonder eerst naar beneden te scrollen. */
 .lobby-start {
   margin-top: 0.5rem;
+  position: sticky;
+  bottom: env(safe-area-inset-bottom, 0);
+  z-index: 10;
+}
+
+@media (min-width: 512px) {
+  .lobby-start {
+    position: static;
+  }
 }
 
 /* Alleen ruimte innemen zodra er iets te melden is — een permanent
@@ -756,6 +805,13 @@ button {
   font-size: 1.1rem;
   font-weight: 700;
   max-width: 320px;
+}
+
+/* Host ziet een stempel i.p.v. de kalme spelerszin (T4-5) — hoofdletters via
+   CSS, niet in de vertaalwaarde, zelfde regel als de resultaatstempels. */
+.session-pause-card-host-stamp {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 /* S16: tijdens PAUSED verplaatst session-shell.mjs de hostbalk zelf ín de

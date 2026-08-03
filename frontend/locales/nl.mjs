@@ -18,6 +18,7 @@ export const nl = Object.freeze({
 
   // — UI1-sleutels (Home + Preview/join) —
   'home.title': 'Rounda',
+  'home.promise': 'Geen account. Geen download. Iedereen speelt op zijn eigen telefoon.',
   'home.quickStart': 'Start direct een game',
   'home.creating': 'Potje maken…',
   'home.divider': 'of',
@@ -32,6 +33,10 @@ export const nl = Object.freeze({
   // Zichtbare aanwijzing dat de naam optioneel blijft — "Hoe noemen we je?"
   // klinkt op zichzelf als een verplicht veld (reviewfeedback T4-1 punt 6).
   'join.nameOptionalHint': 'Optioneel — laat leeg voor een voorgestelde naam.',
+  // Telbaar via `tCount('join.waitingCount', n)` — alleen ná een
+  // uitnodigingslink, een gamecode heeft geen preview met spelersaantal.
+  'join.waitingCount.one': '{n} speler wacht al',
+  'join.waitingCount.other': '{n} spelers wachten al',
   'join.namePlaceholder': 'bv. Tom',
   'join.submit': 'Meedoen',
   'join.retry': 'Opnieuw proberen',
@@ -103,6 +108,9 @@ export const nl = Object.freeze({
   'pause.no_answers': 'Gepauzeerd — niemand heeft geantwoord',
   'pause.server_recovery': 'Gepauzeerd — de server herstelt zich',
   'pause.unknown': 'Gepauzeerd',
+  // Hoofdletters via CSS (text-transform), niet in de vertaalwaarde — zelfde
+  // regel als de resultaatstempels (T4-3).
+  'pause.hostStamp': 'Game gepauzeerd',
 
   // — Sessie-beëindiging (messageForSessionTermination) —
   'session.kicked': 'Je bent verwijderd door de host.',
@@ -128,6 +136,12 @@ export const nl = Object.freeze({
   'lobby.waiting': 'Wachten tot de host start…',
   'lobby.emptyTitle': 'Nog niemand binnen',
   'lobby.emptyHint': 'Laat iemand de QR scannen om te beginnen.',
+  'lobby.locked': 'Room vergrendeld',
+  'lobby.unlocked': 'Nieuwe spelers kunnen weer meedoen',
+  'lobby.playerJoined': 'Je bent binnen',
+  'lobby.playerWaitingForHost': 'De host start zo',
+  'lobby.playerInviteHint': 'Nodig iemand uit',
+  'lobby.playerSelf': 'Je speelt als {naam}',
   // Telbaar via `tCount('lobby.playerCount', n)` — `{n}` wordt ingevuld.
   'lobby.playerCount.one': '{n} speler',
   'lobby.playerCount.other': '{n} spelers',
@@ -135,7 +149,6 @@ export const nl = Object.freeze({
   'lobby.shareQr': 'Toon QR-code',
   'lobby.shareNative': 'Delen',
   'lobby.shareCopy': 'Kopieer link',
-  'lobby.shareCode': 'Toon code',
   'lobby.copied': 'Gekopieerd!',
   'lobby.copyFailed': 'Kopiëren lukte niet — selecteer en kopieer handmatig',
   'lobby.code': 'Code',

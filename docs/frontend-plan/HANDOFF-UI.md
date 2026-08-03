@@ -12,7 +12,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-3 | INT-A / ARCHITECTURE | ✅ opgelost | Hoe worden `client/flow/` en `shared/` aan de browser geserveerd? |
 | UI-8 | INT-A / PR | 🔵 open | `room:state` bevat geen deelnemerslijst — een joiner ziet geen namen van al aanwezige spelers |
 | UI-9 | thema 3 | ✅ opgelost | Motion-tokens geleverd door thema 2; `M1` kan starten |
-| UI-10 | thema 1 | 🔵 open | `room-header.mjs` is dode code — `D-018` daardoor nog niet zichtbaar |
+| UI-10 | thema 1 | ✅ opgelost | `room-header.mjs` is dode code — `D-018` daardoor nog niet zichtbaar |
 | UI-11 | producteigenaar | 🔵 open | `O-002`/`O-003` blokkeren wereldmotieven en iconografie (thema 2) |
 | UI-12 | PR | 🟡 informatief, klein verzoek | `PROTOCOL.md` specificeert `round:ended`'s persoonlijke velden nergens — client las ze verkeerd, nu client-side gefixt |
 
@@ -433,6 +433,16 @@ gevraagd. Ik heb hem gebouwd zonder hem in te hangen en dat had niet gemoeten.
 `Toon code` en `Toon QR-code` uit de lobby; thema 2 onderhoudt de component.
 Volledige beschrijving inclusief de drie ongeteste aannames in
 `2-vorm-en-systeem/prompts/T2-5-qr-kaart-en-room-header.md`.
+
+**Opgelost (thema 1, 3 aug 2026):** `session-shell.mjs` mount `room-header.mjs`
+nu permanent in `#app-header` zolang de sessie loopt (`headerRoot`-parameter,
+zelfde patroon als `hostBarRoot`), roept `setJoinUrl()` aan bij elke
+`room:state`, en ruimt 'm op bij `destroy()`/`terminate()`. `lobby.mjs`'s eigen
+`show-qr`/`show-code` zijn verwijderd — precies het voorstel hierboven.
+Geverifieerd met Playwright: code zichtbaar tijdens lobby/gameplay/pauze en
+ná vergrendelen, QR-modal met Escape/focusbeheer werkt, verdwijnt bij het
+verlaten van de sessie. Volledige details in
+`1-schermen-en-flow/prompts/02-S05-permanente-qr-code.md`.
 
 ---
 

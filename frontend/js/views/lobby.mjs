@@ -9,14 +9,18 @@
 // verbinden — een joiner ziet dus geen namen van spelers die er al eerder
 // waren, alleen het aantal; zie HANDOFF-UI voor de reden).
 //
-// Delen: exact de volgorde uit `share-actions.shareActionsFor(capabilities)`.
-// QR is schermvullend (eigen overlay), nooit een externe QR-dienst
-// (`frontend/js/qr.mjs`, gevendorde generator).
+// Delen: `show-qr`/`show-code` uit `share-actions.shareActionsFor(capabilities)`
+// worden hier bewust NIET getoond (02-S05-permanente-qr-code.md, D-018/D-019):
+// `room-header.mjs` toont code + QR nu permanent in de appheader, voor
+// iedereen, de hele sessie lang — een tweede ingang hier zou D-018's "geen
+// dubbele ingang" schenden (zie ook prompt 01's S17-punt over dubbele
+// deelnemersweergave, hetzelfde patroon). Alleen `native-share`/`copy-link`
+// blijven staan: die dienen een ander doel (de OS-deelsheet, het klembord)
+// dan wat de header al permanent toont.
 
 import { shareActionsFor, shareUrlsFor } from '../../../client/flow/share-actions.mjs';
-import { qrDataUrl } from '../qr.mjs';
 
-export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, onShareAction, onKickPlayer }) {
+export function createLobbyView({ root, t, tCount, isHost, onStart, onShareAction, onKickPlayer }) {
   root.textContent = '';
 
   // Geen eigen `.screen`-klasse: de aanroeper (session-shell.mjs) mount dit in
@@ -24,6 +28,17 @@ export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, on
   // scoreboard.mjs/podium.mjs geen eigen layout-wrapper hebben).
   const screen = el('div', 'lobby-screen');
   const title = el('h2', 'lobby-title');
+  const lockedNotice = el('p', 'lobby-locked');
+  lockedNotice.hidden = true;
+  // Spelerslobby-copy (09 §6) — additief naast de host-kant hieronder, geen
+  // vervanging: alleen zichtbaar voor een niet-host (T4-5).
+  const playerStatus = el('div', 'lobby-player-status');
+  playerStatus.hidden = isHost;
+  const playerJoined = el('p', 'lobby-player-joined');
+  const playerWaitingForHost = el('p', 'lobby-player-waiting-for-host');
+  const playerInviteHint = el('p', 'lobby-player-invite-hint');
+  const playerSelf = el('p', 'lobby-player-self');
+  playerStatus.append(playerJoined, playerWaitingForHost, playerInviteHint, playerSelf);
   const waiting = el('p', 'lobby-waiting');
   const countLine = el('p', 'lobby-count');
   const list = document.createElement('ul');
@@ -43,17 +58,11 @@ export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, on
   const shareTitle = el('h3', 'lobby-share-title');
   const shareRow = el('div', 'lobby-share-row');
   const shareButtons = new Map();
-  for (const action of ['show-qr', 'native-share', 'copy-link', 'show-code']) {
+  for (const action of ['native-share', 'copy-link']) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = `btn-secondary lobby-share-${action}`;
     btn.hidden = true;
-    if (action === 'show-code') {
-      // De enige deelactie die iets in-place toont/verbergt i.p.v. een
-      // dialoog te openen of een systeemactie te starten — aria-expanded
-      // hoort daarbij.
-      btn.setAttribute('aria-expanded', 'false');
-    }
     btn.addEventListener('click', () => handleShareAction(action));
     shareButtons.set(action, btn);
     shareRow.appendChild(btn);
@@ -61,8 +70,6 @@ export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, on
 
   const feedback = el('p', 'lobby-share-feedback');
   feedback.setAttribute('aria-live', 'polite');
-  const codeReveal = el('p', 'lobby-code-reveal');
-  codeReveal.hidden = true;
   const linkFallback = document.createElement('input');
   linkFallback.type = 'text';
   linkFallback.readOnly = true;
@@ -80,75 +87,24 @@ export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, on
     }
   });
 
-  // Schermvullende QR-overlay — apart van de rest van de lobby, sluit met
-  // dezelfde tik overal (achtergrond of terugknop). Een modale dialoog (net
-  // als app-menu.mjs's paneel): rol + label voor een screenreader, Escape
-  // sluit, en focus gaat ín bij openen en terug naar de knop die 'm opende
-  // bij sluiten — anders valt de focus terug naar `body` en begint Tab weer
-  // bovenaan de pagina.
-  const qrOverlay = el('div', 'lobby-qr-overlay');
-  qrOverlay.hidden = true;
-  qrOverlay.setAttribute('role', 'dialog');
-  qrOverlay.setAttribute('aria-modal', 'true');
-  qrOverlay.setAttribute('aria-label', t('lobby.shareQr'));
-  const qrImage = document.createElement('img');
-  qrImage.className = 'lobby-qr-image';
-  // Beschrijft het doel, niet de QR-patroon-pixels (die zijn voor een
-  // screenreader toch niet te "lezen") — vergelijkbaar met hoe de zichtbare
-  // code/link ernaast al hetzelfde doel dienen.
-  qrImage.alt = t('lobby.shareQr');
-  const qrBack = document.createElement('button');
-  qrBack.type = 'button';
-  qrBack.className = 'btn-secondary lobby-qr-back';
-  qrBack.addEventListener('click', () => closeQr({ returnFocus: true }));
-  qrOverlay.addEventListener('click', (event) => {
-    if (event.target === qrOverlay) {
-      closeQr({ returnFocus: true });
-    }
-  });
-  qrOverlay.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      closeQr({ returnFocus: true });
-    }
-  });
-  qrOverlay.append(qrImage, qrBack);
-
-  // Feedback, code en link horen bij het deelblok — die stonden eerder los
-  // onder de knoppen, waardoor "Gekopieerd!" losgezongen van zijn actie
-  // verscheen.
-  shareSection.append(shareTitle, shareRow, feedback, codeReveal, linkFallback);
-  screen.append(title, waiting, countLine, list, emptyState, shareSection, startButton);
-  root.append(screen, qrOverlay);
+  // Feedback en link horen bij het deelblok — die stonden eerder los onder de
+  // knoppen, waardoor "Gekopieerd!" losgezongen van zijn actie verscheen.
+  shareSection.append(shareTitle, shareRow, feedback, linkFallback);
+  screen.append(title, lockedNotice, playerStatus, waiting, countLine, list, emptyState, shareSection, startButton);
+  root.appendChild(screen);
 
   let availableActions = [];
   let shareUrls = { qrUrl: '', copyUrl: '' };
   let feedbackTimer = null;
-
-  function closeQr({ returnFocus = false } = {}) {
-    qrOverlay.hidden = true;
-    if (returnFocus) {
-      shareButtons.get('show-qr')?.focus();
-    }
-  }
+  let unlockedTimer = null;
+  // null = nog geen snapshot gezien — voorkomt dat de eerste update() na het
+  // mounten (locked: false) al een "ontgrendeld"-flits toont; die hoort
+  // alleen bij een échte overgang van vergrendeld naar ontgrendeld.
+  let previousLocked = null;
 
   async function handleShareAction(action) {
     onShareAction(action);
     feedback.textContent = '';
-
-    if (action === 'show-qr') {
-      // cellSize 8 ≈ schermvullend op mobiel (qr.mjs's eigen richtlijn).
-      qrImage.src = qrDataUrl(shareUrls.qrUrl, { cellSize: 8 });
-      qrOverlay.hidden = false;
-      qrBack.focus();
-      return;
-    }
-
-    if (action === 'show-code') {
-      codeReveal.hidden = !codeReveal.hidden;
-      shareButtons.get('show-code')?.setAttribute('aria-expanded', String(!codeReveal.hidden));
-      return;
-    }
 
     if (action === 'native-share') {
       try {
@@ -186,23 +142,21 @@ export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, on
   }
 
   const SHARE_LABEL_KEYS = {
-    'show-qr': 'lobby.shareQr',
     'native-share': 'lobby.shareNative',
     'copy-link': 'lobby.shareCopy',
-    'show-code': 'lobby.shareCode',
   };
 
   function renderStatic() {
     title.textContent = t('lobby.title');
     waiting.textContent = t('lobby.waiting');
     shareTitle.textContent = t('lobby.share');
-    qrBack.textContent = t('lobby.back');
     startButton.textContent = t('lobby.start');
-    qrOverlay.setAttribute('aria-label', t('lobby.shareQr'));
-    qrImage.alt = t('lobby.shareQr');
     linkFallback.setAttribute('aria-label', t('lobby.shareCopy'));
     emptyTitle.textContent = t('lobby.emptyTitle');
     emptyHint.textContent = t('lobby.emptyHint');
+    playerJoined.textContent = t('lobby.playerJoined');
+    playerWaitingForHost.textContent = t('lobby.playerWaitingForHost');
+    playerInviteHint.textContent = t('lobby.playerInviteHint');
     for (const [action, btn] of shareButtons) {
       btn.textContent = t(SHARE_LABEL_KEYS[action]);
       btn.hidden = !availableActions.includes(action);
@@ -212,14 +166,32 @@ export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, on
   renderStatic();
 
   /**
-   * @param {{ playerCount: number, participants: Map<string,string>, canStart: boolean, capabilities: {nativeShareAvailable:boolean}, joinUrl: string }} model
+   * @param {{ playerCount: number, participants: Map<string,string>, canStart: boolean, locked: boolean, selfName: string | null, capabilities: {nativeShareAvailable:boolean}, joinUrl: string }} model
    */
   function update(model) {
     availableActions = shareActionsFor(model.capabilities);
     shareUrls = shareUrlsFor(model.joinUrl);
     renderStatic();
 
-    codeReveal.textContent = `${t('lobby.code')}: ${gameCode}`;
+    if (!isHost) {
+      playerSelf.textContent = model.selfName ? t('lobby.playerSelf').replace('{naam}', model.selfName) : '';
+    }
+
+    if (model.locked === true) {
+      clearTimeout(unlockedTimer);
+      lockedNotice.hidden = false;
+      lockedNotice.textContent = t('lobby.locked');
+    } else if (previousLocked === true) {
+      // Échte overgang vergrendeld → ontgrendeld: kort tonen, dan stil —
+      // zelfde 3s-patroon als session-shell.mjs's connection.connected (T4-2a).
+      lockedNotice.hidden = false;
+      lockedNotice.textContent = t('lobby.unlocked');
+      clearTimeout(unlockedTimer);
+      unlockedTimer = setTimeout(() => {
+        lockedNotice.hidden = true;
+      }, 3000);
+    }
+    previousLocked = model.locked === true;
 
     const empty = model.playerCount === 0;
     emptyState.hidden = !empty;

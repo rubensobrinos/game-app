@@ -70,6 +70,7 @@ function mountJoin(root, locator) {
   const view = createJoinView({
     root,
     t,
+    tCount,
     transport,
     storage,
     onJoined: (session) => navigate(`/game/${session.gameCode}`),
@@ -117,6 +118,7 @@ function render() {
     if (session !== null) {
       currentScreen = createSessionShell({
         root,
+        headerRoot: document.getElementById(HEADER_ID),
         t,
         tCount,
         transport,
