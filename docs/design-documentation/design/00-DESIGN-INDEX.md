@@ -74,6 +74,8 @@ Niet volledig uitgewerkt:
 | D-019 | Code en QR zijn **altijd** zichtbaar, ook voor spelers en ook bij een vergrendelde room. Vergrendelen blokkeert alleen het daadwerkelijk joinen, niet het tonen. | BESLOTEN | Product Owner, 3 aug 2026. Sluit O-007, ruimer dan de aanbevolen werkhypothese. |
 | D-020 | De startknop heet `Start Rounda`, zónder spelersaantal. | BESLOTEN | Product Owner, 3 aug 2026. Wijkt bewust af van `Start game — N spelers` in `03` §4.2, `04` S05 en `09` §6; die teksten zijn hiermee vervallen. |
 | D-021 | Antwoordknoppen behouden voorlopig hun huidige vorm: géén letter/vorm-identiteit. `Verstuurd` blijft een aparte statusregel naast de antwoordcomponent. | BESLOTEN | Product Owner, 3 aug 2026. Stelt D-005/P6 en `04` S12 bewust uit; geen stil verschil maar een expliciet uitstel. |
+| D-022 | Tijdelijke speleridentiteit (kleur + symbool per potje) wordt **nu** gebouwd, niet in fase 3. | BESLOTEN | Product Owner, 3 aug 2026. Sluit `O-009`. Haalt de fase-3-plaatsing uit `10` §5 naar voren, omdat `04` S06 die identiteit al in de spelerslobby vereist. Nog steeds geen avatars, geen accounts, geen kinderkarakters. |
+| D-023 | `Toon code` en `Toon QR-code` vervallen uit de lobby zodra de code permanent in de appheader staat. | BESLOTEN | Product Owner, 3 aug 2026. Uitvoering van D-018: met de code altijd in beeld en de QR één tik verderop zijn die twee knoppen dubbel. Haalt tevens de laatste term van `09` §15's verboden-copylijst weg. `Delen` en `Kopieer link` blijven. Beslecht de open keuze in thema 1's prompt `02-S05-permanente-qr-code.md`. |
 
 ## 4. Open Product Owner-besluiten
 
@@ -89,7 +91,7 @@ Deze punten mogen niet stilzwijgend door een agent worden ingevuld:
 | O-006 | Scoreformule en snelheidsbonus? | Bestaande logica behouden tot afzonderlijke game-balancingreview. |
 | ~~O-007~~ | ~~Mogen spelers zelf de room-QR permanent delen?~~ | **Gesloten door D-019: ja, altijd — ook bij een vergrendelde room.** |
 | O-008 | Wie bestuurt geluid: host, speler of beide? | Host bepaalt gedeelde cues; iedere telefoon heeft lokale mute. |
-| O-009 | Worden gegenereerde avatars direct onderdeel van MVP-redesign? | Alleen simpele kleur/symboolidentiteit in fase 3; geen kinderkarakters. |
+| ~~O-009~~ | ~~Worden gegenereerde avatars direct onderdeel van MVP-redesign?~~ | **Gesloten door D-022: kleur/symboolidentiteit wordt nu gebouwd, geen avatars.** |
 | O-010 | Welk moment toont antwoordverdeling? | Op gedeeld hostscherm tijdens reveal; op spelertelefoon alleen wanneer dit geen persoonlijke informatie verdringt. |
 
 ## 5. Bewust niet doen

@@ -1,77 +1,103 @@
-# Prompt — T2-5: QR-kaart als component, en de dode `room-header.mjs` inhangen
+# Prompt — T2-5: QR-kaart als component
 
-Onderdeel van [`README.md`](README.md). Blokkeert thema 1 (`S05`).
+Onderdeel van [`README.md`](README.md).
+
+_Herzien ná review. De eerste versie nam werk over dat volgens `HANDOFF-UI.md`
+UI-10 aan thema 1 is toegewezen, en beschreef de module als "ongetest" terwijl
+het probleem is dat er nul CSS voor bestaat._
+
+## Scopewijziging ten opzichte van de eerste versie
+
+De eerste versie schreef het inhangen van `room-header.mjs` voor. Dat is
+grotendeels een duplicaat van thema 1's `02-S05-permanente-qr-code.md`, dat
+dezelfde vier handelingen gedetailleerder beschrijft. Bovendien heeft thema 2's
+eigen handoff-item de eigenaar al aangewezen: *"thema 1 hangt hem in; thema 2
+onderhoudt de component."* En mounten in `#app-header` is volgens `UI-7`
+session-shell-werk.
+
+**Deze prompt beperkt zich daarom tot wat werkelijk van thema 2 is:** de
+styling en de component. Het inhangen staat bij thema 1.
 
 ## Brondocument
 
-`05-DESIGN-SYSTEM.md` §7 (QR-card). Besluiten `D-018` (code permanent in de
-appheader, QR achter een pictogram als modal) en `D-019` (code en QR altijd
-zichtbaar, ook voor spelers en ook bij een vergrendelde room).
+`05-DESIGN-SYSTEM.md` §7 (QR-card) en §12 (Overlays). Besluiten `D-018`
+(code permanent in de appheader, QR achter een pictogram als modal), `D-019`
+(code en QR altijd zichtbaar, ook bij een vergrendelde room) en `D-023`
+(`Toon code` en `Toon QR-code` vervallen uit de lobby).
 
 ## Wat er nu staat
 
-Twee dingen die niet bij elkaar komen.
+`frontend/js/views/room-header.mjs` bestaat sinds `d3c900e` en implementeert
+`D-018` in gedrag: code in de header, QR-pictogram, modal met kaart, code en
+URL, focusbeheer, Escape.
 
-`frontend/js/qr.mjs` genereert lokaal een data-URL uit de gevendorde generator
-— werkt, geen externe dienst, drie tests groen. `views/lobby.mjs` toont die in
-een schermvullende overlay achter de knop `Toon QR-code`, met daarnaast een
-knop `Toon code`.
+**Er is nul CSS voor.** Geen enkele van de klassen die die module gebruikt —
+`.room-header`, `.room-header-code`, `.room-header-code-value`,
+`.room-header-qr`, `.room-qr-overlay`, `.room-qr-card`, `.room-qr-image`,
+`.room-qr-code`, `.room-qr-url` — komt voor in `frontend/css/`. De module is
+dus niet ongetest maar ongestyled, en zou vandaag als ongeordende tekst
+renderen.
 
-En `frontend/js/views/room-header.mjs` bestaat sinds `d3c900e`: een volledige
-implementatie van `D-018` — code permanent in de appheader, QR-pictogram
-ernaast, modal met kaart, code en URL, focusbeheer en Escape. **Hij is nergens
-ingehangen.** Dat is dode code, en dat is mijn schuld, niet die van thema 1.
-
-Gevolg: de code zit nog steeds achter een knop, terwijl `00-DESIGN-INDEX.md` §5
-"geen verborgen roomcode of QR in de hostlobby" als expliciet *bewust niet
-doen* noemt, en `09` §15 `Show code` op de verboden-copylijst zet.
+Dat is ook precies wat hem tegenhoudt: thema 1 kan hem niet inhangen zolang
+hij er niet uitziet.
 
 ## Wat dit is
 
-1. **`room-header.mjs` inhangen** in de appheader, zodat de code permanent
-   zichtbaar is zodra er een sessie is — voor host én speler, en ook wanneer de
-   room vergrendeld is (`D-019`; vergrendelen blokkeert het joinen, niet het
-   tonen).
+1. **De styling voor alle negen klassen.** Dit is de blokkade voor thema 1 en
+   dus het eerste dat af moet.
 
-2. **De twee knoppen uit de lobby halen.** `Toon code` en `Toon QR-code`
-   vervallen zodra de code bovenin staat en de QR één tik verderop zit. Daarmee
-   verdwijnt ook de laatste term van de verboden-copylijst.
-   `Delen` en `Kopieer link` blijven.
+2. **De code als leesbaar getal.** `05` §7 en §2.3 (`display-code`): dit is
+   een getal dat wordt voorgelezen en overgetypt. Tabulaire cijfers,
+   letterspatiëring, en groot genoeg om op een meter afstand op te lezen. De
+   module formatteert al naar `123 456`; de vorm moet daarop aansluiten.
 
-3. **De QR-kaart als component** (`05` §7): label `Scan om mee te doen`, QR met
-   voldoende stille zone, code, korte URL — bij elkaar, niet los. `room-header.mjs`
-   heeft dit al; til het uit die module zodra thema 1 het elders nodig heeft
-   (podium, groot scherm) in plaats van het te kopiëren.
+3. **De QR-kaart als geheel** (`05` §7): label `Scan om mee te doen`, QR met
+   voldoende stille zone, code en korte URL bij elkaar — niet vier losse
+   elementen onder elkaar.
 
-4. **Controleer de aannames die ik in `room-header.mjs` heb gemaakt** — hij is
-   nooit tegen een echte sessie gedraaid:
-   - `setJoinUrl()` wordt aangeroepen zodra de joinUrl bekend is;
-   - `destroy()` bij het verlaten van een sessie, anders blijft de code van een
-     oude room in beeld;
-   - de code blijft leesbaar naast het hamburgermenu op 320px breedte.
+4. **Werkt naast het hamburgermenu op 320px.** Code, pictogram en hamburger
+   moeten daar naast elkaar passen zonder overlap of afkapping.
+
+5. **Beslis over het QR-pictogram tijdens een actieve vraag.** `05` §12
+   verbiedt een overlay over een onbeantwoorde vraag, en `00` §5 zet
+   "geen instellingenpopover over actieve spelinhoud" bij *bewust niet doen*.
+   De code permanent tonen is `D-018` en dus in orde; de modal daaroverheen
+   kunnen openen is dat niet vanzelf. Kies: pictogram verbergen tijdens een
+   actieve onbeantwoorde vraag, of de modal daar blokkeren. Leg de keuze vast
+   en stem hem af met thema 1 — die kent de fase, deze component niet.
+
+6. **Verantwoord de modalvorm.** `05` §12 wil op mobiel een bottom sheet;
+   `D-018` schrijft een modal voor en het besluitregister wint (`00` §1).
+   Noteer dat expliciet in de component-documentatie, zoals `D-020` het bij de
+   startknop deed — niet stil laten staan.
 
 ## Regels
 
-- **Het is een naad, geen overdracht.** De component is van thema 2, het scherm
-  (`S05`) van thema 1. Wie hem inhangt bepalen we samen; wie hem onderhoudt
-  staat vast.
-- **Geen externe QR-dienst**, ooit (`DEPLOYMENT-AND-TESTING.md`). De
-  gevendorde generator blijft.
+- **Niet inhangen.** Dat is thema 1 (`02-S05-permanente-qr-code.md`, UI-10).
+  Deze prompt levert de vorm; thema 1 plaatst hem.
+- **Niet de lobbyknoppen weghalen.** `D-023` regelt dát ze vervallen, maar de
+  uitvoering zit in `lobby.mjs` en dat is thema 1's scherm. Let op dat
+  `client/flow/share-actions.mjs` `'show-code'` altijd meelevert en dat dat in
+  `share-actions.test.mjs` is vastgelegd — het weghalen van de knop raakt dus
+  getest werk buiten `views/`. Meld dat aan thema 1.
+- **Geen externe QR-dienst.** `DEPLOYMENT-AND-TESTING.md` legt vast dat de QR
+  lokaal in de browser wordt gegenereerd; de gevendorde generator blijft.
 - **Geen `innerHTML` voor de QR.** De data-URL op een `<img>` is bewust
   gekozen boven een SVG-string; de CSP staat `img-src data:` toe en verder
   niets.
-- De QR mag niet kleiner worden dan scanbaar. `05` §7 vraagt om een test met
-  een échte telefooncamera op meerdere afstanden — dat kan geen agent doen en
-  hoort in thema 5's testmatrix (`T5-6`).
+- **Stem af met thema 3.** `M3` (`E16`) bouwt één gedeelde dialoogtransitie
+  voor onder meer de QR-overlay, en noemt `lobby.mjs` als locatie. Als die
+  lobby-overlay verdwijnt door `D-023`, bouwt `M3` tegen iets dat weggaat.
 
 ## Definition of done
 
-- De code staat op elk scherm van een lopende sessie in beeld, ook tijdens een
-  actieve vraag, ook als speler, ook bij een vergrendelde room.
-- `Toon code` en `Toon QR-code` bestaan niet meer; `grep -rn "lobby.shareCode"
-  frontend/` geeft nul treffers in de views.
-- De QR opent als modal, sluit met Escape en met een tik naast de kaart, en de
-  focus keert terug naar het pictogram.
-- Een sessie verlaten haalt de code weg — geen code van een oude room in beeld.
-- Op 320px breedte staan code, pictogram en hamburger naast elkaar zonder
-  overlap.
+- De header rendert met code en pictogram in beide thema's, screenshot op
+  320px, 390px en 768px breedte.
+- De QR-modal toont label, QR, code en URL als één kaart.
+- De code is op een meter afstand leesbaar — met een echt scherm gecontroleerd,
+  niet op een laptopbeeldscherm van dichtbij.
+- Escape sluit, een tik naast de kaart sluit, en de focus keert terug naar het
+  pictogram.
+- De keuze uit punt 5 en de afwijking uit punt 6 staan in `HANDOFF-UI.md`.
+- Scanbaarheid met een echte telefooncamera hoort bij thema 5's testmatrix
+  (`T5-6`) — geen agent kan dat afvinken.

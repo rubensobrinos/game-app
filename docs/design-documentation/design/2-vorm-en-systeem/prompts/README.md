@@ -4,34 +4,39 @@ Zelfde stijl als thema 3, 4 en 5: doel, brondocument, wat er nu staat, exact
 contract, regels, definition of done.
 
 Dit thema heeft één eigenschap die de andere vier niet hebben: **bijna niets
-hier is voor onszelf.** Van de twaalf componenten wachten er zes op thema 1 en
-twee op thema 4. De volgorde hieronder volgt daarom niet het niveau maar wie
-er stilstaat — een 1 waar drie thema's op wachten gaat vóór een 0 waar niemand
-op wacht.
+hier is voor onszelf.** Van de twaalf componenten wachten er zeven op thema 1,
+twee op thema 4 en één op thema 3. De volgorde volgt daarom niet het niveau
+maar wie er stilstaat — een 1 waar drie thema's op wachten gaat vóór een 0
+waar niemand op wacht.
 
 | Bestand | Dekt | Niveau | Blokkeert |
 | --- | --- | --- | --- |
+| [`T2-8-motion-tokens.md`](T2-8-motion-tokens.md) | De schaal uit `06` §3 leveren | 0 → 1 | **thema 3, nu** |
 | [`T2-1-semantische-kleurtokens.md`](T2-1-semantische-kleurtokens.md) | Tokenrollen conform `05` §2.1 | 1 → 2 | thema 1, 3 én 4 |
-| [`T2-2-laadvariant-op-knoppen.md`](T2-2-laadvariant-op-knoppen.md) | `05` §4.1's ontbrekende loadingvariant | 1 → 2 | thema 1 (`S01`), thema 4 (`Potje maken…`) |
+| [`T2-2-laadvariant-op-knoppen.md`](T2-2-laadvariant-op-knoppen.md) | `05` §4.1's ontbrekende loadingvariant | 1 → 2 | thema 1 (`S01`) |
+| [`T2-5-qr-kaart-en-room-header.md`](T2-5-qr-kaart-en-room-header.md) | Styling voor `room-header.mjs` — er is er nul | 1 → 2 | thema 1 (`S05`) |
 | [`T2-3-timer-en-progress.md`](T2-3-timer-en-progress.md) | Progressbalk i.p.v. kaal getal | 1 → 2 | thema 1 (`S08`) |
-| [`T2-4-spelerchip.md`](T2-4-spelerchip.md) | Tijdelijke kleur/symboolidentiteit | 1 → 2 | thema 1 (`S05`/`S06`) |
-| [`T2-5-qr-kaart-en-room-header.md`](T2-5-qr-kaart-en-room-header.md) | QR-kaart als component + de dode `room-header.mjs` inhangen | 1 → 2 | thema 1 (`S05`) |
-| [`T2-6-leaderboard-rij.md`](T2-6-leaderboard-rij.md) | Bewegingskolom (`↑2`) | 1 → 2 | thema 1 (`S15`) |
-| [`T2-7-besluitverzoek-o002-o003.md`](T2-7-besluitverzoek-o002-o003.md) | Wat de producteigenaar moet beslissen vóór wereldmotieven en iconografie bestaan | 0 → bouwbaar | thema 5 (medium/tablet), thema 1 (podium) |
+| [`T2-4-spelerchip.md`](T2-4-spelerchip.md) | Tijdelijke kleur/symboolidentiteit (`D-022`) | 1 → 2 | thema 1 (`S05`/`S06`) |
+| [`T2-6-leaderboard-rij.md`](T2-6-leaderboard-rij.md) | Rankkolom + bewegingskolom (`↑2`) | 1 → 2 | thema 1 (`S15`) |
+| [`T2-9-overlays-bottom-sheets.md`](T2-9-overlays-bottom-sheets.md) | Bottom sheet op mobiel (`05` §12) | 1 → 2 | thema 1 (`S17`/`S18`) |
+| [`T2-7-besluitverzoek-o002-o003.md`](T2-7-besluitverzoek-o002-o003.md) | Wat de producteigenaar moet beslissen | 0 → bouwbaar | thema 5 |
 
-## Waarom er geen prompt voor motion-tokens staat
+## Volgorde
 
-Die staat al in thema 3: [`M1-motion-tokens-en-e01.md`](../../3-beweging-en-gevoel/prompts/M1-motion-tokens-en-e01.md).
-Dat is inhoudelijk een goede prompt, maar stap 1 ervan schrijft tokens in
-`base.css`'s `:root` — het tokenblok van dít thema. Twee eigenaren op één blok
-is precies het patroon dat vandaag al een keer misging.
+**`T2-8` eerst, en het is dringend.** De motion-tokens waren een naad tussen
+thema 2 en 3; die is beslecht in `HANDOFF-UI.md` UI-9 en thema 3 heeft zijn
+eigen prompt al herschreven om ze te consumeren. `M1` zegt nu letterlijk
+*"blokkeert dit werk totdat de tokens daadwerkelijk bestaan"*. Ze bestaan niet.
+Al het animatiewerk in het product staat dus op dit thema te wachten — dat is
+geen afweging maar een schuld.
 
-**Voorstel, geen besluit** (`docs/handoff-principles.md`): thema 2 levert de
-tokens, thema 3 consumeert ze en houdt `E01`–`E16` bij. `M1` verliest dan stap
-1 en houdt stap 2 en 3. Andersom kan ook — dan schrapt thema 2 de regel
-`Motion-tokens` uit zijn `PROGRESS.md`. Wat níét kan is allebei.
+**`T2-1` daarna, en het heeft een tijdslot.** Thema 1, 3 en 4 hebben nog
+nauwelijks CSS geschreven. Elke regel die zij vanaf nu tegen `--bg` schrijven
+maakt de hernoeming duurder; over een week is het een conflict met vier
+schrijvers in plaats van een pas van een half uur.
 
-Zolang dat niet beslecht is, schrijf ik hier geen concurrerende prompt.
+De rest volgt op wie wacht: `T2-2` en `T2-5` (thema 1 staat er direct op stil),
+dan `T2-3`, `T2-4`, `T2-6` en `T2-9`. `T2-7` is geen bouwtaak en kan parallel.
 
 ## Waarom `05` §15 (CSS-architectuur) er niet bij staat
 
@@ -41,17 +46,21 @@ verhuizing van alle CSS in de repo. Met vier thema's die tegelijk in
 conflict. Dit hoort ná de eerste ronde van thema 1, 3 en 4, en dan als één
 atomaire pas — niet als losse taak ertussendoor.
 
-## Volgorde
+## Wat deze set ná review is geworden
 
-`T2-1` hoort **nu**, en dat is de enige met een tijdslot. Thema 1, 3 en 4 zijn
-aan het inlezen en hebben nog nauwelijks CSS geschreven; elke regel die zij
-vanaf nu tegen `--bg` schrijven maakt die hernoeming duurder. Over een week is
-het een conflict met vier gelijktijdige schrijvers in plaats van een pas van
-een half uur.
+Alle negen bestanden zijn adversarieel gereviewd op spec-conformiteit en op
+actualiteit. Dat leverde 62 bevindingen op; de zwaarste zaten niet in wat er
+stond maar in wat er níét stond:
 
-Daarna `T2-2` (twee thema's wachten), dan `T2-3` t/m `T2-6` in willekeurige
-volgorde — die blokkeren alle vier alleen thema 1.
-
-`T2-7` is geen bouwtaak en kan parallel: het is een besluitverzoek, en tot het
-antwoord er is blijven wereldmotieven en iconografie op 0 hoe veel tijd er ook
-in gestoken wordt.
+- de motion-tokenpatstelling was al eenzijdig door thema 3 opgelost, en deze
+  README weigerde nog te leveren op grond van een conflict dat niet meer
+  bestond;
+- `T2-1` verzon een rolnaam (`--color-focus-glow`) die in geen enkel document
+  staat, en verenigde daarmee precies wat `05` §2.6 scheidt;
+- `T2-4` vulde een open producteigenaarsbesluit in dat `T2-7` in dezelfde set
+  juist als onaantastbaar behandelde — inmiddels beslecht met `D-022`;
+- `T2-5` nam werk over dat `HANDOFF-UI.md` UI-10 aan thema 1 toewijst, en
+  beschreef `room-header.mjs` als "ongetest" terwijl het probleem is dat er
+  nul CSS voor bestaat;
+- `Overlays` blokkeerde thema 1 maar had geen prompt en stond ook niet bij de
+  bewuste weglatingen. Dat is nu `T2-9`.

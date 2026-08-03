@@ -12,7 +12,18 @@ gestoken wordt:
 | Onderdeel | Wacht op |
 | --- | --- |
 | Wereldmotieven (`05` §2.7) | `O-003` — de exacte accentkleur |
-| Iconografie (`05` §3) | `O-002` — het lettertype, plus een merkontwerper |
+| Iconografie (`05` §3) | een merkontwerper; `O-002` is bijzaak |
+
+_Nuance op de tweede regel, ná review: `05` §3 (één iconenset, eigen logo,
+eigen medailleassets, geometrische antwoordvormen) stelt geen enkele eis aan
+de letterkeuze. De werkelijke blokkade voor iconografie is dat er niemand is
+die de set tekent — niet `O-002`. Dat is een capaciteitsvraag, geen
+besluitvraag, en hoort dus strikt genomen niet in dit verzoek. Hij staat er
+toch bij omdat beide dezelfde uitkomst hebben: geen eigen visuele grammatica._
+
+`O-009` (tijdelijke speleridentiteit) stond hier ook, en is inmiddels
+beantwoord met `D-022`: bouwen, nu. Dat was het derde open punt waar dit
+thema deze week tegenaan bouwde.
 
 Ze staan niet stil door capaciteit maar door een ontbrekende keuze. En ze zijn
 samen precies wat `10-IMPLEMENTATION-ROADMAP.md` als risico `R3` benoemt:
@@ -49,8 +60,15 @@ een merkbeslissing, geen technische.
 **Werkhypothese:** indigo/violet, gevalideerd op contrast en op onderscheid met
 vlagkleuren.
 
-**Wat wij vandaag hebben:** `#7c3aed` met `#a855f7` als lichtere variant,
-overgenomen uit de singleplayer.
+**Wat wij vandaag hebben:** in het donkere thema `#7c3aed` met `#a855f7` als
+lichtere variant, overgenomen uit de singleplayer. In het **lichte** thema
+staat `--accent-light` sinds `58eba07` óók op `#7c3aed`, identiek aan
+`--accent` — thema 5 moest hem daar donkerder maken omdat hij als tekst op
+3,61:1 zat. Daar is dus geen familie meer, maar één kleur.
+
+Daarnaast is er een **tweede merkkleur zonder token**: `#60a5fa`, het blauw in
+de gradient van `.brand-title`. Dat is het enige element dat de merkgradient
+nog draagt (`D-017`), en het hoort bij deze vraag thuis.
 
 **Wat het besluit raakt:**
 
@@ -63,9 +81,16 @@ overgenomen uit de singleplayer.
   `--accent-light` als tekst op 3,61:1 zat. Elke wijziging aan het accent
   vraagt die berekening opnieuw.
 
-**Wat ik zou voorstellen:** de huidige paarse familie bevestigen als
-merkaccent, en de goud/competitiekleur apart vaststellen — die ontbreekt nu
-volledig in het lichte thema en podium en rank hebben hem nodig.
+**Wat ik zou voorstellen:** de paarse familie bevestigen als merkaccent, en
+daarbij vaststellen of `#60a5fa` een tweede merkkleur is of alleen een
+gradienteindpunt. En: het lichte thema heeft geen accentfamilie meer maar één
+kleur — bepaal of dat zo blijft of dat er een lichtere variant bij komt die
+AA haalt.
+
+_Correctie op de eerste versie van dit verzoek: daar stond dat de
+goud/competitiekleur volledig ontbreekt in het lichte thema. Dat is onwaar —
+thema 5 heeft die in `58eba07` toegevoegd (`#9a5b0a`), juist omdat de donkere
+tint daar op 1,96:1 zat. Er valt over goud dus niets meer te beslissen._
 
 ## Wat ik nodig heb om verder te kunnen
 

@@ -35,12 +35,23 @@ meer.
 3. **Drie toestanden:** gestegen, gedaald, gelijk. Gelijk krijgt `—` en niet
    niets, anders lijkt een lege cel op ontbrekende data.
 
-4. **Eigen rij herkenbaar** met het accent plus het label `Jij` — dat bestaat
-   al, laat het staan.
+4. **Eigen rij herkenbaar** met het accent én het label `Jij`. Let op: de
+   eerste versie van deze prompt zei "dat bestaat al, laat het staan" — dat
+   klopt niet. `standings.you` wordt uitsluitend gerenderd in de losse regel
+   *onder* de lijst, nooit op de `.scoreboard-entry.is-self`-rij zelf. Die rij
+   heeft alleen een rand. Het label moet dus gebouwd worden, niet bewaard.
 
-5. **De component rekent niets uit.** Hij krijgt `{ rank, name, score, delta }`
-   binnen en tekent. Waar `delta` vandaan komt is een modelvraag voor thema 1
-   (`standings-model.mjs` kent nu geen vorige stand).
+5. **Top vijf plus de eigen rij** (`04` S15, `11` §G). De rijenreeks is
+   daardoor discontinu — #1 t/m #5, dan #12 — en dat is precies waarom de
+   rankkolom uit punt 1 vast van breedte moet zijn en de rank expliciet moet
+   tonen. `09` §11 heeft er al copy voor: `Jij: #12 — 610 punten`.
+
+6. **De component rekent niets uit.** Hij krijgt `{ rank, name, score, delta }`
+   binnen en tekent. Waar `delta` vandaan komt is een modelvraag voor thema 1;
+   `08-leaderboard-en-podium.md` bouwt die berekening in `standings-model.mjs`.
+   **Stem af:** thema 1's definition of done is dat de tussenstand een
+   bewegingsindicatie *toont*, en die prompt verwijst nergens naar deze
+   component. Zonder afspraak bouwt thema 1 de kolom zelf.
 
 ## Regels
 
@@ -50,7 +61,10 @@ meer.
 - **Geen tie-regel verzinnen.** `S15` zegt dat een gedeelde plaats een expliciet
   productbesluit is en dat besluit is niet genomen. De component moet twee
   rijen met dezelfde rank kúnnen tonen; welke rank dat is bepaalt het model.
-  Meld het als open punt in plaats van er een aanname in te bouwen.
+  Thema 1's `08-leaderboard-en-podium.md` heeft dit ook als open punt staan —
+  verwijs daarnaar in plaats van het een tweede keer op te schrijven.
+  De *weergave* is wél gespecificeerd: `09` §11 heeft `Gedeelde eerste plaats`
+  als copy. Bouw dat label; alleen de regel wanneer het geldt is open.
 - Namen blijven via `textContent`.
 
 ## Definition of done

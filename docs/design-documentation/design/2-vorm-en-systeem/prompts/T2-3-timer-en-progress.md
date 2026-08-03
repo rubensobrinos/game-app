@@ -27,10 +27,19 @@ sluiten, niet om opnieuw te bedenken.
 1. **Een progressbalk-component** die van vol naar leeg loopt over de
    rondeduur. Aansluiten op de bestaande singleplayer-vormtaal.
 
-2. **Rust in de normale fase, nadruk in de laatste drie seconden** (`06`
-   `E07`). Verhoogd contrast of een subtiele puls — géén volledige schermflits,
-   géén doorlopend rood: `05` §9 zegt expliciet "waarschuwing niet continu
-   rood", en `P12` reserveert rood voor fout.
+2. **Rust in de normale fase, nadruk in de laatste drie seconden.**
+   Verhoogd contrast — géén volledige schermflits, géén doorlopend rood: `05`
+   §9 zegt "waarschuwing niet continu rood", en `P12` reserveert rood voor
+   fout en geeft tijd/aandacht een eigen rol: `--color-warning`. Gebruik die
+   token; hij komt uit `T2-1` stap 3, waar hij om precies deze reden als
+   niet-optioneel staat aangemerkt.
+
+   **De pulsanimatie hoort níét hier.** `E07` staat in thema 3's
+   gebeurteniscatalogus, en `T2-4` en `T2-6` stoten hun motion om dezelfde
+   reden af. Deze prompt levert het contrastverschil en de klassen; thema 3
+   hangt er beweging aan. Thema 3 heeft nog geen prompt voor `E07`, dus dit is
+   nu goedkoop af te spreken — leg het vast in `HANDOFF-UI.md` in plaats van
+   het te laten zitten.
 
 3. **Het getal blijft**, als tabulaire aanvulling naast de balk. Niet
    vervangen: op een luidruchtige borrel is een getal sneller af te lezen dan
@@ -50,8 +59,10 @@ sluiten, niet om opnieuw te bedenken.
   Dat is `session-shell.mjs`'s ticker, en die is van thema 1.
 - **De urgentiedrempel is een constante, geen hardcoded 3.** Thema 1 moet 'm
   kunnen meegeven als de rondeduur ooit configureerbaar wordt.
-- `prefers-reduced-motion`: de puls vervalt, het contrastverschil blijft — de
-  urgentie mag niet uitsluitend in beweging zitten (`08` §2.4).
+- De urgentie mag niet uitsluitend in beweging zitten (`08` §2.4). Omdat het
+  contrastverschil hier wordt gebouwd en de beweging bij thema 3, is dat
+  automatisch goed — maar alleen als thema 3 de beweging als aanvulling bouwt
+  en niet als vervanging. Zeg dat er expliciet bij in de handoff.
 
 ## Definition of done
 
