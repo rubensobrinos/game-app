@@ -39,10 +39,17 @@ correct, (5) iedereen fout, (6) opvallende misleider, (7) streak.
 
 **Nu bouwbaar, client-side, zonder protocolwijziging:**
 
-- **(4) iedereen correct / (5) iedereen fout**: afleidbaar uit `distribution`
-  — als de telling op de correcte `optionId` gelijk is aan het totaal aantal
-  antwoorden (of aan `eligiblePlayerCount` uit het laatste `round:progress`),
-  is iedereen correct; 0 op de correcte optie is iedereen fout.
+- **(4) iedereen correct**: de telling op de correcte `optionId` is gelijk
+  aan `eligiblePlayerCount` uit het laatste `round:progress` — niet aan het
+  totaal aantal gegeven antwoorden. Dat laatste zou "iedereen die antwoordde
+  had gelijk" ook laten triggeren wanneer maar twee van de acht spelers
+  antwoordden; vergelijken met `eligiblePlayerCount` sluit "niet iedereen
+  antwoordde" automatisch uit, want een niet-antwoordende speler telt nooit
+  bij een optie mee.
+- **(5) iedereen fout**: 0 op de correcte optie, **én** de som van alle
+  tellingen > 0. Zonder die tweede voorwaarde vuurt deze conditie ook af
+  wanneer niemand geantwoord heeft — dat is geen "iedereen fout", dat is
+  "geen data".
 - **(6) opvallende misleider**: ook uit `distribution` af te leiden — de
   foute optie met de hoogste telling.
 - **(2) comeback/grootste stijger**: bouwbaar als je zelf de vorige

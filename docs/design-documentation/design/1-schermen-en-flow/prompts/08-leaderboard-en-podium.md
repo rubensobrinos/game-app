@@ -1,7 +1,8 @@
 # Prompt — 08: Leaderboard + Podium (S15/S20)
 
 Onderdeel van thema 1 ([`../PROGRESS.md`](../PROGRESS.md)). Horen inhoudelijk
-bij elkaar: het podium is de leaderboard se laatste stand plus vervolgacties.
+bij elkaar: het podium is de laatste stand van de leaderboard plus
+vervolgacties.
 
 ## Brondocument
 
@@ -16,9 +17,11 @@ bij elkaar: het podium is de leaderboard se laatste stand plus vervolgacties.
 positieverschil. **Bouw dit één keer, gedeeld met
 [`07-reveal-en-sociale-headline.md`](07-reveal-en-sociale-headline.md)'s
 comeback-detectie** — beide hebben exact dezelfde vorige-versus-huidige-
-standregen-vergelijking nodig. Zet het in `views/standings-model.mjs` als
-pure functie (invoer: vorige + huidige standings, uitvoer: beweging per
-speler), niet in twee aparte, licht verschillende implementaties.
+standregen-vergelijking nodig. `views/standings-model.mjs` **bestaat al**
+(`standingsFrom()`, `podiumTop3()`, vijf tests) — voeg de bewegingsfunctie
+daaraan toe, in hetzelfde bestand en dezelfde teststijl, niet in een nieuw
+bestand. Pure functie (invoer: vorige + huidige standings, uitvoer: beweging
+per speler), niet in twee aparte, licht verschillende implementaties.
 
 **Tie-regel:** `04` noemt dit expliciet een open productbesluit ("gedeelde
 plaats of secundaire sortering wordt expliciet productbesluit"). Bouw geen
@@ -42,13 +45,19 @@ als `HANDOFF`-item met een voorstel, kies niet stilzwijgend een tie-regel.
 3. **`Nieuw spel`-actie**: terug naar configuratie met relevante defaults
    (`03` §4.5) — onderscheiden van de bestaande `Revanche` (zelfde
    deelnemers/config, scores resetten). "Nieuw spel" impliceert een nieuwe
-   room, dus terug naar `/` of naar `02-S02-spel-aanpassen` zodra die bestaat.
+   room, dus terug naar `/` of naar
+   [`09-S02-spel-aanpassen.md`](09-S02-spel-aanpassen.md) zodra die bestaat.
 4. **Medaille-emoji zijn bewust placeholders (`D-015`).** Bouw hier geen
    eigen iconografie — dat is thema 2's territorium, en dat document is
    expliciet: "niet door een frontender op te lossen." Zorg alleen dat de
-   3→2→1-opbouw en de nieuwe acties werken mét de huidige emoji; de latere
-   asset-swap moet daarna een pure CSS/asset-wijziging zijn, geen
-   herbouw van dit scherm.
+   3→2→1-opbouw en de nieuwe acties werken mét de huidige emoji. **De latere
+   asset-swap is geen "pure CSS/asset-wijziging":** de medailles zitten als
+   i18n-waarde in alle drie de locales (`podium.first`/`second`/`third`,
+   opgehaald via `t(medals[index])` in `podium.mjs`), dus een echte swap raakt
+   drie localebestanden plus de parity-test, niet alleen CSS. Dat een emoji
+   als vertaalbare tekst gemodelleerd staat is op zichzelf al twijfelachtig
+   (een medaille-emoji verandert niet per taal) — geen aanleiding om dat nu te
+   herstructureren, maar wel om de aanname "pure CSS" hier niet door te geven.
 
 ## Regels
 

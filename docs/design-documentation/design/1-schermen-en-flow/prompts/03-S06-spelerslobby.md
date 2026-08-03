@@ -26,7 +26,7 @@ niveau-0-grensgeval in `../PROGRESS.md`.
 - status `De host start zo` — bestaat al (`lobby.waiting`-sleutel), tekst
   wijkt af van wat thema 4 voorschrijft maar valt buiten deze prompt;
 - `Nodig iemand uit` — **ontbreekt volledig**. Dit is niet hetzelfde als de
-  hostbalk se deelacties: een speler heeft geen hostbalk. De speler heeft een
+  deelacties van de hostbalk: een speler heeft geen hostbalk. De speler heeft een
   eigen, kleinere deelactie nodig (minimaal copy-link/native-share; geen QR
   nodig zodra `02-S05-permanente-qr-code.md` de code/QR al permanent in de
   header toont voor iedereen, `D-019`);

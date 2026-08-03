@@ -11,16 +11,22 @@ S04.
 
 ## S01 — Landing
 
-1. **`Potje maken…`-laadstatus.** `home.mjs`'s `quickStartButton` zet nu
-   alleen `.disabled = true` tijdens `state.status === 'creating'` — de tekst
-   blijft `Snel starten`. Voeg de statuswissel toe: tekst wordt `Potje
-   maken…` zolang `creating`, terug naar de normale tekst bij `editing`/`error`.
+1. **`Potje maken…`-laadstatus — al gebouwd, niet meer doen.** Klopte bij het
+   schrijven van deze prompt, klopt niet meer: thema 4 heeft dit inmiddels
+   gebouwd (`home.mjs`'s `quickStartStatus`, aria-live, rendert
+   `t('home.creating')` zolang `state.status === 'creating'`; `nl.mjs` heeft
+   `'home.creating': 'Potje maken…'`). **Actie hier is verifiëren dat het nog
+   werkt, niet een tweede statuswissel toevoegen.** Ook de knoptekst zelf is
+   inmiddels `Start direct een game` (`home.quickStart`), niet meer
+   `Snel starten` — punt 3 hieronder gaat daarvan uit.
 2. **Belofte-regel onder de fold**: `Geen account. Geen download. Iedereen
    speelt op zijn eigen telefoon.` — nieuwe i18n-sleutel in alle drie de
-   locales, nieuw element in `home.mjs`.
+   locales, nieuw element in `home.mjs`. Controleer eerst of dit ook al
+   gebouwd is (net als punt 1 dat bleek te zijn) vóórdat je een nieuw element
+   toevoegt.
 3. **Hero-knopstijl**: `04` vraagt een duidelijk gewicht-verschil tussen de
-   primaire (`Snel starten`) en secundaire (code-invoer) actie. Nu delen ze
-   grotendeels dezelfde `.btn-primary`/`.btn-secondary`-stijl uit
+   primaire (`Start direct een game`) en secundaire (code-invoer) actie. Nu
+   delen ze grotendeels dezelfde `.btn-primary`/`.btn-secondary`-stijl uit
    `components.css` — controleer of dat visueel voldoende onderscheidend is
    of dat de hero een eigen, groter accent verdient. Dit raakt gedeelde CSS
    (thema 2's territorium) — als je meer dan een kleine aanpassing nodig

@@ -22,11 +22,18 @@ best na elkaar gedaan.
 | 08 | [`08-leaderboard-en-podium.md`](08-leaderboard-en-podium.md) | S15, S20 — rankbeweging, tie-regel, podiumopbouw | 2, hoog impact |
 | 09 | [`09-S02-spel-aanpassen.md`](09-S02-spel-aanpassen.md) | S02 — instellingen-sheet, reducer bestaat al | 2 |
 
+## Review
+
+[`REVIEW.md`](REVIEW.md) — feitelijke controle van alle claims in deze negen
+prompts tegen de code (3 aug 2026). Tien bevindingen; **prompt 04, 06 en 08
+hebben elk een blokkerende correctie nodig vóórdat iemand ermee aan de slag
+gaat.**
+
 ## Wat deze negen niet dekken
 
-`S08`/`S09`/`S10`/`S11`/`S12`/`S18` staan in `../PROGRESS.md` al op niveau 1
-zonder een scherpe, direct uitvoerbare volgende stap (S09/S10 vallen sowieso
-buiten de lanceerscope). Thema 2's eigen fundamentgat (wereldmotieven,
+`S08`/`S11`/`S12`/`S18` staan in `../PROGRESS.md` al op niveau 1 zonder een
+scherpe, direct uitvoerbare volgende stap; `S09`/`S10` staan op niveau 0 en
+vallen sowieso buiten de lanceerscope. Thema 2's eigen fundamentgat (wereldmotieven,
 iconografie, lettertype/accentkleur — `O-002`/`O-003`) en thema 5's
 device-/screenreadertests horen niet hier, ook al raken ze dezelfde schermen.
 

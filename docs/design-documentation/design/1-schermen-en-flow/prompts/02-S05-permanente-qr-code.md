@@ -19,7 +19,10 @@ binnenkomt, en `destroy()`. Het enige wat ontbreekt is: **CSS** (er staat nog
 niets voor `.room-header`/`.room-qr-*` in `base.css`) en **het inhangen**.
 
 Dit is dus geen nieuw scherm bouwen — het is een bestaande module aansluiten
-en stylen.
+en stylen. Deze prompt lost daarmee ook
+[`UI-10`](../../../../frontend-plan/HANDOFF-UI.md) op ("`room-header.mjs` is
+dode code — `D-018` daardoor nog niet zichtbaar") — vink dat item af in
+`HANDOFF-UI.md` zodra het inhangen klaar is.
 
 ## Wat moet gebeuren
 
@@ -41,8 +44,9 @@ en stylen.
    `joinUrl`-variabele die er al is voor de lobby); bij `destroy()` (van de
    session-shell zelf) ook `roomHeader.destroy()` aanroepen.
 4. **`lobby.mjs` opschonen.** De QR/code/link-acties zitten straks op twee
-   plekken (lobby se `Delen`-rij én de permanente header). Beslis: blijft
-   lobby se eigen `show-qr`/`show-code` bestaan als extra ingang, of vervalt
+   plekken (de `Delen`-rij van de lobby én de permanente header). Beslis:
+   blijft de eigen `show-qr`/`show-code` van de lobby bestaan als extra
+   ingang, of vervalt
    die omdat de header 'm al permanent aanbiedt? `D-018` vraagt om permanent
    zichtbaar, niet om een dubbele ingang — een keuze hier voorkomt dat je punt
    1 uit prompt 01 (dubbele weergave) er een derde bij krijgt.
@@ -67,8 +71,8 @@ en stylen.
   alleen verifiëren dat het na het inhangen nog steeds klopt.
 - Vergrendelen van de room verandert niets aan de zichtbaarheid van code/QR.
 - Lobby: lege staat toont de voorgeschreven tekst, startknop is sticky.
-- Geen dubbele QR/code-ingang tenzij je bewust koos om lobby se eigen
-  deelrij te laten staan — leg die keuze uit in de commitmessage.
+- Geen dubbele QR/code-ingang tenzij je bewust koos om de eigen deelrij van
+  de lobby te laten staan — leg die keuze uit in de commitmessage.
 - `../PROGRESS.md` bijgewerkt: S05 kan pas naar niveau 2 als alle drie de
   eerder genoemde ontbrekende criteria (permanent, lege staat, sticky) samen
   gehaald zijn — niet los aanvinken.

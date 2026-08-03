@@ -35,7 +35,7 @@ host dus twee keer dezelfde namenlijst op het scherm.
 
 **Aanpak:** kies één plek. Voorstel (geen vast besluit — leg de keuze vast als
 `HANDOFF`-item als je afwijkt): de lobby's eigen lijst krijgt inline
-verwijder-knoppen voor de host, en de hostbalk se aparte spelerslijst wordt
+verwijder-knoppen voor de host, en de aparte spelerslijst van de hostbalk wordt
 alleen getoond in fases wáár de lobbylijst niet zichtbaar is (gameplay,
 scoreboard, podium) — niet meer tijdens `LOBBY` zelf.
 

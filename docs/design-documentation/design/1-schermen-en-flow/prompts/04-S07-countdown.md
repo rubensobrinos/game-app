@@ -20,6 +20,25 @@ tijdstip en een fase — er bestaat alleen geen scherm dat er iets mee doet.**
 Nu toont `gameplay.mjs` gewoon niets zichtbaars tot de eerste `round:started`
 binnenkomt (`displayState(model) === 'empty'`).
 
+## Eerst: welke duur is leidend? — intern tegenstrijdig, niet zelf kiezen
+
+`03` §6 noemt een richtduur van 2,5–3,0s; `transport-mock.mjs` zet
+`COUNTDOWN_MS` echter vast op 1200ms (1,2s). Dat is geen afrondingsverschil —
+bij 1,2s past een aftelling met discrete stappen op hele seconden (`3`→`2`→
+`1`) domweg niet. Zoek eerst uit welke van de twee leidend is vóórdat je een
+weergave bouwt:
+
+- Als `COUNTDOWN_MS` een bewuste mock-vereenvoudiging is die in productie
+  richting 2,5–3,0s gaat: leg dat vast als `HANDOFF`-item aan de eigenaar van
+  `transport-mock.mjs`/het protocol — dit is een serverwaarde, geen
+  clientkeuze, dus niet zelf de mock ophogen om 'm te laten kloppen.
+- Als 1,2s de werkelijke waarde is (en `03` §6 verouderd is): meld dat ook als
+  `HANDOFF`, en bouw ondertussen tegen wat `transport-mock.mjs` daadwerkelijk
+  stuurt — niet tegen de documentwaarde.
+
+Bouw in beide gevallen de weergave zo dat ze bij **elke** duur werkt (zie
+hieronder), zodat de uiteindelijke serverkeuze de client niet breekt.
+
 ## Aanpak
 
 Twee routes, kies er één en leg de keuze vast:
@@ -27,12 +46,15 @@ Twee routes, kies er één en leg de keuze vast:
 **A — countdown als sub-state van `gameplay.mjs`** (voorstel, sluit aan bij
 hoe `match-phase-state` bewust geen aparte rondedata bijhoudt): geef
 `createGameplayView`'s `update()` de huidige fase mee naast het model. Bij
-`phase === 'COUNTDOWN'` toont de view een grote `3`/`2`/`1` (of een generieke
-aftelling) op basis van `secondsRemaining(startsAt, countdownEndsAt,
-offsetMs)` — zelfde patroon en dezelfde helper als de bestaande ronde-timer,
-alleen met `countdownEndsAt` in plaats van `endsAt`. Geen aparte
-`createCountdownView` nodig, geen aparte mount/unmount-cyclus vlak vóór de
-vraag (voorkomt een flits).
+`phase === 'COUNTDOWN'` toont de view een groot getal, afgeleid van
+`Math.ceil(secondsRemaining(startsAt, countdownEndsAt, offsetMs))` — zelfde
+patroon en dezelfde helper als de bestaande ronde-timer, alleen met
+`countdownEndsAt` in plaats van `endsAt`. Reken dus het getal uit de
+resterende tijd, neem geen vaste `3`/`2`/`1`-reeks aan: bij 1,2s tel je
+bijvoorbeeld af vanaf `2`, bij 3,0s vanaf `3` — de weergave moet bij elke
+serverduur kloppen zonder aanpassing. Geen aparte `createCountdownView`
+nodig, geen aparte mount/unmount-cyclus vlak vóór de vraag (voorkomt een
+flits).
 
 **B — eigen `views/countdown.mjs`**, met een eigen entry in `view-switcher.mjs`
 (`COUNTDOWN` uit `GAMEPLAY_PHASES` halen, eigen viewnaam). Zuiverder
@@ -55,7 +77,7 @@ zichtbaar tijdens het aftellen), is dat een protocolwijziging en dus een
   aannemen die kan gaan afwijken van wat de server werkelijk stuurt.
 - `prefers-reduced-motion`: nu nog geen animatiesysteem (thema 3/5 leveren
   dat pas), dus dit hoeft geen choreografie te hebben — een statische
-  tekstwissel `3` → `2` → `1` is voldoende en per definitie
+  tekstwissel per afgerond getal (zie boven) is voldoende en per definitie
   reduced-motion-veilig. Bouw geen aparte animatie die je later weer moet
   intomen.
 - Geen blokkerende interactie tijdens de countdown (geen knoppen nodig, maar
