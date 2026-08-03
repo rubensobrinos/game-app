@@ -577,6 +577,19 @@ button.is-loading::after {
   margin: 2rem 0;
 }
 
+/* BOUWSPRINT/E04: zachte tick per cijfer (06 §4) — een korte scale/opacity-
+   puls, geen andere eigenschap (transform/opacity-voorkeur, 06 §9). Klasse
+   wordt door gameplay.mjs verwijderd+teruggezet per gewisseld cijfer, niet
+   per render-tick. */
+.gameplay-countdown-tick {
+  animation: gameplay-countdown-tick var(--motion-emphasis) var(--ease-enter);
+}
+
+@keyframes gameplay-countdown-tick {
+  0% { opacity: 0.4; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
 /* ── Timer als balk (T2-3, 05 §9) ──────────────────────────────────────────
    Sluit aan op de vormtaal die de singleplayer al heeft (`style.css`
    `.timer-track`/`.timer-fill`) — niet opnieuw bedacht.

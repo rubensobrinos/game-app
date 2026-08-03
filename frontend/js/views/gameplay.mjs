@@ -126,6 +126,10 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
 
   let renderedRoundId = null;
   let optionButtons = new Map(); // value (iso2 | 'real'/'fake' | 0/1) -> button
+  // BOUWSPRINT/E04: welk cijfer al een tick-animatie kreeg — voorkomt dat
+  // dezelfde waarde opnieuw pulseert bij elke render-tick (ticker draait
+  // vaker dan het cijfer wisselt).
+  let tickedCountdownValue = null;
   // Reveal-pacing (S13): lokale Date.now(), geen servertijd nodig — dit
   // bepaalt alleen hoe lang dít scherm wacht vóór het de headline toont, geen
   // cross-client-gesynchroniseerd moment zoals de rondetimer.
@@ -234,8 +238,20 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     // serverduur kan afwijken (zie 04-S07-countdown.md's HANDOFF-punt over
     // `COUNTDOWN_MS` vs. `03` §6).
     countdown.hidden = phase !== 'COUNTDOWN';
-    if (!countdown.hidden) {
+    if (countdown.hidden) {
+      tickedCountdownValue = null;
+    } else {
       countdown.textContent = countdownSecondsLeft === null ? '' : String(countdownSecondsLeft);
+      // BOUWSPRINT/E04: "zachte tick per cijfer" (06 §4) — een puls per
+      // wisselend cijfer, niet per render-tick. Klasse verwijderen+
+      // terugzetten (forceer reflow) om de animatie telkens opnieuw te
+      // laten spelen, zelfde patroon als M7's tellerpuls (lobby.mjs).
+      if (countdownSecondsLeft !== null && countdownSecondsLeft !== tickedCountdownValue) {
+        tickedCountdownValue = countdownSecondsLeft;
+        countdown.classList.remove('gameplay-countdown-tick');
+        void countdown.offsetWidth;
+        countdown.classList.add('gameplay-countdown-tick');
+      }
     }
 
     const state = displayState(model);
