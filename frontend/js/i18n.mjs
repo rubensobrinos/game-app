@@ -37,6 +37,28 @@ export function t(key) {
 }
 
 /**
+ * Telbare tekst: kiest tussen `<key>.one` en `<key>.other` en vult `{n}` in.
+ * Nodig omdat `${count} ${t('lobby.players')}` bij één speler "1 spelers"
+ * opleverde — zichtbaar in de lobby, en `09-CONTENT-AND-MICROCOPY` §14 vraagt
+ * expliciet om pluralisatie.
+ *
+ * Bewust minimaal: NL, EN en ES hebben alle drie exact twee vormen (één /
+ * meer-dan-één), en 0 valt in alle drie onder `other` ("0 spelers", "0
+ * players", "0 jugadores"). Komt er ooit een taal met meer vormen bij (Pools,
+ * Arabisch), dan is `Intl.PluralRules` de vervanger — niet een derde sleutel
+ * erbij verzinnen.
+ *
+ * @param {string} key sleutelbasis, zonder `.one`/`.other`
+ * @param {number} count
+ * @returns {string}
+ */
+export function tCount(key, count) {
+  const form = count === 1 ? 'one' : 'other';
+  const val = T[currentLang][`${key}.${form}`];
+  return typeof val === 'string' ? val.replace('{n}', String(count)) : `${count} ${key}`;
+}
+
+/**
  * Zelfde tweestaps-DOM-scan als `app.js`'s `applyI18n()`: vult `textContent`
  * voor elk `[data-i18n]`-element en `placeholder` voor elk
  * `[data-i18n-placeholder]`-element. Nooit `innerHTML` — vertaalteksten zijn

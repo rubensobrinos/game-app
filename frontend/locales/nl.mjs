@@ -5,7 +5,7 @@
 // `data-i18n`) aan te tonen in `js/app.mjs`.
 
 export const nl = Object.freeze({
-  'app.title': 'Play Aseso',
+  'app.title': 'Rounda',
   'scaffold.ready': 'Frontend-scaffold gereed — schermen volgen in UI1–UI5.',
 
   // — Hamburgermenu (taal van de app zelf, niet de vraagtaal — die zit in
@@ -17,7 +17,7 @@ export const nl = Object.freeze({
   'menu.themeLight': 'Licht',
 
   // — UI1-sleutels (Home + Preview/join) —
-  'home.title': 'Play Aseso',
+  'home.title': 'Rounda',
   'home.quickStart': 'Snel starten',
   'home.divider': 'of',
   'home.codeLabel': 'Heb je een code?',
@@ -111,9 +111,12 @@ export const nl = Object.freeze({
   'hostbar.kickConfirmPrefix': 'Verwijderen uit deze game:',
 
   // — UI2: Lobby + Delen —
+  'room.scanToJoin': 'Scan om mee te doen',
   'lobby.title': 'Lobby',
   'lobby.waiting': 'Wachten tot de host start…',
-  'lobby.players': 'spelers',
+  // Telbaar via `tCount('lobby.playerCount', n)` — `{n}` wordt ingevuld.
+  'lobby.playerCount.one': '{n} speler',
+  'lobby.playerCount.other': '{n} spelers',
   'lobby.share': 'Uitnodigen',
   'lobby.shareQr': 'Toon QR-code',
   'lobby.shareNative': 'Delen',
@@ -123,5 +126,5 @@ export const nl = Object.freeze({
   'lobby.copyFailed': 'Kopiëren lukte niet — selecteer en kopieer handmatig',
   'lobby.code': 'Code',
   'lobby.back': 'Terug',
-  'lobby.start': 'Start de game',
+  'lobby.start': 'Start Rounda',
 });

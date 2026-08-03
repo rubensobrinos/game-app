@@ -57,7 +57,7 @@ import { createHostBar } from './views/hostbar.mjs';
 
 const GAMEPLAY_TICK_MS = 250;
 
-export function createSessionShell({ root, t, transport, storage, code, isHostRoute, session, onLeaveHome }) {
+export function createSessionShell({ root, t, tCount, transport, storage, code, isHostRoute, session, onLeaveHome }) {
   root.textContent = '';
 
   const banner = document.createElement('p');
@@ -371,6 +371,7 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
       mountedView = createLobbyView({
         root: phaseContainer,
         t,
+        tCount,
         isHost: isHost(),
         gameCode: code,
         onStart: () => sendHostAction('start'),

@@ -5,7 +5,7 @@
 // dedicated "UI1b" pass, it grows alongside nl.mjs from now on.
 
 export const en = Object.freeze({
-  'app.title': 'Play Aseso',
+  'app.title': 'Rounda',
   'scaffold.ready': 'Frontend scaffold ready — screens follow in UI1–UI5.',
 
   'menu.open': 'Menu',
@@ -14,7 +14,7 @@ export const en = Object.freeze({
   'menu.themeDark': 'Dark',
   'menu.themeLight': 'Light',
 
-  'home.title': 'Play Aseso',
+  'home.title': 'Rounda',
   'home.quickStart': 'Quick start',
   'home.divider': 'or',
   'home.codeLabel': 'Got a code?',
@@ -100,9 +100,11 @@ export const en = Object.freeze({
   'hostbar.kick': 'Remove',
   'hostbar.kickConfirmPrefix': 'Remove from this game:',
 
+  'room.scanToJoin': 'Scan to join',
   'lobby.title': 'Lobby',
   'lobby.waiting': 'Waiting for the host to start…',
-  'lobby.players': 'players',
+  'lobby.playerCount.one': '{n} player',
+  'lobby.playerCount.other': '{n} players',
   'lobby.share': 'Invite',
   'lobby.shareQr': 'Show QR code',
   'lobby.shareNative': 'Share',
@@ -112,5 +114,5 @@ export const en = Object.freeze({
   'lobby.copyFailed': "Couldn't copy — select and copy manually",
   'lobby.code': 'Code',
   'lobby.back': 'Back',
-  'lobby.start': 'Start the game',
+  'lobby.start': 'Start Rounda',
 });

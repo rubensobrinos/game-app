@@ -16,7 +16,7 @@
 import { shareActionsFor, shareUrlsFor } from '../../../client/flow/share-actions.mjs';
 import { qrDataUrl } from '../qr.mjs';
 
-export function createLobbyView({ root, t, isHost, gameCode, onStart, onShareAction }) {
+export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, onShareAction }) {
   root.textContent = '';
 
   // Geen eigen `.screen`-klasse: de aanroeper (session-shell.mjs) mount dit in
@@ -210,7 +210,8 @@ export function createLobbyView({ root, t, isHost, gameCode, onStart, onShareAct
     shareUrls = shareUrlsFor(model.joinUrl);
     renderStatic();
 
-    countLine.textContent = `${model.playerCount} ${t('lobby.players')}`;
+    // `tCount` en niet `${n} ${t(...)}`: dat laatste gaf "1 spelers".
+    countLine.textContent = tCount('lobby.playerCount', model.playerCount);
     codeReveal.textContent = `${t('lobby.code')}: ${gameCode}`;
 
     list.textContent = '';

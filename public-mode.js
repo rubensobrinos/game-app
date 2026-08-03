@@ -172,21 +172,22 @@
   }
 
   /**
-   * Naam: Play Aseso (besluit producteigenaar, 2 aug 2026). De titel zit in
+   * Naam: Rounda (besluit producteigenaar 3 aug 2026, D-016 — vervangt de
+   * eerdere naam Play Aseso). De titel zit in
    * app.js's i18n-tabel T (top-level const = globale binding, dus hier
    * bereikbaar); we overschrijven de waarde per taal zodat ook een
    * taalwissel de nieuwe naam toont. app.js zelf blijft onaangeraakt.
    */
   function applyBrandName() {
-    document.title = 'Play Aseso — Vlaggenquiz';
+    document.title = 'Rounda — Vlaggenquiz';
     try {
       ['nl', 'en', 'es'].forEach(function (lang) {
         if (typeof T === 'object' && T[lang] && T[lang].appTitle) {
-          T[lang].appTitle = 'Play Aseso';
+          T[lang].appTitle = 'Rounda';
         }
       });
       var titleEl = document.querySelector('.app-title');
-      if (titleEl) titleEl.textContent = 'Play Aseso';
+      if (titleEl) titleEl.textContent = 'Rounda';
     } catch (e) {
       /* T niet beschikbaar — titel-tag is dan alsnog gezet */
     }

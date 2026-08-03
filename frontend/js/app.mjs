@@ -26,7 +26,7 @@
 // query hoeft alleen op de eerste URL te staan en verdwijnt daarna gewoon
 // uit beeld bij navigatie; een verse reload zonder `?mock` is weer echt.
 
-import { applyI18n, t, setLang, getLang } from './i18n.mjs';
+import { applyI18n, t, tCount, setLang, getLang } from './i18n.mjs';
 import { loadLang, saveLang, loadTheme, saveTheme } from './preferences.mjs';
 import { createAppMenu } from './app-menu.mjs';
 import { resolveRoute } from '../../client/flow/route-resolver.mjs';
@@ -118,6 +118,7 @@ function render() {
       currentScreen = createSessionShell({
         root,
         t,
+        tCount,
         transport,
         storage,
         code: route.code,

@@ -3,7 +3,7 @@
 // (UI2/UI5) añaden sus propias claves aquí en cuanto se construyan.
 
 export const es = Object.freeze({
-  'app.title': 'Play Aseso',
+  'app.title': 'Rounda',
   'scaffold.ready': 'Base del frontend lista — las pantallas llegan en UI1–UI5.',
 
   'menu.open': 'Menú',
@@ -12,7 +12,7 @@ export const es = Object.freeze({
   'menu.themeDark': 'Oscuro',
   'menu.themeLight': 'Claro',
 
-  'home.title': 'Play Aseso',
+  'home.title': 'Rounda',
   'home.quickStart': 'Inicio rápido',
   'home.divider': 'o',
   'home.codeLabel': '¿Tienes un código?',
@@ -98,9 +98,11 @@ export const es = Object.freeze({
   'hostbar.kick': 'Eliminar',
   'hostbar.kickConfirmPrefix': 'Eliminar de esta partida:',
 
+  'room.scanToJoin': 'Escanea para unirte',
   'lobby.title': 'Sala de espera',
   'lobby.waiting': 'Esperando a que el anfitrión empiece…',
-  'lobby.players': 'jugadores',
+  'lobby.playerCount.one': '{n} jugador',
+  'lobby.playerCount.other': '{n} jugadores',
   'lobby.share': 'Invitar',
   'lobby.shareQr': 'Mostrar código QR',
   'lobby.shareNative': 'Compartir',
@@ -110,5 +112,5 @@ export const es = Object.freeze({
   'lobby.copyFailed': 'No se pudo copiar — selecciona y copia manualmente',
   'lobby.code': 'Código',
   'lobby.back': 'Atrás',
-  'lobby.start': 'Iniciar la partida',
+  'lobby.start': 'Start Rounda',
 });
