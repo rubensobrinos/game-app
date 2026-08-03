@@ -108,6 +108,22 @@
   function applyLaunchScope() {
     var grid = document.querySelector('#screen-menu .game-grid');
     if (grid) pruneGrid(grid);
+    removeStudyToggle();
+  }
+
+  /**
+   * Spelen/Leren-schakelaar weg (besluit producteigenaar, 2 aug 2026).
+   * Van de drie spellen in de lanceerscope heeft alleen Vlaggen Quiz een
+   * leerweergave; de andere twee worden in Leren-modus gedimd. Tussen tien
+   * kaarten viel dat niet op, met drie leverde het een tab op die er kapot
+   * uitzag.
+   *
+   * De leerweergave zelf blijft volledig in app.js bestaan — alleen de ingang
+   * is weg. Terugzetten is deze aanroep uit applyLaunchScope() halen.
+   */
+  function removeStudyToggle() {
+    var toggle = document.getElementById('mode-toggle');
+    if (toggle) toggle.remove();
   }
 
   function hideBrandGames() {
