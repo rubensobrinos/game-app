@@ -36,17 +36,17 @@ de laag die pas zin heeft als de schermen eronder staan.
 | E02 | Potje maken | landing | 1 | **Gedaan (`M6`, commit `a6be5d4`).** Knop-label wisselt zelf naar `Potje maken…` via de gedeelde `setButtonLoading()` (thema 2, T2-2) — spinner, breedte-lock, `aria-busy`. |
 | E03 | Speler komt binnen | lobby | 1 | **Gedaan (`M7`, commit `ed6d313`).** Nieuwe spelerchip fade+scale via reconciliatie (geen volledige lijstherbouw meer), tellerpuls gedebouncet (300ms) tegen bulkjoin-ruis. |
 | E04 | Countdown | rondestart | 1 | **Niet langer afhankelijk — thema 1 bouwde `S07`** (`1b7f40f`): `countdown`-substate in `gameplay.mjs`, cijfer uit `secondsRemaining(countdownEndsAt)`. Nog geen choreografie (tick-cue, opmaak) — dat is nu een niveau-1→2-vervolgstap, niet langer "bestaat niet". |
-| E05 | Antwoordselectie | vraag | 1 | Gekozen optie krijgt direct een accentrand — géén goed/fout, dus anti-afkijk klopt. Hergebruikt E01's pressfeedback (zie noot); geen aparte pressanimatie, geen haptiek. Nog steeds `M2`'s werk. |
-| E06 | Antwoord bevestigd | vraag | 1 | Statustekst verschijnt, opties vergrendelen. Bouwt óók op E01. Geen `Verstuurd ✓` in de component (bewust, `D-021`), andere opties dimmen niet. Nog steeds `M2`'s werk. |
+| E05 | Antwoordselectie | vraag | 2 | **Geverifieerd zonder wijziging (`M2`), zoals verwacht.** Pressfeedback (`M1`), merkaccent (`.is-selected`) en statusindicator (verzendstatus verschijnt direct — deze app heeft geen apart "selecteren vóór versturen"-moment, tikken verstuurt meteen) bestonden al alle drie. |
+| E06 | Antwoord bevestigd | vraag | 2 | **Gedaan (`M2`, commit `115a61b`).** Niet-gekozen opties dimmen (`.is-dimmed`, opacity) nu pas bij `answerStatus === 'accepted'`, niet meer tijdens `sending` (reviewbevinding: dimmen vóór serverbevestiging suggereert een bevestiging die er nog niet is). |
 | E07 | Laatste drie seconden | vraag | 1 | **Gedaan (`M8`, commit `f8ef891`).** Bouwt op thema 2's `.timer`/`.timer-track`/`.timer-fill`-balk (T2-3) — hun contrast (`--color-warning`) + mijn puls op `.timer-value`. `.gameplay-timer` (platte tekst) is vervangen en verwijderd. |
-| E08 | Ronde sluit | rondeslot | — | **Vervalt als apart event ná review.** Bestaat niet als zelfstandig clientmoment: `optionsLocked()` staat voor wie al antwoordde al sinds E06 op `true`, en voor wie niet antwoordde komt sluiten en de volledige uitslag (E09) gelijktijdig binnen via `round:ended`. Samengevoegd met het begin van E09; het ontbrekende protocolmoment is gemeld als `HANDOFF-UI`-item, niet stilzwijgend opgelost. |
-| E09 | Reveal correct antwoord | reveal | 1 | Correcte optie krijgt een groene rand, eigen resultaat verschijnt als tekst. Geen opbouw, fout gekozen optie wordt niet gemarkeerd. Nog steeds `M2`'s werk. |
-| E10 | Punten tellen | reveal | 1 | Eindwaarde staat direct in de DOM — goed voor toegankelijkheid. Geen oplopende telling. Nog steeds `M2`'s werk. |
+| E08 | Ronde sluit | rondeslot | — | **Vervalt als apart event ná review.** Bestaat niet als zelfstandig clientmoment: `optionsLocked()` staat voor wie al antwoordde al sinds E06 op `true`, en voor wie niet antwoordde komt sluiten en de volledige uitslag (E09) gelijktijdig binnen via `round:ended`. Samengevoegd met het begin van E09; gemeld als `HANDOFF-UI` **UI-19** (`M2`, commit `d7971e9`) — dit item bestond nog niet toen deze regel voor het eerst beweerde dat het al gemeld was. |
+| E09 | Reveal correct antwoord | reveal | 2 | **Gedaan (`M2`, commit `115a61b`).** Vaste opbouwvolgorde: correcte optie krijgt eerst een accentpuls, het tekstblok verschijnt kort daarna (CSS-`animation-delay`, tekst zelf staat synchroon in de aria-live-regio — geen vertraagde DOM-invoeging). Foute eigen keuze krijgt nu `.is-wrong` (niet-kleur ✕-icoon) + een sr-only "Jouw antwoord"-label — kleur was voorheen de enige informatiedrager. |
+| E10 | Punten tellen | reveal | 2 | **Gedaan (`M2`, commit `115a61b`).** Twee DOM-nodes: een `aria-hidden`-span telt kort op (requestAnimationFrame, 500ms) naar de eindwaarde, een `sr-only`-span krijgt die eindwaarde direct. Reduced motion expliciet via `matchMedia` in JS gecheckt (JS-gedreven telling, buiten bereik van `M0`'s CSS-blanket-regel). |
 | E11 | Rank movement | tussenstand | 1 | **Data/tekst door thema 1** (`b547c8f`): `rankMovementFrom()`, `↑2`/`↓1`-badge met kleur + volledige-zin-`aria-label`. **Visuele beweging door mij** (`M9`, commit `158d531`): FLIP-transform + eigen-rij-emphasis, reduced-motion-gate. Dicht bij niveau 2, maar (nog) niet volledig: "een niveau geldt pas als het volledig gehaald is" (`NIVEAUS.md`) — geen echte apparaat-verificatie van de FLIP-beweging, alleen headless. "Geen complexe animatie bij 100+" was al gedekt door de bestaande `slice(0, 5)`. |
 | E12 | Sociale headline | reveal | 1 | **Niet langer afhankelijk — thema 1 bouwde dit volledig** (`6700436`, `social-headline.mjs`): self-sole-correct/comeback/everyone-correct/everyone-wrong/misleading-answer, gewogen tegen expliciete drempels. Streak (E13) bewust buiten scope gehouden — "geen client heeft zicht op andermans streaks", zelfde conclusie als hieronder. |
 | E13 | Streak | reveal | 0 | **Correctie (`REVIEW.md`, tweede ronde): de vorige regel hier was achterhaald.** Geen protocolgat — thema 1 trok die analyse zelf in (`HANDOFF-UI` UI-16, herzien): **eigen** streak is al af te leiden uit de bestaande `round:ended`-geschiedenis, alleen nog niet gebouwd. Uitgewerkt als voorstel in [`11-verzoek-streak-reactiezinnen.md`](../1-schermen-en-flow/prompts/11-verzoek-streak-reactiezinnen.md) (thema 1's scope: `streak-model.mjs` + reactiezin + opt-out), wacht daar op bevestiging. Zodra dat gebouwd is, heeft thema 3 nog een kleine motion-laag te doen (`06`'s "kleine persoonlijke viering") — niet eerder. Geen `HANDOFF-UI`-item hier aanmaken, dat zou dupliceren tegen een al ingetrokken analyse. **Andermans** streak (het sociale feit, "Sanne zit op een streak") blijft wél niet-bouwbaar — dat is een ander soort moment dan dit, en zit terecht niet in `social-headline.mjs`. |
 | E14 | Podium | eind | 1 | **Stagger/skip door thema 1** (`b547c8f`): 3→2→1-reveal-volgorde, klik-om-te-skippen, winnaar-accent (`--color-accent-competition`, statisch). **Motion door mij** (`M10`, commit `148a132`): entrance-animatie, begrensde confetti, en een programmatische reduced-motion-gate die er nog niet was. Dicht bij niveau 2, maar confetti's performancebudget-conformiteit staat nog niet vastgelegd (wacht op `M5`'s audit) en niets is op een echt apparaat getest. |
-| E15 | Reconnecting | overal | 1 | Statusbalk verschijnt en verdwijnt. Geen voortgang, geen successcue. |
+| E15 | Reconnecting | overal | 2 | **Gedaan (`M2`, commit `2beb862`).** Voortgang: `reconnect.attempt` (bestond al, werd nergens getoond) nu zichtbaar via een **nieuwe** locale-sleutel (`connection.reconnectingAttempt`) — de bestaande, door thema 4 al uitgevoerde `connection.reconnecting` is niet zelf gewijzigd. **Coördinatiepunt, niet afgestemd:** deze nieuwe sleutel is toegevoegd zonder overleg met thema 4 — zie hieronder. Successcue: een korte, stille opacity-puls (`.session-banner-success`) i.p.v. een instante kleurwissel. |
 
 **E01 is geen los item.** E05 en E06 hergebruiken letterlijk dezelfde
 pressfeedback — `06` beschrijft die daar opnieuw omdat het de vraagcontext is,
@@ -88,8 +88,8 @@ beheer wordt gedekt, maar niet door motion.
 
 | Niveau | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| Momenten (14, `E08` vervallen/samengevoegd met `E09`) | 1 | 12 (2 dichtbij niveau 2: E11, E14 — zie hun rijen) | 1 (E01) | 0 |
-| Momenten incl. voorstel `E16` | 2 | 12 | 1 | 0 |
+| Momenten (14, `E08` vervallen/samengevoegd met `E09`) | 1 | 7 (2 dichtbij niveau 2: E11, E14 — zie hun rijen) | 6 | 0 |
+| Momenten incl. voorstel `E16` | 2 | 7 | 6 | 0 |
 | Fundamenten (Motion-tokens nu bij thema 2, zie hieronder) | 4 | 1 | 0 | 0 |
 
 **Let op voor wie dit vergelijkt met het lokale dashboard
@@ -105,6 +105,18 @@ werk: `M6`–`M10` deden vijf momenten, thema 1 deed zelfstandig E04/E11
 (deels)/E12 terwijl deze prompts nog klaarlagen. Alleen **E13 (streak)**
 staat nog op 0 — geen protocolgat (ingetrokken), maar een bouwbare feature
 die op bevestiging wacht (`11-verzoek-streak-reactiezinnen.md`).
+
+## Coördinatiepunt met thema 4: `connection.reconnectingAttempt` (nieuw, niet afgestemd)
+
+`M2`'s E15-implementatie voegde een nieuwe locale-sleutel toe
+(`connection.reconnectingAttempt.one`/`.other`, alle drie de talen) om
+`reconnect.attempt` te tonen. Bewust **niet** de bestaande
+`connection.reconnecting` gewijzigd — die is al door thema 4 uitgevoerd
+(`T4-2a`) en staat als zodanig in hun `PROGRESS.md`. Maar de nieuwe sleutel
+zelf is ook niet vooraf met thema 4 afgestemd, ondanks dat `M2`'s eigen
+prompt dat als coördinatiepunt noemde. Thema 4 checkt best of de exacte
+formulering ("Opnieuw verbinden… (poging {n})") past bij hun stijl/
+terminologie vóór dit als definitief geldt.
 
 ## Afhankelijkheden van andere thema's
 
@@ -187,3 +199,23 @@ van een prompt al ingehaald zijn. Bij elk van de vijf is dat gecontroleerd
 vóór het bouwen (niet aangenomen dat de eerder geschreven prompt nog
 klopt), en is er bijgebouwd op wat er al stond in plaats van te
 dupliceren.
+
+## Afgerond (3 aug 2026): `M1` en `M2`, ná tweede reviewronde
+
+- **`M1` (commit `99634a9`)** — E01 op de laatste drie controls
+  (`.btn-quiet`/`.btn-opt`/`.btn-icon`). Twee van de acht inventarisrijen
+  bleken al gemigreerd naar tokens (`REVIEW.md`) — gecorrigeerd vóór
+  bouwen, geen dubbel werk. E01 niveau 1 → 2.
+- **`M2` (commits `115a61b`, `2beb862`, `d7971e9`)** — E05 (geverifieerd,
+  geen wijziging nodig), E06 (dim pas bij `accepted`), E09 (vaste
+  opbouwvolgorde + niet-kleur foutmarkering), E10 (twee-node score-
+  telling), E15 (reconnect-voortgang + stille successcue) allemaal naar
+  niveau 2. E08's `HANDOFF-UI`-item (`UI-19`) bleek, ondanks een eerdere
+  bewering van het tegendeel in dit bestand, nog nooit aangemaakt —
+  rechtgezet vóór `M2` als afgerond gold.
+
+**Herhaling van hetzelfde patroon:** ook hier bleek een eerdere
+tussentijdse claim in dit bestand ("het protocolgat is al gemeld") niet
+te kloppen bij verificatie. Vastgelegd i.p.v. stilzwijgend gecorrigeerd,
+zodat een volgende lezer ziet wát er mis was, niet alleen de huidige
+stand.
