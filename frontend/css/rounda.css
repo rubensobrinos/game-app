@@ -1,0 +1,183 @@
+/* ============================================================
+   ROUNDA-RAD — lobby-game van Rounda
+   Component-stylesheet voor de bouw-agents.
+
+   Concept: het Rounda-rad (ring) draait; van boven valt een bal;
+   de speler veegt links/rechts om de opening met de juiste
+   kleur-zijkanten boven te krijgen op het moment dat de bal landt.
+
+   Structuur (verwachte DOM):
+
+   <div class="rounda">
+     <div class="rounda-ball"></div>
+     <div class="rounda-drop-line"></div>
+     <div class="rounda-wheel" style="--rounda-angle: 0deg">
+       <div class="rounda-wheel__ring"></div>
+       <div class="rounda-wheel__hole"><div class="rounda-wheel__core"></div></div>
+       <div class="rounda-gate rounda-gate--top">
+         <span class="rounda-gate__edge"></span><span class="rounda-gate__edge"></span>
+       </div>
+       <div class="rounda-gate rounda-gate--bottom">
+         <span class="rounda-gate__edge"></span><span class="rounda-gate__edge"></span>
+       </div>
+     </div>
+   </div>
+
+   Gameplay-aansturing vanuit JS:
+   - Draaien: zet --rounda-angle op .rounda-wheel (transform, geen re-layout).
+     In spelmodus GEEN keyframe-animatie gebruiken; de idle-spin
+     (.rounda-wheel--idle) is alleen voor de attract/lobby-stand.
+   - Balkleur: zet --rounda-ball-color op .rounda-ball.
+   - Tempo: --rounda-fall-duration korter maken naarmate de score stijgt.
+   - Openingsgrootte: --rounda-opening (in %, van de ringomtrek).
+     NB: dynamisch groter/kleiner worden van de opening is bewust
+     nog NIET in scope — de variabele staat klaar, laat 'm op 14%.
+   ============================================================ */
+
+:root {
+  /* merk */
+  --rounda-bg: #0a0a0c;
+  --rounda-surface: #101015;
+  --rounda-lime: #d8ff3e;          /* merk / ring */
+  --rounda-cyan: #4ad2ff;          /* opening A */
+  --rounda-magenta: #ff3ea5;       /* opening B */
+  --rounda-text: #f4f4f6;
+  --rounda-text-dim: #5c5c6b;
+
+  /* maatvoering */
+  --rounda-size: 228px;            /* buitendiameter rad */
+  --rounda-ring: 30px;             /* dikte van de ring */
+  --rounda-opening: 14%;           /* breedte per opening, % van de omtrek (vast houden) */
+  --rounda-edge-w: 7px;            /* dikte kleur-zijkant */
+  --rounda-edge-h: 32px;           /* hoogte kleur-zijkant */
+  --rounda-ball-size: 24px;
+
+  /* beweging */
+  --rounda-angle: 0deg;            /* actuele rotatie (JS) */
+  --rounda-idle-spin: 14s;         /* attract-stand */
+  --rounda-fall-duration: 1.6s;    /* valtijd bal (JS: korter bij hogere score) */
+}
+
+.rounda {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--rounda-bg);
+  touch-action: pan-y;            /* horizontale veeg is van het spel */
+  user-select: none;
+}
+
+/* ---- het rad ---- */
+
+.rounda-wheel {
+  position: relative;
+  width: var(--rounda-size);
+  height: var(--rounda-size);
+  transform: rotate(var(--rounda-angle));
+  will-change: transform;
+}
+.rounda-wheel--idle { animation: rounda-spin var(--rounda-idle-spin) linear infinite; }
+
+/* Ring met twee echte openingen (boven en onder), elk --rounda-opening breed.
+   De openingen zijn transparant: je kijkt door het rad heen. */
+.rounda-wheel__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 calc(var(--rounda-opening) / 2),
+    var(--rounda-lime) calc(var(--rounda-opening) / 2) calc(50% - var(--rounda-opening) / 2),
+    transparent calc(50% - var(--rounda-opening) / 2) calc(50% + var(--rounda-opening) / 2),
+    var(--rounda-lime) calc(50% + var(--rounda-opening) / 2) calc(100% - var(--rounda-opening) / 2),
+    transparent calc(100% - var(--rounda-opening) / 2) 100%
+  );
+}
+
+/* gat in het midden -> ring i.p.v. schijf */
+.rounda-wheel__hole {
+  position: absolute;
+  inset: var(--rounda-ring);
+  border-radius: 50%;
+  background: var(--rounda-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rounda-wheel__core {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--rounda-lime);
+}
+
+/* ---- de openingen: twee gekleurde zijkanten per opening ----
+   =====|          |=====
+   De zijkanten staan op de uiteinden van de opening en draaien mee
+   met het rad (ze zitten IN .rounda-wheel). */
+
+.rounda-gate {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.rounda-gate--bottom { transform: rotate(180deg); }
+
+.rounda-gate > .rounda-gate__edge {
+  position: absolute;
+  top: -5px;
+  width: var(--rounda-edge-w);
+  height: var(--rounda-edge-h);
+  border-radius: 4px;
+}
+/* chord-breedte hoort bij --rounda-opening 14% op 228px; bij andere
+   maten: chord = size * sin(opening-in-graden / 2), hier ~104px */
+.rounda-gate > .rounda-gate__edge:first-child { left: calc(50% - 52px); }
+.rounda-gate > .rounda-gate__edge:last-child  { left: calc(50% + 52px - var(--rounda-edge-w)); }
+
+.rounda-gate--top    > .rounda-gate__edge { background: var(--rounda-cyan); }
+.rounda-gate--bottom > .rounda-gate__edge { background: var(--rounda-magenta); }
+
+/* ---- de bal ---- */
+
+.rounda-ball {
+  width: var(--rounda-ball-size);
+  height: var(--rounda-ball-size);
+  border-radius: 50%;
+  --rounda-ball-color: var(--rounda-cyan); /* JS wisselt per beurt */
+  background: var(--rounda-ball-color);
+  box-shadow: 0 0 14px color-mix(in oklab, var(--rounda-ball-color) 55%, transparent);
+}
+.rounda-ball--waiting { animation: rounda-bob 1s ease-in-out infinite; }
+.rounda-ball--falling { animation: rounda-fall var(--rounda-fall-duration) cubic-bezier(.45, 0, .9, .6) forwards; }
+
+.rounda-drop-line {
+  width: 1px;
+  height: 40px;
+  background: repeating-linear-gradient(180deg, #2a2a34 0 6px, transparent 6px 12px);
+}
+
+/* ---- feedback ---- */
+
+.rounda-wheel--catch .rounda-wheel__ring { filter: brightness(1.25); transition: filter .12s; }
+.rounda-wheel--miss  { animation: rounda-shake .28s ease-in-out; }
+
+/* ---- keyframes ---- */
+
+@keyframes rounda-spin { to { transform: rotate(calc(var(--rounda-angle) + 360deg)); } }
+@keyframes rounda-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes rounda-fall {
+  from { transform: translateY(0); }
+  to   { transform: translateY(calc(var(--rounda-size) / 2 + 40px + var(--rounda-ball-size))); }
+}
+@keyframes rounda-shake {
+  0%, 100% { transform: translateX(0) rotate(var(--rounda-angle)); }
+  25% { transform: translateX(-4px) rotate(var(--rounda-angle)); }
+  75% { transform: translateX(4px) rotate(var(--rounda-angle)); }
+}
+
+/* Toegankelijkheid: geen ambient beweging voor wie dat vraagt */
+@media (prefers-reduced-motion: reduce) {
+  .rounda-wheel--idle, .rounda-ball--waiting { animation: none; }
+}

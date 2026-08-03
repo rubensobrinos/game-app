@@ -217,7 +217,7 @@ export const en = Object.freeze({
   'shapes.peak': 'Peak',
   'shapes.block': 'Block',
 
-  'rondo.explanation': 'Swipe to spin the wheel and catch the ball',
-  'rondo.lobbyRecord': 'Best of this lobby: {n}',
-  'rondo.pauseMessage': 'Hang tight — try the wheel!',
+  'rounda.explanation': 'Swipe to spin the wheel and catch the ball',
+  'rounda.lobbyRecord': 'Best of this lobby: {n}',
+  'rounda.pauseMessage': 'Hang tight — try the wheel!',
 });

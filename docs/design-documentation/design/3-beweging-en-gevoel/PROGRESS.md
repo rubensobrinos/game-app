@@ -18,15 +18,16 @@ Schaal: [`NIVEAUS.md`](../NIVEAUS.md)
 **Bijgewerkt:** 3 augustus 2026 · `M6`–`M10` uitgevoerd (commits `0a4c9d6`
 t/m `148a132`), plus thema 1's zelfstandige bijdrage aan E04/E11/E12/E14
 
-## BOUWSPRINT (3 aug 2026, geen review) — Rondo, reveal-tempo, E04, geluid
+## BOUWSPRINT (3 aug 2026, geen review) — Rounda-minigame, reveal-tempo, E04, geluid
 
 Snel-achter-elkaar, klein gecommit, niet op review gewacht:
 
-- **Rondo** (`cead71c`, `a8c3bbf`): `rondo-model.mjs` (puur, 17 tests) +
-  `rondo.mjs` per het DOM-contract in `rondo.css` (niet aangeraakt).
-  Ingehangen op pauze-overlay (speler), reconnect-wacht, podium-voor-
-  niet-hosts. **Lobby-hookup geparkeerd** — `lobby.mjs` stond onstaged bij
-  een andere agent.
+- **Rounda-minigame** (`cead71c`, `a8c3bbf`, hernoemd ná een kort intern
+  regie/producteigenaar-geschil — zie `HANDOFF-UI.md` UI-23-omgeving):
+  `rounda-model.mjs` (puur, 17 tests) + `rounda.mjs` per het DOM-contract
+  in `rounda.css`. Ingehangen op pauze-overlay (speler), reconnect-wacht,
+  podium-voor-niet-hosts. **Lobby-hookup geparkeerd** — `lobby.mjs` stond
+  onstaged bij een andere agent.
 - **Reveal-tempo** (`a753439`): E10's scoretelling liep grotendeels
   onzichtbaar af vóórdat `.gameplay-reveal-enter` 'm toonde — nu
   gesynchroniseerd (telling start ná dezelfde `--motion-emphasis`-vertraging).
@@ -39,7 +40,7 @@ Snel-achter-elkaar, klein gecommit, niet op review gewacht:
   kreeg tijdens deze sprint zelf een volledige timer-bar-vervanging).
 - **M5-meting, M3/M11**: bewust niet aangeraakt, blijven ⏸.
 
-**Nog open, geparkeerd op bezette bestanden:** Rondo→lobby, sound-cues→
+**Nog open, geparkeerd op bezette bestanden:** Rounda→lobby, sound-cues→
 lobby.mjs (join) en →gameplay.mjs (urgent/reveal). Opgepakt zodra die vrij
 zijn.
 

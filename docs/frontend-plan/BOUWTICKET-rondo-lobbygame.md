@@ -1,8 +1,15 @@
-# Bouwticket — Rondo, de lobby-minigame
+# Bouwticket — Rounda, de lobby-minigame
+
+**Naamcorrectie (producteigenaar, 3 aug 2026, ná een kort intern geschil —
+zie `HANDOFF-UI.md` UI-23-omgeving): de lobby-minigame heet Rounda, geen
+aparte "Rondo"-subnaam.** Bestandsnaam van dit ticket ongewijzigd
+(stabiele link), inhoud hieronder bijgewerkt. Component en stylesheet zijn
+hernoemd naar `rounda.mjs`/`rounda-model.mjs`/`rounda.css` (inclusief alle
+`--rondo-*`/`.rondo-*`-namen daarin, samen met het component hernoemd).
 
 **Bron:** producteigenaar, 3 aug 2026. Stylesheet aangeleverd en vastgelegd
-als `frontend/css/rondo.css` (compleet: DOM-contract in de kop, namespaced
-`--rondo-*`-variabelen, reduced-motion gedekt). **Dit ticket = de JS + de
+als `frontend/css/rounda.css` (compleet: DOM-contract in de kop, namespaced
+`--rounda-*`-variabelen, reduced-motion gedekt). **Dit ticket = de JS + de
 inhang; de CSS is af en wordt niet aangepast zonder producteigenaar.**
 
 ## Wat het is
@@ -14,14 +21,14 @@ zonder uitleg, telt niet mee voor de score, puur wachttijd-plezier.
 
 ## Te bouwen (in volgorde)
 
-1. `frontend/js/views/rondo.mjs` — het component conform het DOM-contract
+1. `frontend/js/views/rounda.mjs` — het component conform het DOM-contract
    in de CSS-kop. Aansturing exact zoals daar beschreven:
-   - draaien: `--rondo-angle` op `.rondo-wheel` zetten (geen keyframes in
-     spelmodus; `.rondo-wheel--idle` alleen voor de attract-stand);
+   - draaien: `--rounda-angle` op `.rounda-wheel` zetten (geen keyframes in
+     spelmodus; `.rounda-wheel--idle` alleen voor de attract-stand);
    - veeg/pointer: horizontaal, `touch-action: pan-y` staat al in de CSS;
-   - balkleur per beurt: `--rondo-ball-color` (cyaan ↔ magenta);
-   - raak/mis: `.rondo-wheel--catch` / `.rondo-wheel--miss`;
-   - tempo: `--rondo-fall-duration` korter bij hogere streak;
+   - balkleur per beurt: `--rounda-ball-color` (cyaan ↔ magenta);
+   - raak/mis: `.rounda-wheel--catch` / `.rounda-wheel--miss`;
+   - tempo: `--rounda-fall-duration` korter bij hogere streak;
    - opening NIET dynamisch maken (staat expliciet buiten scope, 14%).
 2. Inhang op ALLE wachtmomenten (aanvulling producteigenaar, 3 aug):
    de regel is "overal waar je wacht, nergens waar je speelt".

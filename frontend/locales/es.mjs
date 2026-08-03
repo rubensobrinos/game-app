@@ -215,7 +215,7 @@ export const es = Object.freeze({
   'shapes.peak': 'Pico',
   'shapes.block': 'Bloque',
 
-  'rondo.explanation': 'Desliza para girar la rueda y atrapar la bola',
-  'rondo.lobbyRecord': 'Mejor de esta sala: {n}',
-  'rondo.pauseMessage': 'Un momento — ¡prueba la rueda!',
+  'rounda.explanation': 'Desliza para girar la rueda y atrapar la bola',
+  'rounda.lobbyRecord': 'Mejor de esta sala: {n}',
+  'rounda.pauseMessage': 'Un momento — ¡prueba la rueda!',
 });

@@ -946,3 +946,34 @@ velden ónder elkaar op de voorpagina stonden, en de sublabel van de startknop
 aan het label plakte ("Start direct een gameJe bent de spelleider"). Beide
 gerepareerd in `974ba34` in `components.css`; de opbouw in `home.mjs` is niet
 aangeraakt.
+
+
+## UI-23 — BESLOTEN (regie, grote review): "+N meer"-stapel en thema 5-grid naast elkaar
+
+Breekpunt scheidt ze: smal/mobiel = 1c-rijenlijst met "+N meer"-stapel
+(thema 1 bouwt binnen de smalle weergave); brede hostwand >=1200px =
+thema 5's grid. Geen van beide vervangt de ander.
+
+## Reviewnotitie (regie): Rondo heet Rondo
+
+Sprintrename rondo->rounda teruggedraaid: Rounda is het product, Rondo de
+lobby-minigame (1c-ontwerp, rondo.css, bouwticket). Import-breuk die tijdens
+de rename kort bestond is gedicht; naamgeving is hiermee canoniek.
+
+### ✅ VERVALLEN (producteigenaar, 3 aug 2026, ná deze reviewnotitie)
+
+Bovenstaand regie-besluit is expliciet ingetrokken door de producteigenaar:
+"alles heet Rounda" — ook de lobby-minigame zelf, geen aparte
+"Rondo"-subnaam. Hernoemd: `frontend/js/views/rondo.mjs`/`rondo-model.mjs`
+→ `rounda.mjs`/`rounda-model.mjs`, `frontend/css/rondo.css` →
+`frontend/css/rounda.css` (inclusief alle `--rondo-*`/`.rondo-*`-namen
+daarin, component en CSS zijn samen hernoemd, niet los), de drie
+`rondo.*`-taalsleutels → `rounda.*`. `docs/frontend-plan/
+BOUWTICKET-rondo-lobbygame.md` behoudt zijn bestandsnaam (product-
+eigenaar-document, niet zelf hernoemd) maar de prose erin is bijgewerkt.
+
+Deze twee reviewnotities spreken elkaar dus tegen — dat is bewust zichtbaar
+gelaten in plaats van de eerdere regel stil te verwijderen, zodat een
+volgende lezer de geschiedenis van de knoop ziet in plaats van 'm opnieuw
+door te hakken. **Dit is de geldende stand; niet opnieuw omdraaien zonder
+een nieuw, expliciet producteigenaarbesluit.**

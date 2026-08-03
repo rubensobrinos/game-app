@@ -285,14 +285,15 @@ export const nl = Object.freeze({
   'shapes.peak': 'Piek',
   'shapes.block': 'Blok',
 
-  // BOUWSPRINT: het volledige Rondo-vocabulaire uit
-  // `docs/frontend-plan/BOUWTICKET-rondo-lobbygame.md` — dat ticket zelf
-  // bevat GEEN copy (geen uitleg, geen lobbyrecord-label, geen
-  // pauzemelding), dus ook dit zijn zelf vastgelegde placeholders, niet
-  // overgenomen uit een bestaand mockup. Eigenaarschap van het component
-  // zelf (`rondo.mjs`) ligt bij thema 1+3, niet hier — deze sleutels staan
-  // klaar om in te haken zodra dat component bestaat.
-  'rondo.explanation': 'Veeg om het rad te draaien en de bal te vangen',
-  'rondo.lobbyRecord': 'Beste van deze lobby: {n}',
-  'rondo.pauseMessage': 'Nog even geduld — probeer het rad!',
+  // BOUWSPRINT: het volledige Rounda-vocabulaire uit
+  // `docs/frontend-plan/BOUWTICKET-rondo-lobbygame.md` (ticketnaam zelf
+  // ongewijzigd, product-eigenaar-bestand) — dat ticket zelf bevat GEEN
+  // copy (geen uitleg, geen lobbyrecord-label, geen pauzemelding), dus ook
+  // dit zijn zelf vastgelegde placeholders, niet overgenomen uit een
+  // bestaand mockup. Eigenaarschap van het component zelf (`rounda.mjs`)
+  // ligt bij thema 1+3, niet hier — deze sleutels staan klaar om in te
+  // haken zodra dat component bestaat.
+  'rounda.explanation': 'Veeg om het rad te draaien en de bal te vangen',
+  'rounda.lobbyRecord': 'Beste van deze lobby: {n}',
+  'rounda.pauseMessage': 'Nog even geduld — probeer het rad!',
 });

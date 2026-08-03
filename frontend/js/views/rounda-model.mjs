@@ -1,16 +1,17 @@
-// views/rondo-model.mjs — Rondo, de lobby-minigame (BOUWTICKET-rondo-
+// views/rounda-model.mjs — Rounda, de lobby-minigame (BOUWTICKET-rondo-
 // lobbygame.md). Pure logica: rotatie, vangen/missen, streak/tempo. Geen
-// DOM, geen timers — dat zit in rondo.mjs, zelfde scheiding als round-model.
-// mjs/reveal-model.mjs.
+// DOM, geen timers — dat zit in rounda.mjs, zelfde scheiding als round-
+// model.mjs/reveal-model.mjs.
 //
-// Spelidee: het rad heeft twee openingen, 180° uit elkaar (rondo.css'
+// Spelidee: het rad heeft twee openingen, 180° uit elkaar (rounda.css'
 // conic-gradient) — de bovenste (wheel-lokaal 0°) heeft cyaan-zijkanten, de
 // onderste (wheel-lokaal 180°) magenta. De bal valt altijd recht naar
-// beneden (vaste `--rondo-drop-line`); de speler draait het rad zodat de
+// beneden (vaste `.rounda-drop-line`); de speler draait het rad zodat de
 // opening met de kleur van de bal onder die lijn staat op het moment dat de
-// bal landt.
+// bal landt. (`--rounda-*` is rounda.css's eigen naamgeving, niet de onze —
+// zie rounda.mjs.)
 
-// --rondo-opening (rondo.css) — vast op 14% van de omtrek, NIET dynamisch
+// --rounda-opening (rounda.css) — vast op 14% van de omtrek, NIET dynamisch
 // maken (expliciet buiten scope). Vangen = binnen de halve openingsbreedte
 // van het middelpunt van de juiste kleur-opening.
 const OPENING_FRACTION = 0.14;
@@ -19,14 +20,14 @@ const OPENING_HALF_DEG = (OPENING_FRACTION * 360) / 2;
 const CYAN_CENTER_DEG = 0;
 const MAGENTA_CENTER_DEG = 180;
 
-// --rondo-fall-duration (rondo.css) — korter bij hogere streak, geclamped
+// --rounda-fall-duration (rounda.css) — korter bij hogere streak, geclamped
 // zodat het nooit onspeelbaar snel wordt.
 const MIN_FALL_MS = 700;
 const MAX_FALL_MS = 1600;
 const FALL_MS_PER_STREAK = 80;
 
 /** @returns {{phase: 'idle'|'waiting'|'falling'|'result', angleDeg: number, ballColor: 'cyan'|'magenta', streak: number, best: number, lastOutcome: 'catch'|'miss'|null}} */
-export function initialRondoState() {
+export function initialRoundaState() {
   return Object.freeze({
     phase: 'idle',
     angleDeg: 0,
@@ -56,7 +57,7 @@ export function rotate(state, deltaDeg) {
   return { ...state, angleDeg: normalizeAngle(state.angleDeg + deltaDeg) };
 }
 
-/** Bal begint te vallen (rondo.mjs bepaalt wannéér, na de wachttijd). */
+/** Bal begint te vallen (rounda.mjs bepaalt wannéér, na de wachttijd). */
 export function drop(state) {
   if (state.phase !== 'waiting') {
     return state;
@@ -69,7 +70,7 @@ export function land(state) {
   if (state.phase !== 'falling') {
     return state;
   }
-  const outcome = rondoOutcomeFor({ angleDeg: state.angleDeg, ballColor: state.ballColor });
+  const outcome = roundaOutcomeFor({ angleDeg: state.angleDeg, ballColor: state.ballColor });
   const streak = outcome === 'catch' ? state.streak + 1 : 0;
   const best = Math.max(state.best, streak);
   return { ...state, phase: 'result', lastOutcome: outcome, streak, best };
@@ -94,13 +95,13 @@ export function nextRound(state) {
  * @param {{angleDeg: number, ballColor: 'cyan'|'magenta'}} input
  * @returns {'catch'|'miss'}
  */
-export function rondoOutcomeFor({ angleDeg, ballColor }) {
+export function roundaOutcomeFor({ angleDeg, ballColor }) {
   const center = ballColor === 'magenta' ? MAGENTA_CENTER_DEG : CYAN_CENTER_DEG;
   const distance = angularDistance(normalizeAngle(angleDeg), center);
   return distance <= OPENING_HALF_DEG ? 'catch' : 'miss';
 }
 
-/** `--rondo-fall-duration` in ms — korter naarmate de streak stijgt. */
+/** `--rounda-fall-duration` in ms — korter naarmate de streak stijgt. */
 export function fallDurationMsFor(streak) {
   const validStreak = typeof streak === 'number' && streak >= 0 ? Math.floor(streak) : 0;
   return Math.max(MIN_FALL_MS, MAX_FALL_MS - validStreak * FALL_MS_PER_STREAK);
