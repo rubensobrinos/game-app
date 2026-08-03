@@ -164,10 +164,10 @@ h1, h2 {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.gameplay-timer {
-  font: 700 26px/1 var(--font-mono);
-  color: var(--rounda-lime);
-}
+/* UI-22 (thema 2, bouwsprint): .gameplay-timer is hier verwijderd — de
+   segmententimer styleert zichzelf op rol (.timer-value, systeemtokens).
+   Les geaccepteerd: deze laag stylet vanaf nu per ROL, niet per instantie;
+   bestaande instantie-selectors worden bij de grote review omgehangen. */
 .gameplay-flag {
   border-radius: 20px;
   border: 1px solid var(--rounda-row-border);
