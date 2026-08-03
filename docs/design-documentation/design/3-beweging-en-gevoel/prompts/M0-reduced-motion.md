@@ -1,36 +1,40 @@
 # Prompt — M0: `prefers-reduced-motion` als vaste regel
 
-**🟡 Deels gedaan — blanket-regel bestaat, maar dekt de eis niet volledig.**
-`base.css` bevat een `@media (prefers-reduced-motion: reduce)`-blok
-(`*, *::before, *::after`, `animation-duration`/`transition-duration` naar
-`0.001ms`, `scroll-behavior: auto`). **Reviewbevinding, terecht:** dit
-verkort een `:active`-scale (`transform: scale(0.98)`) naar 0,001 ms, maar
-verwijdert 'm niet. `06` §7 zegt expliciet "geen scale/spring" — een scale
-van 0,001 ms is nog steeds een scale, ook al is 'm onwaarneembaar snel. De
-blanket-regel is een goed vangnet voor *duur*, maar geen vervanging voor
-`06`'s eis dat het *soort* motion (scale) onder reduced motion wegvalt.
+**✅ Gedaan — commit `7a146a0`.** `base.css` bevat een
+`@media (prefers-reduced-motion: reduce)`-blok met twee regels: de bestaande
+blanket-regel (`*, *::before, *::after`, `animation-duration`/
+`transition-duration` naar `0.001ms`, `scroll-behavior: auto`) plus de
+aanvulling uit deze prompt, `transform: none !important` op de vier
+`:active`-controls (`.btn-primary`, `.btn-secondary`, `.btn-destructive`,
+`.gameplay-option:not(:disabled)`, ook `.podium-rematch`) met een
+non-transform-vervanging (box-shadow/border-color/background) zodat de
+interactie voelbaar blijft zonder scale.
 
-**Aanvullende, nog te bouwen stap:** een tweede regel die `transform`
-specifiek naar `none` zet voor de bestaande `:active`-selectors, met een
-niet-transform-vervanging (kleur/rand/achtergrond, zie ook `M1` punt 6 van
-de review) zodat de interactie voelbaar blijft zonder scale:
+**Reviewbevinding die dit oploste:** de blanket-regel verkortte een
+`:active`-scale (`transform: scale(0.98)`) naar 0,001 ms, maar verwijderde
+'m niet — `06` §7 zegt expliciet "geen scale/spring", en een scale van
+0,001 ms is nog steeds een scale. De blanket-regel bleef een goed vangnet
+voor *duur*, maar was geen vervanging voor `06`'s eis dat het *soort*
+motion (scale) onder reduced motion wegvalt.
 
-```css
-@media (prefers-reduced-motion: reduce) {
-  .btn-primary:active,
-  .btn-secondary:active,
-  .btn-destructive:active,
-  .gameplay-option:not(:disabled):active,
-  .podium-rematch:active {
-    transform: none;
-  }
-}
-```
+**`!important` nodig gebleken, niet optioneel:** een eerste versie zonder
+`!important` op `transform: none` werd geverifieerd via CDP
+(`forcePseudoState` + `getComputedStyle`) en bleek niet te werken — computed
+`transform` bleef `matrix(0.98, 0, 0, 0.98, 0, 0)` onder reduced motion.
+Oorzaak: `base.css` laadt vóór `components.css`; bij gelijke specificity
+wint de latere, onvoorwaardelijke regel (`components.css`'s
+`transform: scale(...)`), ongeacht de mediaquery. Met `!important` op
+`transform: none` specifiek is dit opgelost en herverifieerd:
 
-Dit is een aparte regel ná de bestaande blanket-regel, niet een vervanging
-ervan — de blanket-regel blijft duur-vangnet voor alles wat `M1`/`M2`/`M3`
-later toevoegen; deze regel is specifiek voor de scale-uitzondering die `06`
-§7 met naam noemt.
+- `.btn-primary`/`.btn-secondary` direct via CDP in beide motion-modi:
+  scale weg + vervanging zichtbaar onder `reduce`
+  (`transform: none`, `box-shadow`/`border-color` zichtbaar), scale
+  ongewijzigd onder `no-preference` (geen regressie).
+- `.btn-destructive`/`.gameplay-option` delen dezelfde `!important`-regel
+  in hetzelfde blok — niet los herverifieerd via CDP, maar structureel
+  gedekt: `!important` wint sowieso over een niet-`!important`-regel,
+  ongeacht specificity of brondocumentvolgorde, dus het mechanisme is
+  selector-onafhankelijk.
 
 Oorspronkelijke opzet, bewust de eerste stap, vóór er ook maar één nieuwe
 animatie bijkomt:
@@ -91,12 +95,17 @@ garanderen. Deze prompt legt de vloer, niet de volledige eis.
 
 ## Definition of done
 
-- Handmatig geverifieerd in headless Chromium met
-  `page.emulateMedia({ reducedMotion: 'reduce' })`: de bestaande
-  `:active`-scales (primary/secondary/destructive/gameplay-option) worden
-  vrijwel instant in plaats van over hun huidige duur.
-- Geen visuele regressie in de normale modus (`reducedMotion: 'no-preference'`
-  of niet gezet) — de blanket-regel raakt alleen het reduced-motion-pad.
+- ✅ Handmatig geverifieerd via CDP (`forcePseudoState` + `getComputedStyle`,
+  niet alleen CSS-broncode gelezen): de bestaande `:active`-scales
+  (primary/secondary geverifieerd, destructive/gameplay-option structureel
+  gedekt door dezelfde `!important`-regel) worden onder reduced motion
+  daadwerkelijk `transform: none`, niet alleen vrijwel instant.
+- ✅ Geen visuele regressie in de normale modus
+  (`reducedMotion: 'no-preference'`): scale blijft ongewijzigd
+  (`matrix(0.98,...)`/`matrix(0.99,...)`), alleen het reduced-motion-pad is
+  geraakt.
+- ✅ `node --test`: 368/368 groen, geen regressie (CSS-only wijziging).
 - `PROGRESS.md`'s fundament "`prefers-reduced-motion`" van niveau 0 naar 1
-  (blanket-regel bestaat) — niveau 2 pas zodra `M2`'s inhoudelijke
-  vervangingen ook staan.
+  (blanket-regel + scale-verwijdering bestaan) — niveau 2 pas zodra `M2`'s
+  inhoudelijke vervangingen (podium direct compleet, score direct
+  definitief, geen carrousel) ook staan.

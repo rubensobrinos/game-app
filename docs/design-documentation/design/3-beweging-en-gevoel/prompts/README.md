@@ -9,7 +9,7 @@ uit die review, niet meer de oorspronkelijke volgorde uit `PROGRESS.md`.
 
 | Bestand | Fase | Status | Dekt | Afhankelijk van |
 | --- | --- | --- | --- | --- |
-| [`M0-reduced-motion.md`](M0-reduced-motion.md) | M0 | 🟡 deels gedaan, scale-fix nog te doen | `prefers-reduced-motion`: blanket-regel + scale echt uitschakelen | niets |
+| [`M0-reduced-motion.md`](M0-reduced-motion.md) | M0 | ✅ gedaan (`7a146a0`) | `prefers-reduced-motion`: blanket-regel + scale echt uitgeschakeld | niets |
 | [`M1-motion-tokens-en-e01.md`](M1-motion-tokens-en-e01.md) | M1 | 🔵 klaar om te bouwen | E01 op álle acht controls (volledige inventaris), transities aanvullen i.p.v. vervangen | M0, **thema 2's motion-tokens** (`HANDOFF-UI` UI-9) |
 | [`M2-choreografie-niveau1-naar-2.md`](M2-choreografie-niveau1-naar-2.md) | M2 | 🔵 klaar om te bouwen | E05/E06/E09/E10/E15 naar niveau 2. E08 samengevoegd met E09 (protocolgat, gemeld) | M1 |
 | [`M5-performancebudget.md`](M5-performancebudget.md) | M5 | 🔵 klaar om te bouwen | `06` §9 als meetbare gate, direct ná M2 | M1, M2 (niet M3) |
@@ -18,8 +18,8 @@ uit die review, niet meer de oorspronkelijke volgorde uit `PROGRESS.md`.
 
 ## Uitvoeringsvolgorde (herzien ná review)
 
-1. **M0** — verifiëren dat de bestaande blanket-regel klopt, plus de
-   scale-verwijdering die de review terecht miste.
+1. ✅ **M0** — gedaan (`7a146a0`): blanket-regel geverifieerd, scale-
+   verwijdering die de review terecht miste toegevoegd en herverifieerd.
 2. **M1** — wacht op thema 2's tokens (`UI-9`), dan E01 op de volledige
    inventaris van acht controls.
 3. **M2** — met E08 samengevoegd/geparkeerd en E06 pas bij `accepted`, niet
