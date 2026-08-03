@@ -8,8 +8,12 @@ M1/M2/M4 bijgesteld, M3 geparkeerd. Volgorde hieronder volgt het eindadvies
 uit die review, niet meer de oorspronkelijke volgorde uit `PROGRESS.md`.
 M0/M4 zijn intussen gebouwd; thema 2 heeft de motion-tokens geleverd
 (`8eb1996`), dus M1 is niet langer geblokkeerd. M6–M10 zijn nieuw
-geschreven voor de vijf resterende zelfstandige niveau-0-momenten — nog
-niet uitgevoerd, wachten op review.
+geschreven voor de vijf resterende zelfstandige niveau-0-momenten.
+
+**M6–M10 zijn gereviewd, zie [`REVIEW.md`](REVIEW.md).** Geen blokkerende
+fouten — wel twee kleurtoken-verwijzingen die inmiddels een concreet
+antwoord hebben (`M8`, `M10`) en één open coördinatiepunt met thema 4 over
+`09` §9/§10 vs. `M9`'s `↑2`/`↓1`-notatie, nog niet zelf opgelost.
 
 | Bestand | Fase | Status | Dekt | Afhankelijk van |
 | --- | --- | --- | --- | --- |
@@ -19,11 +23,11 @@ niet uitgevoerd, wachten op review.
 | [`M5-performancebudget.md`](M5-performancebudget.md) | M5 | 🔵 klaar om te bouwen | `06` §9 als meetbare gate, direct ná M2 | M1, M2 (niet M3) |
 | [`M4-mute-mechanisme.md`](M4-mute-mechanisme.md) | M4 | ✅ gedaan (`0d94744`) | Alleen de voorkeurlaag (`loadMuted`/`saveMuted` + gedeelde `safeSet`) — **geen zichtbare schakelaar** tot er geluid is | niets |
 | [`M3-e16-dialoog-transities.md`](M3-e16-dialoog-transities.md) | M3 | ⏸️ geparkeerd | Voorstel `E16` — pas uitvoeren ná bevestiging + na ontwerp van een gedeelde dialog-lifecycle-helper | `E16` bevestigd, `M1` |
-| [`M6-e02-potje-maken.md`](M6-e02-potje-maken.md) | M6 | 🟡 nieuw, wacht op review | E02 niveau 0→1: knop-label + progressindicator | niets |
-| [`M7-e03-speler-komt-binnen.md`](M7-e03-speler-komt-binnen.md) | M7 | 🟡 nieuw, wacht op review | E03 niveau 0→1: chip-fade + tellerpuls + bulkjoin-debounce; vraagt eerst een reconciliatiefix in `lobby.mjs` | niets |
-| [`M8-e07-laatste-drie-seconden.md`](M8-e07-laatste-drie-seconden.md) | M8 | 🟡 nieuw, wacht op review | E07 niveau 0→1: timer-urgentie (contrast + puls) | niets |
-| [`M9-e11-rank-movement.md`](M9-e11-rank-movement.md) | M9 | 🟡 nieuw, wacht op review | E11 niveau 0→1: FLIP-rankbeweging + `↑2`/`↓1`; vraagt eerst nieuwe "vorige positie"-state | niets |
-| [`M10-e14-podium.md`](M10-e14-podium.md) | M10 | 🟡 nieuw, wacht op review | E14 niveau 0→1: 3→2→1-opbouw, begrensde confetti, skip | niets |
+| [`M6-e02-potje-maken.md`](M6-e02-potje-maken.md) | M6 | 🔵 gereviewd, klaar om te bouwen | E02 niveau 0→1: knop-label + progressindicator | niets |
+| [`M7-e03-speler-komt-binnen.md`](M7-e03-speler-komt-binnen.md) | M7 | 🔵 gereviewd, klaar om te bouwen | E03 niveau 0→1: chip-fade + tellerpuls + bulkjoin-debounce; vraagt eerst een reconciliatiefix in `lobby.mjs` | niets |
+| [`M8-e07-laatste-drie-seconden.md`](M8-e07-laatste-drie-seconden.md) | M8 | 🔵 gereviewd, klaar om te bouwen | E07 niveau 0→1: timer-urgentie (contrast + puls, gebruik `--color-warning`) | niets |
+| [`M9-e11-rank-movement.md`](M9-e11-rank-movement.md) | M9 | 🟠 gereviewd, tekst-notatie nog open | E11 niveau 0→1: FLIP-rankbeweging + `↑2`/`↓1`; vraagt eerst nieuwe "vorige positie"-state, ván de precieze delta-tekst eerst afstemmen met thema 4 (zie `REVIEW.md`) | niets |
+| [`M10-e14-podium.md`](M10-e14-podium.md) | M10 | 🔵 gereviewd, klaar om te bouwen | E14 niveau 0→1: 3→2→1-opbouw, begrensde confetti, skip (winnaar-accent via `--color-accent-competition`) | niets |
 
 ## Uitvoeringsvolgorde (herzien ná review)
 
