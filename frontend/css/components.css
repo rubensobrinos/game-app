@@ -83,7 +83,11 @@ p { color: var(--color-text-muted); }
   display: block;
   width: 100%;
   padding: 14px 20px;
-  border-radius: var(--r);
+  /* Pil voor de hele familie, niet per knop (zie `--r-pill` in base.css).
+     Hiervóór was de vorm afhankelijk van wáár een knop stond: de startknop en
+     de antwoordpillen waren rond, `.btn-quiet` en een gewone `.btn-primary`
+     bleven rechthoekig. Dat leest als twee knopstelsels in één scherm. */
+  border-radius: var(--r-pill);
   font: inherit;
   font-size: var(--type-label);
   font-weight: 600;
@@ -425,6 +429,46 @@ button.is-loading::after {
 
 .home-code-input,
 .join-name-input { margin-top: 6px; }
+
+/* 1c's zes-cellen-code-invoer. `home.mjs` bouwt zes losse `<input maxlength=1>`
+   maar er stond nergens CSS voor `.home-code-cells` — dus stonden die zes als
+   volle-breedte velden ónder elkaar op de voorpagina. Hier gerepareerd omdat
+   het de componentlaag is; de opbouw zelf blijft van de eigenaar van `home`. */
+.home-code-cells {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* In een rij van zes is een cel één teken breed. De 0.45em letterafstand die
+   `rounda-1c.css` op `.home-code-input` zet, was voor het oude doorlopende
+   veld bedoeld en duwt een enkel cijfer hier uit het midden. */
+.home-code-cells .home-code-input {
+  width: 100%;
+  min-width: 0;
+  margin-top: 0;
+  padding: 12px 0;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+/* Startknop met sublabel: twee regels, geen doorlopende zin — zonder dit las
+   de knop als "Start direct een gameJe bent de spelleider". */
+.home-quick-start-label,
+.home-quick-start-sub {
+  display: block;
+}
+
+.home-quick-start-sub {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
 
 .home-host-setup-link { margin-top: 10px; }
 

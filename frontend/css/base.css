@@ -90,6 +90,13 @@
 
   --r: 14px;
   --r-sm: 10px;
+  /* 1c maakt van elke knop een pil. Dat stond per instantie in `rounda-1c.css`
+     (`.home-quick-start`, `.lobby-start`, `.podium-rematch`, `.gameplay-option`,
+     `.btn-destructive`, twee `.btn-secondary`-plekken) en dus niet op de rollen
+     zelf — waardoor een `.btn-quiet` of een gewone `.btn-primary` als enige
+     rechthoekig bleef. Als token, en toegepast op de knopfamilie in
+     components.css: vorm is een eigenschap van de rol, niet van de plek. */
+  --r-pill: 999px;
 
   /* Hoogte van #app-header (0.75rem padding-top + 2.75rem knop). De header
      staat in de normale flow (sticky), dus een scherm dat 100dvh hoog is
@@ -968,6 +975,18 @@ button {
   position: sticky;
   bottom: env(safe-area-inset-bottom, 0);
   z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+/* BOUWSPRINT: subregel onder het knoplabel — geen aparte kleur (blijft de
+   knoptekstkleur, dus contrast is identiek aan het label zelf), alleen
+   kleiner en niet-vet om het als ondergeschikt te lezen. */
+.lobby-start-sub {
+  font-size: var(--type-caption);
+  font-weight: normal;
 }
 
 @media (min-width: 512px) {
@@ -1134,10 +1153,11 @@ button {
   flex: 0 1 auto;
   min-width: 0;
   min-height: 38px;
-  padding: 7px 12px;
-  font-size: var(--type-caption);
-  font-weight: 600;
-  border-radius: var(--r-sm);
+  padding: 11px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  border-radius: var(--r-pill);
   background: var(--color-surface-2);
   color: var(--color-text-muted);
 }
@@ -1147,11 +1167,20 @@ button {
 }
 
 /* Beëindigen blijft ook in de compacte strip herkenbaar destructief, maar
-   zonder de hele balk rood te maken. */
+   zonder de hele balk rood te maken.
+
+   Alleen de kleur wijkt af, verder niets: hiervóór was `Game beëindigen` een
+   rechthoek van 14px tekst tussen vier pillen van 12,5px — die knop is de
+   onomkeerbare, dus dat viel op als een fout in plaats van als een
+   waarschuwing. `rounda-1c.css` gaf de secondary-pillen hun maat maar liet de
+   destructive staan; die maten staan nu in de gedeelde regel hierboven, zodat
+   alle vijf knoppen uit één bron komen. */
 .session-hostbar .btn-destructive {
   background: transparent;
   color: var(--color-danger);
   border-color: var(--color-danger);
+  /* De rand van 1px zou de pil 2px groter maken dan zijn randloze buren. */
+  padding: 10px 13px;
 }
 
 .session-hostbar .btn-destructive:hover {
