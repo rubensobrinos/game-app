@@ -3,18 +3,23 @@
 // Vervangt de dependency-vrije fase 1-placeholder. Wat dit bestand doet:
 //   - env lezen (en ALLEEN hier: de compositielaag leest bewust geen env,
 //     zie server/composition/context.mjs's tweede harde regel);
+//   - de STORE KIEZEN op omgeving (`REDIS_URL` gezet → de Redis-adapter uit
+//     server/data/adapters/redis/, anders de in-memory fake) en hem bij het
+//     opstarten verbinden;
 //   - de compositiecontext bouwen (store + echte klok + config);
 //   - de REST-laag registreren (server/transport/rest.mjs);
-//   - /healthz en /readyz bedienen, met hetzelfde contract als de placeholder;
-//   - client/, shared/ en frontend/ statisch serveren (antwoord op UI-3 in
-//     docs/integration-plan/transport-contract-response.md);
+//   - /healthz en /readyz bedienen; /readyz rapporteert sinds de storekeuze
+//     ECHT: 200 zodra de gekozen store bereikbaar is, 503 met reden zo niet;
+//   - client/, shared/, flags/ en frontend/ statisch serveren (antwoord op UI-3
+//     in docs/integration-plan/transport-contract-response.md);
 //   - de socketlaag aanhaken zodra server/transport/socket.mjs bestaat, en die
 //     via een LAAT GEVULDE referentie beschikbaar maken voor de REST-laag —
 //     `POST /games/join` moet room-breed een `room:player-changed` uitsturen en
 //     dat kan alleen over de socket;
 //   - die socketlaag in `preClose` weer afbreken, dus VOORDAT Fastify de
 //     HTTP-server sluit: één open WebSocket zou anders `fastify.close()` (en
-//     daarmee de SIGTERM-afhandeling) laten hangen.
+//     daarmee de SIGTERM-afhandeling) laten hangen — en daarná, in diezelfde
+//     hook, de store sluiten.
 //
 // `buildServer(options)` bouwt de server ZONDER een poort te binden, zodat
 // tests hem via Fastify's `inject` kunnen bevragen. Er wordt alleen echt
@@ -47,6 +52,11 @@ const REPO_ROOT = path.resolve(HERE, '..');
 const STATIC_MOUNTS = Object.freeze([
   { urlPrefix: '/client/', directory: path.join(REPO_ROOT, 'client') },
   { urlPrefix: '/shared/', directory: path.join(REPO_ROOT, 'shared') },
+  // `flags/` staat in de repo-root, náást client/ en shared/ — niet eronder.
+  // Zonder deze mapping geeft elke vlagafbeelding lokaal een 404 en is een
+  // `flags_mc`-vraag onspeelbaar via `npm start`. Achter Caddy valt dat niet op
+  // omdat de proxy die map zelf bedient; dat maakt het juist een stille bug.
+  { urlPrefix: '/flags/', directory: path.join(REPO_ROOT, 'flags') },
 ]);
 
 /** De root waaruit de app zelf wordt geserveerd (`/`, `/css/...`, deep links). */
@@ -161,16 +171,225 @@ export function readConfigFromEnvironment(env = process.env, warn = () => {}) {
     warn(`PUBLIC_APP_URL ontbreekt; teruggevallen op ${publicAppUrl} (besluit 6).`);
   }
 
+  // ── De storekeuze, als CONFIGURATIEWAARDE ────────────────────────────────
+  //
+  // `REDIS_URL` gezet → de persistente Redis-adapter; niet gezet → de
+  // in-memory fake voor ontwikkeling. De KEUZE valt hier, want dit is de enige
+  // plek die de omgeving leest; het BOUWEN gebeurt in `createStoreHandle()`
+  // hieronder, omdat verbinden asynchroon is en deze functie dat niet is.
+  //
+  // Een lege of witruimte-string telt als "niet gezet". Dat is geen
+  // toegeeflijkheid maar juist het tegenovergestelde: `REDIS_URL=` in een
+  // .env-bestand is de vorm die iemand schrijft als hij hem uit wil zetten, en
+  // een lege string zou anders verderop als onparsebare URL knallen met een
+  // melding die niet uitlegt wat er aan de hand is.
+  const rawRedisUrl = typeof env.REDIS_URL === 'string' ? env.REDIS_URL.trim() : '';
+  const redisUrl = rawRedisUrl.length > 0 ? rawRedisUrl : null;
+  if (redisUrl === null) {
+    if (env.NODE_ENV === 'production') {
+      // Stil terugvallen op de fake is hier de ergst denkbare uitkomst: de
+      // server draait dan, lijkt gezond, en verliest elke room bij een
+      // herstart zonder dat iemand het merkt.
+      throw new Error('REDIS_URL is verplicht in productie — zonder persistente store overleeft geen enkele room een herstart.');
+    }
+    warn('REDIS_URL ontbreekt; de server gebruikt de in-memory store. Rooms, matches en scores overleven een herstart niet.');
+  }
+
   return {
     port,
     host: env.HOST ?? '0.0.0.0',
     publicAppUrl,
+    redisUrl,
     tokenPeppers: readTokenPeppers(env, warn),
     // Besluit 21: canoniek en onveranderlijk op Match. Komt uit de gedeelde
     // contentmodule (besluit 29), niet uit env — een verkeerde versie in env
     // zou een verzonnen waarde in echte Match-documenten pinnen.
     contentVersion: CONTENT_VERSION,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// De store-factory — welke opslag draait er onder deze server?
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Alles wat de server van zijn opslag hoeft te weten, achter één vorm. De
+ * `store` zelf is de DataStore-poort uit `server/data/repository.js`; de drie
+ * andere velden zijn levenscyclus en observatie, en die horen NIET op de poort
+ * (de compositielaag mag niet weten of hij tegen Redis of tegen een Map praat).
+ *
+ * @typedef {{
+ *   kind: 'memory' | 'redis',
+ *   store: object,
+ *   describe: () => object,
+ *   checkReady: () => Promise<{ ok: boolean, reason?: string }>,
+ *   close: () => Promise<void>,
+ * }} StoreHandle
+ */
+
+/** Hoe lang `/readyz` op een storeantwoord wacht voordat hij hem dood verklaart. */
+const READYZ_PROBE_TIMEOUT_MS = 1000;
+
+/**
+ * De ontwikkelstore. "Bereikbaar" is hier triviaal waar: er is geen netwerk en
+ * geen proces om kwijt te raken, dus een probe die iets anders dan `ok` kan
+ * teruggeven zou een probe zijn die nergens naar kijkt.
+ *
+ * @param {object} [store]
+ * @returns {StoreHandle}
+ */
+export function createMemoryStoreHandle(store = createInMemoryStore()) {
+  return {
+    kind: 'memory',
+    store,
+    describe: () => ({ kind: 'memory' }),
+    async checkReady() {
+      return { ok: true };
+    },
+    async close() {},
+  };
+}
+
+/**
+ * Wacht op een promise met een harde bovengrens.
+ *
+ * `/readyz` heeft dit nodig en niet als luxe: tijdens een herverbinding BUFFERT
+ * node-redis commando's (zie `getClient()` in connection.mjs) en lost een
+ * `PING` dus pas op als de herverbinding lukt of definitief opgeeft. Een
+ * readiness-probe die daarop wacht, hangt precies wanneer hij nodig is — en dan
+ * krijgt de orchestrator geen "niet gereed" maar helemaal niets.
+ *
+ * @template T
+ * @param {Promise<T>} promise
+ * @param {number} timeoutMs
+ * @param {T} fallback
+ * @returns {Promise<T>}
+ */
+async function withDeadline(promise, timeoutMs, fallback) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(fallback), timeoutMs);
+        timer.unref?.();
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * De persistente store: INT-B's Redis-adapter, verbonden en wel.
+ *
+ * DRIE DINGEN GEBEUREN HIER LUID IN PLAATS VAN STIL:
+ *
+ *   1. STARTGATE OP VOLLEDIGHEID. `UNIMPLEMENTED_METHODS` is vandaag leeg, maar
+ *      wordt toch uitgelezen. Loopt de adapter ooit weer achter op de poort,
+ *      dan weigert de server te starten mét de namen van de gaten — in plaats
+ *      van door te draaien tot de eerste echte speler op de ontbrekende methode
+ *      stuit, midden in een handshake.
+ *   2. VERBINDEN BIJ BOOT. Lukt dat niet, dan werpt deze functie en start de
+ *      server niet. Er is met opzet GEEN terugval op de in-memory fake: een
+ *      productieserver die vrolijk op een fake draait is erger dan een
+ *      productieserver die niet start, want het eerste merkt niemand.
+ *   3. GEEN URL IN DE MELDING. `RedisConnectionError` toont uitsluitend het
+ *      geredigeerde endpoint; die melding wordt hier overgenomen en de ruwe
+ *      `REDIS_URL` (die credentials kan bevatten) nooit.
+ *
+ * @param {string} redisUrl
+ * @param {{
+ *   onEvent?: ((event: object) => void) | null,
+ *   connection?: object,
+ * }} [options] - `connection` gaat ongewijzigd naar `createRedisConnection`
+ *   (timeouts, herpogingen). De STANDAARD is met opzet geduldig: ~11 seconden
+ *   herproberen bij het opstarten, zodat een server die tegelijk met zijn Redis
+ *   opstart niet in een herstartlus belandt. Alleen tests hebben reden om dat
+ *   in te korten; `url` valt hier nooit te overschrijven.
+ * @returns {Promise<StoreHandle>}
+ */
+export async function createRedisStoreHandle(redisUrl, { onEvent = null, connection: connectionOptions = {} } = {}) {
+  // Dynamisch geladen, niet bovenaan: zonder `REDIS_URL` hoeft het
+  // `redis`-pakket niet eens geïmporteerd te worden. Dezelfde vorm als
+  // `attachSocketsIfAvailable`, maar zónder de ENOENT-tolerantie — deze module
+  // MOET bestaan, en als hij ontbreekt hoort dat te knallen.
+  const [{ createRedisConnection }, { createRedisDataStore, UNIMPLEMENTED_METHODS }] = await Promise.all([
+    import('./data/adapters/redis/connection.mjs'),
+    import('./data/adapters/redis/data-store.mjs'),
+  ]);
+
+  const missing = Array.isArray(UNIMPLEMENTED_METHODS)
+    ? [...UNIMPLEMENTED_METHODS]
+    : Object.keys(UNIMPLEMENTED_METHODS ?? {});
+  if (missing.length > 0) {
+    throw new Error(
+      'REDIS_URL is gezet, maar de Redis-adapter is nog niet volledig: '
+      + `${missing.sort().join(', ')}. De server start niet — een ontbrekende poortmethode `
+      + 'hoort bij het opstarten te falen, niet bij de eerste handshake van een speler.',
+    );
+  }
+
+  const connection = createRedisConnection({ ...connectionOptions, url: redisUrl, onEvent });
+  try {
+    await connection.connect();
+  } catch (error) {
+    // De verbinding kan een half opgezette client vasthouden; die hoort dicht
+    // voordat we de fout doorgeven, anders houdt een socket het proces open.
+    await connection.close().catch(() => {});
+    throw new Error(
+      `Verbinden met Redis (REDIS_URL) is mislukt, dus de server start niet: ${error?.message ?? String(error)}`,
+      { cause: error },
+    );
+  }
+
+  const endpoint = connection.describe().endpoint;
+
+  return {
+    kind: 'redis',
+    store: createRedisDataStore({ connection }),
+    describe: () => connection.describe(),
+    async checkReady() {
+      const probe = (async () => {
+        try {
+          const pong = await connection.getClient().ping();
+          return pong === 'PONG'
+            ? { ok: true }
+            : { ok: false, reason: `Redis op ${endpoint} antwoordde ${JSON.stringify(pong)} op PING` };
+        } catch (error) {
+          const code = /** @type {{ code?: unknown }} */ (error)?.code;
+          return {
+            ok: false,
+            reason: `Redis op ${endpoint} is niet bereikbaar (${typeof code === 'string' ? code : connection.getState()})`,
+          };
+        }
+      })();
+      return withDeadline(probe, READYZ_PROBE_TIMEOUT_MS, {
+        ok: false,
+        reason: `Redis op ${endpoint} antwoordde niet binnen ${READYZ_PROBE_TIMEOUT_MS} ms op PING (toestand: ${connection.getState()})`,
+      });
+    },
+    async close() {
+      await connection.close();
+    },
+  };
+}
+
+/**
+ * De storekeuze zelf: één regel beleid, uit de configuratie en niet uit de
+ * omgeving. `readConfigFromEnvironment` heeft `REDIS_URL` al gelezen; deze
+ * functie kent `process.env` niet en is daarom ook in een test te sturen.
+ *
+ * @param {{ redisUrl?: string | null }} config
+ * @param {{ onEvent?: ((event: object) => void) | null, connection?: object }} [options]
+ * @returns {Promise<StoreHandle>}
+ */
+export async function createStoreHandle(config, options = {}) {
+  const redisUrl = config?.redisUrl;
+  if (typeof redisUrl === 'string' && redisUrl.length > 0) {
+    return createRedisStoreHandle(redisUrl, options);
+  }
+  return createMemoryStoreHandle();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -331,9 +550,17 @@ export async function attachSocketsIfAvailable(httpServer, { context, config }) 
 /**
  * Bouwt de Fastify-server. Bindt GEEN poort — dat doet `start()`.
  *
+ * EIGENAARSCHAP VAN DE STORE. Geeft de aanroeper een `store` (of een compleet
+ * `storeHandle`) mee, dan blijft die van hem: `preClose` sluit hem niet. Bouwt
+ * deze functie hem zelf uit `config.redisUrl`, dan is hij van de server en gaat
+ * hij in `preClose` mee dicht. Een store die twee eigenaren heeft, wordt
+ * gegarandeerd één keer te vaak of één keer te weinig gesloten.
+ *
  * @param {{
  *   config?: object,
  *   store?: object,
+ *   storeHandle?: StoreHandle,
+ *   storeOptions?: object,
  *   now?: () => number,
  *   logger?: boolean | object,
  *   attachSockets?: boolean,
@@ -343,25 +570,42 @@ export async function attachSocketsIfAvailable(httpServer, { context, config }) 
 export async function buildServer(options = {}) {
   const {
     config = readConfigFromEnvironment(),
-    store = createInMemoryStore(),
+    store,
+    storeHandle,
+    storeOptions = {},
     now = () => Date.now(),
     logger = false,
     attachSockets = false,
   } = options;
 
-  const context = createContext({
-    store,
-    now,
-    config: {
-      tokenPeppers: config.tokenPeppers,
-      publicAppUrl: config.publicAppUrl,
-      contentVersion: config.contentVersion ?? CONTENT_VERSION,
-    },
-  });
+  /** Alleen een door ONS gebouwd handle wordt door ons gesloten. */
+  const ownsStore = storeHandle === undefined && store === undefined;
+  const handle = storeHandle
+    ?? (store === undefined ? await createStoreHandle(config, storeOptions) : createMemoryStoreHandle(store));
+
+  let context;
+  try {
+    context = createContext({
+      store: handle.store,
+      now,
+      config: {
+        tokenPeppers: config.tokenPeppers,
+        publicAppUrl: config.publicAppUrl,
+        contentVersion: config.contentVersion ?? CONTENT_VERSION,
+      },
+    });
+  } catch (error) {
+    // Een verbinding die we net hebben opgezet mag niet als weeskind achter
+    // blijven wanneer de bouw hierna alsnog struikelt: de socket zou het proces
+    // openhouden en `npm start` zou noch starten noch afsluiten.
+    if (ownsStore) await handle.close().catch(() => {});
+    throw error;
+  }
 
   const fastify = Fastify({ logger });
   fastify.decorate('appContext', context);
   fastify.decorate('appConfig', config);
+  fastify.decorate('appStore', handle);
 
   // ── De brug tussen REST en de socketlaag ───────────────────────────────────
   //
@@ -384,36 +628,62 @@ export async function buildServer(options = {}) {
   // /healthz — ongewijzigd t.o.v. de placeholder: 200 zolang het proces leeft.
   fastify.get('/healthz', async () => ({ ok: true }));
 
-  // /readyz — blijft 503 met reden. Er hangt nog geen Redis onder; dat komt in
-  // stap 3 (INT-B). Bewust nog niet groen laten worden: een readiness-check die
-  // liegt is erger dan geen readiness-check.
-  fastify.get('/readyz', async (request, reply) => reply.code(503).send({
-    ok: false,
-    reason: 'geen Redis-verbinding: de persistente store komt in stap 3 (INT-B)',
-  }));
+  // /readyz — rapporteert nu ECHT. 200 zodra de gekozen store bereikbaar is,
+  // 503 met een bruikbare reden als dat niet zo is. Bij de in-memory store is
+  // dat triviaal waar; bij Redis wordt het per verzoek vastgesteld met een
+  // PING, mét deadline (zie `withDeadline`).
+  //
+  // Het antwoord noemt `store` zodat één blik op /readyz laat zien of deze
+  // server op de persistente store of op de ontwikkelfake draait — dat is
+  // precies de verwarring die een stille terugval zou veroorzaken.
+  fastify.get('/readyz', async (request, reply) => {
+    const readiness = await handle.checkReady();
+    if (readiness.ok) {
+      return reply.code(200).send({ ok: true, store: handle.kind });
+    }
+    return reply.code(503).send({
+      ok: false,
+      store: handle.kind,
+      reason: readiness.reason ?? 'de store is niet bereikbaar',
+    });
+  });
 
   await fastify.register(restRoutes, { context, prefix: REST_PREFIX, getSockets });
 
   registerStaticRoutes(fastify);
 
-  if (attachSockets) {
-    // `preClose`, NIET `onClose`. Fastify's afsluitvolgorde is:
-    //   preClose-hooks → HTTP-server sluiten → onClose-hooks.
-    // Een open WebSocket houdt de HTTP-server open, dus als de socketteardown
-    // pas in `onClose` draait, blijft `fastify.close()` hangen op precies de
-    // verbindingen die die teardown had moeten verbreken. Dat is hetzelfde pad
-    // als de SIGTERM-handler in `start()`, dus dan werkt graceful shutdown niet
-    // — `docker compose down` wacht tot zijn timeout en elke herstart hangt.
-    // In `preClose` zijn de sockets al weg voordat de HTTP-server dichtgaat.
-    //
-    // De hook moet vóór `ready()` geregistreerd zijn (daarna weigert Fastify
-    // nieuwe hooks), en op dat moment bestaat het handle nog niet. Vandaar de
-    // holder: de hook leest hem pas bij het afsluiten.
-    fastify.addHook('preClose', async () => {
+  // `preClose`, NIET `onClose`. Fastify's afsluitvolgorde is:
+  //   preClose-hooks → HTTP-server sluiten → onClose-hooks.
+  // Een open WebSocket houdt de HTTP-server open, dus als de socketteardown
+  // pas in `onClose` draait, blijft `fastify.close()` hangen op precies de
+  // verbindingen die die teardown had moeten verbreken. Dat is hetzelfde pad
+  // als de SIGTERM-handler in `start()`, dus dan werkt graceful shutdown niet
+  // — `docker compose down` wacht tot zijn timeout en elke herstart hangt.
+  // In `preClose` zijn de sockets al weg voordat de HTTP-server dichtgaat.
+  //
+  // De hook moet vóór `ready()` geregistreerd zijn (daarna weigert Fastify
+  // nieuwe hooks), en op dat moment bestaat het sockethandle nog niet. Vandaar
+  // de holder: de hook leest hem pas bij het afsluiten.
+  //
+  // DE VOLGORDE BINNEN DE HOOK IS SOCKETS EERST, DAN DE STORE. Andersom sluit
+  // de store terwijl er nog verbindingen open zijn die er een commando naartoe
+  // kunnen sturen; dat commando faalt dan op een gesloten verbinding en de hook
+  // blijft eraan hangen — precies de graceful shutdown die hierboven net is
+  // gerepareerd. Beide stappen zijn hun eigen `try`: een sockethandle dat
+  // struikelt mag de store niet open laten staan.
+  fastify.addHook('preClose', async () => {
+    try {
       if (socketsRef.current !== null) {
         await socketsRef.current.close();
       }
-    });
+    } finally {
+      if (ownsStore) {
+        await handle.close();
+      }
+    }
+  });
+
+  if (attachSockets) {
     await fastify.ready();
     socketsRef.current = await attachSocketsIfAvailable(fastify.server, { context, config });
   }
@@ -439,7 +709,10 @@ async function start() {
   }
 
   await fastify.listen({ port: config.port, host: config.host });
-  log('info', 'game-server gestart', { port: config.port });
+  // `describe()` van de Redis-verbinding is per constructie credential-vrij
+  // (alleen protocol, host en poort), dus dit is veilig om te loggen — en het
+  // is de regel waaraan je ziet of deze server op de persistente store draait.
+  log('info', 'game-server gestart', { port: config.port, store: fastify.appStore.describe() });
 }
 
 // Alleen starten wanneer dit bestand direct wordt uitgevoerd — een import

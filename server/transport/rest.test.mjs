@@ -875,15 +875,21 @@ test('/healthz blijft 200 zolang het proces leeft', async (t) => {
   assert.deepEqual(response.json(), { ok: true });
 });
 
-test('/readyz blijft 503 met reden zolang er geen Redis onder hangt', async (t) => {
+test('/readyz rapporteert de gekozen store en geeft 200 zodra die bereikbaar is', async (t) => {
   const fastify = await makeServer();
   t.after(() => fastify.close());
 
+  // Deze test pinde eerder vast dat /readyz ONVOORWAARDELIJK 503 gaf, omdat er
+  // nog geen store-keuze bestond. Sinds de store-factory rapporteert hij echt:
+  // 200 met de gekozen store zodra die bereikbaar is, 503 met een reden als dat
+  // niet zo is. Zonder REDIS_URL is dat de in-memory store, en die is per
+  // definitie bereikbaar — een 503 zou hier dus een defect zijn en geen
+  // "nog niet af".
   const response = await fastify.inject({ method: 'GET', url: '/readyz' });
 
-  assert.equal(response.statusCode, 503);
-  assert.equal(response.json().ok, false);
-  assert.match(response.json().reason, /Redis/);
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().ok, true);
+  assert.equal(response.json().store, 'memory');
 });
 
 test('statische mappings: /client/* en /shared/* serveren de echte mappen (UI-3)', async (t) => {

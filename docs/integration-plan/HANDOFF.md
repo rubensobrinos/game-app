@@ -745,3 +745,45 @@ van vandaag: bewijzen dat roomstate een restart overleeft mét de nieuwe
 Redis-koppeling) kon hierdoor niet verder dan roomaanmaak — zie de
 DT6-rapportage in `docs/deployment-and-testing-plan/chaos-runbook.md` voor de
 volledige uitkomst.
+
+---
+
+## INT-18 — aanvulling vanuit INT-A: reproductie, oorzaak van het testgat, en bewijs dat het hierna werkt
+
+Dit item was al gemeld door INT-B/PR. Hieronder wat INT-A er onafhankelijk
+bij heeft vastgesteld tijdens het bouwen van de store-factory.
+
+`Session.tokenHash` draagt sinds PR12 een pepper-versieprefix — `v1:<64 hex>`,
+conform besluit 26, en `verifyToken` leest die versie er weer uit.
+`assertSegment` in `server/data/redis-keys.js` verbiedt een `:` in een
+keysegment. Gevolg: `sessionTokenLookupKey()` werpt op elke echte hash.
+
+Gereproduceerd:
+
+| Invoer | Uitkomst |
+| --- | --- |
+| `v1:` + 64 hex — het formaat dat `auth-session.mjs` produceert | **werpt** `tokenHash must not contain ':' …` |
+| `hash_1` — de fixture uit de adaptertests | werkt |
+
+Daardoor geeft de **eerste** `POST /api/v1/games` tegen Redis een 500. Niet een
+randgeval: de allereerste schrijfactie van elke sessie.
+
+**Waarom geen enkele test dit ving.** De adapterfixtures gebruiken synthetische
+hashes als `hash_1`. Die bevatten geen `:`, dus ze konden de guard per definitie
+niet raken. De suite was groen op data die de bug niet kón uitlokken — dezelfde
+vorm als de vacuümverificaties in `AGENTS.md`, maar via onrealistische fixtures
+in plaats van een overgeslagen happy path.
+
+**Voorstel — keuze aan DM:** óf de guard versoepelen voor `tokenHash`
+specifiek (de versieprefix is een vast, gecontroleerd formaat, geen
+gebruikersinvoer), óf de hash in de adapter encoderen vóór hij een keysegment
+wordt. De eerste is eenvoudiger; de tweede houdt de guard onverkort streng.
+
+**Aanbeveling los daarvan:** vervang de synthetische hashes in de adapterfixtures
+door hashes uit `hashToken()` zelf. Een fixture die het echte formaat niet
+gebruikt, bewijst niets over het echte pad.
+
+**Aangetoond dat het hierna werkt:** met alleen deze regel gepatcht in een
+geïsoleerde kopie draait de volledige keten-test 6/6 groen tegen Redis, en
+herstelt een procesherstart midden in een match room, match, spelers, scores en
+het sessietoken.
