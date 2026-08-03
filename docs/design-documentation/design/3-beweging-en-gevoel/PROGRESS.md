@@ -42,10 +42,10 @@ de laag die pas zin heeft als de schermen eronder staan.
 | E08 | Ronde sluit | rondeslot | — | **Vervalt als apart event ná review.** Bestaat niet als zelfstandig clientmoment: `optionsLocked()` staat voor wie al antwoordde al sinds E06 op `true`, en voor wie niet antwoordde komt sluiten en de volledige uitslag (E09) gelijktijdig binnen via `round:ended`. Samengevoegd met het begin van E09; het ontbrekende protocolmoment is gemeld als `HANDOFF-UI`-item, niet stilzwijgend opgelost. |
 | E09 | Reveal correct antwoord | reveal | 1 | Correcte optie krijgt een groene rand, eigen resultaat verschijnt als tekst. Geen opbouw, fout gekozen optie wordt niet gemarkeerd. Nog steeds `M2`'s werk. |
 | E10 | Punten tellen | reveal | 1 | Eindwaarde staat direct in de DOM — goed voor toegankelijkheid. Geen oplopende telling. Nog steeds `M2`'s werk. |
-| E11 | Rank movement | tussenstand | 1→2 | **Data/tekst door thema 1** (`b547c8f`): `rankMovementFrom()`, `↑2`/`↓1`-badge met kleur + volledige-zin-`aria-label`. **Visuele beweging door mij** (`M9`, commit `158d531`): FLIP-transform + eigen-rij-emphasis, reduced-motion-gate. Dicht bij niveau 2 (choreografie); "geen complexe animatie bij 100+" was al gedekt door de bestaande `slice(0, 5)`. |
+| E11 | Rank movement | tussenstand | 1 | **Data/tekst door thema 1** (`b547c8f`): `rankMovementFrom()`, `↑2`/`↓1`-badge met kleur + volledige-zin-`aria-label`. **Visuele beweging door mij** (`M9`, commit `158d531`): FLIP-transform + eigen-rij-emphasis, reduced-motion-gate. Dicht bij niveau 2, maar (nog) niet volledig: "een niveau geldt pas als het volledig gehaald is" (`NIVEAUS.md`) — geen echte apparaat-verificatie van de FLIP-beweging, alleen headless. "Geen complexe animatie bij 100+" was al gedekt door de bestaande `slice(0, 5)`. |
 | E12 | Sociale headline | reveal | 1 | **Niet langer afhankelijk — thema 1 bouwde dit volledig** (`6700436`, `social-headline.mjs`): self-sole-correct/comeback/everyone-correct/everyone-wrong/misleading-answer, gewogen tegen expliciete drempels. Streak (E13) bewust buiten scope gehouden — "geen client heeft zicht op andermans streaks", zelfde conclusie als hieronder. |
 | E13 | Streak | reveal | 0 | Bestaat niet — **bevestigd niet-clientzijdig-bouwbaar** (thema 1's eigen analyse in `social-headline.mjs`: "geen client heeft zicht op andermans streaks"). Dit is geen afhankelijkheid meer op thema 1/4 leveren, maar een protocolgat (server zou streak-data moeten meesturen) — zelfde soort bevinding als E08, nog niet als `HANDOFF-UI`-item gelogd. |
-| E14 | Podium | eind | 1→2 | **Stagger/skip door thema 1** (`b547c8f`): 3→2→1-reveal-volgorde, klik-om-te-skippen, winnaar-accent (`--color-accent-competition`, statisch). **Motion door mij** (`M10`, commit `148a132`): entrance-animatie, begrensde confetti, en een programmatische reduced-motion-gate die er nog niet was (de stagger-timers liepen door ongeacht de systeemvoorkeur). |
+| E14 | Podium | eind | 1 | **Stagger/skip door thema 1** (`b547c8f`): 3→2→1-reveal-volgorde, klik-om-te-skippen, winnaar-accent (`--color-accent-competition`, statisch). **Motion door mij** (`M10`, commit `148a132`): entrance-animatie, begrensde confetti, en een programmatische reduced-motion-gate die er nog niet was. Dicht bij niveau 2, maar confetti's performancebudget-conformiteit staat nog niet vastgelegd (wacht op `M5`'s audit) en niets is op een echt apparaat getest. |
 | E15 | Reconnecting | overal | 1 | Statusbalk verschijnt en verdwijnt. Geen voortgang, geen successcue. |
 
 **E01 is geen los item.** E05 en E06 hergebruiken letterlijk dezelfde
@@ -83,9 +83,17 @@ beheer wordt gedekt, maar niet door motion.
 
 | Niveau | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| Momenten (14, `E08` vervallen/samengevoegd met `E09`) | 1 | 12 | 0 (2 dichtbij: E11, E14) | 0 |
-| Momenten incl. voorstel `E16` | 2 | 12 | 0 | 0 |
-| Fundamenten (Motion-tokens nu bij thema 2, zie hieronder) | 3 | 2 | 0 | 0 |
+| Momenten (14, `E08` vervallen/samengevoegd met `E09`) | 1 | 13 (2 dichtbij niveau 2: E11, E14 — zie hun rijen) | 0 | 0 |
+| Momenten incl. voorstel `E16` | 2 | 13 | 0 | 0 |
+| Fundamenten (Motion-tokens nu bij thema 2, zie hieronder) | 4 | 1 | 0 | 0 |
+
+**Let op voor wie dit vergelijkt met het lokale dashboard
+(`docs/progress/`):** die pagina leest de `Niveau`-kolom letterlijk en
+verwacht daar één cijfer 0–3 (of `⏸`) — geen `1→2` of tekst. E11/E14 stonden
+hier eerder als `1→2`, wat de parser stil oversloeg (niet fout, gewoon
+genegeerd) — vandaar dat het dashboard tijdelijk 18 i.p.v. 20 onderdelen
+toonde. Gecorrigeerd naar een schoon `1`, met de "dichtbij niveau 2"-nuance
+in de toelichtingskolom, niet in de Niveau-kolom zelf.
 
 Grote sprong t.o.v. de vorige telling (8 op niveau 0) — niet allemaal mijn
 werk: `M6`–`M10` deden vijf momenten, thema 1 deed zelfstandig E04/E11
