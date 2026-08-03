@@ -78,6 +78,7 @@ export const en = Object.freeze({
   'game.resultCorrect': 'Correct',
   'game.resultIncorrect': 'Incorrect',
   'game.resultNoAnswer': 'No answer',
+  'game.ownAnswer': 'Your answer',
   'game.roundPoints': 'Points this round',
   'headline.selfSoleCorrect': 'You were the only one who got it right! ⭐',
   'headline.everyoneCorrect': 'Everyone got it right! 🎉',

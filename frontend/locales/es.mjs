@@ -76,6 +76,7 @@ export const es = Object.freeze({
   'game.resultCorrect': 'Correcto',
   'game.resultIncorrect': 'Incorrecto',
   'game.resultNoAnswer': 'Sin respuesta',
+  'game.ownAnswer': 'Tu respuesta',
   'game.roundPoints': 'Puntos esta ronda',
   'headline.selfSoleCorrect': '¡Fuiste el único que acertó! ⭐',
   'headline.everyoneCorrect': '¡Todos acertaron! 🎉',

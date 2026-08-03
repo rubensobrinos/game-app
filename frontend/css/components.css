@@ -643,6 +643,8 @@ button.is-loading::after {
 .gameplay-own.is-wrong { color: var(--color-danger); }
 .gameplay-own.is-noanswer { color: var(--color-text-muted); }
 .gameplay-score { color: var(--color-accent-competition, #f59e0b); font-weight: 700; }
+/* M2/E10: tabular-nums voorkomt breedtejitter tijdens het oplopen. */
+.gameplay-score-animated { font-variant-numeric: tabular-nums; }
 
 /* M2/E09: vaste, korte opbouwvolgorde — de correcte optie krijgt eerst
    accent (gameplay.mjs zet `.is-correct` direct, geen delay hier), dit

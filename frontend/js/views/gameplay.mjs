@@ -168,12 +168,18 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
 
     // Vergrendeling + eigen selectie zichtbaar (géén goed/fout-kleur vóór ended)
     const locked = optionsLocked(model);
+    // M2/E06: dimmen pas ná serverbevestiging (`accepted`), niet al tijdens
+    // `sending` — dat zou een bevestiging suggereren die er nog niet is
+    // (reviewbevinding, exacte toestandstabel in M2's prompt).
+    const dimOthers = model.answerStatus === 'accepted';
     for (const [iso2, btn] of optionButtons) {
       btn.disabled = locked;
       const selected = iso2 === model.selectedOptionId;
       btn.classList.toggle('is-selected', selected);
-      // `.is-selected` is puur visueel; `aria-pressed` is wat een screenreader
-      // hoort — zelfde discipline als app-menu.mjs's taal-/themaknoppen.
+      btn.classList.toggle('is-dimmed', dimOthers && !selected);
+      // `.is-selected`/`.is-dimmed` zijn puur visueel; `aria-pressed` is wat
+      // een screenreader hoort — zelfde discipline als app-menu.mjs's
+      // taal-/themaknoppen.
       btn.setAttribute('aria-pressed', String(selected));
     }
 
@@ -221,7 +227,11 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     // GEEN ANTWOORD) — hoofdletters komen van CSS (`.gameplay-own`,
     // text-transform), niet van de vertaalwaarde zelf.
     if (model.result !== null && result.childElementCount === 0) {
-      const correct = el('p', 'gameplay-correct');
+      // M2/E09: de volledige tekst gaat direct + synchroon de DOM/aria-live-
+      // regio in (accessibility-eis: nooit een timer die de accessibility
+      // tree ophoudt) — `gameplay-reveal-enter` hieronder is uitsluitend een
+      // visuele fade, geen vertraagde tekstinvoeging.
+      const correct = el('p', 'gameplay-correct gameplay-reveal-enter');
       correct.textContent = `${t('game.correctAnswer')}: ${countryName(model.result.correctOptionId, lang)}`;
       const resultClass = model.result.selfNoAnswer ? 'is-noanswer' : model.result.selfCorrect ? 'is-correct' : 'is-wrong';
       const resultKey = model.result.selfNoAnswer
@@ -229,16 +239,46 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
         : model.result.selfCorrect
           ? 'game.resultCorrect'
           : 'game.resultIncorrect';
-      const own = el('p', `gameplay-own ${resultClass}`);
+      const own = el('p', `gameplay-own ${resultClass} gameplay-reveal-enter`);
       own.textContent = t(resultKey);
       result.append(correct, own);
       if (model.result.roundPoints !== null) {
-        const score = el('p', 'gameplay-score');
-        score.textContent = `${t('game.roundPoints')}: ${model.result.roundPoints}`;
+        // M2/E10: twee losse nodes — de `aria-hidden`-span animeert
+        // visueel, de `sr-only`-span krijgt meteen de definitieve waarde.
+        // Eén tekstnode die 0,1,2… doorloopt is onbetrouwbaar voor
+        // assistive technology (leest mogelijk elke tussenwaarde).
+        const score = el('p', 'gameplay-score gameplay-reveal-enter');
+        score.append(`${t('game.roundPoints')}: `);
+        const scoreAnimated = el('span', 'gameplay-score-animated');
+        scoreAnimated.setAttribute('aria-hidden', 'true');
+        scoreAnimated.textContent = '0';
+        const scoreSrOnly = el('span', 'sr-only');
+        scoreSrOnly.textContent = String(model.result.roundPoints);
+        score.append(scoreAnimated, scoreSrOnly);
         result.append(score);
+        animateScoreCount(scoreAnimated, model.result.roundPoints);
       }
+      // M2/E09: correcte optie krijgt eerst accent (deze klasse, direct) —
+      // het tekstblok hierboven verschijnt daarna (animation-delay in CSS),
+      // een vaste, korte opbouwvolgorde i.p.v. alles ineens.
       const correctBtn = optionButtons.get(model.result.correctOptionId);
       if (correctBtn) correctBtn.classList.add('is-correct');
+      // M2/E09: foute eigen keuze — kleur is nooit de enige informatiedrager
+      // (11 K). `.is-wrong` (niet-kleur ✕-icoon, components.css) plus een
+      // sr-only-label direct op de knop, náást de al bestaande
+      // aria-live-tekst in `.gameplay-own`.
+      if (
+        model.selectedOptionId !== null &&
+        model.selectedOptionId !== model.result.correctOptionId
+      ) {
+        const wrongBtn = optionButtons.get(model.selectedOptionId);
+        if (wrongBtn) {
+          wrongBtn.classList.add('is-wrong');
+          const ownAnswerLabel = el('span', 'sr-only');
+          ownAnswerLabel.textContent = t('game.ownAnswer');
+          wrongBtn.appendChild(ownAnswerLabel);
+        }
+      }
     }
 
     // S13: eerste keer dat dít ronderesultaat verschijnt — reveal-klok
@@ -299,6 +339,30 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   }
 
   return { update };
+}
+
+// M2/E10: score kort oplopend naar de eindwaarde — puur de aria-hidden-span
+// (gameplay.mjs's DOM-structuur houdt de sr-only-span apart en direct
+// definitief). Reduced motion expliciet gecheckt: dit is JS-gedreven
+// (requestAnimationFrame), M0's CSS-blanket-regel raakt dit niet.
+const SCORE_COUNT_DURATION_MS = 500;
+
+function animateScoreCount(node, target) {
+  const reduceMotion =
+    typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion || target <= 0) {
+    node.textContent = String(target);
+    return;
+  }
+  const startTime = performance.now();
+  function tick(now) {
+    const progress = Math.min(1, (now - startTime) / SCORE_COUNT_DURATION_MS);
+    node.textContent = String(Math.round(target * progress));
+    if (progress < 1) {
+      requestAnimationFrame(tick);
+    }
+  }
+  requestAnimationFrame(tick);
 }
 
 function el(tag, className) {

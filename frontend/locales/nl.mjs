@@ -91,6 +91,9 @@ export const nl = Object.freeze({
   'game.resultCorrect': 'Juist',
   'game.resultIncorrect': 'Onjuist',
   'game.resultNoAnswer': 'Geen antwoord',
+  // M2/E09: sr-only-label op de foute eigen keuze — naast de kleur/icoon,
+  // niet in plaats van (11 K: kleur nooit de enige informatiedrager).
+  'game.ownAnswer': 'Jouw antwoord',
   'game.roundPoints': 'Punten deze ronde',
   // S14: sociale headline, hooguit één per ronde (gameplay.mjs) / stand
   // (scoreboard.mjs) — zie social-headline.mjs voor de selectielogica.
