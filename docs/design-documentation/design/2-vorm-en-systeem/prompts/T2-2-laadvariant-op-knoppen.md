@@ -19,8 +19,13 @@ de bullets, inclusief de foutafloop). `08-ACCESSIBILITY-AND-RESILIENCE.md`
 `home.creating` ("Potje maken…") geland als een losse statusregel:
 `views/home.mjs` maakt `.home-quick-start-status` met `aria-live="polite"`,
 vult die zolang de status `creating` is, en verbergt tegelijk de divider, het
-codelabel en de code-knop. De knop zelf blijft `Snel starten` heten en wordt
-alleen `disabled`.
+codelabel en de code-knop. De knop zelf houdt zijn eigen label en wordt alleen
+`disabled`.
+
+Dat label is inmiddels `Start direct een game` (thema 4 heeft `home.quickStart`
+aangepast; het was `Snel starten`). Dat is langer dan `Potje maken…`, dus de
+knop wordt bij het laden juist *smaller* — de ruimtereservering hieronder gaat
+dus over krimpen, niet groeien.
 
 Er zijn dus drie dingen aan de hand, en alleen het eerste stond in de vorige
 versie van deze prompt:
@@ -67,10 +72,11 @@ versie van deze prompt:
 - **Alleen het mechanisme, niet de teksten.** `Potje maken…` bestaat al;
   `Gamecode controleren…` en `Je wordt toegevoegd…` zijn thema 4.
 - **Niet zelf inbouwen in `home.mjs`.** Waar de laadstaat aan gaat is thema 1.
-  Maar let op: thema 1's `06-start-en-join-polish.md` plant een kale
-  `textContent`-wissel zonder deze component te kennen. **Stem af vóór je
-  bouwt**, anders staan er twee mechanismen. Thema 1 heeft die naad zelf al
-  zien aankomen.
+  Die heeft in `06-start-en-join-polish.md` inmiddels vastgelegd: *"`Potje
+  maken…`-laadstatus — al gebouwd, niet meer doen … niet een tweede
+  statuswissel toevoegen."* Er dreigen dus géén twee mechanismen meer; wat
+  overblijft is de vraag uit punt 5 — knop of statusregel — en die is van
+  ons samen.
 - Disabled en loading blijven visueel onderscheidbaar.
 
 ## Definition of done

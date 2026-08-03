@@ -32,26 +32,47 @@ zwevende dropdownmenu.
 
 ## Wat dit is
 
-1. **Eén bottom-sheet-component** met de toegankelijkheidsgaranties die de drie
-   bestaande overlays al hebben: `role="dialog"`, `aria-modal`, Escape sluit,
-   focus gaat erin bij openen en keert terug naar de trigger bij sluiten.
+1. **Eén bottom-sheet-component** met `role="dialog"`, `aria-modal`, Escape
+   sluit, en focus die erin gaat bij openen en terugkeert naar de trigger bij
+   sluiten.
+
+   Let op dat dit voor het voorkeurenpaneel een **patroonwissel** is, geen
+   verbouwing: dat is vandaag een disclosure (`aria-haspopup`/`-expanded`/
+   `-controls`, geen focus trap), niet een dialog. De QR- en pauze-overlay zijn
+   wél al dialogs. Wie het voorkeurenpaneel omzet moet het hele ARIA-patroon
+   omzetten, niet er een `role` bij plakken.
 
 2. **Bepaal per overlay welke vorm hij krijgt**, en verantwoord het:
-   - **Voorkeuren (`S18`)** → sheet. Hier is de spec het meest uitgesproken.
-   - **Spelers beheren (`S17`)** → sheet. `04` S17 zegt "bij voorkeur bottom
-     sheet op mobiel, paneel op desktop".
+   - **Voorkeuren (`S18`)** → sheet. Hier is de spec het meest uitgesproken,
+     en het benchmarkrapport noemt dit paneel met naam.
    - **Pauze** → blijft modal. Dit ís een echte onderbreking, precies de
      uitzondering die §12 toestaat.
    - **QR** → blijft modal, op grond van `D-018`. Zie de regel hieronder.
 
-3. **Op desktop een zijpaneel**, niet een uitgerekte sheet. `07` §3 noemt
-   "side panel op desktop" als medium/large-gedrag.
+   **`S17` (spelers beheren) valt hier bewust buiten.** De eerste versie van
+   deze prompt wees die een sheet toe. Dat was fout op twee manieren: het is
+   vandaag geen overlay maar een inline verwijderknop per rij in `lobby.mjs`,
+   en thema 1 heeft in `01-snelle-reparaties.md` juist gekozen om het inline te
+   houden. Een sheet bouwen zou dus een nieuwe overlay toevoegen — wat deze
+   prompt zelf verbiedt — en een keuze van thema 1 overschrijven.
+
+3. **Op desktop een zijpaneel**, niet een uitgerekte sheet (`05` §12: "side
+   panel op desktop"; `07` §3 noemt onder Medium "side panel voor voorkeuren").
+
+   **Stem dit af met thema 5 vóór je begint.** `T5-7-medium-tablet-compositie.md`
+   claimt hetzelfde onderdeel — het hamburgermenu vanaf medium als vast
+   zijpaneel — en zijn definition of done eist dat compact portrait (390×844)
+   ongewijzigd blijft, precies de breedte waar deze prompt de sheet invoert.
+   Twee prompts op één component; dat moet één worden.
 
 4. **Veilig gedrag tijdens een actieve vraag.** `05` §12 verbiedt een popover
-   over een onbeantwoorde vraag, en `00` §5 zet "geen instellingenpopover over
-   actieve spelinhoud" bij *bewust niet doen*. De sheet moet dus weten of er
-   een onbeantwoorde vraag loopt. Dat is een contract met thema 1: de sheet
-   krijgt dat als parameter, hij leidt het niet zelf af.
+   over een onbeantwoorde vraag — **behalve een essentiële mute- of
+   noodactie**, en die uitzondering telt hier: `06` §5 eist dat mute altijd
+   bereikbaar is zonder de vraag te blokkeren, en de mute komt straks juist in
+   dit paneel (`O-008`). De sheet moet dus weten of er een onbeantwoorde vraag
+   loopt, en in dat geval een beperkte variant tonen in plaats van niets. Dat
+   is een contract met thema 1: de sheet krijgt de fase als parameter, hij
+   leidt hem niet zelf af.
 
 ## Regels
 

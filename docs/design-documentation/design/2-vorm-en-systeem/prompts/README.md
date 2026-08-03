@@ -5,7 +5,7 @@ contract, regels, definition of done.
 
 Dit thema heeft één eigenschap die de andere vier niet hebben: **bijna niets
 hier is voor onszelf.** Van de twaalf componenten wachten er zeven op thema 1,
-twee op thema 4 en één op thema 3. De volgorde volgt daarom niet het niveau
+en twee op thema 4. De volgorde volgt daarom niet het niveau
 maar wie er stilstaat — een 1 waar drie thema's op wachten gaat vóór een 0
 waar niemand op wacht.
 
@@ -48,9 +48,10 @@ atomaire pas — niet als losse taak ertussendoor.
 
 ## Wat deze set ná review is geworden
 
-Alle negen bestanden zijn adversarieel gereviewd op spec-conformiteit en op
-actualiteit. Dat leverde 62 bevindingen op; de zwaarste zaten niet in wat er
-stond maar in wat er níét stond:
+Alle negen bestanden zijn adversarieel gereviewd, in twee rondes en samen 87
+bevindingen — volledig vastgelegd in [`REVIEW.md`](REVIEW.md), inclusief wat
+bewust niet is verwerkt. De zwaarste zaten niet in wat er stond maar in wat er
+níét stond:
 
 - de motion-tokenpatstelling was al eenzijdig door thema 3 opgelost, en deze
   README weigerde nog te leveren op grond van een conflict dat niet meer

@@ -30,8 +30,11 @@ samen precies wat `10-IMPLEMENTATION-ROADMAP.md` als risico `R3` benoemt:
 **zonder eigen visuele grammatica blijft dit generieke donkere
 gaming-esthetiek**, hoe netjes elk scherm verder ook wordt.
 
-Ze blokkeren ook buiten dit thema. Thema 5 noemt `O-002`/`O-003` expliciet als
-reden om medium/tablet- en podiumcomposities nog niet als prompt te schrijven.
+_Correctie ná review: hier stond dat thema 5 zijn medium/tablet- en
+podiumcomposities hierop laat wachten. Dat gold, maar thema 5 heeft die claim
+inmiddels expliciet ingetrokken en `T5-7`/`T5-8` alsnog geschreven — een
+tweekoloms breakpoint is een layoutvraag, geen kleurvraag. Deze blokkade raakt
+dus alleen thema 2. Dat maakt hem niet minder waar, wel minder breed._
 
 ## `O-002` — lettertype
 
