@@ -366,6 +366,14 @@ is allebei.
 Zolang dit niet beslecht is schrijft thema 2 geen concurrerende prompt, en
 blijft de regel in beide bestanden staan zodat het zichtbaar blijft.
 
+### ✅ Akkoord — thema 2 levert, thema 3 consumeert
+
+Eens met het voorstel. `3-beweging-en-gevoel/prompts/M1-motion-tokens-en-e01.md`
+is aangepast: stap 1 (tokens vastleggen) is geschrapt, `M1` wacht nu op
+`--motion-instant` t/m `--motion-stage` uit thema 2 en past ze alleen toe op
+`E01`. `3-beweging-en-gevoel/PROGRESS.md`'s `Motion-tokens`-regel verwijst nu
+naar thema 2 i.p.v. zelf een niveau bij te houden.
+
 ---
 
 ## UI-10 — `room-header.mjs` is dode code (thema 2, 3 aug 2026)

@@ -33,7 +33,7 @@ de laag die pas zin heeft als de schermen eronder staan.
 | E05 | Antwoordselectie | vraag | 1 | Gekozen optie krijgt direct een accentrand — géén goed/fout, dus anti-afkijk klopt. Hergebruikt E01's pressfeedback (zie noot); geen aparte pressanimatie, geen haptiek. |
 | E06 | Antwoord bevestigd | vraag | 1 | Statustekst verschijnt, opties vergrendelen. Bouwt óók op E01. Geen `Verstuurd ✓` in de component (bewust, `D-021`), andere opties dimmen niet. |
 | E07 | Laatste drie seconden | vraag | 0 | Timer verandert niet van uiterlijk of tempo. |
-| E08 | Ronde sluit | rondeslot | 1 | Inputs vergrendelen op serverevent. Geen overgangscue. |
+| E08 | Ronde sluit | rondeslot | — | **Vervalt als apart event ná review.** Bestaat niet als zelfstandig clientmoment: `optionsLocked()` staat voor wie al antwoordde al sinds E06 op `true`, en voor wie niet antwoordde komt sluiten en de volledige uitslag (E09) gelijktijdig binnen via `round:ended`. Samengevoegd met het begin van E09; het ontbrekende protocolmoment is gemeld als `HANDOFF-UI`-item, niet stilzwijgend opgelost. |
 | E09 | Reveal correct antwoord | reveal | 1 | Correcte optie krijgt een groene rand, eigen resultaat verschijnt als tekst. Geen opbouw, fout gekozen optie wordt niet gemarkeerd. |
 | E10 | Punten tellen | reveal | 1 | Eindwaarde staat direct in de DOM — goed voor toegankelijkheid. Geen oplopende telling. |
 | E11 | Rank movement | tussenstand | 0 | Rijen springen naar hun nieuwe plek zonder beweging of `↑2`-notatie. |
@@ -66,7 +66,7 @@ beheer wordt gedekt, maar niet door motion.
 
 | Fundament | Niveau | Stand |
 |---|---|---|
-| Motion-tokens | 0 | Geen `--motion-fast`/`--base`/`--emphasis`-schaal. Er staan losse `0.12s`- en `0.18s`-waarden verspreid door de CSS. |
+| Motion-tokens | — | **Eigenaarschap verhuisd naar thema 2 ná `HANDOFF-UI` UI-9** (thema 2, 3 aug 2026): tokens hoorden bij zowel dit `PROGRESS.md` als thema 2's — twee schrijvers op één blok in `base.css`, hetzelfde patroon dat al eerder misging (`05` §15). Akkoord: thema 2 levert en beheert `--motion-instant` t/m `--motion-stage`, thema 3 consumeert. Niveau bijhouden gebeurt voortaan in `2-vorm-en-systeem/PROGRESS.md`. |
 | `prefers-reduced-motion` | 1 | **Bijgewerkt:** een blanket-regel staat inmiddels in `base.css` (door een andere agent, nog niet gecommit op moment van schrijven) — `animation`/`transition-duration` naar vrijwel nul, `scroll-behavior: auto`. Dekt de vloer; niveau 2 pas zodra `M2`'s inhoudelijke vervangingen (podium direct compleet, score direct definitief, geen carrousel) er ook zijn — zie `prompts/M0-reduced-motion.md`. |
 | Mute-mechanisme | 0 | **Losgetrokken van "Geluidslaag":** een UI-schakelaar + lokaal bewaarde voorkeur, exact hetzelfde patroon als de bestaande taal-/themaknop. Vandaag bouwbaar, geen open besluit nodig — er is alleen nog niets om te muten. |
 | Geluidsarchitectuur | 0 | Assets, mixer, categorieën (§5). Zit vast op `O-008` (wie bestuurt geluid) én op geluidsassets die nog niet bestaan — dit deel kán ik niet alleen oplossen. |
@@ -77,9 +77,9 @@ beheer wordt gedekt, maar niet door motion.
 
 | Niveau | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| Momenten (`E01`–`E15`) | 8 | 7 | 0 | 0 |
-| Momenten incl. voorstel `E16` | 9 | 7 | 0 | 0 |
-| Fundamenten | 5 | 1 | 0 | 0 |
+| Momenten (14, `E08` vervallen/samengevoegd met `E09`) | 8 | 6 | 0 | 0 |
+| Momenten incl. voorstel `E16` | 9 | 6 | 0 | 0 |
+| Fundamenten (Motion-tokens nu bij thema 2, zie hieronder) | 4 | 1 | 0 | 0 |
 
 ## Afhankelijkheden van andere thema's
 
@@ -94,24 +94,36 @@ Tot die er zijn, blijven deze drie op 0 staan ongeacht hoeveel tijd hier
 wordt gestoken — dat is geen onderschatting, dat is de afhankelijkheid
 correct weergeven in plaats van 'm te verstoppen.
 
-## Volgorde die ik zou aanhouden
+## Volgorde die ik zou aanhouden (herzien ná review, 3 aug 2026)
 
-Eén ding hoort vóór alle andere: **`prefers-reduced-motion` als vaste regel**.
-Nu kost dat één mediaquery. Na het eerste echte animatiewerk is het overal
-terugbouwen, en `08` §2.4 maakt het geen keuze.
+Een review van de zes prompts (`prompts/`) leverde elf bevindingen op — vier
+"Hoog": de reduced-motion-regel verkort een scale in plaats van 'm te
+verwijderen (`06` §7 is expliciet), `E06` liet opties dimmen vóór de
+serverbevestiging, `E08` bleek geen zelfstandig clientevent te zijn, en `M3`
+onderschatte de techniek van een echte dialoogsluitanimatie. Alle vier
+verwerkt in de prompts zelf; zie die bestanden voor het volledige verhaal.
+Oordeel: M0/M5 goedgekeurd ná aanscherping, M1/M2/M4 bijgesteld, M3
+geparkeerd tot `E16` bevestigd is.
 
-Daarna, in volgorde van wat zelfstandig te trekken is:
+Herziene volgorde:
 
-1. Motion-tokens vastleggen + E01 op álle controls (inclusief `.btn-opt`/
-   `.btn-icon`) — brengt E05/E06 gedeeltelijk gratis mee (zie noot hierboven).
-2. De zeven momenten die al op 1 staan (functionele trigger, alleen stil) naar
-   2 tillen zodra de tokens er zijn — goedkoop per stuk.
-3. `E16` (dialoogtransities) — klein, zelfstandig, geen afhankelijkheid.
-4. Mute-mechanisme (UI + voorkeur) — ook zelfstandig te bouwen, ook zonder
-   `O-008`; het is alleen nog een schakelaar zonder geluid om te dempen.
-5. Performancebudget expliciet vastleggen (tokens/regels, niet pas ná de
-   eerste confetti-implementatie).
-6. E04, E12, E13 pas oppakken zodra thema 1 (en voor E12/E13 ook thema 4) hun
-   deel hebben geleverd — niet ervoor proberen te bouwen wat nog geen plek
-   heeft.
-7. Geluidsarchitectuur en haptiek: blijven geparkeerd tot `O-008` beslist is.
+1. **`prefers-reduced-motion`, écht** — niet alleen de duur verkorten
+   (bestond al), maar ook de scale zelf uitschakelen onder reduced motion,
+   met een non-transform-alternatief zodat de interactie voelbaar blijft.
+2. **E01 op álle acht controls** (inclusief `.btn-quiet`, `.btn-opt`,
+   `.btn-icon`) zodra thema 2's motion-tokens er zijn (`UI-9`) — bestaande
+   transities aanvullen, niet vervangen.
+3. **E05/E06/E09/E10/E15 naar niveau 2** — met E06 pas bij `accepted`, en
+   E08 samengevoegd met E09's begin (protocolgat gemeld, niet verstopt).
+4. **Performancebudget direct daarna**, als meetbare gate met numerieke
+   criteria — niet als losse aanname achteraf.
+5. **Alleen de opslaglaag van het mute-mechanisme** (`loadMuted`/
+   `saveMuted` + een gedeelde `safeSet` voor alle drie voorkeuren) — de
+   zichtbare schakelaar wacht op het eerste echte audiosignaal, geen
+   placebo-control tonen.
+6. **`E16` pas ná expliciete bevestiging** als spec-toevoeging, én pas na
+   het ontwerp van één gedeelde dialog-lifecycle-helper — niet drie losse
+   fade-implementaties.
+7. E04, E12, E13 pas zodra thema 1 (en voor E12/E13 ook thema 4) hun deel
+   hebben geleverd.
+8. Geluidsarchitectuur en haptiek blijven geparkeerd tot `O-008` beslist is.

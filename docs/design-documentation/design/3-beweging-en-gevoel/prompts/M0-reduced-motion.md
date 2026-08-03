@@ -1,17 +1,36 @@
 # Prompt — M0: `prefers-reduced-motion` als vaste regel
 
-**✅ Al gedaan — door een andere agent, vóórdat deze prompt werd uitgevoerd.**
-`base.css` bevat inmiddels precies deze blanket-regel (`@media
-(prefers-reduced-motion: reduce)`, `*, *::before, *::after`,
-`animation-duration`/`transition-duration` naar `0.001ms`,
-`scroll-behavior: auto`), met een verwijzing naar dezelfde bronnen (`08` §2.4,
-QA-checklist K) als hieronder. Nog niet gecommit op het moment van schrijven,
-dus geen commit-hash hier — controleer bij uitvoering of 'm inmiddels
-gecommit is. **Niet opnieuw bouwen.** Deze prompt blijft staan als
-documentatie van de eis en als basis voor `M1`–`M3`'s Definition of Done
-(die hier tegen toetsen), en om te bevestigen dat de bestaande implementatie
-aan onderstaande criteria voldoet — dat laatste is nog niet apart
-geverifieerd.
+**🟡 Deels gedaan — blanket-regel bestaat, maar dekt de eis niet volledig.**
+`base.css` bevat een `@media (prefers-reduced-motion: reduce)`-blok
+(`*, *::before, *::after`, `animation-duration`/`transition-duration` naar
+`0.001ms`, `scroll-behavior: auto`). **Reviewbevinding, terecht:** dit
+verkort een `:active`-scale (`transform: scale(0.98)`) naar 0,001 ms, maar
+verwijdert 'm niet. `06` §7 zegt expliciet "geen scale/spring" — een scale
+van 0,001 ms is nog steeds een scale, ook al is 'm onwaarneembaar snel. De
+blanket-regel is een goed vangnet voor *duur*, maar geen vervanging voor
+`06`'s eis dat het *soort* motion (scale) onder reduced motion wegvalt.
+
+**Aanvullende, nog te bouwen stap:** een tweede regel die `transform`
+specifiek naar `none` zet voor de bestaande `:active`-selectors, met een
+niet-transform-vervanging (kleur/rand/achtergrond, zie ook `M1` punt 6 van
+de review) zodat de interactie voelbaar blijft zonder scale:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary:active,
+  .btn-secondary:active,
+  .btn-destructive:active,
+  .gameplay-option:not(:disabled):active,
+  .podium-rematch:active {
+    transform: none;
+  }
+}
+```
+
+Dit is een aparte regel ná de bestaande blanket-regel, niet een vervanging
+ervan — de blanket-regel blijft duur-vangnet voor alles wat `M1`/`M2`/`M3`
+later toevoegen; deze regel is specifiek voor de scale-uitzondering die `06`
+§7 met naam noemt.
 
 Oorspronkelijke opzet, bewust de eerste stap, vóór er ook maar één nieuwe
 animatie bijkomt:
