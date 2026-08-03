@@ -19,6 +19,9 @@
         --l1: #f59e0b;
         --l2: #22c55e;
         --l3: #60a5fa;
+        /* On hold: grijs, en bewust doods. Dit is geen achterstand maar een
+           blokkade — het hoort niet mee te kleuren met werk dat wél kan. */
+        --lh: #4a4a63;
         --r: 14px;
         --r-sm: 10px;
       }
@@ -80,6 +83,11 @@
       .lv { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 7px; font-weight: 800; font-size: 0.85rem; color: #0d0d1a; }
       .lv0 { background: var(--l0); } .lv1 { background: var(--l1); }
       .lv2 { background: var(--l2); } .lv3 { background: var(--l3); }
+      .lvh { background: var(--lh); color: var(--muted); }
+      /* Een rij die op hold staat dimt mee: hij hoort te lezen als "hier
+         gebeurt niets", niet als werk dat blijft liggen. */
+      tr.is-hold td { opacity: 0.55; }
+      tr.is-hold:hover td { opacity: 1; }
 
       .note { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent-light); border-radius: var(--r-sm); padding: 14px 16px; margin: 18px 0; }
       .note p { margin: 0 0 8px; } .note p:last-child { margin: 0; }
@@ -117,6 +125,14 @@
       const cells = (line) =>
         line.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
 
+      // Geldige waarden in een `Niveau`-kolom. `⏸` staat naast 0-3 en niet
+      // erin: on hold is geen achterstand maar een blokkade (zie NIVEAUS.md).
+      const HOLD = '⏸';
+      const isNiveau = (v) => /^[0-3]$/.test(v) || v === HOLD;
+      /** Kolomindex in de telling: 0-3 blijven zichzelf, ⏸ krijgt index 4. */
+      const index = (v) => (v === HOLD ? 4 : Number(v));
+      const klasse = (v) => (v === HOLD ? 'lvh' : `lv${v}`);
+
       /**
        * Haalt uit een markdownbestand alle tabellen met een `Niveau`-kolom.
        * Tolerant: een tabel zonder die kolom wordt overgeslagen, een rij met
@@ -143,7 +159,7 @@
             }
             // Alleen tabellen die per regel een niveau geven; de tellingen
             // onderaan een bestand (Niveau als kopkolom) vallen hier af.
-            if (niveauKol !== -1 && rows.some((r) => /^[0-3]$/.test(r[niveauKol] ?? ''))) {
+            if (niveauKol !== -1 && rows.some((r) => isNiveau(r[niveauKol] ?? ''))) {
               secties.push({ kop, head, niveauKol, rows });
             }
             continue;
@@ -154,11 +170,11 @@
       }
 
       const telling = (secties) => {
-        const t = [0, 0, 0, 0];
+        const t = [0, 0, 0, 0, 0]; // index 4 = on hold
         for (const s of secties)
           for (const r of s.rows) {
             const v = r[s.niveauKol];
-            if (/^[0-3]$/.test(v)) t[Number(v)]++;
+            if (isNiveau(v)) t[index(v)]++;
           }
         return t;
       };
@@ -172,10 +188,14 @@
           .replace(/`([^`]+)`/g, '<code>$1</code>')
           .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 
+      // Kleur per segment; index 4 (on hold) pakt het grijs.
+      const KLEUR = ['var(--l0)', 'var(--l1)', 'var(--l2)', 'var(--l3)', 'var(--lh)'];
+      const TITEL = ['niveau 0', 'niveau 1', 'niveau 2', 'niveau 3', 'on hold'];
+
       function balk(t) {
         const som = t.reduce((a, b) => a + b, 0) || 1;
         return `<div class="bar">${t
-          .map((n, lv) => (n ? `<span class="lv${lv}" style="width:${(n / som) * 100}%;background:var(--l${lv})" title="niveau ${lv}: ${n}"></span>` : ''))
+          .map((n, i) => (n ? `<span style="width:${(n / som) * 100}%;background:${KLEUR[i]}" title="${TITEL[i]}: ${n}"></span>` : ''))
           .join('')}</div>`;
       }
 
@@ -184,6 +204,7 @@
         <span><i style="background:var(--l1)"></i>1 staat er</span>
         <span><i style="background:var(--l2)"></i>2 ontworpen</span>
         <span><i style="background:var(--l3)"></i>3 leeft</span>
+        <span><i style="background:var(--lh)"></i>⏸ on hold — geblokkeerd</span>
       </div>`;
 
       const data = new Map();
@@ -246,7 +267,10 @@
             <h3>${esc(a.naam)}</h3>
             <p class="meta">docs ${esc(a.docs)} · ${som} onderdelen</p>
             ${balk(t)}
-            <p class="tot">${t.map((n, lv) => `<b>${n}</b>&nbsp;op&nbsp;${lv}`).join(' · ')}</p>
+            <p class="tot">${t
+              .slice(0, 4)
+              .map((n, lv) => `<b>${n}</b>&nbsp;op&nbsp;${lv}`)
+              .join(' · ')}${t[4] ? ` · <b>${t[4]}</b>&nbsp;on&nbsp;hold` : ''}</p>
           </button>`;
         }).join('');
 
@@ -287,10 +311,14 @@
           ${s.kop ? `<h3>${esc(s.kop)}</h3>` : ''}
           <table>
             <thead><tr>${s.head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
-            <tbody>${s.rows.map((r) => `<tr>${r.map((c, i) =>
-              i === s.niveauKol && /^[0-3]$/.test(c)
-                ? `<td><span class="lv lv${c}">${c}</span></td>`
-                : `<td>${inline(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+            <tbody>${s.rows.map((r) => {
+              const v = r[s.niveauKol];
+              const hold = v === HOLD;
+              return `<tr${hold ? ' class="is-hold"' : ''}>${r.map((c, i) =>
+                i === s.niveauKol && isNiveau(c)
+                  ? `<td><span class="lv ${klasse(c)}">${c}</span></td>`
+                  : `<td>${inline(c)}</td>`).join('')}</tr>`;
+            }).join('')}</tbody>
           </table>`).join('');
 
         document.getElementById('main').innerHTML = `

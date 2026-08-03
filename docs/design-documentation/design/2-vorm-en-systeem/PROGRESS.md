@@ -23,8 +23,8 @@ De onderste laag: waar elk component uit put.
 | Contrast | 2 | `05` §2.2 | Tekst haalt AA in beide thema's, focusring contrasteert, disabled is niet langer alleen opacity. Vlaggen missen nog een neutrale rand tegen lichte achtergronden. Niveau 3 is hier niet van toepassing: dit is een drempel, geen beleving. |
 | Spacing | 2 | `05` §2.4 | Consistente ritmiek sinds de fundamentfix; `.screen` en `.lobby-screen` regelen de afstand. Schuld: de schaal is nergens vastgelegd, dus consistentie berust op oplettendheid. Geen safe-area-afhandeling. |
 | Radii en randen | 2 | `05` §2.5–2.6 | Twee radii, subtiele randen, weinig schaduw. Volgt de richtlijn: niet alles is een pil, focusring is geen decoratieve glow. |
-| Wereldmotieven | 0 | `05` §2.7 | Bestaan niet. Geen raster, routeboog, kaartcontour of atlaslabel; de achtergrond is een vlakke kleur. **Niet door mij op te lossen:** dit is ontwerpwerk en het wacht op `O-003` (accentkleur) — zonder die keuze is elke uitwerking weggegooid. |
-| Iconografie | 0 | `05` §3 | Geen eigen set. Emoji als logo (🌍) en medailles (🥇🥈🥉) zijn placeholders die `D-015` afkeurt, maar er is niets om ze mee te vervangen. **Niet door mij op te lossen:** wacht op `O-002` en een merkontwerper. |
+| Wereldmotieven | ⏸ | `05` §2.7 | **On hold — wacht op `O-003` (accentkleur), `UI-11`.** Bestaan niet: geen raster, routeboog, kaartcontour of atlaslabel; de achtergrond is een vlakke kleur. Dit is ontwerpwerk, geen CSS-werk, en zonder een vastgestelde accentkleur is elke uitwerking weggegooid. Terug naar 0 zodra de kleur vaststaat. |
+| Iconografie | ⏸ | `05` §3 | **On hold — wacht op een merkontwerper, `UI-11`.** Geen eigen set: emoji als logo (🌍) en medailles (🥇🥈🥉) zijn placeholders die `D-015` afkeurt, maar er is niets om ze mee te vervangen. `05` §3 stelt geen eis aan de letterkeuze, dus `O-002` is hier bijzaak — de echte blokkade is dat niemand de set tekent. Terug naar 0 zodra die er is. |
 
 ## Componenten
 
@@ -45,17 +45,20 @@ De onderste laag: waar elk component uit put.
 
 ## Telling
 
-| Niveau | 0 | 1 | 2 | 3 |
-|---|---|---|---|---|
-| Fundamenten | 2 | 3 | 3 | 0 |
-| Componenten | 0 | 9 | 3 | 0 |
+| Niveau | 0 | 1 | 2 | 3 | ⏸ |
+|---|---|---|---|---|---|
+| Fundamenten | 0 | 3 | 3 | 0 | 2 |
+| Componenten | 0 | 9 | 3 | 0 | 0 |
 
-De twee resterende nullen zijn wereldmotieven en iconografie. Beide zijn
-**niet bouwbaar**, niet onaangeroerd — ze wachten op `O-002`/`O-003` en op
-echt ontwerpwerk. Het besluitverzoek daarvoor is
-[`T2-7`](prompts/T2-7-besluitverzoek-o002-o003.md), en het staat als `UI-11`
-bij de producteigenaar. Er is dus geen bouwprompt en er hoort er ook geen te
-zijn: die zou een taak suggereren die niemand kan uitvoeren.
+**Er staat niets meer op 0.** Wat er ligt is werk aan onderdelen die al
+bestaan, plus twee dingen die op hold staan omdat niemand ze kán bouwen:
+wereldmotieven en iconografie. Het besluitverzoek daarvoor is
+[`T2-7`](prompts/T2-7-besluitverzoek-o002-o003.md) en het staat als `UI-11`
+bij de producteigenaar.
+
+Die twee krijgen bewust geen bouwprompt — dat zou een taak suggereren die
+niemand kan uitvoeren. Zodra de blokkade weg is gaan ze naar 0 en volgt de
+prompt.
 
 Verschoven sinds de eerste opname: knophiërarchie van 2 naar 1 (geen
 laadvariant, `05` §4.1), en motion-tokens toegevoegd als eigen fundament.

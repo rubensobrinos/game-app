@@ -9,6 +9,24 @@ Staat hier los, niet in elke `PROGRESS.md` herhaald.
 | **1** | Het staat er — werkt, kaal, basiskleur uit de tokens | Kun je de taak afmaken zonder vast te lopen? |
 | **2** | Het is ontworpen — compositie, hiërarchie, ruimte, en álle staten zijn vormgegeven | Ziet het eruit alsof iemand het bedoeld heeft? |
 | **3** | Het leeft — beweging, geluid, reactie op gebeurtenissen | Voelt het als een game in plaats van een formulier? |
+| **⏸** | On hold — bestaat niet en is nu ook niet te bouwen | Wacht dit op een besluit of op iemand anders? |
+
+### Waarom ⏸ geen niveau 0 is
+
+Dezelfde reden waarom 0 en 1 uit elkaar staan: het zijn verschillende
+opdrachten. Een 0 zegt "hier moet iemand aan werken". Een ⏸ zegt "hier kán
+niemand aan werken" — het wacht op een producteigenaarsbesluit, op een
+ontwerper, of op een ander thema.
+
+Zet je die samen, dan lijkt de achterstand groter dan hij is en verdwijnt de
+enige informatie die ertoe doet: wie moet er iets doen om dit los te trekken.
+
+Een ⏸ is alleen geldig **mét de blokkade erbij**. "On hold" zonder te zeggen
+waarop is een 0 met een mooier gezicht. En zodra de blokkade weg is, gaat de
+regel terug naar 0 — niet direct naar 1.
+
+Het teken sluit aan bij de legenda die de `*-PROGRESS.md`-bestanden onder
+`docs/*-plan/` al gebruiken (`⏸️ bewust uitgesteld`).
 
 ## Vier regels bij het invullen
 

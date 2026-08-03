@@ -18,7 +18,14 @@ gevaarlijker dan een eerlijke "0".
 | [`T5-5-screenreader-testplan.md`](T5-5-screenreader-testplan.md) | Screenreader: aangenomen → gemeten | testplan voor een mens met een toestel | niets, maar **niet automatiseerbaar** |
 | [`T5-6-testmatrix-proces.md`](T5-6-testmatrix-proces.md) | `08` §9 als doorlopend proces, niet een eenmalig vinkje | proces/checklist | T5-1 t/m T5-5 als eerste vulling |
 | [`T5-7-medium-tablet-compositie.md`](T5-7-medium-tablet-compositie.md) | Tweekoloms lobby + tussenstand vanaf tabletbreedte | bouwbare compositie | niets |
-| [`T5-8-large-podium-compositie.md`](T5-8-large-podium-compositie.md) | Desktop/tv-podium: lobby-als-podium, grote code/QR, bredere leaderboard | gescoped bouwbare compositie | O-010 (antwoordverdeling) en thema 1/4's headline-engine blokkeren een deel, niet het geheel |
+| [`T5-8-large-podium-compositie.md`](T5-8-large-podium-compositie.md) | Desktop/tv-podium: lobby-als-podium, grote code/QR, bredere leaderboard | gescoped bouwbare compositie | O-010 (antwoordverdeling) en thema 1/4's headline-engine blokkeren een deel, niet het geheel; overlap met thema 1's `S20` eerst afstemmen |
+| [`T5-9-spelerslijst-bij-schaal.md`](T5-9-spelerslijst-bij-schaal.md) | `07` §9's presentatietabel (0/1–8/9–20/21–35/36–100/100+) + joinbatching | bouwbare fix | niets |
+| [`T5-10-host-verliest-verbinding.md`](T5-10-host-verliest-verbinding.md) | Recovery/timeout/uitslagbehoud bij hostdisconnect | eerst meten, dan gescoped bouwen | VIP-overdracht blijft expliciet buiten scope (open PO-besluit) |
+
+Met T5-9/T5-10 heeft nu **elke rij** in `PROGRESS.md` óf een prompt, óf een
+expliciete reden waarom niet (thema 3's `M0` voor reduced motion; VIP-
+overdracht binnen `T5-10` als open PO-besluit). Geen rij staat meer zonder
+vervolgstap of onderbouwing.
 
 **Correctie op een eerdere versie van deze README:** hier stond dat er bewust
 geen prompt was voor medium/tablet- en large/podium-composities, "geblokkeerd
