@@ -85,6 +85,12 @@ export function transition(state, event) {
     case 'OPEN_ADVANCED':
       return state.status === 'editing' ? { ...state, mode: 'advanced' } : state;
 
+    // Prompt 09 (S02): "teruggaan verliest geen keuzes" — alleen `mode` gaat
+    // terug naar 'quick-start', config/displayName/hostParticipates blijven
+    // ongewijzigd. Symmetrisch met OPEN_ADVANCED, geen reset.
+    case 'CLOSE_ADVANCED':
+      return state.status === 'editing' ? { ...state, mode: 'quick-start' } : state;
+
     case 'SET_FIELD':
       return state.status === 'editing' && SETTABLE_CONFIG_KEYS.has(event.key)
         ? { ...state, config: { ...state.config, [event.key]: event.value } }

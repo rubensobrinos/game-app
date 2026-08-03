@@ -168,6 +168,22 @@ test('OPEN_ADVANCED outside editing is ignored, no throw', () => {
   assert.deepStrictEqual(transition(submitting, { type: 'OPEN_ADVANCED' }), submitting);
 });
 
+test('CLOSE_ADVANCED switches mode back to quick-start without touching config or displayName', () => {
+  const advanced = transition(initialHostSetupState(), { type: 'OPEN_ADVANCED' });
+  const edited = transition(advanced, { type: 'SET_FIELD', key: 'difficulty', value: 'hard' });
+  const named = transition(edited, { type: 'NAME_CHANGED', value: 'Ruben' });
+
+  const closed = transition(named, { type: 'CLOSE_ADVANCED' });
+  assert.strictEqual(closed.mode, 'quick-start');
+  assert.strictEqual(closed.config.difficulty, 'hard');
+  assert.strictEqual(closed.displayName, 'Ruben');
+});
+
+test('CLOSE_ADVANCED outside editing is ignored, no throw', () => {
+  const submitting = transition(initialHostSetupState(), { type: 'SUBMIT' });
+  assert.deepStrictEqual(transition(submitting, { type: 'CLOSE_ADVANCED' }), submitting);
+});
+
 test('SET_FIELD outside editing is ignored, no throw', () => {
   const submitting = transition(initialHostSetupState(), { type: 'SUBMIT' });
   const result = transition(submitting, { type: 'SET_FIELD', key: 'difficulty', value: 'hard' });

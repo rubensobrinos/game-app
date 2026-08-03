@@ -16,6 +16,7 @@ import { saveSession } from '../../../client/flow/session-store.mjs';
 import { messageForErrorCode } from '../../../client/flow/edge-case-messaging.mjs';
 import { resolveRoute } from '../../../client/flow/route-resolver.mjs';
 import { formatCode } from './room-header.mjs';
+import { createHostSetupView } from './host-setup.mjs';
 
 const CODE_FORMAT = /^[0-9]{6}$/;
 
@@ -56,7 +57,40 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   codeSubmitButton.type = 'button';
   codeSubmitButton.className = 'home-code-submit btn-secondary';
 
-  screen.append(logo, title, promise, quickStartButton, quickStartStatus, quickStartError, divider, codeLabel, codeError, codeSubmitButton);
+  // S01 inhoudshiërarchie punt 6 ("aanpaslink"): tertiair, na het codeveld —
+  // nooit even dominant als de primaire quick-start-knop.
+  const hostSetupLink = document.createElement('button');
+  hostSetupLink.type = 'button';
+  hostSetupLink.className = 'home-host-setup-link btn-quiet';
+  hostSetupLink.addEventListener('click', () => dispatch({ type: 'OPEN_ADVANCED' }));
+
+  const quickStartGroup = [logo, title, promise, quickStartButton, quickStartStatus, quickStartError, divider, codeLabel, codeError, codeSubmitButton, hostSetupLink];
+  screen.append(...quickStartGroup);
+
+  // S02: los scherm, hergebruikt dezelfde HostSetupState-instantie (geen
+  // eigen URL-route, alleen `state.mode` bepaalt wat zichtbaar is).
+  const hostSetupRoot = document.createElement('div');
+  hostSetupRoot.hidden = true;
+  const hostSetupView = createHostSetupView({
+    root: hostSetupRoot,
+    t,
+    onSetField: (key, value) => dispatch({ type: 'SET_FIELD', key, value }),
+    onToggleHostParticipates: () => dispatch({ type: 'TOGGLE_HOST_PARTICIPATES' }),
+    onStart: () => {
+      dispatch({ type: 'SUBMIT' });
+      runCreate();
+    },
+    onReset: () => {
+      // "Herstel standaardinstellingen": alleen ná expliciete keuze van de
+      // gebruiker verliezen wijzigingen betekenis — `state.mode` blijft
+      // 'advanced' zodat de gebruiker niet stilzwijgend terugvalt naar
+      // quick-start (prompt 09's Aanpak punt 3).
+      state = { ...initialHostSetupState(), mode: 'advanced' };
+      render();
+    },
+    onBack: () => dispatch({ type: 'CLOSE_ADVANCED' }),
+  });
+  screen.appendChild(hostSetupRoot);
   root.append(screen);
 
   let state = initialHostSetupState();
@@ -144,6 +178,17 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   }
 
   function render() {
+    const advanced = state.mode === 'advanced';
+    for (const node of quickStartGroup) {
+      node.hidden = advanced;
+    }
+    hostSetupRoot.hidden = !advanced;
+
+    if (advanced) {
+      hostSetupView.update(state);
+      return;
+    }
+
     title.textContent = t('home.title');
     promise.textContent = t('home.promise');
     codeLabelText.textContent = t('home.codeLabel');
@@ -153,6 +198,8 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
     codeLabel.hidden = state.status === 'creating';
     codeSubmitButton.hidden = state.status === 'creating';
     codeSubmitButton.textContent = t('home.codeSubmit');
+    hostSetupLink.textContent = t('home.hostSetupLink');
+    hostSetupLink.hidden = state.status === 'creating';
     quickStartStatus.textContent = state.status === 'creating' ? t('home.creating') : '';
     quickStartError.textContent = state.status === 'error' ? t(`error.${messageForErrorCode(state.errorCode)}`) : '';
   }

@@ -19,6 +19,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-14 | producteigenaar | 🔵 open, voorstel al gebouwd | Dubbele tab: `BroadcastChannel`-gebaseerde detectie toegevoegd (geen nieuwe dependency) — bevestig of dit de gewenste aanpak is |
 | UI-15 | producteigenaar | 🔵 open | Tie-regel bij gelijke scores (S15/S20): `04` noemt dit expliciet nog te beslissen; `transport-mock.mjs` heeft al een ongedocumenteerde tiebreak (`joinedAt` ascending) — client toont gewoon de servervolgorde, geen gedeelde-plaats-indicator |
 | UI-16 | INT-A | 🔵 open | S14: drie sociale-headline-typen niet bouwbaar zonder protocolwijziging (naam bij "enige correct" voor een ANDERE speler, antwoordtijd voor "snelste speler", streak-historie) |
+| UI-17 | client/flow (eigenaar) / producteigenaar | 🔵 open | S02: teams/tijd-per-ronde niet gebouwd — `config.mode` kent geen teamwaarde, `HostConfig` heeft geen tijd-per-ronde-veld; bevestig of een van beide alsnog gewenst is |
 
 ---
 
@@ -633,3 +634,27 @@ benodigde data nergens voor andere clients zichtbaar is:
 protocoluitbreiding (bv. `round:ended` uitbreiden met per-speler-identiteit
 bij precies één correcte respons, of een aparte "snelste"/"streak"-broadcast)
 — geen aanname die de client zelf zou moeten verzinnen.
+
+---
+
+## UI-17 — S02: twee scope-beperkingen (thema 1, 3 aug 2026)
+
+**Voor:** de eigenaar van `client/flow/` (datamodel) en de producteigenaar
+(besluit). Bij het bouwen van `views/host-setup.mjs`
+(`1-schermen-en-flow/prompts/09-S02-spel-aanpassen.md`) bleken twee van `04`'s
+vijf S02-groepen geen onderliggende data te hebben — niet als schijnkeuze
+gebouwd, hier vastgelegd:
+
+1. **Spelvorm.** `HostConfig.gameTypes` bestaat, maar `defaultHostConfig()`
+   staat vast op `['flags_mc']` (`DECISIONS.md` #31/#32/#35: meerdere
+   spelvormen expliciet geschrapt voor deze MVP). Het scherm toont dit nu als
+   vaste tekst, geen dropdown die maar één, niet-wijzigbare optie zou bieden.
+2. **Teams of individuele modus.** `HostConfig.mode`'s type is letterlijk
+   alleen `'individual'` — er bestaat geen teamwaarde in het datamodel. Het
+   scherm toont dit ook als vaste tekst. `04` noemt daarnaast "tijd" naast
+   "aantal rondes" bij deze groep, maar `HostConfig` heeft geen
+   tijd-per-ronde-veld — ook niet gebouwd.
+
+**Verzoek:** een besluit of teammodus en/of tijd-per-ronde alsnog gewenste
+features zijn. Zo ja: dat is een datamodel-/protocolwijziging bij
+`client/flow/`'s eigenaar, geen aanname die dit scherm zelf zou moeten maken.
