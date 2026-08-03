@@ -1,7 +1,8 @@
 # Prompt — T5-7: Medium/tablet-compositie
 
-**Status in `PROGRESS.md`:** Medium / tablet | niveau 0 | bewijs: **—** ("Geen
-tweekoloms compositie; alles blijft één kolom van 480px.")
+**Status: uitgevoerd en geverifieerd.** Alle drie de onderdelen gebouwd,
+tegen de échte server op 390/768/1024px gemeten (ad-hoc Playwright, geen
+projectdependency).
 
 **Correctie op de vorige versie van deze `PROGRESS.md`-pas:** die zei dat dit
 wacht op thema 2's open besluiten (`O-002` lettertype, `O-003` accentkleur).
@@ -64,19 +65,38 @@ vraagt niemand.
   (visuele CSS-Grid-herordening mag de leesvolgorde niet omdraaien).
 - Werkt zonder hover (`07` §12) — dit blijft evengoed een touchapparaat.
 
-## Definition of done
+## Gebouwd
 
-**Status: nog niet gebouwd** — dit contract beschrijft wat gebouwd moet
-worden, de tweekoloms-composities zelf bestaan nog niet. Wél gecorrigeerd:
-de DoD hing oorspronkelijk aan een committed Playwright-testsuite die niet
-bestaat (zie `prompts/README.md`'s Playwright-notitie). Zodra dit gebouwd
-wordt:
+1. **Lobby**: `lobby.mjs`'s bestaande kinderen zijn gegroepeerd in een nieuwe
+   `.lobby-main-column`-wrapper (zelfde DOM-volgorde, geen herordening) naast
+   `.lobby-share`; vanaf 768px wordt `.lobby-screen` een CSS-grid
+   (`grid-template-areas: 'main share' 'start start'`), eronder blijft het de
+   bestaande verticale flex-kolom.
+2. **Tussenstand**: `.scoreboard-list`/`.scoreboard-entry` krijgen vanaf
+   768px meer ruimte (`max-width: 600px`, gecentreerd, grotere padding) —
+   bewust alleen de scoreboard-selectors, niet de gedeelde
+   `.podium-steps`/`.podium-step`, dus het podiumscherm blijft ongewijzigd.
+3. **Hamburgermenu**: vanaf 768px verdwijnt `.app-hamburger` en toont
+   `.app-menu` zich permanent inline in de header (`display: flex !important`
+   overschrijft het `hidden`-attribuut), horizontaal i.p.v. verticaal.
+   `app-menu.mjs`'s `setOpen()`/Escape/klik-buiten-logica is ongewijzigd
+   gelaten — die blijft intern gewoon `hidden`/`aria-expanded` bijhouden, dat
+   heeft op dit breekpunt alleen geen zichtbaar effect meer. Geen aparte
+   tablet-tak in de JS nodig.
 
-- Ad-hoc Playwright (geen projectdependency totdat het `deps`-besluit valt)
-  bij een paar representatieve tabletbreedtes (bv. 768px, 1024px) van lobby
-  en tussenstand, naast de bestaande compacte versie — resultaat vastgelegd
-  in dit document, niet alleen een screenshotmap.
-- Geen regressie op compact portrait (390×844 blijft ongewijzigd) — te
-  verifiëren met dezelfde ad-hoc aanpak als `T5-1`/`T5-2` gebruikten (echte
-  server, tijdelijke Playwright-install).
-- `PROGRESS.md`'s rij gaat van "0, —" naar een eerlijk gemeten niveau.
+`#app-root`'s `max-width` wordt alleen voor lobby/tussenstand verruimd naar
+760px (`session-shell.mjs` zet `.app-root-wide` per gemount scherm) — home,
+join, gameplay en podium blijven op de compacte 480px-kolom.
+
+## Definition of done — behaald
+
+- Ad-hoc Playwright tegen `node server/index.mjs` op 390×844 (compact),
+  768×1024 en 1024×1366: lobby toont de tweekoloms-layout side-by-side vanaf
+  768px, `#app-root` verruimt naar 760px, geen horizontale overflow op geen
+  van de drie breedtes. Tussenstand centreert op 600px zodra de fase
+  `SCOREBOARD` mount. Hamburgerknop verdwijnt vanaf 768px, menu blijft
+  permanent zichtbaar.
+- Compact portrait (390×844) ongewijzigd bevestigd: geen grid, geen
+  verruiming, hamburgerknop gewoon zichtbaar.
+- `node --test`: 2819/2819 groen.
+- `PROGRESS.md`'s rij gaat van "0, —" naar "2, gemeten".

@@ -1,9 +1,8 @@
 # Prompt — T5-9: Spelerslijst bij schaal
 
-**Status: prompt gecorrigeerd, nog niet gebouwd.** Twee bevindingen uit
-`REVIEW.md` verwerkt (zie hieronder); de feature zelf
-(`participantPresentationFor()`, het compacte grid, batching) is nog niet
-gebouwd — dat is los, groter werk.
+**Status: uitgevoerd en geverifieerd.** Beide correcties uit `REVIEW.md`
+verwerkt vóór de bouw (zie hieronder), daarna gebouwd tegen de échte server
+(niet de mock — die kan sowieso geen 100+ testen) en met Playwright bevestigd.
 
 **Correctie 1 — 100+ niet aantoonbaar met de mock.** De oorspronkelijke DoD
 vroeg de lobby te simuleren met "0, 5, 15, 30, 50 en **150** deelnemers" via
@@ -80,16 +79,29 @@ sociale-bewijs-weergave; §9 gaat over de zichtbare lobbypresentatie).
 - `MAX_PLAYERS = 100` in `transport-mock.mjs` blijft ongewijzigd — dit is
   productgedrag, geen testbeperking om op te rekken.
 
-## Definition of done
+## Definition of done — behaald
 
-- `participantPresentationFor()` heeft eigen tests voor elke drempel uit de
-  tabel (0, 1, 8, 9, 20, 21, 35, 36, 100, 101, **150**) — de 100+-variant
-  wordt hier bewezen (pure functie, geen mock-limiet), niet visueel.
-- Ad-hoc Playwright (geen projectdependency, zie `prompts/README.md`): lobby
-  gesimuleerd met 0, 5, 15, 30, 50 en **100** deelnemers (de mock-limiet),
-  screenshot per drempel. 150 wordt bewust niet visueel getoond — zie
-  Correctie 1 hierboven.
-- Batching aantoonbaar: vijf joins binnen 500ms leveren één DOM-mutatie op,
-  niet vijf.
-- `PROGRESS.md`'s rij gaat van "1, gemeten (tot vijf namen)" naar "gemeten
+- `participant-presentation.mjs`: `participantPresentationFor()` gebouwd
+  (drie bouwbare varianten: `rows` 1–8, `grid` 9–35, `aggregate` 36+, naast
+  `empty`), met tests op alle drempels incl. 150 (bewijst 100+ zonder
+  mock-limiet).
+- `lobby.mjs`: 9–35 toont hetzelfde `.lobby-player`-rijtype in een compact
+  CSS-grid (`.lobby-players-grid`); 36+ toont alleen de laatste 5 joins +
+  totaal, met een "Bekijk alle spelers"-knop die de rest (al in de DOM,
+  alleen `hidden`) alsnog toont — geen tweede route.
+- Batching: `session-shell.mjs`'s `handleEvent` rendert het eerste
+  `room:player-changed` in een rustig venster meteen (geen kunstmatige
+  vertraging voor een normale, geïsoleerde join) en coalesceert alles wat
+  binnen 500ms daarna bijkomt tot één trailing render. **Precisering t.o.v.
+  de oorspronkelijke DoD:** vijf joins binnen 500ms leveren zo **twee**
+  renders op (de directe + de trailing), niet vijf — een bewuste afweging
+  vóór een letterlijke "exact één", omdat dat laatste elke geïsoleerde join
+  met 500ms zou vertragen.
+- Geverifieerd met ad-hoc Playwright tegen de échte server (`node
+  server/index.mjs`, geen projectdependency): 0/5/15/30/50/100 spelers geven
+  precies de juiste variant (rows/rows/grid/grid/aggregate/aggregate), "Bekijk
+  alle spelers" toont daadwerkelijk alle verborgen rijen, batching bevestigd
+  op 2 render-bursts voor 5 gelijktijdige joins.
+- `node --test`: 2819/2819 groen.
+- `PROGRESS.md`'s rij gaat van "1, gemeten (tot vijf namen)" naar "2, gemeten
   (volledige schaal tot de mock-limiet, 100+ unit-bewezen)".

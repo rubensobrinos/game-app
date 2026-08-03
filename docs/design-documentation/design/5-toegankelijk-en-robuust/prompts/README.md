@@ -17,9 +17,9 @@ gevaarlijker dan een eerlijke "0".
 | [`T5-4-falende-vlagafbeelding.md`](T5-4-falende-vlagafbeelding.md) | **uitgevoerd** — gebouwd en geverifieerd | Falende asset laat gebroken afbeelding zien | niets |
 | [`T5-5-screenreader-testplan.md`](T5-5-screenreader-testplan.md) | open — wacht op een mens met toestel | Screenreader: aangenomen → gemeten | niets, maar **niet automatiseerbaar** |
 | [`T5-6-testmatrix-proces.md`](T5-6-testmatrix-proces.md) | deels uitvoerbaar (contrastscript), Playwright-sweep wacht op `deps` | `08` §9 als doorlopend proces, niet een eenmalig vinkje | T5-1 t/m T5-5 als eerste vulling |
-| [`T5-7-medium-tablet-compositie.md`](T5-7-medium-tablet-compositie.md) | open — DoD gecorrigeerd, feature nog niet gebouwd | Tweekoloms lobby + tussenstand vanaf tabletbreedte | niets |
-| [`T5-8-large-podium-compositie.md`](T5-8-large-podium-compositie.md) | open — DoD gecorrigeerd, feature nog niet gebouwd | Desktop/tv-podium: lobby-als-podium, grote code/QR, bredere leaderboard | O-010 (antwoordverdeling) en thema 1/4's headline-engine blokkeren een deel, niet het geheel; overlap met thema 1's `S20` eerst afstemmen |
-| [`T5-9-spelerslijst-bij-schaal.md`](T5-9-spelerslijst-bij-schaal.md) | open — DoD gecorrigeerd (100 i.p.v. 150, 44px-bron), feature nog niet gebouwd | `07` §9's presentatietabel (0/1–8/9–20/21–35/36–100/100+) + joinbatching | niets |
+| [`T5-7-medium-tablet-compositie.md`](T5-7-medium-tablet-compositie.md) | **uitgevoerd** — alle drie de onderdelen gebouwd en gemeten | Tweekoloms lobby + tussenstand + vast menu-panel vanaf tabletbreedte | niets |
+| [`T5-8-large-podium-compositie.md`](T5-8-large-podium-compositie.md) | open — DoD gecorrigeerd, bewust niet gebouwd | Desktop/tv-podium: lobby-als-podium, grote code/QR, bredere leaderboard | O-010 (antwoordverdeling) en thema 1/4's headline-engine blokkeren een deel; **overlap met thema 1's `S20` moet eerst afgestemd worden — dat is geen technische blokkade die ik zelf kan wegnemen, vandaar niet meegebouwd met T5-7/T5-9** |
+| [`T5-9-spelerslijst-bij-schaal.md`](T5-9-spelerslijst-bij-schaal.md) | **uitgevoerd** — gebouwd en gemeten tot 100 spelers | `07` §9's presentatietabel (0/1–8/9–20/21–35/36–100/100+) + joinbatching | niets |
 | [`T5-10-host-verliest-verbinding.md`](T5-10-host-verliest-verbinding.md) | **uitgevoerd als meting + HANDOFF** | Recovery: gemeten (werkt). Timeout/uitslagbehoud: geen server-side timeout gevonden, vastgelegd als `HANDOFF-UI.md` UI-18 | VIP-overdracht blijft expliciet buiten scope (open PO-besluit) |
 
 ## Playwright-notitie (blokkeerde acht van de tien prompts)
@@ -38,12 +38,13 @@ het prompt-document vastgelegd. Dat leverde twee echte bugfixes op (zie
 T5-1 en T5-3) die een geschreven-maar-nooit-uitgevoerde Playwright-DoD
 nooit had gevonden.
 
-Voor de prompts die nog **iets moeten bouwen** vóór er iets te meten valt
-(T5-7, T5-8, T5-9) is alleen de DoD-tekst ontkoppeld van de committed-
-Playwright-aanname — de features zelf zijn apart, groter werk. Zodra het
-`deps`-besluit ooit wél valt, worden de ad-hoc-scripts van T5-1–T5-4 de
-eerste laag-1-specs uit `T5-6`, niet iets wat opnieuw geschreven hoeft te
-worden.
+T5-7 en T5-9 (compositie- en schaalwerk, geen pure verificatie) zijn
+inmiddels ook gebouwd en met dezelfde ad-hoc-aanpak geverifieerd — de
+Playwright-notitie hierboven gold voor hun DoD-tekst, niet voor de bouw zelf.
+T5-8 blijft bewust open: die wacht op afstemming met thema 1's `S20`, geen
+Playwright- of `deps`-vraag. Zodra het `deps`-besluit ooit wél valt, worden
+de ad-hoc-scripts van T5-1–T5-4/T5-7/T5-9 de eerste laag-1-specs uit `T5-6`,
+niet iets wat opnieuw geschreven hoeft te worden.
 
 [`REVIEW.md`](REVIEW.md) — feitelijke controle van alle tien prompts tegen de
 code (3 aug 2026), inmiddels verwerkt in bovenstaande statussen.

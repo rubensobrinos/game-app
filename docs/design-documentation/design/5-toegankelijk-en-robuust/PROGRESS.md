@@ -33,8 +33,8 @@ afgeleid) · **aangenomen** (niet geverifieerd).
 |---|---|---|---|
 | Compact portrait | 2 | gemeten | 390×844 nagemeten: geen horizontale én geen verticale overflow meer sinds `1004c64` en `eb72578`. |
 | Safe areas | 1 | gelezen | Was: "`viewport-fit=cover` staat er, geen `env(safe-area-inset-*)`." Sinds `58eba07` staat `env(safe-area-inset-*)` op `body` (top/left/right) en `.screen` (bottom) — bewust niet op de sticky header zelf, anders klopt `--header-h` weer niet meer (dezelfde valkuil als eerder met de headerhoogte). Blijft op 1, niet 2: gebouwd maar nooit op een écht toestel met inkeping gezien — "aangenomen dat de CSS het juiste doet" is niet hetzelfde als "gemeten". |
-| Spelerslijst bij schaal | 1 | gemeten | Getest tot vijf namen. Geen compact grid, geen aggregatie boven 36, geen `Bekijk alle spelers`. Prompt gecorrigeerd (niet uitgevoerd): de DoD vroeg 150 gesimuleerde spelers, `transport-mock.mjs`'s `MAX_PLAYERS = 100` staat dat niet toe — besluit: 100+ wordt bewezen via `participantPresentationFor()`'s unit tests, niet visueel; `MAX_PLAYERS` blijft ongewijzigd (productgedrag). Ook de 44px-bronvermelding gecorrigeerd (repo-conventie, niet `08` §2.6). Zie [`prompts/T5-9-spelerslijst-bij-schaal.md`](prompts/T5-9-spelerslijst-bij-schaal.md). |
-| Medium / tablet | 0 | — | Geen tweekoloms compositie; alles blijft één kolom van 480px. **Correctie:** eerder hier gemeld als geblokkeerd op `O-002`/`O-003` (thema 2) — dat klopt niet, dit is een layoutvraag, geen typografie-/kleurvraag. Prompt: [`prompts/T5-7-medium-tablet-compositie.md`](prompts/T5-7-medium-tablet-compositie.md) — bij een eigen review nog een gemist derde scope-item gevonden (`07` §3's "side panel voor voorkeuren", het hamburgermenu) en toegevoegd. Nog niet gebouwd; DoD ontkoppeld van de ontbrekende Playwright-dependency. |
+| Spelerslijst bij schaal | 2 | **gemeten** | Was: getest tot vijf namen, geen compact grid, geen aggregatie, geen `Bekijk alle spelers`. Nu gebouwd: `participantPresentationFor()` (pure functie, `rows`/`grid`/`aggregate`) stuurt `lobby.mjs`'s weergave; 9–35 toont een compact CSS-grid, 36+ toont de laatste 5 joins + totaal met een "Bekijk alle spelers"-knop voor de rest. `room:player-changed` gebatcht (eerste wijziging in een rustig venster meteen, de rest binnen 500ms gecoalesceerd tot één trailing render — 2 renders voor 5 gelijktijdige joins, niet 5). Geverifieerd tegen de échte server met 0/5/15/30/50/100 spelers (100+ apart unit-bewezen, de mock-limiet is productgedrag, niet opgerekt). Zie [`prompts/T5-9-spelerslijst-bij-schaal.md`](prompts/T5-9-spelerslijst-bij-schaal.md). |
+| Medium / tablet | 2 | **gemeten** | Was: geen tweekoloms compositie, alles één kolom van 480px. **Correctie destijds:** eerder hier gemeld als geblokkeerd op `O-002`/`O-003` (thema 2) — dat klopte niet, dit is een layoutvraag. Nu gebouwd: lobby toont vanaf 768px de spelerslijst naast de deelsectie (CSS grid-areas, geen DOM-herordening), tussenstand centreert breder (600px) vanaf dezelfde breedte, en het hamburgermenu wordt vanaf 768px een permanent zichtbaar paneel i.p.v. een zwevende dropdown. `#app-root` verruimt alleen voor deze twee schermen (`.app-root-wide`), niet globaal. Geverifieerd op 390/768/1024px, geen regressie op compact portrait. Zie [`prompts/T5-7-medium-tablet-compositie.md`](prompts/T5-7-medium-tablet-compositie.md). |
 | Large / podium | 0 | — | Geen podiumcompositie, geen spelerswand, geen grote code op kamerafstand. **Correctie:** eerder hier "Fase 3/4" genoemd — `10` §8 zet "podium" expliciet op Fase 2, en `P4` (`02` design principles) is een principe, geen open besluit. Prompt: [`prompts/T5-8-large-podium-compositie.md`](prompts/T5-8-large-podium-compositie.md), scoped wat nú kan (lobby-als-podium, grote code/QR, bredere leaderboard) van wat op iets anders wacht (`O-010`, thema 1/4's headline-engine, thema 2/3's podiumassets). **Nog niet afgestemd:** of de roadmap-rij "podium/Fase 2" over déze desktop/tv-compositie gaat of over thema 1's `S20` (mobiele podiumscherm-afwerking, ook niveau 0/1) — mogelijk allebei. Niet zelf ingevuld, staat als open vraag in de prompt. Nog niet gebouwd. |
 | Landscape | 2 | **gemeten** | Drie landscape-breedtes (844×390, 926×428, 1024×600): geen horizontale overflow. Rotatie tijdens een actieve vraag (portrait→landscape, geen reload): geselecteerde optie en resterende tijd blijven ongewijzigd (`07` §10's harde eis). Geen bugs gevonden. Zie [`prompts/T5-2-landscape.md`](prompts/T5-2-landscape.md). |
 
@@ -54,7 +54,7 @@ afgeleid) · **aangenomen** (niet geverifieerd).
 
 | Niveau | 0 | 1 | 2 | 3 | ⏸ |
 |---|---|---|---|---|---|
-| Aantal | 2 | 4 | 16 | 0 | 2 |
+| Aantal | 1 | 3 | 18 | 0 | 2 |
 
 ("Host verliest verbinding" telt hier als drie losse rijen — recovery (2),
 timeout/uitslagbehoud (⏸) en VIP-overdracht (⏸) — sinds die rij is
@@ -83,23 +83,26 @@ vooral in het corrigeren van de contrast-rij, niet alleen in het optellen
 ervan). Screenreader staat bewust nog op 1 — daar verandert geen berekening
 iets aan, alleen een écht toestel (`prompts/T5-5`).
 
-**Tweede ronde (10 prompts, T5-1 t/m T5-10) uitgevoerd.** De acht die aan
-Playwright hingen, hingen aan een dependency die niet bestaat — dat is nu
+**Tweede ronde (10 prompts, T5-1 t/m T5-10) uitgevoerd — inclusief de twee
+compositieprompts die eerst nog "los, groter werk" heetten.** De acht die aan
+Playwright hingen, hingen aan een dependency die niet bestaat — dat is
 opgelost door de metingen ad-hoc uit te voeren (tijdelijke Playwright-
 install, geen projectwijziging) en het resultaat hier vast te leggen in
-plaats van op het `deps`-besluit te wachten. Vier daadwerkelijk gemeten en
-naar niveau 2 gebracht: **Zoom** (één overflow-bug gevonden en gefixt,
+plaats van op het `deps`-besluit te wachten. Zes daadwerkelijk gebouwd/gemeten
+en naar niveau 2 gebracht: **Zoom** (één overflow-bug gevonden en gefixt,
 `.lobby-player`), **Landscape** (geen bugs), **Refresh/sessieherstel** (één
 bug gevonden en gefixt: de eindstand overleefde een refresh niet — zelfde
 soort snapshot-gat als thema 4's `roundModel`-fix), **Falende assets**
-(fallback gebouwd en bevestigd). **Host verliest verbinding** gesplitst in
-drie eerlijke deelniveaus i.p.v. één cijfer dat ze verborg — de kernvraag
-(bestaat er een timeout?) is beantwoord met "nee", vastgelegd als
-`HANDOFF-UI.md` UI-18. **Medium/tablet**, **Large/podium** en **Spelerslijst
-bij schaal** blijven ongebouwd — dat is losstaand, groter compositiewerk,
-niet iets wat de Playwright-correctie zelf oploste; hun prompts zijn wel
-gecorrigeerd (T5-9's 100-vs-150-mismatch, de 44px-bronvermelding) zodat een
-volgende uitvoering niet op een onuitvoerbare DoD stuit.
+(fallback gebouwd en bevestigd), **Spelerslijst bij schaal**
+(`participantPresentationFor()` + compact grid + aggregatie + batching,
+gemeten tot 100 spelers) en **Medium/tablet** (lobby, tussenstand en
+hamburgermenu krijgen alle drie een tabletvariant, `#app-root` verruimt
+alleen daar). **Host verliest verbinding** gesplitst in drie eerlijke
+deelniveaus i.p.v. één cijfer dat ze verborg — de kernvraag (bestaat er een
+timeout?) is beantwoord met "nee", vastgelegd als `HANDOFF-UI.md` UI-18.
+**Large/podium** blijft bewust ongebouwd: die prompt zegt zelf expliciet dat
+afstemming met thema 1's `S20` eerst moet gebeuren vóór dit ticket start —
+dat is geen technische blokkade die ik zelf kan wegnemen.
 
 Eén middag met een echt toestel en VoiceOver verzet hier nog steeds meer dan
 een week bouwen — dat is niet veranderd. Wat wel is veranderd: wat zonder
