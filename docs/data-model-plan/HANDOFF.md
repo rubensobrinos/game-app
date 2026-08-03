@@ -295,8 +295,8 @@ volledige inventaris, niets van gebouwd:
   elkaar tegen.
 - **INT-7 (aan DM):** geen conditionele of partiële write op de poort.
 - **INT-9 (aan DM):** tegenstrijdige `deadlineGraceMs`.
-- **INTB-8 (aan DM + eigenaar `tests/fixtures/`):** gedeelde testfixtures
-  produceren ongeldige documenten.
+- ~~**INTB-8** (aan DM + eigenaar `tests/fixtures/`): gedeelde testfixtures
+  produceren ongeldige documenten.~~ ✅ opgelost door de DT-agent (2026-08-02).
 - **INT-4 (cc DM, primair CT):** contentcontract mist
   `validOptionIds`/`resultDetails`. Niet blokkerend, niet primair mijn item.
 
@@ -364,7 +364,7 @@ worden bijgewerkt** — geen actie van mij nodig behalve deze melding.
 | INTB-5 | DM | 🔴 **echt open** — zie hierboven, voorstel in §9 |
 | INTB-6 | DM+GR | 🔵 **wacht extern, geadresseerd bij GR** — tiebreak-eigenaarschap is een echte GR-vraag, niet iets ik alleen kan beslissen |
 | INTB-7 | DM | ✅ inhoudelijk opgelost, detailtekst stale — zie hierboven |
-| INTB-8 | DM+fixtures-eigenaar | 🔵 **wacht extern, geadresseerd bij de DT-agent** (bevestigd) — geen actie hier |
+| INTB-8 | DM+fixtures-eigenaar | ✅ **opgelost door de DT-agent** (2026-08-02) — zie `HANDOFF-INTB.md` |
 | INT-3 | DM | 🔵 open, terecht, blokkeert INT-A stap 2 — voorstel in §10 |
 | INT-6 | DM | ✅ inhoudelijk opgelost, **INT-A's tabel is stale** — zie hierboven |
 | INT-7 | DM | 🔵 open, terecht — geen conditionele/partiële write op de poort. Nog niet als voorstel uitgewerkt (niet in de prioriteitsvolgorde van dit antwoord); INT-A's eigen stopgap (`touchRoom()`/`setRoomLocked()` geïsoleerd) houdt het risico binnen één proces intussen klein |

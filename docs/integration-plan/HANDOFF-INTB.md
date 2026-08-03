@@ -17,16 +17,16 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INTB-5 | Geroteerde uitnodiging blijft geldig | 🔴 **heropend** — zie hieronder |
 | INTB-6 | Tiebreak `getScoreboardTop` ligt niet vast | 🔵 open |
 | INTB-7 | Ruw invite-id of hash? | ✅ poort neemt de hash |
-| INTB-8 | Fixtures produceren ongeldige documenten | 🔵 open |
+| INTB-8 | Fixtures produceren ongeldige documenten | ✅ opgelost door DT (2026-08-02) |
 | INTB-9 | `saveRoom` omzeilt de atomaire locatorclaim | 🟡 **besluit akkoord**, bouwen |
 | INTB-10 | `loadSessionByTokenHash` niet implementeerbaar | 🟡 **besluit akkoord**, wacht op sleutel in `redis-keys.js` |
 | INTB-11 | Fake loopt achter op DM19 | ✅ INT-A's flip (`c571092`) |
 | INTB-12 | Server draaide op de in-memory fake | ✅ INT-A bedraadde het, mét productie-eis |
 
-**Domein rustend.** Twaalf items, tien opgelost. Open blijven **INTB-6**
-(tiebreak bij gelijkspel) en **INTB-8** (fixtures die de eigen validators
-afkeuren) — beide bij DM. Zie
-[`INTB-PROGRESS.md`](INTB-PROGRESS.md) voor de overdracht.
+**Domein rustend.** Twaalf items, elf opgelost. Open blijft **INTB-6**
+(tiebreak bij gelijkspel), bij DM. **INTB-8** (fixtures die de eigen
+validators afkeuren) is opgelost door DT — zie het item hieronder voor de
+details. Zie [`INTB-PROGRESS.md`](INTB-PROGRESS.md) voor de overdracht.
 
 Beide delen van
 [`BESLUIT-INTB-locators-en-sessieindex.md`](BESLUIT-INTB-locators-en-sessieindex.md)
@@ -411,7 +411,27 @@ Geen actie meer nodig van DM; genoteerd zodat de keuze vindbaar blijft.
 
 ---
 
-## INTB-8 🔵 — Gedeelde testfixtures produceren ongeldige documenten
+## INTB-8 ✅ — OPGELOST door DT (2026-08-02)
+
+**Was aan:** DM-agent en de eigenaar van `tests/fixtures/`. Toegewezen aan de
+DT-agent (`docs/data-model-plan/DM-PROGRESS.md`/`HANDOFF.md` bevestigen dit),
+die het hier heeft opgelost.
+
+**Fix:** `makeRoom()` krijgt nu een volledig geldige `config` via een nieuwe
+`makeGameConfiguration()`-factory (alle 16 verplichte velden van
+`GameConfiguration`), en draagt niet langer `contentVersion`/`rendererVersion`
+— die twee zijn verhuisd naar `makeMatch()`, waar ze conform DECISIONS #21
+horen. `tests/fixtures/index.test.js` controleert nu voor alle zeven
+factories expliciet dat het resultaat door de eigen `assert*Shape` heen komt
+(exact het voorstel hieronder), plus de bestaande veldenset-parität-check.
+`node --test tests/fixtures/index.test.js` → 9/9 groen;
+`npm test` (volledige repo) → 2727/2728 groen, 1 skip, ongerelateerd.
+
+De oorspronkelijke melding staat hieronder ter referentie.
+
+---
+
+## INTB-8-oud — de oorspronkelijke melding
 
 **Aan:** DM-agent en de eigenaar van `tests/fixtures/`.
 

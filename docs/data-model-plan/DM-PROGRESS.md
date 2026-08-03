@@ -119,8 +119,8 @@ capability heeft één atomair schrijfpad en één atomair intrekpad — een loo
 die een ingetrokken capability nog vindt is een bug. Zie `HANDOFF.md` §14
 voor de volledige toets-tabel.
 
-INTB-8 ligt al bij de DT-agent, geen actie hier. INTB-6 (tiebreak) blijft
-terecht open, wacht op GR.
+INTB-8 is opgelost door de DT-agent (2026-08-02, zie `HANDOFF-INTB.md`).
+INTB-6 (tiebreak) blijft terecht open, wacht op GR.
 
 - [x] `DM18` (`HANDOFF.md` §7) — `sessionsByKey`/`playersByKey` → geneste
   Maps, `playerIdsByRoom` vervallen. Geen poortsignatuur-wijziging, dus
@@ -180,8 +180,8 @@ een beslissing van DM zelf:
   geadresseerd bij **AR + INT-B**.
 - **INTB-6** (tiebreak `getScoreboardTop`) — wacht extern, geadresseerd bij
   **GR**.
-- **INTB-8** (testfixtures) — wacht extern, geadresseerd bij **de DT-agent**.
+- ~~**INTB-8** (testfixtures)~~ — ✅ opgelost door **de DT-agent** (2026-08-02).
 
-Geen van deze drie heeft een vervolgactie van DM nodig totdat de genoemde
-eigenaar heeft gereageerd. **Domein rustend — heropstart begint bij
+Geen van deze twee resterende heeft een vervolgactie van DM nodig totdat de
+genoemde eigenaar heeft gereageerd. **Domein rustend — heropstart begint bij
 `DM-PROGRESS.md`.**

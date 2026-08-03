@@ -126,7 +126,7 @@ maakt.
 | Item | Bij wie | Wat |
 | --- | --- | --- |
 | **INTB-6** | DM + GR | de tiebreak van `getScoreboardTop` ligt nergens vast; Redis breekt gelijke scores lexicografisch, de fake op invoegvolgorde. De suite vermijdt gelijke scores daarom bewust — precies de situatie die op een scoreboard normaal is |
-| **INTB-8** | DM + eigenaar `tests/fixtures/` | `makeRoom()` en `makeMatch()` produceren documenten die de eigen validators afkeuren; een test die daarop leunt kan slagen op data die in productie geweigerd wordt |
+| ~~INTB-8~~ | ~~DM + eigenaar `tests/fixtures/`~~ | ✅ **opgelost door DT (2026-08-02)** — `makeRoom()`/`makeMatch()` produceren nu geldige documenten, `index.test.js` controleert dit voortaan expliciet tegen `assert*Shape`. Zie `HANDOFF-INTB.md` INTB-8. |
 
 ## De rode draad die ik meegeef
 
