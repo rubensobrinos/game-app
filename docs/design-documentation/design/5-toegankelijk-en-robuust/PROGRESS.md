@@ -35,7 +35,7 @@ afgeleid) · **aangenomen** (niet geverifieerd).
 | Safe areas | 1 | gelezen | Was: "`viewport-fit=cover` staat er, geen `env(safe-area-inset-*)`." Sinds `58eba07` staat `env(safe-area-inset-*)` op `body` (top/left/right) en `.screen` (bottom) — bewust niet op de sticky header zelf, anders klopt `--header-h` weer niet meer (dezelfde valkuil als eerder met de headerhoogte). Blijft op 1, niet 2: gebouwd maar nooit op een écht toestel met inkeping gezien — "aangenomen dat de CSS het juiste doet" is niet hetzelfde als "gemeten". |
 | Spelerslijst bij schaal | 2 | **gemeten** | Was: getest tot vijf namen, geen compact grid, geen aggregatie, geen `Bekijk alle spelers`. Nu gebouwd: `participantPresentationFor()` (pure functie, `rows`/`grid`/`aggregate`) stuurt `lobby.mjs`'s weergave; 9–35 toont een compact CSS-grid, 36+ toont de laatste 5 joins + totaal met een "Bekijk alle spelers"-knop voor de rest. `room:player-changed` gebatcht (eerste wijziging in een rustig venster meteen, de rest binnen 500ms gecoalesceerd tot één trailing render — 2 renders voor 5 gelijktijdige joins, niet 5). Geverifieerd tegen de échte server met 0/5/15/30/50/100 spelers (100+ apart unit-bewezen, de mock-limiet is productgedrag, niet opgerekt). Zie [`prompts/T5-9-spelerslijst-bij-schaal.md`](prompts/T5-9-spelerslijst-bij-schaal.md). |
 | Medium / tablet | 2 | **gemeten** | Was: geen tweekoloms compositie, alles één kolom van 480px. **Correctie destijds:** eerder hier gemeld als geblokkeerd op `O-002`/`O-003` (thema 2) — dat klopte niet, dit is een layoutvraag. Nu gebouwd: lobby toont vanaf 768px de spelerslijst naast de deelsectie (CSS grid-areas, geen DOM-herordening), tussenstand centreert breder (600px) vanaf dezelfde breedte, en het hamburgermenu wordt vanaf 768px een permanent zichtbaar paneel i.p.v. een zwevende dropdown. `#app-root` verruimt alleen voor deze twee schermen (`.app-root-wide`), niet globaal. Geverifieerd op 390/768/1024px, geen regressie op compact portrait. Zie [`prompts/T5-7-medium-tablet-compositie.md`](prompts/T5-7-medium-tablet-compositie.md). |
-| Large / podium | 0 | — | Geen podiumcompositie, geen spelerswand, geen grote code op kamerafstand. **Correctie:** eerder hier "Fase 3/4" genoemd — `10` §8 zet "podium" expliciet op Fase 2, en `P4` (`02` design principles) is een principe, geen open besluit. Prompt: [`prompts/T5-8-large-podium-compositie.md`](prompts/T5-8-large-podium-compositie.md), scoped wat nú kan (lobby-als-podium, grote code/QR, bredere leaderboard) van wat op iets anders wacht (`O-010`, thema 1/4's headline-engine, thema 2/3's podiumassets). **Nog niet afgestemd:** of de roadmap-rij "podium/Fase 2" over déze desktop/tv-compositie gaat of over thema 1's `S20` (mobiele podiumscherm-afwerking, ook niveau 0/1) — mogelijk allebei. Niet zelf ingevuld, staat als open vraag in de prompt. Nog niet gebouwd. |
+| Large / podium | 1 | **gemeten** | **Afstemmingsvraag inmiddels beantwoord door de feiten:** thema 1's `S20` (mobiele podiumscherm-afwerking) staat nu op niveau 1 met de 3→2→1-opbouw, `Deel uitslag`/`Nieuw spel` — dat is dus de mobiele podiumrijkheid; deze rij is en blijft de aparte desktop/tv-compositie op een bredere viewport, geen dubbel werk. Nu gebouwd, op een nieuwe grote-breedte-laag (1200px, `#app-root.app-root-wide`'s tweede tier — 768px blijft T5-7's tabletmaat): (1) tussenstand/podium worden breder (900px, ruimere `padding`/`font-size`) — T5-7 liet `.podium-steps` bewust ongewijzigd, dit is de eerste keer dat het podiumscherm zelf meegroeit; (2) de spelerslijst-grid (T5-9) groeit vanzelf naar 3-4 kolommen via `auto-fill` — bleek **onderweg een echte bug**: `.lobby-players-grid` werd al door `lobby.mjs` aan-/uitgezet maar had nergens een CSS-regel, dus de "compacte grid" van T5-9 deed tot nu toe niets, ongeacht viewport (nu wél een regel, geverifieerd met Playwright's `getComputedStyle` op 390/900/1300px); (3) de gamecode in `room-header.mjs` groeit op 1200px+ (`clamp(1.25rem, 1.4vw, 1.75rem)`). **Bewust niet gebouwd:** een permanente, grote QR-kaart in de lobby zelf (§7's "linker zone: QR, code, URL") — dat zou een tweede QR-ingang naast `room-header.mjs`'s bestaande modal betekenen, en D-018 verbiedt precies dat. Dit is een open productvraag (moet de compacte header-QR op groot scherm plaatsmaken voor een permanente kaart, of blijft de header leidend en groeit alleen zijn typografie?) — niet zelf beslist, zie `HANDOFF-UI.md`. Antwoordverdeling/sociale headline/podiumassets blijven zoals de prompt al zei buiten scope (`O-010`, headline-engine, thema 2/3-assets). Niet naar 2: de linker QR-zone ontbreekt dus nog, dat is een expliciet `04`/`07`-criterium. Zie [`prompts/T5-8-large-podium-compositie.md`](prompts/T5-8-large-podium-compositie.md). |
 | Landscape | 2 | **gemeten** | Drie landscape-breedtes (844×390, 926×428, 1024×600): geen horizontale overflow. Rotatie tijdens een actieve vraag (portrait→landscape, geen reload): geselecteerde optie en resterende tijd blijven ongewijzigd (`07` §10's harde eis). Geen bugs gevonden. Zie [`prompts/T5-2-landscape.md`](prompts/T5-2-landscape.md). |
 
 ## Veerkracht
@@ -54,16 +54,15 @@ afgeleid) · **aangenomen** (niet geverifieerd).
 
 | Niveau | 0 | 1 | 2 | 3 | ⏸ |
 |---|---|---|---|---|---|
-| Aantal | 1 | 3 | 18 | 0 | 2 |
+| Aantal | 0 | 4 | 18 | 0 | 2 |
 
 ("Host verliest verbinding" telt hier als drie losse rijen — recovery (2),
 timeout/uitslagbehoud (⏸) en VIP-overdracht (⏸) — sinds die rij is
 opgesplitst; vandaar 24 rijen totaal i.p.v. de eerdere 22. Timeout/
 uitslagbehoud en VIP stonden hier eerder als 0, maar dat verbergt het enige
 dat ertoe doet: niemand kan hieraan werken vóór INT-A/PR resp. de PO een
-besluit levert — `NIVEAUS.md`'s eigen regel voor ⏸. Medium/tablet,
-Large/podium en Testmatrix blijven bewust wél op 0: die hebben een
-uitvoerbare prompt en wachten nergens op.)
+besluit levert — `NIVEAUS.md`'s eigen regel voor ⏸. Geen enkele rij staat nu
+nog op een kale 0: Large/podium — de laatste — is naar 1 gebracht.)
 
 ## De conclusie die uit de bewijskolom volgt
 
@@ -100,9 +99,17 @@ hamburgermenu krijgen alle drie een tabletvariant, `#app-root` verruimt
 alleen daar). **Host verliest verbinding** gesplitst in drie eerlijke
 deelniveaus i.p.v. één cijfer dat ze verborg — de kernvraag (bestaat er een
 timeout?) is beantwoord met "nee", vastgelegd als `HANDOFF-UI.md` UI-18.
-**Large/podium** blijft bewust ongebouwd: die prompt zegt zelf expliciet dat
-afstemming met thema 1's `S20` eerst moet gebeuren vóór dit ticket start —
-dat is geen technische blokkade die ik zelf kan wegnemen.
+**Large/podium** stond op zijn eigen afstemmingseis met thema 1's `S20` —
+die is inmiddels feitelijk beantwoord (`S20` is nu niveau 1, dat is de
+mobiele podiumrijkheid; deze rij is de aparte desktop/tv-compositie, geen
+overlap) en het ticket is gedeeltelijk gebouwd: een nieuwe 1200px-laag
+verruimt tussenstand/podium en laat de spelerswand meegroeien, plus grotere
+codetypografie in `room-header.mjs`. Onderweg een echte bug gevonden: T5-9's
+`.lobby-players-grid`-klasse werd al aan-/uitgezet maar had nooit een
+CSS-regel — de "compacte grid" deed dus niets, op geen enkele breedte, tot
+nu. De permanente grote QR-kaart uit `07` §7 blijft bewust weg: die zou een
+tweede QR-ingang naast `room-header.mjs` betekenen, en dat is precies wat
+D-018 verbiedt — een open productvraag, niet zelf beslist.
 
 Eén middag met een echt toestel en VoiceOver verzet hier nog steeds meer dan
 een week bouwen — dat is niet veranderd. Wat wel is veranderd: wat zonder

@@ -266,12 +266,24 @@ body {
   margin: 0 auto;
 }
 
-/* T5-7: alleen lobby en tussenstand krijgen op tabletbreedte meer ruimte
+/* T5-7: lobby/tussenstand/podium krijgen op tabletbreedte meer ruimte
    (`session-shell.mjs` zet/verwijdert deze klasse per gemount scherm) — geen
-   globale verruiming, dat zou home/join/gameplay/podium ongewenst meenemen. */
+   globale verruiming, dat zou home/join/gameplay ongewenst meenemen. */
 @media (min-width: 768px) {
   #app-root.app-root-wide {
     max-width: 760px;
+  }
+}
+
+/* T5-8: large/desktop-tv (`07` §7/§8) — nog een tandje breder dan T5-7's
+   tabletmaat, zodat de spelerswand en de tussenstand/podium-lijst écht
+   ruimte krijgen i.p.v. alleen wat minder leeg te zijn. 1200px is
+   content-driven, niet willekeurig: dat is waar `.lobby-players-grid`
+   (hieronder, `auto-fill`) een derde/vierde kolom krijgt in plaats van twee
+   uitgerekte kolommen. */
+@media (min-width: 1200px) {
+  #app-root.app-root-wide {
+    max-width: 1100px;
   }
 }
 
@@ -389,6 +401,18 @@ button {
 .room-header-code-value {
   letter-spacing: 0.06em;
   font-weight: 700;
+}
+
+/* T5-8: `07` §11 "code en rank gebruiken responsive clamp... podiumlabels
+   zijn veel groter dan telefoonlabels" — `room-header` is de enige plek waar
+   de code + QR-knop staan (D-018: nooit een tweede ingang, dus geen aparte
+   grote QR-kaart in de lobby zelf, alleen deze bestaande weergave laten
+   meegroeien). Blijft bescheiden t.o.v. `--type-display-code`: dit zit in de
+   vaste `--header-h`-hoogte appheader, niet een los canvas. */
+@media (min-width: 1200px) {
+  .room-header-code-value {
+    font-size: clamp(1.25rem, 1.4vw, 1.75rem);
+  }
 }
 
 .room-qr-overlay {
@@ -798,6 +822,19 @@ button {
      naam van 60 tekens — de invoerlimiet. */
   grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
+}
+
+/* T5-9 zette deze klasse al aan (`lobby.mjs`, 9-35 spelers), maar er was nog
+   geen regel die 'm iets liet doen — de "compacte grid" was dus visueel
+   identiek aan de gewone lijst. `auto-fill` i.p.v. een vast kolomaantal:
+   dezelfde regel geeft twee kolommen op tabletbreedte en groeit vanzelf naar
+   drie/vier op T5-8's grote breedte (`#app-root.app-root-wide`'s 1200px-
+   tier hierboven) — dat is de "levende spelerswand" uit `07` §7's
+   large/podium-compositie, zonder een aparte large-only regel nodig te
+   hebben. `minmax(0, ...)`, niet `auto`: zelfde reden als de rij hierboven,
+   anders duwt een lange naam de kolom (en de pagina) breder. */
+.lobby-players-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr));
 }
 
 .lobby-player {

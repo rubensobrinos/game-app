@@ -678,11 +678,14 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     stopGameplayTicker();
     phaseContainer.textContent = '';
     mountedViewName = viewName;
-    // T5-7: alleen lobby/tussenstand krijgen op tabletbreedte meer ruimte
-    // (`#app-root`'s `max-width` wordt hierdoor NIET globaal verruimd, zie
-    // base.css's `.app-root-wide`) — home/join/gameplay/podium blijven altijd
-    // op de compacte 480px-kolom.
-    root.classList.toggle('app-root-wide', viewName === 'lobby' || viewName === 'scoreboard');
+    // T5-7/T5-8: lobby/tussenstand/podium krijgen op tabletbreedte (T5-7,
+    // 768px) en op desktop/tv-breedte (T5-8, 1200px, zie base.css) meer
+    // ruimte (`#app-root`'s `max-width` wordt hierdoor NIET globaal
+    // verruimd, zie base.css's `.app-root-wide`) — home/join/gameplay
+    // blijven altijd op de compacte 480px-kolom. Podium zat tot T5-8 niet in
+    // deze lijst (T5-7 liet 'm bewust ongewijzigd, "large/podium" was toen
+    // nog niveau 0) — nu wel, zelfde databron als scoreboard.
+    root.classList.toggle('app-root-wide', viewName === 'lobby' || viewName === 'scoreboard' || viewName === 'podium');
 
     if (viewName === 'lobby') {
       mountedView = createLobbyView({

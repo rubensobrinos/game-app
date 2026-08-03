@@ -870,6 +870,26 @@ button.is-loading::after {
   }
 }
 
+/* T5-8: large/podium (`07` §7 "Reveal": "leaderboard met rank movement" —
+   hier alleen de bredere lay-out, de rank-movement-animatie zelf is thema
+   3/1's scope, niet aangeraakt). T5-7 liet `.podium-steps` bewust
+   ongewijzigd ("podiumscherm blijft ongewijzigd", toen nog niveau 0) — dit
+   is dus de eerste keer dat het podiumscherm zelf meegroeit, gedeeld met
+   `.scoreboard-list` omdat beide dezelfde `<ol>`-structuur en
+   `#app-root.app-root-wide` gebruiken (session-shell.mjs). */
+@media (min-width: 1200px) {
+  .scoreboard-list,
+  .podium-steps {
+    max-width: 900px;
+  }
+
+  .scoreboard-entry,
+  .podium-step {
+    padding: 20px 28px;
+    font-size: var(--type-body-lg);
+  }
+}
+
 .podium-step-1 { border-color: var(--color-accent-competition, #f59e0b); }
 
 /* S20's 3→2→1-opbouw zet `hidden` per stap — zonder deze regel wint de

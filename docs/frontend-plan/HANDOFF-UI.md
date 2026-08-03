@@ -23,6 +23,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-18 | INT-A / PR | 🔵 open | Geen server-side timeout ná `host_disconnected` — een hostloze room blijft voor onbepaalde tijd gepauzeerd, geen uitslagbehoud-event mogelijk (thema 5, T5-10) |
 | UI-19 | INT-A / PR | 🔵 open | Geen protocolmoment tussen "ronde actief" en "uitslag compleet" — `round:closing` bestaat niet, thema 3 voegt E08 daarom samen met E09's begin |
 | UI-20 | thema 5 / thema 2 | 🔵 open | `T2-9` en `T5-7` claimen allebei het voorkeurenpaneel; de een wijzigt compact portrait, de ander eist dat het ongewijzigd blijft |
+| UI-21 | producteigenaar | 🔵 open | T5-8 (large/podium): moet de compacte `room-header.mjs`-code+modal-QR op grote breedte plaatsmaken voor een permanente QR-kaart in de lobby (`07` §7), of blijft de header de enige QR-ingang (D-018) en groeit alleen zijn typografie? Niet zelf beslist — een tweede QR-ingang zou D-018 schenden, maar `07` §7 vraagt expliciet om een permanente kaart |
 
 ---
 
