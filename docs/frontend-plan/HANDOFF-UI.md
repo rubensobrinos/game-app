@@ -21,6 +21,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-16 | INT-A | 🔵 open | S14: twee (niet drie) headline-typen echt niet bouwbaar — "streak" bleek een misverstand, zie herziene toelichting |
 | UI-17 | client/flow (eigenaar) | 🔵 open | Teams zijn al volledig gespecificeerd (`GAME-RULES.md` §Teams — fase 1.5) maar niet in `HostConfig`; tijd-per-ronde heeft een bevestigde default+range (`15s, 10–30s`) zonder instelveld — zie herziene toelichting |
 | UI-18 | INT-A / PR | 🔵 open | Geen server-side timeout ná `host_disconnected` — een hostloze room blijft voor onbepaalde tijd gepauzeerd, geen uitslagbehoud-event mogelijk (thema 5, T5-10) |
+| UI-19 | INT-A / PR | 🔵 open | Geen protocolmoment tussen "ronde actief" en "uitslag compleet" — `round:closing` bestaat niet, thema 3 voegt E08 daarom samen met E09's begin |
 
 ---
 
@@ -787,3 +788,41 @@ Zodra dat event bestaat is de clientkant triviaal: hetzelfde patroon als
 `5-toegankelijk-en-robuust/prompts/T5-10-host-verliest-verbinding.md`.
 VIP-overdracht (een andere speler wordt host) is een apart, expliciet open
 productbesluit — geen onderdeel van dit verzoek.
+
+---
+
+## UI-19 — geen protocolmoment tussen "ronde actief" en "uitslag compleet" (thema 3, 3 aug 2026)
+
+**Voor:** INT-A / PR. **Urgentie:** laag — geen kapotte functionaliteit,
+wel een event uit `06-MOTION-SOUND-AND-FEEDBACK.md` (E08, "ronde sluit")
+dat niet zelfstandig te bouwen is.
+
+`06` §4 beschrijft E08 als een apart moment tussen de actieve vraag en de
+uitslag: inputs locken, een korte "sluit"-cue, eventueel een gedeelde
+podium/hostgeluid. Bij het bouwen bleek dat moment niet te bestaan als
+zelfstandig, waarneembaar clientevent:
+
+- Voor een speler die al antwoordde is `optionsLocked()`
+  (`round-model.mjs`) al sinds diens eigen tik `true` — er is geen
+  afzonderlijk "nu sluit de ronde"-signaal ná dat moment.
+- Voor een speler die niet antwoordde komen vergrendeling én de volledige
+  uitslag (E09) **gelijktijdig** binnen via `round:ended` — er zit geen
+  apart servermoment tussen "ronde loopt nog" en "uitslag compleet".
+
+**Besluit voor de MVP, genomen binnen thema 3 (geen protocolwijziging
+zonder overleg):** E08 vervalt als apart event en gaat op in het begin
+van E09 — de reveal-opbouw (`gameplay.mjs`, M2) ís de sluit-en-
+revealovergang ineen. Twee alternatieven zijn bewust niet gekozen omdat
+ze allebei een nieuw signaal aan `PROTOCOL.md` zouden toevoegen, wat geen
+besluit is dat thema 3 alleen mag nemen:
+
+1. Een nieuw `round:closed`-servermoment vóór `round:ended`.
+2. Een clientzijdige cue op basis van de bekende `endsAt`-deadline (geen
+   servermoment, maar wel een nieuwe aanname over wanneer "sluiten"
+   precies is).
+
+**Verzoek:** als een apart E08-moment ooit gewenst is (bv. voor een eigen
+"sluit"-geluid, los van de reveal), is dat een protocoluitbreiding
+(optie 1) — geen aanname die de client zelf zou moeten verzinnen. Tot dan
+blijft E08 samengevoegd met E09, vastgelegd in
+`3-beweging-en-gevoel/PROGRESS.md` en `prompts/M2-choreografie-niveau1-naar-2.md`.
