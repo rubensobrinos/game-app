@@ -27,6 +27,37 @@ Staat hier los, niet in elke `PROGRESS.md` herhaald.
    scherm, `08` §10 de definition of done. Wie een niveau opschrijft, noemt
    erbij welk criterium nog niet gehaald is.
 
+## Het format van een PROGRESS.md
+
+De vijf bestanden hebben elk een eigen invalshoek — schermen op volgorde van de
+spelersreis, taal met de huidige tekst naast de voorgeschreven — maar ze delen
+een vaste vorm. Wijk daar niet van af zonder overleg: het overzicht op
+`docs/progress/` telt de vijf bestanden tegen elkaar, en dan moet een regel in
+gebied 4 hetzelfde gewicht hebben als een regel in gebied 1.
+
+1. **Kopblok:** eigenaar, documenten, criteria uit, schaal, bijgewerkt-datum.
+2. **Eén inleidende alinea** die zegt hoe dít gebied zichzelf meet.
+3. **Twee of drie tabellen**, elk met een kolom `Niveau` met een cijfer 0–3.
+   Naast `Niveau` maximaal twee andere kolommen: waaróver de regel gaat, en hoe
+   het ervoor staat.
+4. **Telling** — een tabel met de aantallen per niveau.
+5. **Slotparagraaf** met de conclusie die uit de tabel volgt.
+
+### Eén regel = één onderdeel dat af kan zijn
+
+Dit is de regel die het vaakst misgaat. De granulariteit bepaalt de telling, en
+de telling bepaalt hoe groot een gebied lijkt op de hoofdpagina. Splits je een
+gebied per documentparagraaf op, dan krijg je vijftig regels waar een ander
+gebied er twintig heeft — en dan lijkt dat gebied ineens de helft van al het
+werk, terwijl er niets veranderd is.
+
+Vuistregel: **vijftien tot vijfentwintig regels per gebied.** Kom je daar ruim
+overheen, dan meet je onderdelen van onderdelen. Zit je er ruim onder, dan zijn
+je regels te grof om werk aan op te hangen.
+
+Details die niet aan een niveau hangen — een correctie, een afhankelijkheid, een
+naad met een ander gebied — horen in de slotparagraaf, niet als extra tabelrij.
+
 ## Waarom niet één cijfer per gebied
 
 Een gebied is nooit gelijkmatig. De schermen staan gemiddeld op 1, maar de
