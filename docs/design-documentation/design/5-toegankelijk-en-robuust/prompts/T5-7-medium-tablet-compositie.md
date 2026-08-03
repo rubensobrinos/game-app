@@ -24,22 +24,36 @@ omslagpunten", geen vaste pixelwaarde).
 
 ## Contract
 
-Alleen de **lobby** (`views/lobby.mjs`) en **tussenstand** (`scoreboard.mjs`)
-krijgen een tweekoloms variant bij voldoende breedte — dat zijn de twee
-schermen waar `07` §6 dit expliciet vraagt ("QR en spelerslijst naast elkaar",
-"tijdens reveal kunnen groepsstatistiek en controls naast elkaar"). Andere
-schermen (gameplay, podium, home/join) blijven bewust één kolom — dat vraagt
-niemand.
+**Herzien na eigen review — §3 "Medium" noemt drie dingen, de eerste versie
+van dit contract dekte er twee.** `07` §3 zegt letterlijk: "QR en
+spelerspreview naast elkaar", "**side panel voor voorkeuren**", "ruimere
+leaderboardweergave." Het voorkeurenpaneel (het hamburgermenu,
+`app-menu.mjs`) hoort er dus bij, niet alleen lobby en tussenstand.
+
+Drie schermen/componenten krijgen een tweekoloms/paneel-variant bij
+voldoende breedte:
+
+1. **Lobby** (`views/lobby.mjs`) — QR/code/URL naast de spelerslijst (`07`
+   §6).
+2. **Tussenstand** (`scoreboard.mjs`) — ruimere leaderboardweergave, tijdens
+   reveal eventueel groepsstatistiek naast controls (`07` §6).
+3. **Hamburgermenu** (`app-menu.mjs`) — vanaf medium een vast side panel in
+   plaats van een zwevend, met `hidden`/`aria-expanded` losgelaten
+   dropdown-gedrag; dat is een ander interactiepatroon dan de huidige
+   `setOpen()`, dus dit raakt meer code dan de andere twee.
+
+Andere schermen (gameplay, podium, home/join) blijven bewust één kolom — dat
+vraagt niemand.
 
 - Layout via CSS Grid op `.screen` of een nieuwe wrapper, met een
   `@media (min-width: ...)`-omslagpunt bepaald door wanneer de content
   (niet een vast getal) prettig past — test empirisch met de daadwerkelijke
   QR-afbeelding + spelerslijst naast elkaar, niet met lorem ipsum.
-- `#app-root`'s vaste `max-width: 480px` moet voor deze twee schermen
-  specifiek verruimd worden (niet globaal — dat zou elk ander scherm
-  onbedoeld meenemen).
+- `#app-root`'s vaste `max-width: 480px` moet voor deze schermen specifiek
+  verruimd worden (niet globaal — dat zou elk ander scherm onbedoeld
+  meenemen).
 - Zelfde tokens (`--r`, `--border`, `--surface`) — geen nieuwe visuele taal,
-  puur een tweede kolom.
+  puur een tweede kolom/paneel.
 
 ## Regels
 

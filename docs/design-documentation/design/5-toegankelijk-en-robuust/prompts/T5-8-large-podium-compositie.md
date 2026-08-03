@@ -14,6 +14,18 @@ Wél terecht: dit is **groter** dan `T5-7` en niet in één stuk te doen. Vandaa
 een gescoped contract — bouw wat kán, benoem expliciet wat waarop wacht, in
 plaats van het geheel uit te stellen of het geheel te forceren.
 
+**Nog niet geverifieerd, wél als aanname gebruikt:** de roadmap-rij "podium |
+Fase 2" is niet eenduidig aan dit thema toe te schrijven. Thema 1's eigen
+`PROGRESS.md` heeft óók een podium-item (`S20`, niveau 1: "geen
+3→2→1-opbouw, geen `Deel uitslag`/`Nieuw spel`") — dat is het mobiele
+podiumscherm zélf, andere scope dan de desktop/tv-compositie hier. Het is
+aannemelijk dat de roadmap-rij (grotendeels) over `S20` gaat, of over beide.
+**Stem dit af met thema 1's eigenaar vóór dit ticket start** — zoniet is de
+kans reëel dat dit ticket iets bouwt dat op een nog niet afgeronde `S20`
+leunt (bijvoorbeeld: de spelerswand/leaderboard-breedtelogica hieronder heeft
+weinig zin te verfraaien zolang de onderliggende podiumdata/-indeling van
+`S20` zelf nog verandert).
+
 ## Brondocument
 
 `07-RESPONSIVE-HOST-PLAYER-MODES.md` §7 (Desktop/laptop als podium) en §8
