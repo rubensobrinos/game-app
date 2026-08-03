@@ -25,7 +25,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | INT-16 | DM + **INT-B** | 🟠 ter akkoord | Crash-atomaire fasewissel: fase + projectie + `pausedState` in één operatie, met verwachte oude fase |
 | INT-17 | PR | 🔴 **hoog** | `GET /games/{code}/state` geeft 500 in de lobby — elke reconnect loopt hierdoor |
 | INT-12 | PD | 🔵 open | `shared/product/quick-start-preset.mjs` is stale naast een nieuwere variant |
-| INT-18 | **INT-B** + PR | 🔴 **hoog, blokkeert de Redis-store volledig** | `createRoom` gooit altijd: de versioned tokenhash (`v1:<hex>`) bevat `:`, wat `redis-keys.js`'s eigen segmentvalidator verbiedt |
+| INT-18 | ~~INT-B + PR~~ **OPGELOST (regie, `389edab`)** | ✅ was: blokkeerde de Redis-store volledig | Opgelost via richting 2 (scoped): `assertFinalHashSegment` staat `:` toe in het láátste sleutelsegment; fixtures nu uit echte `hashToken`. Zie de resolutie onder het item. |
 
 ---
 
@@ -745,6 +745,32 @@ van vandaag: bewijzen dat roomstate een restart overleeft mét de nieuwe
 Redis-koppeling) kon hierdoor niet verder dan roomaanmaak — zie de
 DT6-rapportage in `docs/deployment-and-testing-plan/chaos-runbook.md` voor de
 volledige uitkomst.
+
+### RESOLUTIE (regie, 3 aug 2026, commit `389edab`)
+
+Gekozen: **richting 2, maar smaller dan voorgesteld** — geen patroonvalidatie
+van `${version}:${hex}` in de gedeelde validator, maar een aparte
+`assertFinalHashSegment` die uitsluitend door `sessionTokenLookupKey` wordt
+gebruikt. Redenering:
+
+- De `:`-ban bestaat om sleutel*segmenten* niet dubbelzinnig te maken; in het
+  **laatste** segment van een sleutel is een `:` niet dubbelzinnig en voor
+  Redis betekenisloos. Glob-tekens blijven overal verboden (SCAN-veiligheid).
+- Richting 1 (`replace(':', '_')`) verwierp ik: het introduceert een tweede,
+  afwijkende representatie van dezelfde hash (sleutel ≠ opslagvorm in het
+  sessiedocument), wat bij debuggen en bij INT-13's versioned-hash-vraag juist
+  verwarring toevoegt. De sleutel is nu byte-voor-byte de opslagvorm.
+- De hashvorm zelf (PR's `${version}:${hex}`) blijft onaangeraakt — geen
+  migratie, geen dubbele leesroutine, INT-13's patroonverwijzing blijft
+  kloppen.
+
+Besluitbevoegdheid: bugfix (CLAUDE.md §Beslisbevoegdheid, zelfstandig);
+productie stond er 100% op stuk, INT-B/PR zijn met pensioen c.q. bevroren, en
+de producteigenaar had livegang-mandaat gegeven. DT's fixture-les is
+meegenomen: `redis-keys.test.js` gebruikt nu de échte `hashToken`-uitvoer.
+Getest: redis-keys 67/67, data+transport 118/118, `npm test` 2515 pass /
+0 fail (Redis-gebonden tests draaien alleen met live Redis — DT's herhaling
+van chaos-scenario 1 is hierna de echte proef).
 
 ---
 

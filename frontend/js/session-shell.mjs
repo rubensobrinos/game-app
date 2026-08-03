@@ -144,6 +144,16 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
     onEvent: handleEvent,
     onStatus: handleStatus,
   });
+  // EERSTE VERBINDING (fix 3 aug 2026, live-test producteigenaar): de
+  // reconnect-machine start als `connected` zonder `pendingSnapshotRequest`,
+  // dus `nextActionFor` vraagt bij de allereerste verbinding NOOIT een
+  // snapshot aan — die regel dekt alleen HER-verbindingen (PROTOCOL.md
+  // §Reconnect stap 5). De server pusht ook geen snapshot bij connect, en de
+  // create-/join-respons met `state` wordt door home/join alleen bij de
+  // precedentiepoort geregistreerd, niet aan deze shell gegeven. Netto bleef
+  // elk scherm `hidden` tot het eerste latere event. Daarom hier expliciet de
+  // eerste paint laden; de precedentiepoort ordent 'm zoals elke snapshot.
+  requestFreshSnapshot();
 
   async function measureOffset() {
     const samples = [];
