@@ -16,7 +16,15 @@
 // Transportlaag: de ECHTE (`transport.mjs`) — REST + Socket.IO tegen de
 // draaiende game-server, met snapshot-precedence en de onStatus-callback.
 // De swap (mock → echt) is gedaan op 2 aug 2026, op aanwijzing van de
-// producteigenaar; `transport-mock.mjs` blijft bestaan voor tests.
+// producteigenaar; `transport-mock.mjs` blijft bestaan voor tests — én voor
+// de mockmodus hieronder.
+//
+// MOCKMODUS (verzoek producteigenaar, 3 aug 2026): met `?mock=1` in de URL
+// draait de app op de mock-transport — geen server, geen verbinding, geen
+// tweede speler nodig. Bedoeld om schermen en flows solo te doorlopen
+// (UX-werk, demo's, testen zonder host). De keuze geldt per pagelaad: de
+// query hoeft alleen op de eerste URL te staan en verdwijnt daarna gewoon
+// uit beeld bij navigatie; een verse reload zonder `?mock` is weer echt.
 
 import { applyI18n, t, setLang, getLang } from './i18n.mjs';
 import { loadLang, saveLang, loadTheme, saveTheme } from './preferences.mjs';
@@ -25,13 +33,18 @@ import { resolveRoute } from '../../client/flow/route-resolver.mjs';
 import { joinSourceFor } from '../../client/flow/share-actions.mjs';
 import { loadSession } from '../../client/flow/session-store.mjs';
 import { createTransport } from './transport.mjs';
+import { createMockTransport } from './transport-mock.mjs';
 import { createHomeView } from './views/home.mjs';
 import { createJoinView } from './views/join.mjs';
 import { createSessionShell } from './session-shell.mjs';
 
 const ROOT_ID = 'app-root';
 const HEADER_ID = 'app-header';
-const transport = createTransport();
+const mockMode = new URLSearchParams(window.location.search).has('mock');
+const transport = mockMode ? createMockTransport() : createTransport();
+if (mockMode) {
+  console.warn('[frontend] MOCKMODUS actief (?mock=1): geen server, alles lokaal gesimuleerd.');
+}
 const storage = window.localStorage;
 
 let currentScreen = null; // { render()?, destroy()? } van de actief gemounte view

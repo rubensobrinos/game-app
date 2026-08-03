@@ -42,9 +42,29 @@ Voorstel: code (6 cijfers, groot) vast bovenin de lobbyweergave voor de
 host; "Toon QR-code" mag een toggle blijven maar de code zelf nooit
 verstopt. Speler-weergave hoeft dit niet.
 
-## 3. (gereserveerd — producteigenaar vult aan)
+## 3. Pauze blokkeert álles, ook de host zelf — open
 
-—
+Waarneming host-mobiel tijdens ronde 6/10: na pauzeren dekt de overlay
+"Gepauzeerd door de host" het hele scherm en kan niemand meer iets — de host
+óók niet, behalve de ene Hervat-knop. De hostbalk (Vergrendel/Beëindig/
+Spelers beheren) schemert erdoorheen maar is onbereikbaar.
+
+Dat de overlay spelers blokkeert is bedoeld gedrag (spel ligt stil). Dat de
+HOST tijdens een pauze niets kan behálve hervatten is te beperkt: pauze is
+juist hét moment waarop je iemand wilt verwijderen, wilt vergrendelen of het
+spel wilt beëindigen. Voorstel: voor de host de hostbalk-acties bereikbaar
+maken vanuit/naast de pauze-overlay (of de overlay voor de host niet
+scherm-dekkend maken); voor spelers blijft hij dekkend.
+
+## 4. Instellingenmenu (taal/thema) botst visueel met het spel — open
+
+Het hamburgermenu klapt open óver de spelinhoud en het hostbalk-gebied heen
+(zie screenshot: menu half over "Verwijder"-rijen en het rondelabel). Werkt
+wel, oogt rommelig — "kan wel maar niet echt heel chill weergegeven".
+Voorstel voor de UX-pass: menu als nette laag mét achtergrond/schaduw en
+duidelijke afbakening, hostbalk inklapbaar of achter één "Host"-knop op
+mobiel (dat scheelt ook het permanente ruimtebeslag bovenin — punt 2 wint
+daar dan ruimte voor de vaste code).
 
 ## Kader voor de UX-pass (afgesproken met regie)
 

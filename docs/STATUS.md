@@ -36,25 +36,44 @@ Regie (sandbox, zonder live Redis): `npm test` **2515 groen · 0 rood**.
 DT (met Redis, vóór de INT-18-fix): **2727 groen · 0 rood · 1 skip** — die
 skip was de Redis-herstarttest, geblokkeerd op INT-18 → kan nu opnieuw.
 
+## Tegencontrole-2 (regie, 3 aug ± 07:00) — UITSLAG
+
+**Eerste échte match gespeeld op productie**: 3 spelers (host-mobiel,
+speler-mobiel, regie via invite-link), 10 rondes gestart, antwoorden,
+pauze/hervat — de kernbelofte van besluit #35 is live bewezen.
+
+| Check | Uitslag |
+| --- | --- |
+| `26473c9` eerste-snapshot-fix | ✅ live — host ziet lobby direct na Snel starten |
+| `eb72578` UX-pass lobby | ✅ live (rebuild nam werkboom mee) |
+| Mockmodus `?mock=1` | ✅ live geverifieerd: create → lobby → Ronde 1/5 → antwoord, **nul** `/api/`-verkeer; zonder `?mock` gewoon echte server |
+| Kernbelofte end-to-end | ✅ create, join via code én invite-link, rondes, pauze/hervat |
+| UX-kwaliteit | niet beoordeeld — staat al in FEEDBACK-eerste-livetest.md (4 punten) |
+
+**Kanttekening hygiëne:** de rebuild kopieert de wérkboom, dus er draait code
+live die nog niet gecommit is (mockmodus, branding, acceptance-criteria-
+update). Commit door regie klaargezet maar geblokkeerd op `.git/index.lock`/
+`HEAD.lock` die alleen de producteigenaar kan verwijderen:
+`cd ~/game-app && rm -f .git/index.lock .git/HEAD.lock` → regie commit dan direct.
+
 ## Open launchblockers (volgorde = prioriteit)
 
-1. **Rebuild game-server** met `389edab` — producteigenaar, één commando:
-   `cd ~/game-app && docker compose -f docker-compose.yml -f compose.tunnel.override.yml --profile tunnel up -d --build --force-recreate game-server`
-2. **Twee-spelertest** door producteigenaar: laptop `/samen` → Snel starten;
-   telefoon `/samen` → code → Meedoen → Start
-3. **Livegang-sein**: `SHOW_MULTIPLAYER=true` in `public-mode.js` +
-   force-recreate frontend (kaart "🎉 Samen spelen" zichtbaar)
-4. DT's keten-race onder Redis (matrixrij 13, ~1 op 7 flaky: 3 i.p.v. 4
-   `round:progress`) — fixen vóór CI, anders leert het team flaky negeren — DT/INT-A
-5. **Herstelpad ontbreekt**: `RECOVERY_RESUME` wordt nergens aangeroepen, geen
-   `rooms:active`-read bij boot, geen `PAUSED(server_recovery)` —
-   ARCHITECTURE.md §10 ongeïmplementeerd. Voorstel: accepted risk t/m pilots
-   (zelfde categorie als besluit #38) → **besluit producteigenaar**
+1. **Git-locks weg + commit werkboom** (zie kanttekening) — producteigenaar + regie
+2. **Livegang-sein**: `SHOW_MULTIPLAYER=true` in `public-mode.js` +
+   force-recreate frontend (kaart "🎉 Samen spelen" zichtbaar) — wanneer
+   producteigenaar de UX goed genoeg vindt
+3. Feedbacklijst livetest (namen in lijst, code permanent, pauze-host,
+   menu-layering) — elk een los mandaat, zie FEEDBACK-eerste-livetest.md
+4. DT's keten-race onder Redis (matrixrij 13, ~1 op 7 flaky) — fixen vóór CI — DT/INT-A
+5. **Herstelpad ontbreekt** (ARCHITECTURE.md §10 ongeïmplementeerd) —
+   voorstel: accepted risk t/m pilots → **besluit producteigenaar**
 
 ## Wachtend op producteigenaar
 
-- Rebuild + twee-spelertest (blockers 1–2 hierboven)
-- Besluit over herstelpad-als-accepted-risk (blocker 5)
+- `rm -f .git/index.lock .git/HEAD.lock` (blocker 1)
+- Sein per feedbackpunt + volgorde (blocker 3)
+- Besluit herstelpad-als-accepted-risk (blocker 5)
+- Productvraag typed answers: meer punten voor intypen dan meerkeuze?
 
 ## Rustende domeinen
 

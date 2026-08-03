@@ -55,7 +55,7 @@ export const ACCEPTANCE_CRITERIA = Object.freeze([
     evidence: Object.freeze([
       'DEPLOYMENT-AND-TESTING.md §Slagingscriteria L1 is het letterlijke brondoel ("1 room × 100 spelers, 20 rondes")',
       'deployment-and-testing-plan DT5 (loadtest, k6) heeft nog geen uitvoerbare code',
-      'architecture-plan: alleen AR1 (server/architecture/state-machine.js) is gebouwd; AR2-AR4 (room-codes, snapshot-precedence, server-time) en multi-room-integratie ontbreken',
+      'architecture-plan: AR1-AR4 zijn gebouwd (server/architecture/{state-machine,room-codes,server-time}.js en shared/protocol/snapshot-precedence.mjs); multi-room-integratie op schaal ontbreekt',
     ]),
   },
   {
@@ -65,7 +65,7 @@ export const ACCEPTANCE_CRITERIA = Object.freeze([
     evidence: Object.freeze([
       'game-flow-plan GF4 — client/flow/reconnect-state.mjs (26 tests, backoff-reeks 1-2-4-8-16-max30s, "snapshot leidend")',
       'game-flow-plan GF-PROGRESS.md: session-store (lokaal bewaren sessietoken na refresh) staat nog op 🔴 Ontbreekt',
-      'architecture-plan AR3 (snapshot-precedence) bestaat nog niet, alleen als planitem',
+      'architecture-plan AR3 (shared/protocol/snapshot-precedence.mjs) bestaat en wordt door frontend/js/transport.mjs toegepast; de client-side session-store eromheen niet',
     ]),
   },
   {

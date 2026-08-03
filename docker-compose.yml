@@ -48,6 +48,9 @@ services:
       - ./app.js:/usr/share/nginx/html/app.js:ro
       - ./hint.js:/usr/share/nginx/html/hint.js:ro
       - ./public-mode.js:/usr/share/nginx/html/public-mode.js:ro
+      - ./favicon.svg:/usr/share/nginx/html/favicon.svg:ro
+      - ./apple-touch-icon.png:/usr/share/nginx/html/apple-touch-icon.png:ro
+      - ./og-image.png:/usr/share/nginx/html/og-image.png:ro
       - ./flaginfo.js:/usr/share/nginx/html/flaginfo.js:ro
       - ./geo.js:/usr/share/nginx/html/geo.js:ro
       - ./geo-facts.js:/usr/share/nginx/html/geo-facts.js:ro
