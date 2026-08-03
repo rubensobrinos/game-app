@@ -2,13 +2,18 @@
 
 **Eigenaar:** UI — toegewezen 3 augustus 2026
 **Documenten:** `06-MOTION-SOUND-AND-FEEDBACK.md`
-**Criteria uit:** `11-DESIGN-QA-CHECKLIST.md` secties F, G en H (motion/reveal/podium),
-plus twee criteria die dit gebied deelt met thema 5: K ("Respecteert motion de
-systeemvoorkeur?", "Is geluid uitschakelbaar en niet essentieel?") en M
-(§9 Performancebudget — "Zijn animaties performant op middelmatige
-Androidhardware?"). De oorspronkelijke verwijzing (alleen F en G) miste H's
-twee directe motion-checks (confetti/reduced-motion, finale overslaan) en
-negeerde dat reduced-motion/geluid-mute ook letterlijk in K staan.
+**Criteria uit:** `11-DESIGN-QA-CHECKLIST.md` secties C, D, F, G en H
+(start/lobby/motion/reveal/podium), plus twee criteria die dit gebied deelt
+met thema 5: K ("Respecteert motion de systeemvoorkeur?", "Is geluid
+uitschakelbaar en niet essentieel?") en M (§9 Performancebudget — "Zijn
+animaties performant op middelmatige Androidhardware?"). De oorspronkelijke
+verwijzing (alleen F en G) miste H's twee directe motion-checks
+(confetti/reduced-motion, finale overslaan) en negeerde dat
+reduced-motion/geluid-mute ook letterlijk in K staan. **C en D toegevoegd
+(3 aug 2026, `prompts/M6`–`M7`):** E02/E03 corresponderen direct met
+checklistvragen in C ("Verandert de knop direct naar `Potje maken…`?") en
+D ("Krijgt een nieuwe join visuele feedback?", "Worden bulkjoins
+gebatcht?") die tot nu toe in deze citatie ontbraken.
 Schaal: [`NIVEAUS.md`](../NIVEAUS.md)
 **Bijgewerkt:** 3 augustus 2026 · commit `18b2d53` + kritische pas UI
 
@@ -66,7 +71,7 @@ beheer wordt gedekt, maar niet door motion.
 
 | Fundament | Niveau | Stand |
 |---|---|---|
-| Motion-tokens | — | **Eigenaarschap verhuisd naar thema 2 ná `HANDOFF-UI` UI-9** (thema 2, 3 aug 2026): tokens hoorden bij zowel dit `PROGRESS.md` als thema 2's — twee schrijvers op één blok in `base.css`, hetzelfde patroon dat al eerder misging (`05` §15). Akkoord: thema 2 levert en beheert `--motion-instant` t/m `--motion-stage`, thema 3 consumeert. Niveau bijhouden gebeurt voortaan in `2-vorm-en-systeem/PROGRESS.md`. |
+| Motion-tokens | — | **Geleverd (commit `8eb1996`, thema 2, 3 aug 2026):** `--motion-instant` t/m `--motion-stage` + `--ease-press`/`-enter`/`-rank`/`-stage` staan nu in `base.css` en worden al gebruikt in `components.css`/`base.css`. Eigenaarschap blijft bij thema 2 (`HANDOFF-UI` UI-9), niveau bijhouden gebeurt in `2-vorm-en-systeem/PROGRESS.md` — dit **deblokkeert `M1` en maakt `M6`–`M10` zelfstandig bouwbaar met de echte tokens**, niet meer als placeholder. |
 | `prefers-reduced-motion` | 1 | **Klaar (commit `7a146a0`):** blanket-regel (`animation`/`transition-duration` naar vrijwel nul, `scroll-behavior: auto`) plus de scale zelf uitgeschakeld (`transform: none !important` op de vier `:active`-controls) met een zichtbare non-transform-vervanging. Geverifieerd via CDP `forcePseudoState`, geen regressie in normale modus. Niveau 2 pas zodra `M2`'s inhoudelijke vervangingen (podium direct compleet, score direct definitief, geen carrousel) er ook zijn — zie `prompts/M0-reduced-motion.md`. |
 | Mute-mechanisme | 0 | **Voorkeurlaag klaar (commit `0d94744`):** `loadMuted`/`saveMuted` in `preferences.mjs`, plus een gedeelde `safeSet`-helper die nu ook `saveLang`/`saveTheme` gebruiken (voorheen zonder `try/catch` — een gooiende storage liet die twee dus gewoon een exception opgooien; nu falen alle drie stil). Blijft niveau 0 voor de *zichtbare* schakelaar — die komt pas met het eerste echte audiosignaal, geen placebo-control. |
 | Geluidsarchitectuur | 0 | Assets, mixer, categorieën (§5). Zit vast op `O-008` (wie bestuurt geluid) én op geluidsassets die nog niet bestaan — dit deel kán ik niet alleen oplossen. |
@@ -127,3 +132,28 @@ Herziene volgorde:
 7. E04, E12, E13 pas zodra thema 1 (en voor E12/E13 ook thema 4) hun deel
    hebben geleverd.
 8. Geluidsarchitectuur en haptiek blijven geparkeerd tot `O-008` beslist is.
+
+## Nieuw (3 aug 2026): prompts voor de vijf resterende zelfstandige niveau-0-momenten
+
+`E02`, `E03`, `E07`, `E11`, `E14` waren de vijf niveau-0-momenten die op
+niets anders wachten. Nu thema 2's tokens er zijn, is daar geen enkele
+externe blokkade meer voor. Vijf nieuwe prompts geschreven, **nog niet
+uitgevoerd — wacht op review**:
+
+- `M6` (E02, `home.mjs`) — knop-label + progressindicator; vond dat de
+  copy (`home.creating`) al bestaat maar op de verkeerde plek staat.
+- `M7` (E03, `lobby.mjs`) — vond dat `update()` de hele spelerslijst bij
+  elke aanroep herbouwt; een naïeve fade-in-toevoeging zou alle bestaande
+  rijen laten heranimeren bij elke nieuwe join. Vraagt een
+  reconciliatiefix vóór er animatie bij mag.
+- `M8` (E07, `gameplay.mjs`) — timer-urgentie; geen bestaande
+  progressbalk om te pulseren, dus tempo/contrast op de timertekst zelf.
+- `M9` (E11, `scoreboard.mjs`/`standings-model.mjs`) — vond dat er
+  nergens een "vorige positie" bewaard wordt; `↑2`/`↓1` kan vandaag niet
+  berekend worden zonder nieuwe state. FLIP-aanpak voorgesteld,
+  `--ease-rank` is hier letterlijk voor bedoeld.
+- `M10` (E14, `podium.mjs`) — 3→2→1-opbouw, begrensde confetti, skip.
+  Drie van de vijf H-checklistpunten bleken al voldaan (eigen eindpositie,
+  Revanche-styling, 1/2/3-helderheid) — niet dit werk.
+
+Alle vijf zijn onafhankelijk van elkaar en van `M1`–`M5` te bouwen.
