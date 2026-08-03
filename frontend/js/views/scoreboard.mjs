@@ -39,10 +39,27 @@ export function createScoreboardView({ root, t, tCount }) {
    *   (S14), om de naam bij de grootste stijger te tonen.
    */
   function update(standings, { movement = new Map(), participants = new Map() } = {}) {
+    // M9/E11: FLIP — meet waar bestaande rijen NU staan (op `playerId`,
+    // vóór de herbouw), zodat we ze ná de herbouw naar hun oude plek terug
+    // kunnen zetten en dan pas laten bewegen naar de nieuwe. Overgeslagen
+    // onder reduced motion: `06` §7 verbiedt bewegende rankrows met naam.
+    const reduceMotion =
+      typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const previousRects = new Map();
+    if (!reduceMotion) {
+      for (const item of list.children) {
+        const playerId = item.dataset.playerId;
+        if (playerId) {
+          previousRects.set(playerId, item.getBoundingClientRect());
+        }
+      }
+    }
+
     list.textContent = '';
     for (const entry of standings.entries.slice(0, 5)) {
       const item = document.createElement('li');
       item.className = entry.isSelf ? 'scoreboard-entry is-self' : 'scoreboard-entry';
+      item.dataset.playerId = entry.playerId;
       const name = document.createElement('span');
       name.className = 'scoreboard-name';
       name.textContent = entry.effectiveName;
@@ -67,6 +84,37 @@ export function createScoreboardView({ root, t, tCount }) {
       score.textContent = String(entry.score);
       item.append(name, move, score);
       list.appendChild(item);
+    }
+
+    // M9/E11: FLIP-afspelen — voor elke rij die vóór en ná bestond, zet 'm
+    // direct terug op zijn oude plek (geen transitie), forceer een reflow,
+    // verwijder de offset mét transitie zodat 'm zichtbaar naar de nieuwe
+    // plek "beweegt". `--ease-rank` is hier letterlijk voor bedoeld (06 §3).
+    if (!reduceMotion && previousRects.size > 0) {
+      for (const item of list.children) {
+        const previousRect = previousRects.get(item.dataset.playerId);
+        if (previousRect === undefined) {
+          continue;
+        }
+        const newRect = item.getBoundingClientRect();
+        const deltaY = previousRect.top - newRect.top;
+        if (deltaY === 0) {
+          continue;
+        }
+        item.style.transition = 'none';
+        item.style.transform = `translateY(${deltaY}px)`;
+        void item.offsetHeight; // forceer reflow vóór de transitie
+        item.style.transition = 'transform var(--motion-emphasis) var(--ease-rank)';
+        item.style.transform = '';
+      }
+    }
+
+    // Eigen rij: korte emphasis bovenop de FLIP-beweging, alleen bij een
+    // daadwerkelijke rangwijziging (niet bij elke render).
+    const selfDiff = standings.self !== null ? movement.get(standings.self.playerId) : undefined;
+    if (!reduceMotion && typeof selfDiff === 'number' && selfDiff !== 0) {
+      const selfRow = list.querySelector('.scoreboard-entry.is-self');
+      selfRow?.classList.add('scoreboard-entry-emphasis');
     }
 
     if (standings.self !== null) {

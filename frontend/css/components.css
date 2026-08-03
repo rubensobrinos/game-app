@@ -507,6 +507,19 @@ button.is-loading::after {
   box-shadow: 0 0 0 2px var(--color-accent-glow);
 }
 
+/* M9/E11: korte, eenmalige nadruk op de eigen rij bij een daadwerkelijke
+   rangwijziging — bovenop de FLIP-beweging (scoreboard.mjs), niet in
+   plaats daarvan. Elke rij is een vers <li> per render, dus geen
+   restart-truc nodig zoals bij een hergebruikte node. */
+.scoreboard-entry-emphasis {
+  animation: scoreboard-entry-emphasis var(--motion-emphasis) var(--ease-enter);
+}
+
+@keyframes scoreboard-entry-emphasis {
+  0%, 100% { box-shadow: 0 0 0 2px var(--color-accent-glow); }
+  40% { box-shadow: 0 0 0 5px var(--color-accent-glow); }
+}
+
 .scoreboard-name,
 .podium-name {
   overflow: hidden;
