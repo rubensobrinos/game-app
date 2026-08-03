@@ -20,6 +20,14 @@ COPY client/ ./client/
 COPY shared/ ./shared/
 COPY frontend/ ./frontend/
 
+# Leesrechten normaliseren (2026-08-02, livegang-debug): COPY neemt de
+# bestandsrechten van de host mee. Een bestand dat op macOS met mode 600 is
+# weggeschreven (agents/tools met strikte umask) is dan in het image alleen
+# door root leesbaar — terwijl de server hieronder als `node` draait. Gevolg:
+# EACCES → 500 op precies dat ene bestand (zo brak /locales/nl.mjs de hele
+# frontend-modulegraaf). a+rX = iedereen lezen + mappen doorlopen, niets meer.
+RUN chmod -R a+rX server client shared frontend
+
 EXPOSE 3000
 USER node
 CMD ["node", "server/index.mjs"]

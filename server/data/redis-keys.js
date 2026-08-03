@@ -49,6 +49,35 @@ function roomInviteLookupKey(inviteHash) {
 }
 
 /**
+ * Als assertSegment, maar staat ':' toe. Uitsluitend voor het LAATSTE segment
+ * van een sleutel: daar is een ':' in de waarde niet dubbelzinnig (er komt
+ * geen segment meer achter) en voor Redis zelf is het betekenisloos — alleen
+ * de glob-tekens blijven verboden omdat ze SCAN-patronen zouden breken.
+ *
+ * Bestaansreden (INT-18, 2-3 aug 2026): de sessietoken-hash is sinds PR12
+ * versioned — `hashToken` levert `${version}:${hex}` (auth-session.mjs) — en
+ * `assertSegment` weigerde die ':'. Daarmee wierp `saveSession` bij elke
+ * roomaanmaak en was de Redis-store voor 100% van het verkeer stuk, terwijl
+ * alle adaptertests groen waren op handgeschreven fixtures zónder ':'
+ * (`hash_1`, `v1_abc123`) — data die de bug niet kón raken. De testfile
+ * gebruikt daarom nu de échte `hashToken`-uitvoer als fixture.
+ * @param {string} name
+ * @param {unknown} segment
+ * @returns {string}
+ */
+function assertFinalHashSegment(name, segment) {
+  if (typeof segment !== 'string' || segment.length === 0) {
+    throw new TypeError(`${name} must be a non-empty string, got: ${JSON.stringify(segment)}`);
+  }
+  if (/[*?[\]]/.test(segment)) {
+    throw new TypeError(
+      `${name} must not contain glob characters ('*', '?', '[', ']'), got: ${JSON.stringify(segment)}`
+    );
+  }
+  return segment;
+}
+
+/**
  * @returns {string} 'session:token:{tokenHash}'
  * Reactie op INTB-10 (docs/data-model-plan/HANDOFF.md §13): globaal, niet
  * room-scoped — een bearer token komt binnen zonder roomId, dat is precies
@@ -56,9 +85,12 @@ function roomInviteLookupKey(inviteHash) {
  * roomInviteLookupKey, die om dezelfde reden ook niet room-scoped zijn).
  * TTL-koppeling en rotatiegedrag: zie HANDOFF.md §13, nog niet
  * geïmplementeerd, alleen deze sleutelbouwer.
+ *
+ * `tokenHash` is de opslagvorm `${version}:${hex}` uit `hashToken` en bevat
+ * dus een ':' — daarom hier `assertFinalHashSegment` (zie INT-18 hierboven).
  */
 function sessionTokenLookupKey(tokenHash) {
-  return `session:token:${assertSegment('tokenHash', tokenHash)}`;
+  return `session:token:${assertFinalHashSegment('tokenHash', tokenHash)}`;
 }
 
 /** @returns {string} 'room:{roomId}' */

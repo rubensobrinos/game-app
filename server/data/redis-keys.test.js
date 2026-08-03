@@ -19,19 +19,29 @@ const {
   actionCacheKey,
 } = require('./redis-keys');
 
-describe('globale sessietoken-index — INTB-10', () => {
-  test('sessionTokenLookupKey gebruikt alleen de tokenhash, zonder roomId', () => {
-    assert.strictEqual(
-      sessionTokenLookupKey('v1_abc123'),
-      'session:token:v1_abc123'
-    );
+describe('globale sessietoken-index — INTB-10 (+ INT-18)', () => {
+  // INT-18-les (AGENTS.md-aanbeveling van DT): fixtures komen uit de échte
+  // producerende functie, niet uit een handgeschreven waarde die er ongeveer
+  // op lijkt. De oude fixture 'v1_abc123' kon de bug (':' in de echte
+  // hashToken-uitvoer `v1:<hex>`) principieel niet raken.
+  test('sessionTokenLookupKey accepteert de échte hashToken-uitvoer (INT-18)', async () => {
+    const { hashToken } = await import('../protocol/auth-session.mjs');
+    const realHash = hashToken('een-testtoken-van-voldoende-lengte-12345', {
+      version: 'v1',
+      pepper: 'test-pepper-1234567890',
+    });
+    assert.ok(realHash.includes(':'), 'precondition: echte opslagvorm bevat de versiescheider');
+    assert.strictEqual(sessionTokenLookupKey(realHash), `session:token:${realHash}`);
     assert.strictEqual(sessionTokenLookupKey.length, 1);
   });
 
-  test('sessionTokenLookupKey weigert lege en onveilige Redis-segmenten', () => {
-    for (const invalid of ['', 'a:b', 'a*b', 'a?b', 'a[b', 'a]b']) {
+  test('sessionTokenLookupKey weigert lege en glob-onveilige segmenten (":" mag: laatste segment)', () => {
+    for (const invalid of ['', 'a*b', 'a?b', 'a[b', 'a]b']) {
       assert.throws(() => sessionTokenLookupKey(invalid), TypeError);
     }
+    // ':' is in het LAATSTE sleutelsegment niet dubbelzinnig en dus toegestaan
+    // — dit is precies INT-18.
+    assert.strictEqual(sessionTokenLookupKey('v1:abc'), 'session:token:v1:abc');
   });
 });
 
