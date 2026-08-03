@@ -111,6 +111,10 @@ p { color: var(--color-text-muted); }
   background: var(--color-surface-1);
 }
 
+/* M1/E01: `transform` zit al in de gedeelde `.btn`-transitionlijst
+   hierboven — alleen de :active-scale zelf ontbrak nog. */
+.btn-quiet:active { transform: scale(0.99); }
+
 /* Destructive — beëindigen, verwijderen. Rood is hier een rand en tekst, geen
    permanent vol vlak: 05 §4.5 wil geen doorlopende alarmkleur in een normale
    view, en het mag nooit op primary lijken. */

@@ -145,7 +145,10 @@
   .podium-rematch:active,
   .btn-secondary:active,
   .btn-destructive:active,
-  .gameplay-option:not(:disabled):active {
+  .gameplay-option:not(:disabled):active,
+  .btn-quiet:active,
+  .btn-opt:active,
+  .btn-icon:active {
     transform: none !important;
   }
 
@@ -165,6 +168,22 @@
   .gameplay-option:not(:disabled):active {
     border-color: var(--color-accent-primary-hover);
     box-shadow: 0 0 0 3px var(--color-accent-glow);
+  }
+
+  /* M1/E01: dezelfde discipline voor de drie controls die deze prompt
+     toevoegt — geen scale, wél een zichtbare non-transform-reactie. */
+  .btn-quiet:active {
+    background: var(--color-surface-1);
+    color: var(--color-text-primary);
+  }
+
+  .btn-opt:active {
+    border-color: var(--color-accent-primary-hover);
+  }
+
+  .btn-icon:active {
+    border-color: var(--color-accent-primary-hover);
+    background: var(--color-surface-2);
   }
 }
 
@@ -389,13 +408,17 @@ button {
   font-size: 1.1rem;
   /* `--ease-enter` en niet `--ease-press`: dit is een hover-overgang, en
      06 §3 wijst de press-curve toe aan input/indrukken. Stond eerst fout —
-     precies de willekeur die tokens moeten uitbannen. */
-  transition: border-color var(--motion-fast) var(--ease-enter);
+     precies de willekeur die tokens moeten uitbannen. M1/E01 voegt
+     `transform` toe met de press-curve wél, want dát is de indrukfeedback. */
+  transition: transform var(--motion-instant) var(--ease-press),
+    border-color var(--motion-fast) var(--ease-enter);
 }
 
 .btn-icon:hover {
   border-color: var(--color-accent-primary-hover);
 }
+
+.btn-icon:active { transform: scale(0.99); }
 
 .app-menu {
   position: absolute;
@@ -444,12 +467,15 @@ button {
   font-weight: 600;
   /* Expliciete lijst i.p.v. `all`: die animeerde ook layout-eigenschappen,
      wat 06 §9 (transform/opacity waar het kan) juist wil vermijden. Hier
-     wisselen alleen kleur en rand. */
-  transition: border-color var(--motion-fast) var(--ease-press),
+     wisselen kleur, rand en (M1/E01) een kleine :active-scale. */
+  transition: transform var(--motion-instant) var(--ease-press),
+    border-color var(--motion-fast) var(--ease-press),
     background-color var(--motion-fast) var(--ease-press),
     color var(--motion-fast) var(--ease-press);
   white-space: nowrap;
 }
+
+.btn-opt:active { transform: scale(0.99); }
 
 .btn-opt:hover {
   border-color: var(--color-accent-primary-hover);
