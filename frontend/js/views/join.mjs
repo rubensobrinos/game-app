@@ -11,7 +11,7 @@
 //     previewendpoint is invite-only), toont dit scherm meteen met een leeg
 //     naamveld, geen aparte tussenstap.
 //
-// Gebruik: const view = createJoinView({ root, t, transport, storage, onJoined });
+// Gebruik: const view = createJoinView({ root, t, tCount, transport, storage, onJoined });
 // view.start(locator) begint de flow; onJoined({ sessionToken, roomCode,
 // playerId }) wordt aangeroepen ná een geslaagde join — de aanroeper (app.mjs)
 // bepaalt wat daarna gebeurt (navigeren), niet dit bestand.
@@ -20,12 +20,18 @@ import { initialJoinState, transition, previewRequestFor, joinRequestFor } from 
 import { saveSession } from '../../../client/flow/session-store.mjs';
 import { messageForErrorCode } from '../../../client/flow/edge-case-messaging.mjs';
 
-export function createJoinView({ root, t, transport, storage, onJoined }) {
+export function createJoinView({ root, t, tCount, transport, storage, onJoined }) {
   root.textContent = '';
 
   const screen = el('div', 'screen join-screen');
   const title = el('h1', 'join-title');
   const status = el('p', 'join-status');
+  // Puur presentationeel, geen flowbeslissing — hoort daarom niet in
+  // join-state.mjs's reducer (T4-4 §2). Gereset in start(), gezet zodra de
+  // preview binnenkomt; alleen ooit niet-null ná een uitnodigingslink, want
+  // een code-locator doorloopt 'previewing' nooit (join-state.mjs).
+  let previewPlayerCount = null;
+  const waitingCount = el('p', 'join-waiting-count');
   const nameLabel = el('label', 'join-name-label field-label');
   const nameLabelText = el('span', 'field-label-text');
   const nameInput = document.createElement('input');
@@ -45,7 +51,7 @@ export function createJoinView({ root, t, transport, storage, onJoined }) {
   retryButton.type = 'button';
   retryButton.className = 'join-retry btn-secondary';
 
-  screen.append(title, status, nameLabel, errorMessage, submitButton, retryButton);
+  screen.append(title, status, waitingCount, nameLabel, errorMessage, submitButton, retryButton);
   root.append(screen);
 
   let state = initialJoinState();
@@ -81,6 +87,7 @@ export function createJoinView({ root, t, transport, storage, onJoined }) {
     }
     try {
       const preview = await transport.previewInvite(request.inviteId);
+      previewPlayerCount = typeof preview.playerCount === 'number' ? preview.playerCount : null;
       dispatch({ type: 'PREVIEW_SUCCEEDED', suggestedName: preview.suggestedName });
     } catch (err) {
       dispatch({ type: 'PREVIEW_FAILED', code: err?.code });
@@ -113,6 +120,7 @@ export function createJoinView({ root, t, transport, storage, onJoined }) {
     retryButton.hidden = true;
     submitButton.hidden = true;
     nameLabel.hidden = true;
+    waitingCount.hidden = true;
 
     if (state.status === 'previewing') {
       status.textContent = t('join.previewing');
@@ -121,6 +129,10 @@ export function createJoinView({ root, t, transport, storage, onJoined }) {
 
     if (state.status === 'name-entry' || state.status === 'submitting') {
       status.textContent = state.status === 'submitting' ? t('join.submitting') : '';
+      if (previewPlayerCount !== null && previewPlayerCount > 0) {
+        waitingCount.hidden = false;
+        waitingCount.textContent = tCount('join.waitingCount', previewPlayerCount);
+      }
       nameLabel.hidden = false;
       nameLabelText.textContent = t('join.nameLabel');
       nameOptionalHint.textContent = t('join.nameOptionalHint');
@@ -153,6 +165,7 @@ export function createJoinView({ root, t, transport, storage, onJoined }) {
   return {
     start(locator) {
       state = initialJoinState();
+      previewPlayerCount = null;
       dispatch({ type: 'LOCATOR_OBTAINED', locator });
       if (state.status === 'previewing') {
         runPreview();

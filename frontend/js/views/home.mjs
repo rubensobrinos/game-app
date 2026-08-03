@@ -26,6 +26,7 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   // `brand-title`: het homescherm toont de productnaam zelf, en dat is het
   // enige element dat de gradient nog mag dragen (D-017).
   const title = el('h1', 'home-title brand-title');
+  const promise = el('p', 'home-promise');
   const quickStartButton = document.createElement('button');
   quickStartButton.type = 'button';
   quickStartButton.className = 'home-quick-start btn-primary';
@@ -50,7 +51,7 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   codeSubmitButton.type = 'button';
   codeSubmitButton.className = 'home-code-submit btn-secondary';
 
-  screen.append(logo, title, quickStartButton, quickStartStatus, quickStartError, divider, codeLabel, codeError, codeSubmitButton);
+  screen.append(logo, title, promise, quickStartButton, quickStartStatus, quickStartError, divider, codeLabel, codeError, codeSubmitButton);
   root.append(screen);
 
   let state = initialHostSetupState();
@@ -103,6 +104,7 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
 
   function render() {
     title.textContent = t('home.title');
+    promise.textContent = t('home.promise');
     codeLabelText.textContent = t('home.codeLabel');
     quickStartButton.textContent = t('home.quickStart');
     quickStartButton.disabled = state.status === 'creating';
