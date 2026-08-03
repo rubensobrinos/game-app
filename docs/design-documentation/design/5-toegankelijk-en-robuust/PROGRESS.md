@@ -46,19 +46,24 @@ afgeleid) · **aangenomen** (niet geverifieerd).
 | Reconnect | 2 | gelezen | Transportlaag doet backoff, statusbalk toont de reden, `reconnect-state` vraagt na herstel een verse snapshot. Geen handmatige `Opnieuw proberen`. |
 | Refresh / sessieherstel | 2 | **gemeten** | Vier scenario's gemeten tegen de échte server (ad-hoc Playwright): `LOBBY`/`ROUND_ACTIVE`/`PAUSED` herstellen correct. **Bug gevonden en gefixt:** ná refresh tijdens `FINISHED` verdween de eindstand volledig — `session-shell.mjs`'s `applyRoomState` las `payload.scoreboard` nooit uit de snapshot (zelfde soort gat als thema 4's `roundModel`-fix). Nu opgelost. Bewuste, niet-fixbare beperking: welke optie was gekozen is ná een reload niet meer zichtbaar (server geeft alleen "geantwoord", niet "welke optie"). Zie [`prompts/T5-3-refresh-sessieherstel.md`](prompts/T5-3-refresh-sessieherstel.md). |
 | Roomfouten | 1 | gelezen | Was: "geen bestemming, geen `S21`-scherm." Sinds `58eba07` toont `session-shell.mjs` een terminaal scherm met terugkeeractie zodra een opgeslagen sessie naar een verlopen/verwijderde room wijst (`GAME_NOT_FOUND`/`TOKEN_INVALID`/`TOKEN_EXPIRED`/`SESSION_REVOKED`) — dat ving voorheen stil af tot een permanent lege pagina. Blijft op 1: de knop hergebruikt nog `join.retry`'s tekst ("Opnieuw proberen") voor een actie die niet retryt maar naar start navigeert; de juiste sleutel (`session.backToStart`) staat al in alle drie de locales maar is nog niet ingehangen — één regel, bewust laten staan toen code-werk voor dit rondje werd stopgezet. Ook nog geen eigen kop/titel op dat scherm. |
-| Host verliest verbinding | recovery: 2, gemeten · timeout/uitslagbehoud: 0 · VIP: 0 | gemeten (geen timeout) | Recovery (pauze + reconnect) werkt al. **Gemeten, niet aangenomen:** er bestaat géén server-side timeout ná `host_disconnected` (`match-lifecycle.mjs`/`state-machine.js` noemen het alleen in commentaar) — een hostloze room blijft onbepaald gepauzeerd. Vastgelegd als `HANDOFF-UI.md` UI-18 aan INT-A/PR. VIP-overdracht blijft expliciet buiten scope (open PO-besluit). Zie [`prompts/T5-10-host-verliest-verbinding.md`](prompts/T5-10-host-verliest-verbinding.md). |
+| Host verliest verbinding | recovery: 2, gemeten · timeout/uitslagbehoud: ⏸ · VIP: ⏸ | gemeten (geen timeout) | Recovery (pauze + reconnect) werkt al. **Gemeten, niet aangenomen:** er bestaat géén server-side timeout ná `host_disconnected` (`match-lifecycle.mjs`/`state-machine.js` noemen het alleen in commentaar) — een hostloze room blijft onbepaald gepauzeerd. Timeout/uitslagbehoud staat op ⏸, niet 0: er is niets client-zijdig te bouwen zonder het server-event dat `HANDOFF-UI.md` UI-18 bij INT-A/PR uitstaan heeft — dat is de blokkade. VIP-overdracht staat op ⏸ om dezelfde reden: expliciet open PO-besluit, geen client-aanname mogelijk zolang dat er niet is. Zie [`prompts/T5-10-host-verliest-verbinding.md`](prompts/T5-10-host-verliest-verbinding.md). |
 | Falende assets | 2 | **gemeten + gefixt** | Was: gebroken afbeelding, geen fallback. Nu: `gameplay.mjs` toont bij een falende vlag een fallback met de bestaande `alt`-tekst zichtbaar (geen landnaam), bevestigd met Playwright's `page.route()` (404-simulatie) tegen de échte server, in beide thema's. Zie [`prompts/T5-4-falende-vlagafbeelding.md`](prompts/T5-4-falende-vlagafbeelding.md). |
 | Testmatrix | 0 | — | `08` §9 vraagt om iOS Safari, Android, screenreader, reduced motion, 200% zoom en trage verbinding. Laag 1 (geautomatiseerd) is deels ontkoppeld van het Playwright-`deps`-besluit: het contrastscript kan los, de Playwright-sweep niet. De ad-hoc-metingen uit T5-1/T5-2/T5-3/T5-4 dienen straks als eerste laag-1-specs zodra die dependency er is. Prompt: [`prompts/T5-6-testmatrix-proces.md`](prompts/T5-6-testmatrix-proces.md). |
 
 ## Telling
 
-| Niveau | 0 | 1 | 2 | 3 |
-|---|---|---|---|---|
-| Aantal | 5 | 4 | 15 | 0 |
+| Niveau | 0 | 1 | 2 | 3 | ⏸ |
+|---|---|---|---|---|---|
+| Aantal | 3 | 4 | 15 | 0 | 2 |
 
 ("Host verliest verbinding" telt hier als drie losse rijen — recovery (2),
-timeout/uitslagbehoud (0) en VIP-overdracht (0) — sinds die rij is
-opgesplitst; vandaar 24 rijen totaal i.p.v. de eerdere 22.)
+timeout/uitslagbehoud (⏸) en VIP-overdracht (⏸) — sinds die rij is
+opgesplitst; vandaar 24 rijen totaal i.p.v. de eerdere 22. Timeout/
+uitslagbehoud en VIP stonden hier eerder als 0, maar dat verbergt het enige
+dat ertoe doet: niemand kan hieraan werken vóór INT-A/PR resp. de PO een
+besluit levert — `NIVEAUS.md`'s eigen regel voor ⏸. Medium/tablet,
+Large/podium en Testmatrix blijven bewust wél op 0: die hebben een
+uitvoerbare prompt en wachten nergens op.)
 
 ## De conclusie die uit de bewijskolom volgt
 
