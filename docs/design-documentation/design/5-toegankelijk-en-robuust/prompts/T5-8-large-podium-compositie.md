@@ -72,8 +72,15 @@ weinig zin te verfraaien zolang de onderliggende podiumdata/-indeling van
 
 ## Definition of done
 
-- De drie "wat nu al kan"-punten zijn gebouwd en met Playwright op een paar
-  grote-viewportbreedtes gescreenshot.
+**Status: nog niet gebouwd** — dit contract beschrijft wat gebouwd moet
+worden. Wél gecorrigeerd: de DoD hing oorspronkelijk aan een committed
+Playwright-testsuite die niet bestaat (zie `prompts/README.md`'s
+Playwright-notitie), en (zie boven) dit wacht sowieso eerst op afstemming
+met thema 1 over de `S20`-overlap. Zodra beide zijn opgelost:
+
+- De drie "wat nu al kan"-punten zijn gebouwd en met ad-hoc Playwright (geen
+  projectdependency, zelfde aanpak als `T5-1`/`T5-2`) op een paar
+  grote-viewportbreedtes geverifieerd, resultaat vastgelegd in dit document.
 - De vier "bewust niet"-punten staan als aparte, benoemde vervolgstappen in
   `PROGRESS.md` — niet stilzwijgend verdwenen zodra dit ticket sluit.
 - `PROGRESS.md`'s rij gaat van "0, —" naar een niveau dat het gedeeltelijke

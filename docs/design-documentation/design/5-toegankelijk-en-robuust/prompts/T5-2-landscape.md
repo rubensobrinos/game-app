@@ -1,7 +1,8 @@
 # Prompt — T5-2: Landscape-gedrag
 
-**Status in `PROGRESS.md`:** Landscape (Responsive) | niveau 0 | bewijs: **—**
-("Niet getest, geen gedrag vastgelegd.")
+**Status: uitgevoerd — gemeten, geen bugs gevonden.** Ad-hoc Playwright tegen
+`node server/index.mjs` (zie `prompts/README.md`'s Playwright-notitie), niet
+een committed spec.
 
 ## Brondocument
 
@@ -39,14 +40,29 @@ loopt door op dezelfde `endsAt`.
   expliciet dat dit niet hoeft) — dit is een verificatie- en
   overflow-fixprompt, geen redesign.
 
-## Definition of done
+## Gemeten resultaten
 
-- Playwright-screenshots van elk scherm in landscape (844×390 en een paar
-  extra veelvoorkomende landscape-afmetingen).
-- De rotatie-tijdens-vraag-test toont aan dat `selectedOptionId` en de
-  resterende tijd ongewijzigd blijven.
-- Gevonden CSS-breuken gefixt (waarschijnlijk: `.screen`'s vaste
-  `padding`/`min-height`-aannames herzien voor een lage viewport, niet de
-  `max-width` op `#app-root` aanpakken — dat laatste is bewust compositiewerk
-  voor thema 2/medium-breakpoint, geen quick fix hier).
-- `PROGRESS.md`'s rij gaat van "0, —" naar een eerlijk gemeten niveau.
+Getest: lobby op 844×390, 926×428 en 1024×600 (tablet-landscape); gameplay op
+844×390 tijdens een actieve ronde; rotatie portrait→landscape halverwege een
+vraag (2s laten lopen, dan `setViewportSize` naar 844×390 — geen reload, dus
+exact het scenario dat `07` §10 bedoelt).
+
+| Check | Resultaat |
+|---|---|
+| Horizontale overflow, alle drie landscape-breedtes | ✅ geen |
+| Verticale ruimte (`scrollHeight` vs. `clientHeight`) | Content is hoger dan de lage viewport (bv. 785px op 390px hoogte) — dat is **verticaal scrollen**, expliciet toegestaan (`07` §10 verbiedt alleen horizontale overflow). |
+| Selectie behouden ná rotatie tijdens een vraag | ✅ — gekozen optie ("Laos") bleef `aria-pressed="true"` vóór én na de rotatie. |
+| Timer loopt door, geen reset | ✅ — 15s vóór rotatie, 13s erna (2s verstreken, doorgeteld, niet terug naar 15). |
+
+Geen CSS-breuken gevonden — `.screen`'s `min-height: calc(100dvh -
+var(--header-h))` verdraagt de lage landscape-viewports prima zonder overflow
+(het scherm wordt gewoon intern langer en scrollt verticaal, precies zoals
+bedoeld). Geen fix nodig.
+
+## Definition of done — behaald
+
+- Landscape gemeten op drie breedtes, geen horizontale overflow.
+- Rotatie-tijdens-vraag toont aan dat selectie én timer ongewijzigd
+  doorlopen — `07` §10's harde eis gehaald zonder wijziging.
+- `node --test`: 2788/2788 groen.
+- `PROGRESS.md`'s rij gaat van "0, —" naar "2, gemeten — geen bugs gevonden".

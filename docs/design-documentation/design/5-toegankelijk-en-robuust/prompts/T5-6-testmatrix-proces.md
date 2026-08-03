@@ -1,8 +1,10 @@
 # Prompt — T5-6: De testmatrix als doorlopend proces
 
-**Status in `PROGRESS.md`:** Testmatrix | niveau 0 | bewijs: **—** ("`08` §9
-vraagt om iOS Safari, Android, screenreader, reduced motion, 200% zoom en
-trage verbinding. Geen daarvan gedaan.")
+**Status: deels uitvoerbaar, deels wacht op het Playwright-`deps`-besluit**
+(zie `prompts/README.md`). Laag 1's contrastscript kan los; de Playwright-
+sweep niet als committed proces zolang die dependency er niet is — de
+ad-hoc-metingen uit `T5-1`/`T5-2`/`T5-3`/`T5-4` zijn al wel uitgevoerd en
+kunnen later als eerste laag-1-specs dienen.
 
 ## Waarom dit geen simpele "doe het gewoon"-prompt is
 
@@ -27,15 +29,20 @@ Twee lagen, niet één lijst:
 
 ### Laag 1 — geautomatiseerd, draait bij elke wijziging aan `frontend/`
 
-- `node --test` (bestaat al, 363/363).
-- Playwright-sweep: de screenshotcontroles uit `T5-1` (zoom) en `T5-2`
-  (landscape), plus een accessibility-tree-snapshot per scherm (zie `T5-5`'s
-  "wat al automatisch kan"). Dit is geen vervanging van een echte
-  screenreader, wél een goedkope regressiewacht die bestaande, al-geverifieerde
-  labels/rollen bewaakt.
+- De bestaande `node --test`-suite (geen hardgecodeerd aantal hier — dat
+  veroudert per definitie tussen twee commits door; `npm test` zelf is de
+  bron van waarheid).
+- Playwright-sweep: **wacht op het `deps`-besluit** (zie
+  `prompts/README.md`'s Playwright-notitie). `T5-1`/`T5-2`/`T5-3`/`T5-4` zijn
+  ondertussen wél al ad-hoc gemeten (niet als committed spec) — die metingen
+  vervangen laag 1 niet, ze bewijzen alleen dat de onderliggende schermen nu
+  kloppen. Zodra Playwright een projectdependency is, worden die ad-hoc-
+  scripts de eerste laag-1-specs, geen nieuwe scripts vanaf nul.
+- Accessibility-tree-snapshot per scherm (zie `T5-5`'s "wat al automatisch
+  kan") — zelfde afhankelijkheid.
 - Contrastberekening als script (zoals gebruikt voor de licht-thema-fix,
   commit `58eba07`) — bij elke tokenwijziging opnieuw te draaien in plaats
-  van opnieuw met de hand na te rekenen.
+  van opnieuw met de hand na te rekenen. Geen Playwright nodig, kan los.
 
 ### Laag 2 — mens met toestel, periodiek (niet per PR)
 
@@ -65,10 +72,14 @@ Twee lagen, niet één lijst:
 
 ## Definition of done
 
-- Laag 1 bestaat als draaibaar script/testbestand, niet als voornemen.
+- Laag 1's contrastscript en de `node --test`-gewoonte bestaan als draaibaar
+  onderdeel, niet als voornemen — dit deel is niet geblokkeerd en kan nu.
+- Laag 1's Playwright-sweep (screenshots + a11y-tree) blijft "zodra het
+  `deps`-besluit valt" — geen committed spec bouwen zonder de dependency.
 - Laag 2 heeft een vastgelegd eerstvolgend moment.
 - `PROGRESS.md`'s Testmatrix-rij gaat van "0, —" naar een niveau dat het
-  onderscheid tussen de twee lagen zichtbaar maakt, in plaats van één cijfer
-  dat beide verbergt (zelfde principe als `NIVEAUS.md`'s eigen regel 3: "een
+  onderscheid tussen de twee lagen (en binnen laag 1, wat wel/niet
+  geblokkeerd is) zichtbaar maakt, in plaats van één cijfer dat alles
+  verbergt (zelfde principe als `NIVEAUS.md`'s eigen regel 3: "een
   gemiddelde verbergt net zo goed waar we sterk staan als waar we zwak
   staan").

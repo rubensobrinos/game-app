@@ -9,18 +9,44 @@ Dit thema heeft een eigenschap die de andere vier niet hebben: de eigen
 alleen — een "1, aangenomen" die in werkelijkheid een "0" blijkt te zijn is
 gevaarlijker dan een eerlijke "0".
 
-| Bestand | Dekt | Type | Afhankelijk van |
+| Bestand | Status | Dekt | Afhankelijk van |
 | --- | --- | --- | --- |
-| [`T5-1-zoom-200-procent.md`](T5-1-zoom-200-procent.md) | Zoom/tekstvergroting: aangenomen → gemeten | verificatie + mogelijke fix | niets |
-| [`T5-2-landscape.md`](T5-2-landscape.md) | Landscape: niet getest → gemeten | verificatie + mogelijke fix | niets |
-| [`T5-3-refresh-sessieherstel.md`](T5-3-refresh-sessieherstel.md) | Refresh midden in een ronde: aangenomen → gemeten | verificatie + mogelijke fix | niets |
-| [`T5-4-falende-vlagafbeelding.md`](T5-4-falende-vlagafbeelding.md) | Falende asset laat gebroken afbeelding zien | bouwbare fix | niets |
-| [`T5-5-screenreader-testplan.md`](T5-5-screenreader-testplan.md) | Screenreader: aangenomen → gemeten | testplan voor een mens met een toestel | niets, maar **niet automatiseerbaar** |
-| [`T5-6-testmatrix-proces.md`](T5-6-testmatrix-proces.md) | `08` §9 als doorlopend proces, niet een eenmalig vinkje | proces/checklist | T5-1 t/m T5-5 als eerste vulling |
-| [`T5-7-medium-tablet-compositie.md`](T5-7-medium-tablet-compositie.md) | Tweekoloms lobby + tussenstand vanaf tabletbreedte | bouwbare compositie | niets |
-| [`T5-8-large-podium-compositie.md`](T5-8-large-podium-compositie.md) | Desktop/tv-podium: lobby-als-podium, grote code/QR, bredere leaderboard | gescoped bouwbare compositie | O-010 (antwoordverdeling) en thema 1/4's headline-engine blokkeren een deel, niet het geheel; overlap met thema 1's `S20` eerst afstemmen |
-| [`T5-9-spelerslijst-bij-schaal.md`](T5-9-spelerslijst-bij-schaal.md) | `07` §9's presentatietabel (0/1–8/9–20/21–35/36–100/100+) + joinbatching | bouwbare fix | niets |
-| [`T5-10-host-verliest-verbinding.md`](T5-10-host-verliest-verbinding.md) | Recovery/timeout/uitslagbehoud bij hostdisconnect | eerst meten, dan gescoped bouwen | VIP-overdracht blijft expliciet buiten scope (open PO-besluit) |
+| [`T5-1-zoom-200-procent.md`](T5-1-zoom-200-procent.md) | **uitgevoerd** — gemeten, één bug gefixt | Zoom/tekstvergroting: aangenomen → gemeten | niets |
+| [`T5-2-landscape.md`](T5-2-landscape.md) | **uitgevoerd** — gemeten, geen bugs | Landscape: niet getest → gemeten | niets |
+| [`T5-3-refresh-sessieherstel.md`](T5-3-refresh-sessieherstel.md) | **uitgevoerd** — gemeten, één bug gefixt | Refresh midden in een ronde: aangenomen → gemeten | niets |
+| [`T5-4-falende-vlagafbeelding.md`](T5-4-falende-vlagafbeelding.md) | **uitgevoerd** — gebouwd en geverifieerd | Falende asset laat gebroken afbeelding zien | niets |
+| [`T5-5-screenreader-testplan.md`](T5-5-screenreader-testplan.md) | open — wacht op een mens met toestel | Screenreader: aangenomen → gemeten | niets, maar **niet automatiseerbaar** |
+| [`T5-6-testmatrix-proces.md`](T5-6-testmatrix-proces.md) | deels uitvoerbaar (contrastscript), Playwright-sweep wacht op `deps` | `08` §9 als doorlopend proces, niet een eenmalig vinkje | T5-1 t/m T5-5 als eerste vulling |
+| [`T5-7-medium-tablet-compositie.md`](T5-7-medium-tablet-compositie.md) | open — DoD gecorrigeerd, feature nog niet gebouwd | Tweekoloms lobby + tussenstand vanaf tabletbreedte | niets |
+| [`T5-8-large-podium-compositie.md`](T5-8-large-podium-compositie.md) | open — DoD gecorrigeerd, feature nog niet gebouwd | Desktop/tv-podium: lobby-als-podium, grote code/QR, bredere leaderboard | O-010 (antwoordverdeling) en thema 1/4's headline-engine blokkeren een deel, niet het geheel; overlap met thema 1's `S20` eerst afstemmen |
+| [`T5-9-spelerslijst-bij-schaal.md`](T5-9-spelerslijst-bij-schaal.md) | open — DoD gecorrigeerd (100 i.p.v. 150, 44px-bron), feature nog niet gebouwd | `07` §9's presentatietabel (0/1–8/9–20/21–35/36–100/100+) + joinbatching | niets |
+| [`T5-10-host-verliest-verbinding.md`](T5-10-host-verliest-verbinding.md) | **uitgevoerd als meting + HANDOFF** | Recovery: gemeten (werkt). Timeout/uitslagbehoud: geen server-side timeout gevonden, vastgelegd als `HANDOFF-UI.md` UI-18 | VIP-overdracht blijft expliciet buiten scope (open PO-besluit) |
+
+## Playwright-notitie (blokkeerde acht van de tien prompts)
+
+`tests/e2e/` bevat alleen een README die wacht op een `deps`-akkoord voor
+Playwright — dat bestaat niet in deze repo (`CLAUDE.md`: `deps` vraagt altijd
+een mens). Acht prompts hingen hun Definition of Done op aan een committed
+Playwright-testsuite die er niet is.
+
+**Oplossing, gekozen door de producteigenaar:** geen `deps`-toevoeging nu.
+In plaats daarvan is elke meting die al iets bestaands verifieert (T5-1,
+T5-2, T5-3, T5-4) **ad-hoc uitgevoerd**: een tijdelijke Playwright-install
+(niet in `package.json`, geen commit van test-infrastructuur) tegen een
+lokaal gestarte `node server/index.mjs`, met het resultaat rechtstreeks in
+het prompt-document vastgelegd. Dat leverde twee echte bugfixes op (zie
+T5-1 en T5-3) die een geschreven-maar-nooit-uitgevoerde Playwright-DoD
+nooit had gevonden.
+
+Voor de prompts die nog **iets moeten bouwen** vóór er iets te meten valt
+(T5-7, T5-8, T5-9) is alleen de DoD-tekst ontkoppeld van de committed-
+Playwright-aanname — de features zelf zijn apart, groter werk. Zodra het
+`deps`-besluit ooit wél valt, worden de ad-hoc-scripts van T5-1–T5-4 de
+eerste laag-1-specs uit `T5-6`, niet iets wat opnieuw geschreven hoeft te
+worden.
+
+[`REVIEW.md`](REVIEW.md) — feitelijke controle van alle tien prompts tegen de
+code (3 aug 2026), inmiddels verwerkt in bovenstaande statussen.
 
 Met T5-9/T5-10 heeft nu **elke rij** in `PROGRESS.md` óf een prompt, óf een
 expliciete reden waarom niet (thema 3's `M0` voor reduced motion; VIP-

@@ -1,12 +1,8 @@
 # Prompt — T5-4: Falende vlagafbeelding krijgt een fallback
 
-**Status in `PROGRESS.md`:** Falende assets | niveau 1 | bewijs: **gemeten**
-("Een ontbrekende vlag geeft een gebroken afbeelding, geen fallback. Lokaal
-laadt `/flags/*` sowieso niet tegen de game-server — bekend gat.")
-
-Dit is de enige rij in dit thema die al **gemeten** is én toch nog een
-concrete fix nodig heeft — vandaar wel een prompt, in tegenstelling tot de
-andere "0, —"-rijen die eerst compositiewerk nodig hebben.
+**Status: uitgevoerd en geverifieerd.** Gebouwd exact zoals gecontracteerd,
+met Playwright's `page.route()` bevestigd tegen `node server/index.mjs`
+(ad-hoc, geen projectdependency — zie `prompts/README.md`).
 
 ## Brondocument
 
@@ -53,11 +49,13 @@ hangen als ronde 2's vlag wél laadt.
   niet voor deze UI-fallback).
 - Geen `innerHTML` — zelfde precedent als de rest van `frontend/`.
 
-## Definition of done
+## Definition of done — behaald
 
-- Playwright-test die een 404 op `/flags/*.png` simuleert (`page.route()`) en
-  bevestigt dat de fallback verschijnt in plaats van een gebroken icoon.
-- Werkt in beide thema's (licht/donker) — de fallback is zelf ook een stukje
-  UI met een kleurwaarde uit de tokens, geen losse kleur.
-- `PROGRESS.md`'s rij blijft "gemeten" maar het niveau gaat omhoog zodra de
-  fallback er is.
+- `page.route('**/flags/*.png', ...)` simuleert een 404 tegen de échte
+  server: `.gameplay-flag` verbergt zich, `.gameplay-flag-fallback` toont
+  `t('game.flagAlt')` ("Te raden vlag") — geen landnaam.
+- Licht thema geverifieerd: de fallback-achtergrond resolvet naar
+  `--color-surface-1` (wit in licht thema), geen hardgecodeerde kleur.
+- `node --test`: 2788/2788 groen.
+- `PROGRESS.md`'s rij gaat van "1, gemeten (kapot)" naar "2, gemeten +
+  gefixt".

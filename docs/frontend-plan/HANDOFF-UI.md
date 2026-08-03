@@ -15,11 +15,12 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-10 | thema 1 | ✅ opgelost | `room-header.mjs` is dode code — `D-018` daardoor nog niet zichtbaar |
 | UI-11 | producteigenaar | 🔵 open | `O-002`/`O-003` blokkeren wereldmotieven en iconografie (thema 2) |
 | UI-12 | PR | 🟡 informatief, klein verzoek | `PROTOCOL.md` specificeert `round:ended`'s persoonlijke velden nergens — client las ze verkeerd, nu client-side gefixt |
-| UI-13 | INT-A | 🔵 open | `COUNTDOWN_MS` (1,2s) in `transport-mock.mjs` wijkt af van `03` §6's richtduur (2,5–3,0s) — welke is leidend? |
+| UI-13 | — | ✅ ingetrokken | ~~`COUNTDOWN_MS` wijkt af van `03` §6~~ — `GAME-RULES.md` bevestigt al 3s, de mock is een zelf-gedocumenteerde testversnelling. Geen open vraag. |
 | UI-14 | producteigenaar | 🔵 open, voorstel al gebouwd | Dubbele tab: `BroadcastChannel`-gebaseerde detectie toegevoegd (geen nieuwe dependency) — bevestig of dit de gewenste aanpak is |
-| UI-15 | producteigenaar | 🔵 open | Tie-regel bij gelijke scores (S15/S20): `04` noemt dit expliciet nog te beslissen; `transport-mock.mjs` heeft al een ongedocumenteerde tiebreak (`joinedAt` ascending) — client toont gewoon de servervolgorde, geen gedeelde-plaats-indicator |
-| UI-16 | INT-A | 🔵 open | S14: drie sociale-headline-typen niet bouwbaar zonder protocolwijziging (naam bij "enige correct" voor een ANDERE speler, antwoordtijd voor "snelste speler", streak-historie) |
-| UI-17 | client/flow (eigenaar) / producteigenaar | 🔵 open | S02: teams/tijd-per-ronde niet gebouwd — `config.mode` kent geen teamwaarde, `HostConfig` heeft geen tijd-per-ronde-veld; bevestig of een van beide alsnog gewenst is |
+| UI-15 | INT-A | 🔵 open | Tie-regel is al **bevestigd** (`GR2-standings.md`/`GAME-RULES.md`), maar `scoreboard:updated` en `game:finished` passen 'm inconsistent toe op de server, en client + mock lopen achter — zie herziene toelichting |
+| UI-16 | INT-A | 🔵 open | S14: twee (niet drie) headline-typen echt niet bouwbaar — "streak" bleek een misverstand, zie herziene toelichting |
+| UI-17 | client/flow (eigenaar) | 🔵 open | Teams zijn al volledig gespecificeerd (`GAME-RULES.md` §Teams — fase 1.5) maar niet in `HostConfig`; tijd-per-ronde heeft een bevestigde default+range (`15s, 10–30s`) zonder instelveld — zie herziene toelichting |
+| UI-18 | INT-A / PR | 🔵 open | Geen server-side timeout ná `host_disconnected` — een hostloze room blijft voor onbepaalde tijd gepauzeerd, geen uitslagbehoud-event mogelijk (thema 5, T5-10) |
 
 ---
 
@@ -545,6 +546,17 @@ mock-vereenvoudiging die in productie richting 2,5–3,0s gaat, of is `03` §6
 verouderd en is 1,2s de werkelijke waarde? Update de afwijkende bron zodat
 de twee documenten niet langer tegenspreken.
 
+**Ingetrokken (thema 1, 3 aug 2026), principe 8 — met de reden:** ik had
+`GAME-RULES.md` niet geraadpleegd vóór dit item te schrijven. Regel 10 daar
+("Startcountdown | 3 s | nee") bevestigt de duur al, en `transport-mock.mjs`'s
+eigen headercommentaar zegt al expliciet dat zijn kortere tijden ("enkele
+seconden") een bewuste testversnelling zijn, "geen uitspraak over de echte
+serverpacing" — precies het antwoord dat ik hierboven vroeg. Er is dus geen
+open vraag: 3s is leidend, de mock wijkt bewust en gedocumenteerd af, en
+`gameplay.mjs`'s duur-onafhankelijke implementatie klopt al. Geen actie nodig
+van INT-A. Zie ook `UI-15`/`UI-17` — dezelfde misser (brondocument niet
+volledig geraadpleegd) kwam daar ook voor.
+
 ---
 
 ## UI-14 — Dubbele tab: `BroadcastChannel`-detectie (thema 1, 3 aug 2026)
@@ -608,6 +620,40 @@ in `04`/`03` vastgelegd moet worden zodat de mock het niet langer stilzwijgend
 bepaalt. De client (`standings-model.mjs`) doet zelf bewust geen eigen
 ranking — die volgt zodra de servervolgorde dat besluit weerspiegelt.
 
+**Herzien (thema 1, 3 aug 2026), principe 8 — niet ingetrokken, maar
+gecorrigeerd:** het besluit hierboven bleek al genomen, alleen niet door mij
+geraadpleegd. `GAME-RULES.md` §Gelijke eindscore en `docs/game-rules-plan/
+prompts/GR2-standings.md` (status: "uitgevoerd, geverifieerd... competitie-
+rangschikking is bevestigd, ontwerpbeslissing 1") leggen exact vast: score →
+`correctCount` → laagste totale responstijd → **gedeelde positie**
+(competitierangschikking `1,1,3,4`, niet `1,1,2,3`). `server/rules/
+standings.js` implementeert dit, met 23 doorlopende tests. Geen
+producteigenaarsvraag meer.
+
+**De echte, andere vraag die hieruit volgt (nieuw, voor INT-A):** de
+implementatie is **inconsistent tussen de twee events**. `finishMatch()`
+(`game:finished`, `server/composition/match-lifecycle.mjs` rond regel 1112)
+gebruikt `rankPlayers()` correct, inclusief gedeelde `position`. `getScoreboard()`
+(`scoreboard:updated`, dezelfde file rond regel 1049-1071) gebruikt dat niet —
+het levert een eigen `rank: index + 1` per entry, sequentieel, zonder
+gelijke-plaats-ondersteuning, uit `getScoreboardTop()`. Twee verschillende
+velden (`rank` vs. `position`) voor twee events die conceptueel hetzelfde
+zouden moeten doen. Daarbovenop: `transport-mock.mjs` implementeert geen van
+beide (eigen `joinedAt`-tiebreak, altijd sequentieel, altijd via `top`/
+`podium` zonder onderscheid) — testen tegen de mock geeft dus geen enkel
+signaal over dit verschil, en de client (`standings-model.mjs`) negeert elk
+binnenkomend rangveld sowieso en berekent zelf `index + 1`.
+
+**Verzoek aan INT-A:** bevestig of `scoreboard:updated` bewust een
+vereenvoudigde tussenstand geeft (sequentieel, geen ties) terwijl alleen de
+eindstand de volledige competitierangschikking toont, of dat dit een gemiste
+aansluiting is die `getScoreboard()` ook `rankPlayers()` zou moeten gebruiken.
+Zodra dat vaststaat, is er een klein, duidelijk afgebakend client-vervolg:
+`standings-model.mjs`'s `standingsFrom()` moet een aangeleverd
+`position`/`rank`-veld per entry gebruiken in plaats van zelf `index + 1` te
+berekenen — dat is een eigen `HANDOFF`-punt zodra dit besluit er is, geen
+aanname die ik nu al zou moeten doorvoeren op een nog inconsistente server.
+
 ---
 
 ## UI-16 — Drie S14-headlinetypen niet bouwbaar zonder protocolwijziging (thema 1, 3 aug 2026)
@@ -635,6 +681,29 @@ protocoluitbreiding (bv. `round:ended` uitbreiden met per-speler-identiteit
 bij precies één correcte respons, of een aparte "snelste"/"streak"-broadcast)
 — geen aanname die de client zelf zou moeten verzinnen.
 
+**Herzien (thema 1, 3 aug 2026), principe 8 — punt 3 was een misverstand.**
+`GAME-RULES.md` §Reactiezinnen en streaks legt vast dat streaks: "draaien per
+speler", "mogen client-side worden bepaald uit serverresultaten", en "hebben
+geen invloed op de server-score." Dat is dus expliciet een **eigen-speler-
+reactietekst** ("reactiezinnen"), geen gedeeld sociaal feit over een ándere
+speler — precies het omgekeerde van wat ik hierboven vroeg (een
+protocoluitbreiding om ándermans streak te tonen). Er is geen protocolgat: de
+eigen streak is nu al met de bestaande `round:ended`-geschiedenis client-side
+te berekenen, alleen nog niet gebouwd.
+
+Dit is dus geen `HANDOFF` naar INT-A meer, maar een gemiste (buildbare) feature
+binnen thema 1 zelf: een lokale streakteller (opeenvolgende eigen
+`selfCorrect`-rondes) plus een reactiezin daarbij — een ander soort
+component dan `social-headline.mjs` (dat blijft over andermans/groepsfeiten
+gaan), niet meegenomen binnen de scope van `07-reveal-en-sociale-headline.md`.
+Zie [`11-verzoek-streak-reactiezinnen.md`](../../design-documentation/design/
+1-schermen-en-flow/prompts/11-verzoek-streak-reactiezinnen.md) voor de
+uitgewerkte, kleinst mogelijke bouwtaak.
+
+Punten 1 en 2 hierboven (enige-correct-ándere-speler, snelste speler) blijven
+staan zoals oorspronkelijk geschreven — daar vond ik geen tegenbewijs in
+`GAME-RULES.md`/`DECISIONS.md`.
+
 ---
 
 ## UI-17 — S02: twee scope-beperkingen (thema 1, 3 aug 2026)
@@ -658,3 +727,63 @@ gebouwd, hier vastgelegd:
 **Verzoek:** een besluit of teammodus en/of tijd-per-ronde alsnog gewenste
 features zijn. Zo ja: dat is een datamodel-/protocolwijziging bij
 `client/flow/`'s eigenaar, geen aanname die dit scherm zelf zou moeten maken.
+
+**Herzien (thema 1, 3 aug 2026), principe 8 — beide punten waren geen open
+"of dit gewenst is"-vraag, ik had de spelregeldocumenten niet volledig
+geraadpleegd:**
+
+1. **Teams.** `GAME-RULES.md` §Teams heeft de kop **"fase 1.5"** en een
+   volledig uitgewerkt algoritme (rondegemiddelde per team, afgerond,
+   opgeteld tot teamscore — zodat teamgrootte en late joins geen oneerlijk
+   voordeel geven; eindstand toont winnend team + beste individuele speler
+   per team; gelijkspel toegestaan). Teams zíjn dus al bevestigd als
+   toekomstige feature — alleen bewust niet in de huidige fase. De echte
+   vraag is niet "willen we dit", maar **wanneer fase 1.5 aan de orde is**,
+   en of `HostConfig`/`client/flow/` daar nu al iets voor moet voorbereiden
+   (bv. een `teamId`-veld reserveren) of pas wanneer die fase start.
+2. **Tijd-per-ronde.** `GAME-RULES.md`'s rondestructuurtabel bevestigt al een
+   default + range: "Vraag actief: 15s, instelbaar 10–30s." Dat is dus geen
+   open productvraag — de instelbaarheid is al besloten. Het echte gat is dat
+   `HostConfig`/`SETTABLE_CONFIG_KEYS` (`client/flow/host-setup-state.mjs`)
+   domweg geen veld heeft voor iets dat al bevestigd instelbaar hoort te zijn.
+
+**Verzoek (herzien), alleen aan `client/flow/`'s eigenaar, geen
+producteigenaarsbesluit meer nodig voor punt 2:** voeg een
+`questionDurationMs`-achtig veld toe aan `HostConfig`/`SETTABLE_CONFIG_KEYS`
+(10–30s, default 15s per `GAME-RULES.md`), zodat `views/host-setup.mjs` dat
+kan aansturen — een kleine, al-bevestigde toevoeging. Voor punt 1 (teams)
+volstaat een bevestiging van de planning (wanneer is fase 1.5), geen
+inhoudelijk besluit — dat ligt al vast in `GAME-RULES.md`.
+
+---
+
+## UI-18 — geen server-side timeout ná `host_disconnected` (thema 5, 3 aug 2026)
+
+**Voor:** INT-A / PR. **Urgentie:** laag qua techniek, middel qua product —
+een verdwenen host laat de room nu voor onbepaalde tijd hangen.
+
+`08-ACCESSIBILITY-AND-RESILIENCE.md` §7 vraagt: korte recoveryperiode +
+reconnect bij heropenen (✅ bestaat al: `game:pause` met reden
+`host_disconnected`, getoond via de pauze-overlay), en ná een timeout een
+nette beëindiging met uitslagbehoud. Dat laatste bestaat niet: `grep` op
+`host_disconnected` in `server/` levert alleen commentaar/enum-vermeldingen
+op (`state-machine.js:82`, `match-lifecycle.mjs:186`), geen timer. De enige
+grace-waarde in de server is `deadlineGraceMs: 250`
+(`room-lifecycle.mjs:105`) — de antwoord-deadlinemarge, niet gerelateerd.
+
+Geen client-side timer gebouwd als vervanging: dat zou een tweede,
+potentieel afwijkende bron van waarheid worden over wanneer een room als
+"verlaten" geldt.
+
+**Verzoek:**
+1. Een server-side timeout ná `host_disconnected` (duur: aan INT-A/PR).
+2. Bij afloop een event met de laatste bekende stand, zodat de client
+   "uitslagbehoud" ook zichtbaar kan tonen (niet alleen server-side
+   data-behoud).
+
+Zodra dat event bestaat is de clientkant triviaal: hetzelfde patroon als
+`session-shell.mjs`'s bestaande `terminate()` (S21), met de laatst bekende
+`standingsPayload` zichtbaar. Volledige analyse in
+`5-toegankelijk-en-robuust/prompts/T5-10-host-verliest-verbinding.md`.
+VIP-overdracht (een andere speler wordt host) is een apart, expliciet open
+productbesluit — geen onderdeel van dit verzoek.

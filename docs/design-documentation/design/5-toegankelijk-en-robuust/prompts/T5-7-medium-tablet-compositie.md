@@ -66,7 +66,17 @@ vraagt niemand.
 
 ## Definition of done
 
-- Playwright-screenshots bij een paar representatieve tabletbreedtes (bv.
-  768px, 1024px) van lobby en tussenstand, naast de bestaande compacte versie.
-- Geen regressie op compact portrait (390×844 blijft ongewijzigd).
+**Status: nog niet gebouwd** — dit contract beschrijft wat gebouwd moet
+worden, de tweekoloms-composities zelf bestaan nog niet. Wél gecorrigeerd:
+de DoD hing oorspronkelijk aan een committed Playwright-testsuite die niet
+bestaat (zie `prompts/README.md`'s Playwright-notitie). Zodra dit gebouwd
+wordt:
+
+- Ad-hoc Playwright (geen projectdependency totdat het `deps`-besluit valt)
+  bij een paar representatieve tabletbreedtes (bv. 768px, 1024px) van lobby
+  en tussenstand, naast de bestaande compacte versie — resultaat vastgelegd
+  in dit document, niet alleen een screenshotmap.
+- Geen regressie op compact portrait (390×844 blijft ongewijzigd) — te
+  verifiëren met dezelfde ad-hoc aanpak als `T5-1`/`T5-2` gebruikten (echte
+  server, tijdelijke Playwright-install).
 - `PROGRESS.md`'s rij gaat van "0, —" naar een eerlijk gemeten niveau.
