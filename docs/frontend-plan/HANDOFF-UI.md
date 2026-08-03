@@ -147,6 +147,10 @@ er ook een **minimale** hosttoggle (Pauzeer/Hervat) bijgekomen — nadrukkelijk
 niet de volledige UI5-hostbalk, alleen deze ene actie. Lock/kick/finish/next
 en de rest van de hostinstellingen blijven UI5-werk.
 
+**Update:** UI5 is inmiddels gebouwd (`views/hostbar.mjs`) — pauzeren/hervatten
+is daarin opgegaan, plus lock/unlock, spelers verwijderen en handmatig
+volgende ronde bij hostgestuurde pacing. Zie `UI-PROGRESS.md`.
+
 E2e geverifieerd (headless Chromium, Playwright `clock`-API): pauzeren tijdens
 SCOREBOARD toont de overlay met de juiste reden, de onderliggende view blijft
 zichtbaar (gedimd), hervatten sluit 'm weer. Een bug onderweg gefixt: de

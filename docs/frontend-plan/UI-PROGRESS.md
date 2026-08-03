@@ -13,7 +13,7 @@ Bijgewerkt: 2026-08-02. Legenda (vast, uit `UI1-multiplayer-ui.md`):
 | UI2 — Lobby + Delen | 🟡 | `views/lobby.mjs` gebouwd: deelnemerslijst (zie datagat hieronder), alle vier deelacties (schermvullende QR via `qr.mjs`, copy-link met zichtbare fallback, code, native-share), hostknop Start. Volledig e2e geverifieerd (zie hieronder). |
 | UI3 — Spelscherm flags_mc | 🟡 | DOM-scherm (`views/gameplay.mjs`) nu daadwerkelijk gemount via `session-shell.mjs` — niet meer alleen de pure modellaag. Volledige ronde (vraag→antwoord→vergrendeling→uitslag) e2e geverifieerd. |
 | UI4 — Tussenstand + Eindpodium | 🟡 | Zelfde als UI3: `views/scoreboard.mjs`/`views/podium.mjs` nu gemount en e2e geverifieerd t/m rematch → terug naar LOBBY. |
-| UI5 — Hostbalk | 🔵 | Nog steeds niet gebouwd. Wél: een minimale Pauzeer/Hervat-toggle (`session-shell.mjs`) is vooruitlopend toegevoegd — zonder die knop was de pauze-overlay (UI-2/#11) onbereikbaar. Lock/kick/finish/next volgt nu. |
+| UI5 — Hostbalk | 🟡 | `views/hostbar.mjs` gebouwd: pauzeren/hervatten (verplaatst uit de eerdere ad-hoc knop), vergrendelen/ontgrendelen, spelers verwijderen (met bevestiging), handmatig volgende ronde bij hostgestuurde pacing (met bevestiging bij beëindigen). Volledig e2e geverifieerd — zie hieronder. |
 | Live end-to-end, 2 browsertabs | ⛔ | vereist INT-A's stap 2 (echte transportlaag) |
 | Live end-to-end, 2 telefoons LAN | ⛔ | idem, ná de tabs-test |
 | UI1b-kern (foutmeldingen, pauze, reconnect, `/samen`) | 🟡 | Zie sectie hieronder — alle vier gebouwd en geverifieerd. Verlaten-met-bevestiging en landscape blijven uitgesteld. |
@@ -188,6 +188,52 @@ discipline die de Fundamentlaag-pas al op het hamburgermenu toepaste
   titels, kaartstijl, kleuren) — visueel consistent met elkaar en met de
   singleplayer. 363/363 `node --test` groen.
 
+## UI5 — Hostbalk: lock/kick/finish/next (2 aug 2026)
+
+`views/hostbar.mjs` (nieuw), vervangt de eerdere ad-hoc pauzeknop in
+`session-shell.mjs`. Zichtbaarheid per knop volgt rechtstreeks uit
+`host-controls-state.availableHostActions()` — geen eigen aanname.
+
+- **Pauzeren/hervatten** — verplaatst hierheen, gedrag ongewijzigd (overlay +
+  focusbeheer uit de vorige pas blijven werken; `hostBar.focusPause()`
+  vervangt de oude directe elementreferentie).
+- **Vergrendelen/ontgrendelen** — toont "Vergrendel" of "Ontgrendel" op basis
+  van de actuele staat.
+- **Spelers verwijderen** — inklapbare lijst (`aria-expanded`), per speler een
+  knop met `window.confirm()` en de naam in zowel de tekst als een
+  `aria-label` (zodat een screenreader niet alleen "Verwijder" hoort).
+- **Volgende ronde** — alleen zichtbaar bij hostgestuurde pacing tijdens
+  SCOREBOARD (anders auto-advance, geen knop nodig).
+- **Beëindigen** — met `window.confirm()`, onomkeerbaar voor iedereen in de
+  room.
+
+**Twee echte gaten gevonden en gefixt terwijl dit gebouwd werd** (niet apart
+gemeld, want ontdekt én opgelost in dezelfde beweging):
+1. `pacingFor()` gaf altijd `'auto'` terug — de "Volgende"-knop had dus nooit
+   kunnen verschijnen, ongeacht de daadwerkelijke roomconfiguratie.
+   `session-shell.mjs` leest `pacing` nu uit `room:state`'s `room.config`.
+2. De `locked`-context stond hardcoded op `false` bij elke hostactie —
+   "Ontgrendel" was dus onbereikbaar. Nu bijgehouden uit `room:state`
+   (`room.locked`) én live bijgewerkt via het `room:lock-changed`-event.
+Een losstaande dode import (`shareOpenedMethodFor` twee keer geïmporteerd
+onder een alias, de tweede ongebruikt) is bij dezelfde opschoning verwijderd.
+
+Geverifieerd tegen `transport-mock.mjs` via een directe testharnas (niet via
+`app.mjs`/de echte transportlaag — zie hieronder waarom): lock→unlock,
+deelnemerslijst met twee spelers, gerichte kick van de juiste speler (niet de
+host zelf), pauzeren tijdens gameplay met correcte focusterugkeer op
+Escape-hervatten, "Volgende" bij hostgestuurde pacing (geen auto-advance,
+ronde gaat pas verder na een tik), en beëindigen met bevestiging → eindpodium.
+Nul consolefouten. 363/363 `node --test` groen.
+
+**Waarom niet via `app.mjs`:** de transportswap (mock → echt) is inmiddels
+gedaan door een ander, ná het regie-sein (`98a114d`, "DE SWAP") — precies
+zoals gevraagd heb ik die regel zelf niet aangeraakt. `app.mjs` praat dus nu
+met de echte server, die lokaal niet draait voor deze verificatie. De
+testharnas mount `session-shell.mjs` rechtstreeks met `createMockTransport()`,
+buiten `app.mjs` om — dezelfde discipline als de node:test-suites, alleen dan
+met een echte browser voor de DOM/toegankelijkheidscontroles.
+
 ## Openstaande actiepunten
 
 - [x] `docs/frontend-plan/` opgezet (README, UI-PROGRESS, prompts/README).
@@ -254,12 +300,14 @@ discipline die de Fundamentlaag-pas al op het hamburgermenu toepaste
       sectie hierboven.
 - [ ] Definition of done UI1a: twee browsertabs spelen een volledige match
       (vereist punt 1 — de echte transportlaag).
-- [ ] UI5 (volledige hostbalk: lock/kick/finish/next/instellingen) — de
-      minimale Pauzeer/Hervat-toggle bestaat al vooruitlopend, de rest niet.
+- [x] UI5 (hostbalk: lock/kick/finish/next) gebouwd en e2e geverifieerd — zie
+      sectie hierboven. Geen aparte "instellingen"-knop (was geen
+      geïdentificeerde losse actie in `host-controls-state.mjs`).
 - [ ] UI1b-restpunten: verlaten-met-bevestiging, landscape.
 - [ ] Reconnect-statusbalk is gebouwd maar niet end-to-end te testen tegen
-      `transport-mock.mjs` (simuleert geen echte disconnects) — verifiëren
-      zodra de echte transportlaag actief is.
+      `transport-mock.mjs` (simuleert geen echte disconnects) — nu de echte
+      transportlaag actief is (`98a114d`), kan dit alsnog tegen een draaiende
+      server geverifieerd worden.
 
 ## Bekende blockers
 
