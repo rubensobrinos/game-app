@@ -81,7 +81,15 @@
 
      Wie hier een waarde wijzigt raakt élke overgang in de app; dat is de
      bedoeling. Wie een nieuwe duur nodig heeft die hier niet in past, meldt
-     dat in plaats van er een losse waarde naast te zetten. */
+     dat in plaats van er een losse waarde naast te zetten.
+
+     Performancebudget (06 §9, M5): transform/opacity zijn de voorkeur, niet
+     een verbod — color/border-color/background-color zijn toegestaan voor
+     kleine statusovergangen, width/height/top/left/margin/padding vermijden
+     (forceert reflow), blur/filter/grote box-shadow meten en beperken. Zie
+     ../../docs/design-documentation/design/3-beweging-en-gevoel/
+     PERFORMANCE-BUDGET-AUDIT.md voor de volledige toetsing en een bekende
+     overtreding (.timer-fill's width-transitie, niet hier gefixt). */
   --motion-instant: 100ms;    /*  80–120ms  — indrukken, directe respons */
   --motion-fast: 160ms;       /* 140–180ms  — kleine statuswissels */
   --motion-base: 250ms;       /* 220–280ms  — verschijnen en verdwijnen */

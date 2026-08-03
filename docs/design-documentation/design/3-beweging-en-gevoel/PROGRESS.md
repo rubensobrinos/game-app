@@ -78,11 +78,11 @@ beheer wordt gedekt, maar niet door motion.
 | Fundament | Niveau | Stand |
 |---|---|---|
 | Motion-tokens | — | **Geleverd (commit `8eb1996`, thema 2, 3 aug 2026):** `--motion-instant` t/m `--motion-stage` + `--ease-press`/`-enter`/`-rank`/`-stage` staan nu in `base.css` en worden al gebruikt in `components.css`/`base.css`. Eigenaarschap blijft bij thema 2 (`HANDOFF-UI` UI-9), niveau bijhouden gebeurt in `2-vorm-en-systeem/PROGRESS.md` — dit **deblokkeert `M1` en maakt `M6`–`M10` zelfstandig bouwbaar met de echte tokens**, niet meer als placeholder. |
-| `prefers-reduced-motion` | 1 | **Klaar (commit `7a146a0`):** blanket-regel (`animation`/`transition-duration` naar vrijwel nul, `scroll-behavior: auto`) plus de scale zelf uitgeschakeld (`transform: none !important` op de vier `:active`-controls) met een zichtbare non-transform-vervanging. Geverifieerd via CDP `forcePseudoState`, geen regressie in normale modus. Niveau 2 pas zodra `M2`'s inhoudelijke vervangingen (podium direct compleet, score direct definitief, geen carrousel) er ook zijn — zie `prompts/M0-reduced-motion.md`. |
+| `prefers-reduced-motion` | 2 | **Blanket-regel (commit `7a146a0`)** plus de inhoudelijke vervangingen die niveau 2 vereisten: podium direct compleet (`M10`, `matchMedia`-check slaat de stagger over), score direct definitief (`M10`'s reduceMotion in `podium.mjs`, `M2`'s `animateScoreCount` in `gameplay.mjs`), geen carrousel (bestond al niet). Geverifieerd via CDP voor `M0`'s deel; `M2`/`M10`'s JS-gedreven checks zijn codepad-geverifieerd (geen live browser beschikbaar deze sessie, zie `PERFORMANCE-BUDGET-AUDIT.md`). |
 | Mute-mechanisme | 0 | **Voorkeurlaag klaar (commit `0d94744`):** `loadMuted`/`saveMuted` in `preferences.mjs`, plus een gedeelde `safeSet`-helper die nu ook `saveLang`/`saveTheme` gebruiken (voorheen zonder `try/catch` — een gooiende storage liet die twee dus gewoon een exception opgooien; nu falen alle drie stil). Blijft niveau 0 voor de *zichtbare* schakelaar — die komt pas met het eerste echte audiosignaal, geen placebo-control. |
 | Geluidsarchitectuur | 0 | Assets, mixer, categorieën (§5). Zit vast op `O-008` (wie bestuurt geluid) én op geluidsassets die nog niet bestaan — dit deel kán ik niet alleen oplossen. |
 | Haptiek | 0 | Geen `navigator.vibrate` bij submit of reveal. |
-| Performancebudget | 0 | `06` §9 (transform/opacity-only, confetti-limiet, test op middelmatige Androidhardware) staat nergens als vastgelegde regel — toevallig nog niet geschonden omdat er nog geen motion is, maar ook niet getoetst. |
+| Performancebudget | 0 | **`M5` uitgevoerd voor zover mogelijk — codeaudit compleet, live-meting niet.** Volledige classificatie van elke transitie/animatie uit `M0`–`M2` in [`PERFORMANCE-BUDGET-AUDIT.md`](PERFORMANCE-BUDGET-AUDIT.md): één overtreding gevonden (`.timer-fill`'s `width`-transitie, thema 2's `T2-3`, bewust niet zelf gefixt), drie `box-shadow`-animaties die meting behoeven. Regel vastgelegd bij thema 2's motion-tokens (`base.css`). **Niveau blijft 0, niet 1:** de vereiste CPU-throttled DevTools-meting met traceartefact kon niet — geen Playwright/Chromium beschikbaar in deze omgeving (geverifieerd, niet aangenomen: `require('playwright')` faalt, geen `chromium`/`chrome`-binary gevonden). Expliciet vastgelegd als blokkade, niet als "gedaan" verkocht. |
 
 ## Telling
 
@@ -90,7 +90,7 @@ beheer wordt gedekt, maar niet door motion.
 |---|---|---|---|---|
 | Momenten (14, `E08` vervallen/samengevoegd met `E09`) | 1 | 7 (2 dichtbij niveau 2: E11, E14 — zie hun rijen) | 6 | 0 |
 | Momenten incl. voorstel `E16` | 2 | 7 | 6 | 0 |
-| Fundamenten (Motion-tokens nu bij thema 2, zie hieronder) | 4 | 1 | 0 | 0 |
+| Fundamenten (Motion-tokens nu bij thema 2, zie hieronder) | 3 | 0 | 1 (reduced-motion) | 0 |
 
 **Let op voor wie dit vergelijkt met het lokale dashboard
 (`docs/progress/`):** die pagina leest de `Niveau`-kolom letterlijk en
@@ -219,3 +219,21 @@ tussentijdse claim in dit bestand ("het protocolgat is al gemeld") niet
 te kloppen bij verificatie. Vastgelegd i.p.v. stilzwijgend gecorrigeerd,
 zodat een volgende lezer ziet wát er mis was, niet alleen de huidige
 stand.
+
+## `M5` — codeaudit gedaan, live-meting niet (geen browser beschikbaar)
+
+Volledige classificatie van elke transitie/animatie uit `M0`–`M2` in
+[`PERFORMANCE-BUDGET-AUDIT.md`](PERFORMANCE-BUDGET-AUDIT.md). Eén
+overtreding gevonden (`.timer-fill`'s `width`-transitie — thema 2's `T2-3`,
+niet zelf gefixt omdat het hun component is en een omzetting naar
+`transform: scaleX()` visuele verificatie vraagt). Drie `box-shadow`-
+animaties gemarkeerd als "te meten, niet te verbieden".
+
+**Wat niet is gelukt, met naam genoemd in plaats van verzwegen:** de door
+`M5` vereiste CPU-throttled DevTools-meting met traceartefact. Deze sessie
+heeft geen werkende Playwright-installatie of Chromium-binary — geverifieerd
+(`require('playwright')` faalt, geen `chromium`/`chrome` op het systeem),
+niet aangenomen. Niveau blijft daarom op **0** staan, niet 1: `M5`'s eigen
+Definition of done is expliciet dat "leest goed uit de code" niet hetzelfde
+is als "gemeten". Een volgende sessie met een werkende browseromgeving kan
+dit afmaken — de audit zelf hoeft dan niet over.
