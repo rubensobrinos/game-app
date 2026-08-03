@@ -63,6 +63,50 @@ zekerheid zonder dekking.
 
 Zie ook: `devkit policy --json` voor machine-leesbare autonomy-limieten.
 
+## Werkwijze
+
+Dit repo wordt per specificatiedocument opgebouwd door aparte rollen (GR, GF, DM,
+PR, AR, PD, DT, CT, INT). Elke rol heeft een eigen map onder `docs/*-plan/` met
+een `README.md` (het plan), een `*-PROGRESS.md` (de stand) en een `HANDOFF.md`
+(wat andere eigenaren moeten oplossen). `docs/STATUS.md` is de actuele waarheid en
+wint van elk PROGRESS-bestand; `docs/multiplayer/DECISIONS.md` is bindend en wint
+van alles.
+
+De werkwijze die zich heeft bewezen, in volgorde:
+
+1. **Schrijf eerst de prompt, laat die reviewen, bouw daarna pas.** Een review op
+   de opdracht is goedkoper dan een review op de code. De eerste promptreview hier
+   vond zes gaten die anders in de implementatie waren beland.
+2. **Pin de naad vast vóór je uitwaaiert.** Bepaal zelf het gedeelde contract
+   tussen twee stukken werk — een contextobject, een functiesignatuur — en zet dan
+   pas twee agents parallel. Zonder die naad bouwen ze tegen elkaar aan.
+3. **Scheid bouwen van toetsen.** Laat implementatie en testsuite door
+   verschillende agents schrijven, uit dezelfde spec, zonder elkaars bestand te
+   lezen. Een suite van de agent die zijn eigen code testte bewijst weinig.
+4. **Review adversarieel.** Geef reviewers een expliciete bril (spec-conformiteit,
+   defectjacht, mutatietesten) en de opdracht te wéérleggen. Drie echte defecten
+   in deze repo zijn zo gevonden ná een groene suite.
+5. **Verifieer zelf.** Draai de tests, reproduceer de bevinding. Neem geen enkele
+   uitkomst van een subagent op zijn woord.
+6. **Commit per onderwerp, klein en vroeg.** Controleer `git diff --cached` vóór
+   elke commit: er werken meerdere agents in dezelfde tree en er staat geregeld
+   werk van een ander klaar in de index.
+
+Parallelliseer waar het kan. Werk dat geen state deelt hoort niet op elkaar te
+wachten; één blok serieel afwerken kost hier aantoonbaar dagen.
+
+## Handoff tussen domeinen
+
+Wie een probleem vindt lost het niet op — hij beschrijft het zo dat de eigenaar
+het goedkoop kan oplossen. De volledige principes, met de aanleiding per regel,
+staan in [`docs/handoff-principles.md`](docs/handoff-principles.md).
+
+Samengevat: meld met een reproductie, doe een concreet voorstel maar neem het
+besluit niet, zet er urgentie bij als het tijdkritisch is, pin het gat vast in
+een test met de opdracht die om te draaien, en bouw er nooit stil omheen. Ook
+als je zelf de eigenaar bent schrijf je het item — anders verdwijnt de
+traceerbaarheid.
+
 ## Repo-eigen autonomy-overrides
 
 De waarden in `.devkit.yaml` zijn voor deze repo leidend: maximaal 15 gewijzigde
