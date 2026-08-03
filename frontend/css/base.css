@@ -19,11 +19,16 @@
   --color-surface-2: #1e1e38;
   --color-border-subtle: #2a2a4a;
   --color-accent-primary: #7c3aed;
-  --color-accent-primary-hover: #a855f7;
+  /* T5-6-contrast.test.mjs vond dat de originele #a855f7 als tekst
+     (`.scoreboard-score`/`.podium-score`, `--color-surface-1`) op 4,49:1
+     uitkwam — net onder AA. Minimaal opgehelderd (#af62f8), zelfde toon. */
+  --color-accent-primary-hover: #af62f8;
   --color-accent-glow: rgba(168, 85, 247, 0.25);
   --color-success: #22c55e;
   --color-success-surface: rgba(34, 197, 94, 0.12);
-  --color-danger: #ef4444;
+  /* Idem: als tekst (`.gameplay-option.is-wrong::after`'s "✕", op
+     `--color-surface-2`) kwam de originele #ef4444 op 4,30:1 uit. */
+  --color-danger: #f04d4d;
   --color-danger-surface: rgba(239, 68, 68, 0.12);
   --color-text-primary: #f1f5f9;
   --color-text-muted: #8b92b0;
