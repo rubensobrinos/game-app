@@ -53,6 +53,7 @@ export const en = Object.freeze({
   'hostSetup.allowLateJoinLabel': 'Allow players to join later',
   'hostSetup.hostParticipatesLabel': 'I\'m playing too',
   'join.title': 'Join',
+  'join.roomConfirmation': "You're joining game {code}",
   'join.previewing': 'Loading…',
   'join.submitting': 'Joining…',
   'join.nameLabel': 'What should we call you?',

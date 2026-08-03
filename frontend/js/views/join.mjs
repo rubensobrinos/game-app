@@ -26,6 +26,7 @@ import {
 } from '../../../client/flow/join-state.mjs';
 import { saveSession } from '../../../client/flow/session-store.mjs';
 import { messageForErrorCode, joinErrorCategoryFor } from '../../../client/flow/edge-case-messaging.mjs';
+import { formatCode } from './room-header.mjs';
 
 export function createJoinView({ root, t, tCount, transport, storage, onJoined, onLeaveHome }) {
   root.textContent = '';
@@ -38,6 +39,12 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined, 
   // preview binnenkomt; alleen ooit niet-null ná een uitnodigingslink, want
   // een code-locator doorloopt 'previewing' nooit (join-state.mjs).
   let previewPlayerCount = null;
+  // 04's inhoudspunt "Je doet mee aan game 482 917" — alleen tonen bij een
+  // code-locator: `state.locator.code` is dan al bekend (de speler typte 'm),
+  // maar `GET /api/v1/games/preview` (invite-locator) levert alleen `roomId`
+  // terug, geen `gameCode` (PROTOCOL.md) — voor die weg is de code hier
+  // simpelweg niet beschikbaar, geen aanname/gok hier over verzinnen.
+  const roomConfirmation = el('p', 'join-room-confirmation');
   const waitingCount = el('p', 'join-waiting-count');
   const nameLabel = el('label', 'join-name-label field-label');
   const nameLabelText = el('span', 'field-label-text');
@@ -70,14 +77,24 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined, 
   backToStartButton.className = 'join-back-to-start btn-primary';
   backToStartButton.addEventListener('click', () => onLeaveHome?.());
 
-  screen.append(title, status, waitingCount, nameLabel, errorMessage, submitButton, backToStartButton, retryButton);
+  screen.append(title, status, roomConfirmation, waitingCount, nameLabel, errorMessage, submitButton, backToStartButton, retryButton);
   root.append(screen);
 
   let state = initialJoinState();
 
   nameInput.addEventListener('input', () => {
-    updateNameCounter();
     dispatch({ type: 'NAME_CHANGED', value: nameInput.value });
+    // join-state.mjs kapt `state.displayName` al stil af op `NAME_MAX_GRAPHEMES`
+    // (`sanitizeDisplayName`) — dat gold tot nu toe alleen voor wát verstuurd
+    // wordt bij SUBMIT. Het zichtbare veld zelf bleef ongewijzigd (kon dus
+    // >20 tekens tonen, met een teller die "25/20" liet zien i.p.v. echt af
+    // te kappen). Hier alleen resyncen wanneer de waarden al uiteenlopen
+    // (d.w.z. er wérd afgekapt) — anders zou elke toets de cursor naar het
+    // einde duwen, ook onder de limiet.
+    if (nameInput.value !== (state.displayName ?? '')) {
+      nameInput.value = state.displayName ?? '';
+    }
+    updateNameCounter();
   });
 
   function updateNameCounter() {
@@ -146,6 +163,7 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined, 
     submitButton.hidden = true;
     nameLabel.hidden = true;
     waitingCount.hidden = true;
+    roomConfirmation.hidden = true;
 
     if (state.status === 'previewing') {
       status.textContent = t('join.previewing');
@@ -154,6 +172,10 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined, 
 
     if (state.status === 'name-entry' || state.status === 'submitting') {
       status.textContent = state.status === 'submitting' ? t('join.submitting') : '';
+      if (state.locator.type === 'code') {
+        roomConfirmation.hidden = false;
+        roomConfirmation.textContent = t('join.roomConfirmation').replace('{code}', formatCode(state.locator.code));
+      }
       if (previewPlayerCount !== null && previewPlayerCount > 0) {
         waitingCount.hidden = false;
         waitingCount.textContent = tCount('join.waitingCount', previewPlayerCount);

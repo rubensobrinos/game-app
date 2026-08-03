@@ -58,6 +58,10 @@ export const nl = Object.freeze({
   'hostSetup.hostParticipatesLabel': 'Ik doe zelf ook mee',
 
   'join.title': 'Meedoen',
+  // S04: alleen getoond ná code-invoer (state.locator.type === 'code') — de
+  // preview-route (invite-link) heeft de code hier nog niet (PROTOCOL.md's
+  // preview-endpoint levert alleen roomId, geen gameCode).
+  'join.roomConfirmation': 'Je doet mee aan game {code}',
   'join.previewing': 'Bezig met ophalen…',
   'join.submitting': 'Bezig met meedoen…',
   'join.nameLabel': 'Hoe noemen we je?',
