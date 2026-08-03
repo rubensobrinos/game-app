@@ -68,6 +68,7 @@ export const en = Object.freeze({
   'game.flagAlt': 'Flag to guess',
   'game.questionPrompt': 'Which flag is this?',
   'game.round': 'Round',
+  'game.secondsLeft': 'seconds left',
   'game.sending': 'Sending…',
   'game.received': 'Answer received',
   'game.tooLate': 'Too late — this round no longer counts',

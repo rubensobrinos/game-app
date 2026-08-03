@@ -78,6 +78,7 @@ export const nl = Object.freeze({
   'game.flagAlt': 'Te raden vlag',
   'game.questionPrompt': 'Welke vlag is dit?',
   'game.round': 'Ronde',
+  'game.secondsLeft': 'seconden te gaan',
   'game.sending': 'Versturen…',
   'game.received': 'Antwoord ontvangen',
   'game.tooLate': 'Te laat — deze ronde telt niet meer',

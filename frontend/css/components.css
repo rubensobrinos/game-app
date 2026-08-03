@@ -351,6 +351,61 @@ button.is-loading::after {
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Timer als balk (T2-3, 05 §9) ──────────────────────────────────────────
+   Sluit aan op de vormtaal die de singleplayer al heeft (`style.css`
+   `.timer-track`/`.timer-fill`) — niet opnieuw bedacht.
+
+   Het getal blijft naast de balk staan: 05 §9 noemt de balk de basisvorm en
+   het cijfer de aanvulling, en op een luidruchtige borrel lees je een getal
+   sneller af dan een balkje. */
+.timer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.timer-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+.timer-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  background: var(--color-accent-primary);
+  /* Alleen de breedte loopt mee met de klok; de kleuromslag hieronder is een
+     aparte, snellere overgang zodat urgentie niet traag "aan komt zetten". */
+  transition: width var(--motion-fast) linear,
+    background-color var(--motion-fast) var(--ease-enter);
+}
+
+.timer-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: var(--color-text-muted);
+  min-width: 2.5ch;
+  text-align: right;
+}
+
+/* Laatste seconden — 06 E07. Contrast, geen beweging: de puls is thema 3's
+   werk, en 08 §2.4 eist dat de urgentie ook zonder motion zichtbaar is.
+
+   `--color-warning` en niet `--color-danger`: P12 reserveert rood voor fout en
+   geeft tijd/aandacht een eigen rol. Een timer die rood wordt zegt "je hebt
+   iets verkeerd gedaan", en dat is niet wat er gebeurt. */
+.timer.is-urgent .timer-fill {
+  background: var(--color-warning);
+}
+
+.timer.is-urgent .timer-value {
+  color: var(--color-warning);
+}
+
 .gameplay-flag {
   display: block;
   width: 100%;

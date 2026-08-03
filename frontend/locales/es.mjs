@@ -66,6 +66,7 @@ export const es = Object.freeze({
   'game.flagAlt': 'Bandera a adivinar',
   'game.questionPrompt': '¿Qué bandera es esta?',
   'game.round': 'Ronda',
+  'game.secondsLeft': 'segundos restantes',
   'game.sending': 'Enviando…',
   'game.received': 'Respuesta recibida',
   'game.tooLate': 'Demasiado tarde — esta ronda ya no cuenta',
