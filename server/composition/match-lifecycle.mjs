@@ -248,6 +248,66 @@ function activePlayers(players) {
   return players.filter((player) => player.kicked !== true && player.left !== true);
 }
 
+/**
+ * Bovengrens op `snapshot.participants`. Gelijk aan de MVP-grens uit
+ * PRODUCT.md (100 spelers per room). Zie PROTOCOL.md §"Waarom begrensd en niet
+ * gepagineerd": bij honderd deelnemers is de lijst ~8 kB, verwaarloosbaar naast
+ * de vraagpayloads, en de snapshot gaat over de lijn bij verbinden en
+ * reconnecten — niet per ronde. De grens staat er voor het geval `maxPlayers`
+ * ooit omhoog gaat, niet omdat honderd te veel is.
+ */
+const PARTICIPANTS_LIMIT = 100;
+
+/**
+ * De deelnemerslijst voor de snapshot: wie er in de room zitten, met hun naam
+ * en rollen. Zonder deze lijst kent een client alleen de namen van spelers die
+ * ná zijn eigen verbinding binnenkwamen (`room:player-changed`), en toont de
+ * lobby een naamloze rij voor iedereen die er al zat.
+ *
+ * ROLLEN KOMEN VAN DE SESSIE, NIET VAN DE SPELER. `Player` kent geen rollen;
+ * `Session.roles` wel. We laden daarom uitsluitend de hostsessies uit
+ * `room.hostSessionIds` — meestal één — en niet de sessie van elke speler. Dat
+ * scheelt bij honderd deelnemers negenennegentig lees-operaties, en het
+ * antwoord is hetzelfde: wie geen hostsessie heeft, is `["player"]`.
+ *
+ * Een host die NIET meespeelt heeft geen `Player` en staat dus niet in de
+ * lijst. Dat is de definitie, geen omissie: de lijst gaat over deelnemers.
+ *
+ * @param {object} context
+ * @param {import('../data/types/room.js').Room} room
+ * @param {Array<object>} present - al gefilterd met `activePlayers`, zodat
+ *   `participants.length === room.playerCount` blijft gelden
+ * @returns {Promise<{ participants: Array<object>, participantsTruncated: boolean }>}
+ */
+async function buildParticipants(context, room, present) {
+  const hostPlayerIds = new Set();
+  for (const sessionId of room.hostSessionIds) {
+    const session = await context.store.loadSession(room.id, sessionId);
+    // Een hostsessie kan zijn ingetrokken of verlopen terwijl de room leeft;
+    // dan is er niets om een rol aan te hangen en telt de speler als gewone
+    // deelnemer. Dat is beter dan de hele snapshot laten falen op een
+    // hostsessie die er niet meer is.
+    if (session !== null && session.playerId !== null) {
+      hostPlayerIds.add(session.playerId);
+    }
+  }
+
+  // Stabiele volgorde (PROTOCOL.md): oplopend op join-tijdstip, bij gelijk
+  // tijdstip op playerId. Zonder die garantie zou afkappen willekeurig zijn en
+  // kon de lobby bij elke snapshot van volgorde wisselen.
+  const ordered = [...present].sort((a, b) => (
+    a.joinedAt === b.joinedAt ? a.id.localeCompare(b.id) : a.joinedAt - b.joinedAt
+  ));
+
+  const participants = ordered.slice(0, PARTICIPANTS_LIMIT).map((player) => ({
+    playerId: player.id,
+    effectiveName: player.effectiveName,
+    roles: hostPlayerIds.has(player.id) ? ['host', 'player'] : ['player'],
+  }));
+
+  return { participants, participantsTruncated: ordered.length > PARTICIPANTS_LIMIT };
+}
+
 /** Spelers die in de eindstand horen: gekickt valt af, vrijwillig vertrokken niet. */
 function rankablePlayers(players) {
   return players.filter((player) => player.kicked !== true);
@@ -1415,6 +1475,8 @@ export async function buildSnapshot(context, { roomId, sessionId = null } = {}) 
     : await context.store.getScoreboardTop(roomId, match.id, SCOREBOARD_TOP_LIMIT);
   const nameById = new Map(players.map((player) => [player.id, player.effectiveName]));
 
+  const { participants, participantsTruncated } = await buildParticipants(context, room, present);
+
   return succeed({
     protocolVersion: PROTOCOL_VERSION,
     serverTime: now,
@@ -1436,6 +1498,8 @@ export async function buildSnapshot(context, { roomId, sessionId = null } = {}) 
     },
     self,
     currentRound,
+    participants,
+    participantsTruncated,
     scoreboard: {
       top: top.map((entry, index) => ({
         playerId: entry.playerId,

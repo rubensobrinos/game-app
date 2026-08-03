@@ -30,6 +30,11 @@ function buildLiteralSnapshot() {
       eligibleFromRound: 1,
     },
     currentRound: {},
+    participants: [
+      { playerId: 'p_8f42d1', effectiveName: 'Ruben', roles: ['host', 'player'] },
+      { playerId: 'p_a1b2c3', effectiveName: 'Vlugge Vos', roles: ['player'] },
+    ],
+    participantsTruncated: false,
     scoreboard: {
       top: [],
       self: {},

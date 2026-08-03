@@ -560,8 +560,18 @@ test('GET /api/v1/games/{code}/state — in de lobby: 200 met matchId en matchSe
   const body = response.json();
   assert.deepEqual(
     Object.keys(body).sort(),
-    ['currentRound', 'protocolVersion', 'room', 'scoreboard', 'self', 'serverTime'],
+    [
+      'currentRound', 'participants', 'participantsTruncated', 'protocolVersion',
+      'room', 'scoreboard', 'self', 'serverTime',
+    ],
   );
+  // De host is hier zelf de enige deelnemer, dus de lijst legt in één keer vast
+  // dat een meespelende host beide rollen draagt en dat de lijst even lang is
+  // als `playerCount`.
+  assert.deepEqual(body.participants, [
+    { playerId: created.playerId, effectiveName: body.self.effectiveName, roles: ['host', 'player'] },
+  ]);
+  assert.equal(body.participantsTruncated, false);
   assert.equal(body.protocolVersion, 'v1');
   assert.equal(body.serverTime, FIXED_NOW);
   assert.equal(body.room.code, created.gameCode);

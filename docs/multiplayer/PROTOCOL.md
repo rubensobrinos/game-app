@@ -298,6 +298,11 @@ Minimale structuur:
     "eligibleFromRound": 1
   },
   "currentRound": {},
+  "participants": [
+    { "playerId": "p_8f42d1", "effectiveName": "Ruben", "roles": ["host", "player"] },
+    { "playerId": "p_a1b2c3", "effectiveName": "Vlugge Vos", "roles": ["player"] }
+  ],
+  "participantsTruncated": false,
   "scoreboard": {
     "top": [],
     "self": {}
@@ -309,6 +314,61 @@ Minimale structuur:
 vanaf wanneer de speler speelgerechtigd is (relevant voor late joiners).
 Servervalidatie via `PLAYER_NOT_ELIGIBLE` blijft leidend; dit veld is alleen
 voor proactieve clientweergave (`DECISIONS.md`, punt 3).
+
+### `participants` — wie er in de room zitten
+
+Zonder deze lijst kent een client alleen de namen van spelers die ná zijn eigen
+verbinding zijn binnengekomen: namen kwamen uitsluitend via
+`room:player-changed`. Wie er al zat vóór jouw verbinding had bij jou geen naam,
+en de lobby toonde een rij zonder tekst. `room:player-changed` blijft de
+realtime-delta; deze lijst is de beginstand waarop die delta's landen.
+
+Per deelnemer exact drie velden:
+
+| Veld | Vorm |
+| --- | --- |
+| `playerId` | niet-lege string |
+| `effectiveName` | niet-lege string — altijd gevuld (`PRODUCT.md`: iedere speler heeft een zichtbare naam) |
+| `roles` | niet-lege array van `"host"` en/of `"player"`, zelfde vorm als `self.roles` |
+
+**Niets anders.** Geen `sessionToken`, geen `tokenHash`, geen `sessionId`, geen
+score, geen `joinedAt`, geen IP of user-agent. `playerId` en `effectiveName`
+staan al in `scoreboard.top`, dus deze lijst voegt geen nieuwe soort gegeven toe
+aan de wire — alleen dezelfde soort voor iedereen in plaats van voor de top vijf.
+
+`roles` komt van de **sessie**, niet van de speler: `Player` kent geen rollen.
+Een speler heeft `["player"]`; een host die meespeelt `["host", "player"]`. Een
+host die **niet** meespeelt heeft geen `Player` en staat dus niet in de lijst —
+dat is geen omissie maar de definitie: de lijst gaat over deelnemers, niet over
+sessies.
+
+`participants` bevat exact dezelfde verzameling als `room.playerCount` telt:
+gekickte en vrijwillig vertrokken spelers vallen af. Daarmee geldt
+`participants.length === room.playerCount` zolang er niet is afgekapt, en dat is
+een invariant waar een client op mag bouwen.
+
+**Volgorde** is stabiel: oplopend op join-tijdstip, bij gelijk tijdstip op
+`playerId`. Zonder die garantie zou afkappen willekeurig zijn en zou de lobby
+bij elke snapshot van volgorde kunnen wisselen.
+
+### Waarom begrensd en niet gepagineerd
+
+De lijst is afgekapt op **100 deelnemers**, gelijk aan de MVP-grens uit
+`PRODUCT.md`. Wordt die grens geraakt, dan staat `participantsTruncated` op
+`true`; anders op `false`. Nooit stil afkappen — een client die niet weet dat
+hij een deel ziet, toont een onvolledige lijst als volledige waarheid.
+
+Paginering is overwogen en afgewezen. Bij honderd deelnemers is de lijst
+ongeveer acht kilobyte — verwaarloosbaar naast de vraagpayloads met beelden, en
+de snapshot gaat over de lijn bij verbinden en reconnecten, niet per ronde.
+Paginering zou daar een cursor, een paginagrootte en een tweede round-trip aan
+toevoegen op precies het moment dat je juist één bericht wilt: het herstel na
+een verbroken verbinding.
+
+De grens staat er dus niet omdat honderd te veel is, maar omdat een
+onbegrensde lijst een valstrik is zodra `maxPlayers` ooit omhoog gaat. Wordt die
+grens verhoogd, dan is paginering pas het gesprek — en dan is
+`participantsTruncated` het signaal dat het gesprek nodig is.
 
 `room.matchSequence` is `Match.sequence` uit `DATA-MODEL.md` (integer ≥ 1,
 ordent matches binnen een room totaal). Toegevoegd om drie samenhangende

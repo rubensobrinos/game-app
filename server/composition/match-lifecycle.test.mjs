@@ -1321,7 +1321,10 @@ test('een pre-match-lobby levert een geldige snapshot met matchId én matchSeque
   // Voor snapshot-precedence telt een snapshot zonder match als sequence 0.
   assert.deepEqual(
     Object.keys(snapshot.value).sort(),
-    ['currentRound', 'protocolVersion', 'room', 'scoreboard', 'self', 'serverTime'],
+    [
+      'currentRound', 'participants', 'participantsTruncated', 'protocolVersion',
+      'room', 'scoreboard', 'self', 'serverTime',
+    ],
   );
   assert.deepEqual(
     Object.keys(snapshot.value.room).sort(),
@@ -1366,6 +1369,172 @@ test('een pre-match-lobby levert een geldige snapshot met matchId én matchSeque
   assert.equal(afterStart.value.room.matchId, started.value.matchId);
   assert.equal(afterStart.value.room.matchSequence, 1);
   assert.deepEqual(validateSnapshotShape(afterStart.value), { ok: true });
+});
+
+// ─── snapshot.participants (FEEDBACK-eerste-livetest punt 1, optie a) ────────
+//
+// Het gat dat deze lijst dicht: `room:state` gaf alleen `self` + `playerCount`,
+// dus namen van ánderen kwamen uitsluitend via `room:player-changed`. Wie er al
+// zat vóór jouw verbinding had bij jou geen naam en de lobby toonde een lege
+// rij. Alle fixtures hieronder komen uit `seedRoom`/`joinRoom` — de échte
+// producerende functies, conform de INT-18-les: een fixture die het echte
+// formaat niet gebruikt bewijst niets over het echte pad.
+
+test('participants geeft élke aanwezige speler een naam, ook wie er vóór jou al zat', async () => {
+  const harness = makeHarness();
+  const { context } = harness;
+  const { roomId, players } = await seedRoom(harness, { extraPlayers: 2 });
+
+  // De snapshot van de LAATST gejoinde speler: precies de situatie uit de
+  // livetest, waarin regie als laatste binnenkwam en de twee eerdere spelers
+  // naamloos zag.
+  const laatste = players[players.length - 1];
+  const snapshot = await buildSnapshot(context, { roomId, sessionId: laatste.sessionId });
+  assert.equal(snapshot.ok, true);
+
+  assert.equal(snapshot.value.participants.length, 3);
+  assert.equal(snapshot.value.participants.length, snapshot.value.room.playerCount);
+
+  // De kern van de bugfix: geen enkele deelnemer zonder naam.
+  for (const participant of snapshot.value.participants) {
+    assert.ok(
+      typeof participant.effectiveName === 'string' && participant.effectiveName.length > 0,
+      `deelnemer ${participant.playerId} heeft geen naam — dit is het lobbygat`,
+    );
+  }
+
+  // En de namen zijn die van de échte spelers, niet een placeholder.
+  assert.deepEqual(
+    snapshot.value.participants.map((p) => p.effectiveName).sort(),
+    players.map((p) => p.name).sort(),
+  );
+});
+
+test('participants draagt rollen uit de SESSIE: een meespelende host is host én player', async () => {
+  const harness = makeHarness();
+  const { context } = harness;
+  const { roomId, players } = await seedRoom(harness, { extraPlayers: 2 });
+
+  const snapshot = await buildSnapshot(context, { roomId, sessionId: players[0].sessionId });
+  const byId = new Map(snapshot.value.participants.map((p) => [p.playerId, p]));
+
+  // players[0] is de host uit seedRoom.
+  assert.deepEqual(byId.get(players[0].playerId).roles, ['host', 'player']);
+  assert.deepEqual(byId.get(players[1].playerId).roles, ['player']);
+  assert.deepEqual(byId.get(players[2].playerId).roles, ['player']);
+});
+
+test('een host die NIET meespeelt staat niet in participants — de lijst gaat over deelnemers', async () => {
+  const harness = makeHarness();
+  const { context } = harness;
+  const { roomId, room, players } = await seedRoom(harness, { extraPlayers: 2, hostParticipates: false });
+
+  const snapshot = await buildSnapshot(context, { roomId, sessionId: room.sessionId });
+  assert.equal(snapshot.ok, true);
+
+  // Twee spelers, geen derde regel voor de host: die heeft geen Player en dus
+  // geen naam om te tonen. `self.roles` laat wél zien dat de kijker host is.
+  assert.equal(snapshot.value.participants.length, 2);
+  assert.equal(snapshot.value.participants.length, snapshot.value.room.playerCount);
+  assert.deepEqual(snapshot.value.self.roles, ['host']);
+  assert.equal(snapshot.value.self.playerId, null);
+  assert.deepEqual(
+    snapshot.value.participants.map((p) => p.playerId).sort(),
+    players.map((p) => p.playerId).sort(),
+  );
+  for (const participant of snapshot.value.participants) {
+    assert.deepEqual(participant.roles, ['player']);
+  }
+});
+
+test('participants lekt geen sessiegegevens: exact drie velden, en geen token of sessionId in de JSON', async () => {
+  const harness = makeHarness();
+  const { context, store } = harness;
+  const { roomId, players } = await seedRoom(harness, { extraPlayers: 2 });
+
+  const snapshot = await buildSnapshot(context, { roomId, sessionId: players[0].sessionId });
+
+  for (const participant of snapshot.value.participants) {
+    assert.deepEqual(Object.keys(participant).sort(), ['effectiveName', 'playerId', 'roles']);
+  }
+
+  // Niet alleen de sleutels tellen, maar zoeken naar de échte geheimen in de
+  // geserialiseerde lijst. Een veld dat per ongeluk meelift heet zelden
+  // `tokenHash` — het is de wáárde die niet over de wire mag.
+  const serialized = JSON.stringify(snapshot.value.participants);
+  for (const player of players) {
+    const session = await store.loadSession(roomId, player.sessionId);
+    assert.equal(serialized.includes(session.tokenHash), false, 'tokenHash lekt in participants');
+    assert.equal(serialized.includes(session.id), false, 'sessionId lekt in participants');
+  }
+});
+
+test('participants volgt dezelfde verzameling als playerCount: gekickt en vertrokken vallen af', async () => {
+  const harness = makeHarness();
+  const { context, store } = harness;
+  const { roomId, players } = await seedRoom(harness, { extraPlayers: 3 });
+
+  const vertrokken = await store.loadPlayer(roomId, players[1].playerId);
+  await store.savePlayer({ ...vertrokken, left: true });
+  const gekickt = await store.loadPlayer(roomId, players[2].playerId);
+  await store.savePlayer({ ...gekickt, kicked: true });
+
+  const snapshot = await buildSnapshot(context, { roomId, sessionId: players[0].sessionId });
+
+  assert.equal(snapshot.value.room.playerCount, 2);
+  assert.equal(snapshot.value.participants.length, 2);
+  const ids = snapshot.value.participants.map((p) => p.playerId);
+  assert.equal(ids.includes(players[1].playerId), false, 'vertrokken speler staat er nog in');
+  assert.equal(ids.includes(players[2].playerId), false, 'gekickte speler staat er nog in');
+});
+
+test('participants heeft een stabiele volgorde: join-tijdstip, dan playerId', async () => {
+  const harness = makeHarness();
+  const { context, store } = harness;
+  const { roomId, players } = await seedRoom(harness, { extraPlayers: 3 });
+
+  const eerste = await buildSnapshot(context, { roomId, sessionId: players[0].sessionId });
+  const tweede = await buildSnapshot(context, { roomId, sessionId: players[0].sessionId });
+
+  // Twee opeenvolgende snapshots geven dezelfde volgorde: zonder die garantie
+  // zou de lobby kunnen herschikken en zou afkappen willekeurig zijn.
+  assert.deepEqual(
+    eerste.value.participants.map((p) => p.playerId),
+    tweede.value.participants.map((p) => p.playerId),
+  );
+
+  // De volgorde is die uit PROTOCOL.md, berekend uit de opslag zelf. LET OP:
+  // de harness heeft een vaste klok, dus alle spelers delen hier één
+  // `joinedAt` en de sortering valt volledig terug op `playerId`. Juist daarom
+  // is de tweede sleutel er: zonder die tiebreak zou deze test bij elke run een
+  // andere volgorde kunnen zien (eerste opzet van deze test was om precies die
+  // reden flaky).
+  const opgeslagen = await store.listPlayers(roomId);
+  const verwacht = [...opgeslagen]
+    .sort((a, b) => (a.joinedAt === b.joinedAt ? a.id.localeCompare(b.id) : a.joinedAt - b.joinedAt))
+    .map((player) => player.id);
+  assert.deepEqual(eerste.value.participants.map((p) => p.playerId), verwacht);
+});
+
+test('boven de 100 deelnemers kapt de lijst af en zegt dat ook', async () => {
+  const harness = makeHarness();
+  const { context } = harness;
+  // maxPlayers omhoog, anders weigert joinRoom bij 100 met GAME_FULL en is de
+  // afkap-tak onbereikbaar — precies wat PROTOCOL.md beschrijft.
+  const { roomId, players } = await seedRoom(harness, {
+    extraPlayers: 104,
+    roomConfig: { maxPlayers: 120 },
+  });
+  assert.equal(players.length, 105);
+
+  const snapshot = await buildSnapshot(context, { roomId, sessionId: players[0].sessionId });
+
+  assert.equal(snapshot.value.room.playerCount, 105);
+  assert.equal(snapshot.value.participants.length, 100);
+  assert.equal(snapshot.value.participantsTruncated, true);
+  // Nooit stil afkappen: een client die niet weet dat hij een deel ziet, toont
+  // een onvolledige lijst als volledige waarheid.
+  assert.deepEqual(validateSnapshotShape(snapshot.value), { ok: true });
 });
 
 test('resolveEligibleFromRound geeft 1 zolang er geen lopende match is', async () => {

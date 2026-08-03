@@ -116,6 +116,46 @@ function validateSnapshotRoom(room) {
  * @param {unknown} scoreboard
  * @returns {ValidationResult}
  */
+/**
+ * Valideert `snapshot.participants` tegen §State-snapshot: een array met per
+ * deelnemer exact `playerId`, `effectiveName` en `roles`.
+ *
+ * De sleutelcontrole is EXACT en niet "bevat minimaal". Dat is hier het hele
+ * punt: deze lijst gaat over iedereen in de room, dus een veld dat er per
+ * ongeluk bij komt — `sessionId`, `tokenHash`, een score — lekt over de wire
+ * naar alle deelnemers tegelijk. `PROTOCOL.md` somt de drie velden daarom
+ * uitputtend op, en deze functie houdt dat vast.
+ *
+ * `effectiveName` moet gevuld zijn: `PRODUCT.md` stelt dat iedere speler een
+ * zichtbare naam heeft, en een lege naam is precies het lobbygat waarvoor deze
+ * lijst bestaat.
+ * @param {unknown} participants
+ * @returns {ValidationResult}
+ */
+function validateSnapshotParticipants(participants) {
+  if (!Array.isArray(participants)) return { ok: false, code: null };
+
+  for (const participant of participants) {
+    if (!isPlainObject(participant)) return { ok: false, code: null };
+
+    const keys = Object.keys(participant);
+    const expectedKeys = ['playerId', 'effectiveName', 'roles'];
+    if (keys.length !== expectedKeys.length || !expectedKeys.every((key) => keys.includes(key))) {
+      return { ok: false, code: null };
+    }
+
+    const { playerId, effectiveName, roles } = participant;
+    if (typeof playerId !== 'string' || playerId.length === 0) return { ok: false, code: null };
+    if (typeof effectiveName !== 'string' || effectiveName.length === 0) return { ok: false, code: null };
+    if (!Array.isArray(roles) || roles.length === 0) return { ok: false, code: null };
+    for (const role of roles) {
+      if (role !== 'host' && role !== 'player') return { ok: false, code: null };
+    }
+  }
+
+  return { ok: true, code: null };
+}
+
 function validateSnapshotScoreboard(scoreboard) {
   if (!isPlainObject(scoreboard)) return { ok: false, code: null };
 
@@ -157,9 +197,10 @@ function validateSnapshotSelf(self) {
  * /api/v1/games/{code}/state` als `room:state`), tegen de letterlijke
  * structuur uit §State-snapshot: `protocolVersion`, `serverTime`, `room`
  * (zie `validateSnapshotRoom`), `self` (zie `validateSnapshotSelf`),
- * `currentRound`, `scoreboard` (zie `validateSnapshotScoreboard`) — geen
- * andere toplevel-sleutels (Ontwerpkeuze #2). `currentRound` wordt alleen op
- * "is dit een object" getoetst: `PROTOCOL.md` breekt de interne velden niet
+ * `currentRound`, `participants` (zie `validateSnapshotParticipants`),
+ * `participantsTruncated`, `scoreboard` (zie `validateSnapshotScoreboard`) —
+ * geen andere toplevel-sleutels (Ontwerpkeuze #2). `currentRound` wordt alleen
+ * op "is dit een object" getoetst: `PROTOCOL.md` breekt de interne velden niet
  * uit als onderdeel van de letterlijke snapshot-structuurcitatie (in
  * tegenstelling tot `room` en `scoreboard`, die dat wél doen), en de inhoud
  * van `currentRound` is bovendien spelinhoud (Uitgangspunt 5).
@@ -170,12 +211,18 @@ export function validateSnapshotShape(snapshot) {
   if (!isPlainObject(snapshot)) return { ok: false, code: null };
 
   const keys = Object.keys(snapshot);
-  const expectedKeys = ['protocolVersion', 'serverTime', 'room', 'self', 'currentRound', 'scoreboard'];
+  const expectedKeys = [
+    'protocolVersion', 'serverTime', 'room', 'self', 'currentRound',
+    'participants', 'participantsTruncated', 'scoreboard',
+  ];
   if (keys.length !== expectedKeys.length || !expectedKeys.every((key) => keys.includes(key))) {
     return { ok: false, code: null };
   }
 
-  const { protocolVersion, serverTime, room, self, currentRound, scoreboard } = snapshot;
+  const {
+    protocolVersion, serverTime, room, self, currentRound,
+    participants, participantsTruncated, scoreboard,
+  } = snapshot;
 
   if (typeof protocolVersion !== 'string' || protocolVersion.length === 0) {
     return { ok: false, code: null };
@@ -191,6 +238,11 @@ export function validateSnapshotShape(snapshot) {
   if (!selfResult.ok) return selfResult;
 
   if (!isPlainObject(currentRound)) return { ok: false, code: null };
+
+  const participantsResult = validateSnapshotParticipants(participants);
+  if (!participantsResult.ok) return participantsResult;
+
+  if (typeof participantsTruncated !== 'boolean') return { ok: false, code: null };
 
   const scoreboardResult = validateSnapshotScoreboard(scoreboard);
   if (!scoreboardResult.ok) return scoreboardResult;

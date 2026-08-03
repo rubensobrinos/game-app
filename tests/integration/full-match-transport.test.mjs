@@ -412,8 +412,19 @@ test('Keten over echt HTTP en echte WebSockets: room -> preview -> twee joins ->
   assert.equal(lobbyState.status, 200, JSON.stringify(lobbyState.body));
   assert.deepEqual(
     Object.keys(lobbyState.body).sort(),
-    ['currentRound', 'protocolVersion', 'room', 'scoreboard', 'self', 'serverTime'],
+    [
+      'currentRound', 'participants', 'participantsTruncated', 'protocolVersion',
+      'room', 'scoreboard', 'self', 'serverTime',
+    ],
   );
+  // FEEDBACK-eerste-livetest punt 1: over écht HTTP draagt de lobbysnapshot de
+  // namen van iedereen die er al zit. Vóór deze wijziging kende de client
+  // alleen `playerCount` en bleef elke rij behalve de eigen naam leeg.
+  assert.equal(lobbyState.body.participants.length, lobbyState.body.room.playerCount);
+  for (const participant of lobbyState.body.participants) {
+    assert.ok(participant.effectiveName.length > 0, 'deelnemer zonder naam in de lobbysnapshot');
+  }
+  assert.equal(lobbyState.body.participantsTruncated, false);
   assert.equal(lobbyState.body.room.code, host.gameCode);
   assert.equal(lobbyState.body.room.phase, 'LOBBY');
   assert.equal(lobbyState.body.room.matchId, null);
