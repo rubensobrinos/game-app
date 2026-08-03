@@ -100,6 +100,16 @@ export const nl = Object.freeze({
   'session.revoked': 'Je sessie is beëindigd.',
   'session.unknown': 'Je bent losgekoppeld.',
 
+  // — UI5: Hostbalk (lock/kick/finish/next; pauze zit hierboven) —
+  'hostbar.lock': 'Vergrendel',
+  'hostbar.unlock': 'Ontgrendel',
+  'hostbar.next': 'Volgende',
+  'hostbar.finish': 'Beëindig',
+  'hostbar.finishConfirm': 'Deze game nu beëindigen voor iedereen?',
+  'hostbar.players': 'Spelers beheren',
+  'hostbar.kick': 'Verwijder',
+  'hostbar.kickConfirmPrefix': 'Verwijderen uit deze game:',
+
   // — UI2: Lobby + Delen —
   'lobby.title': 'Lobby',
   'lobby.waiting': 'Wachten tot de host start…',

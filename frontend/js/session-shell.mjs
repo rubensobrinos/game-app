@@ -53,6 +53,7 @@ import { createLobbyView } from './views/lobby.mjs';
 import { createGameplayView } from './views/gameplay.mjs';
 import { createScoreboardView } from './views/scoreboard.mjs';
 import { createPodiumView } from './views/podium.mjs';
+import { createHostBar } from './views/hostbar.mjs';
 
 const GAMEPLAY_TICK_MS = 250;
 
@@ -65,19 +66,14 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
   banner.setAttribute('aria-live', 'assertive');
   banner.setAttribute('aria-atomic', 'true');
 
-  // Minimale hosttoggle, vooruitlopend op UI5's volledige hostbalk (lock/kick/
-  // finish/next): zonder dít bestaat er geen enkele weg om de pauze-overlay
-  // (hieronder) ooit te bereiken. Bewust alleen pause/resume, niets anders —
-  // de rest blijft UI5-werk.
-  const hostPauseButton = document.createElement('button');
-  hostPauseButton.type = 'button';
-  hostPauseButton.className = 'btn-secondary session-host-pause';
-  hostPauseButton.hidden = true;
-  hostPauseButton.addEventListener('click', () => {
-    const action = pausableAction();
-    if (action !== null) {
-      sendHostAction(action);
-    }
+  // UI5: de hostbalk (pauzeren/hervatten, vergrendelen, spelers verwijderen,
+  // handmatig volgende ronde bij hostgestuurde pacing). Vervangt de eerdere
+  // minimale pauze-only-knop die er stond vooruitlopend op dit werk.
+  const hostBarRoot = document.createElement('div');
+  const hostBar = createHostBar({
+    root: hostBarRoot,
+    t,
+    onAction: (action, params) => sendHostAction(action, params),
   });
 
   // `.screen` hier en niet in gameplay.mjs/scoreboard.mjs/podium.mjs zelf: die
@@ -102,16 +98,16 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
   pauseCardWrap.tabIndex = -1; // focustarget voor een niet-host (geen knop om op te focussen)
   const pauseCard = document.createElement('p');
   // De overlay dekt het hele scherm (position: fixed, inset: 0) en zit vóór
-  // `hostPauseButton` in de DOM — die knop is dus onbereikbaar zolang de
-  // overlay open is. De host hervat daarom vanuit de overlay zelf, niet door
-  // "erlangs" te klikken op de knop erachter.
+  // de hostbalk in de DOM — die is dus onbereikbaar zolang de overlay open
+  // is. De host hervat daarom vanuit de overlay zelf, niet door "erlangs" te
+  // klikken op de knop erachter.
   const pauseResumeButton = document.createElement('button');
   pauseResumeButton.type = 'button';
   pauseResumeButton.className = 'btn-primary session-pause-resume';
   pauseResumeButton.hidden = true;
   pauseResumeButton.addEventListener('click', () => {
     sendHostAction('resume');
-    hostPauseButton.focus();
+    hostBar.focusPause();
   });
   pauseCardWrap.append(pauseCard, pauseResumeButton);
   pauseOverlay.appendChild(pauseCardWrap);
@@ -119,11 +115,11 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
     if (event.key === 'Escape' && isHost()) {
       event.stopPropagation();
       sendHostAction('resume');
-      hostPauseButton.focus();
+      hostBar.focusPause();
     }
   });
 
-  root.append(banner, hostPauseButton, phaseContainer, pauseOverlay);
+  root.append(banner, hostBarRoot, phaseContainer, pauseOverlay);
 
   let matchPhase = initialMatchPhaseState();
   let reconnect = initialReconnectState();
@@ -131,6 +127,8 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
   let standingsPayload = null;
   let participants = new Map();
   let playerCount = 0;
+  let locked = false;
+  let pacing = 'auto';
   let selfInfo = null; // { roles, playerId, effectiveName } uit room:state
   let joinUrl = '';
   let offsetMs = 0;
@@ -214,7 +212,7 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
     pauseOverlay.hidden = false;
     pauseOverlay.setAttribute('aria-label', reasonText);
     pauseCard.textContent = reasonText;
-    // De overlay dekt het scherm, dus `hostPauseButton` (erachter) is nu
+    // De overlay dekt het scherm, dus de hostbalk (erachter) is nu
     // onbereikbaar — de host hervat vanuit de overlay zelf.
     pauseResumeButton.hidden = !isHost();
     pauseResumeButton.textContent = t('session.resume');
@@ -226,20 +224,16 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
     }
   }
 
-  function pausableAction() {
-    if (!isHost() || matchPhase.phase === 'PAUSED') {
-      return null;
-    }
-    const context = { phase: matchPhase.phase, pacing: pacingFor(), playerCount, locked: false };
-    return availableHostActions(context).includes('pause') ? 'pause' : null;
+  function buildHostContext() {
+    return { phase: matchPhase.phase, pacing, playerCount, locked };
   }
 
-  function renderHostPauseButton() {
-    const action = pausableAction();
-    hostPauseButton.hidden = action === null;
-    if (action !== null) {
-      hostPauseButton.textContent = t('session.pause');
-    }
+  function renderHostBar() {
+    hostBar.update({
+      isHost: isHost(),
+      availableActions: availableHostActions(buildHostContext()),
+      participants,
+    });
   }
 
   function handleEvent(envelope) {
@@ -255,6 +249,9 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
         break;
       case 'room:player-changed':
         applyPlayerChanged(envelope.payload);
+        break;
+      case 'room:lock-changed':
+        locked = envelope.payload?.locked === true;
         break;
       case 'round:started':
         roundModel = applyRoundStarted(envelope.payload);
@@ -283,7 +280,7 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
     }
 
     renderPauseOverlay();
-    renderHostPauseButton();
+    renderHostBar();
     routeToView();
   }
 
@@ -291,6 +288,8 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
     const room = payload?.room ?? {};
     playerCount = typeof room.playerCount === 'number' ? room.playerCount : playerCount;
     joinUrl = typeof room.joinUrl === 'string' ? room.joinUrl : joinUrl;
+    locked = typeof room.locked === 'boolean' ? room.locked : locked;
+    pacing = room.config?.pacing === 'host' ? 'host' : 'auto';
     if (payload?.self && typeof payload.self.playerId === 'string') {
       selfInfo = payload.self;
       participants.set(payload.self.playerId, payload.self.effectiveName ?? '');
@@ -399,11 +398,10 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
       return;
     }
     if (viewName === 'lobby') {
-      const context = { phase: matchPhase.phase, pacing: pacingFor(), playerCount, locked: false };
       mountedView.update({
         playerCount,
         participants,
-        canStart: availableHostActions(context).includes('start'),
+        canStart: availableHostActions(buildHostContext()).includes('start'),
         capabilities,
         joinUrl,
       });
@@ -416,14 +414,6 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
     if (viewName === 'scoreboard' || viewName === 'podium') {
       mountedView.update(standingsFrom(standingsPayload ?? {}));
     }
-  }
-
-  function pacingFor() {
-    // room.config wordt niet los bewaard door match-phase-state (bewust, zie
-    // module-comment); voor de enige plek die pacing nodig heeft (de
-    // start-knop bestaat sowieso al in LOBBY, dus pacing doet er dan nog niet
-    // toe) volstaat 'auto' als neutrale default.
-    return 'auto';
   }
 
   function startGameplayTicker() {
@@ -459,18 +449,19 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
     }
   }
 
-  async function sendHostAction(action) {
-    const context = { phase: matchPhase.phase, pacing: pacingFor(), playerCount, locked: false };
-    const request = hostActionRequest(action, context);
+  async function sendHostAction(action, params) {
+    const request = hostActionRequest(action, buildHostContext(), params);
     if (request === null) {
       return;
     }
     try {
       await socket.send(request.event, randomActionId(), request.payload);
     } catch {
-      // Geen host-foutkanaal in UI2/UI1b-scope; de eerstvolgende serverevent
-      // (of het uitblijven van de faseovergang) is hier het enige signaal.
-      // Een expliciete foutmelding voor hostacties is UI5-werk (hostbalk).
+      // Geen apart host-foutkanaal: de eerstvolgende serverevent (of het
+      // uitblijven van de faseovergang) is hier het enige signaal. Elke
+      // hostactie hieronder is al idempotent-veilig op protocolniveau
+      // (herhaalde pause/lock/kick op een reeds-zo-staande room is een no-op
+      // of een dezelfde, herbruikbare fout — geen dubbele mutatie).
     }
   }
 
@@ -487,7 +478,7 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
     render() {
       renderBanner();
       renderPauseOverlay();
-      renderHostPauseButton();
+      renderHostBar();
       if (mountedViewName !== null) {
         mountView(mountedViewName);
         updateMountedView(mountedViewName);
@@ -504,9 +495,3 @@ export function createSessionShell({ root, t, transport, storage, code, isHostRo
 function randomActionId() {
   return globalThis.crypto.randomUUID();
 }
-
-// Zelfde vier waarden als `share-actions.shareOpenedMethodFor` — hier
-// herhaald zou dubbele logica zijn; in plaats daarvan hergebruikt via een
-// kleine lokale import om `lobby.mjs`'s callback (de kale actie-naam) te
-// vertalen zonder dat session-shell zelf de deel-UI kent.
-import { shareOpenedMethodFor as shareOpenedMethodForAction } from '../../client/flow/share-actions.mjs';

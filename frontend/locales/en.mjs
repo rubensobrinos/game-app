@@ -91,6 +91,15 @@ export const en = Object.freeze({
   'session.revoked': 'Your session has ended.',
   'session.unknown': 'You were disconnected.',
 
+  'hostbar.lock': 'Lock',
+  'hostbar.unlock': 'Unlock',
+  'hostbar.next': 'Next',
+  'hostbar.finish': 'Finish',
+  'hostbar.finishConfirm': 'End this game now for everyone?',
+  'hostbar.players': 'Manage players',
+  'hostbar.kick': 'Remove',
+  'hostbar.kickConfirmPrefix': 'Remove from this game:',
+
   'lobby.title': 'Lobby',
   'lobby.waiting': 'Waiting for the host to start…',
   'lobby.players': 'players',

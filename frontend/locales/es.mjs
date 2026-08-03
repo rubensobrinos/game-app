@@ -89,6 +89,15 @@ export const es = Object.freeze({
   'session.revoked': 'Tu sesión ha finalizado.',
   'session.unknown': 'Te has desconectado.',
 
+  'hostbar.lock': 'Bloquear',
+  'hostbar.unlock': 'Desbloquear',
+  'hostbar.next': 'Siguiente',
+  'hostbar.finish': 'Finalizar',
+  'hostbar.finishConfirm': '¿Finalizar esta partida ahora para todos?',
+  'hostbar.players': 'Gestionar jugadores',
+  'hostbar.kick': 'Eliminar',
+  'hostbar.kickConfirmPrefix': 'Eliminar de esta partida:',
+
   'lobby.title': 'Sala de espera',
   'lobby.waiting': 'Esperando a que el anfitrión empiece…',
   'lobby.players': 'jugadores',
