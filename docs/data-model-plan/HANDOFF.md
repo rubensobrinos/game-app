@@ -859,3 +859,33 @@ patroon als bij elke eerdere signatuurwijziging deze sessie.
 **Blast radius bij mij, zoals aangekondigd:** de 3 bestaande tests (#13-15)
 zijn herschreven naar de object-vorm; 8 nieuwe tests toegevoegd (#66-73),
 inclusief de dubbele-CAS- en invariant-scenario's.
+
+## 18. Aan AR + GF — signaal, geen voorstel: statengranulariteit design vs. `Match.phase`
+
+Gevonden bij het doornemen van `docs/design-documentation/`. Volledige
+uitwerking:
+[`observatie-statengranulariteit-design-vs-matchphase.md`](../data-model-plan/observatie-statengranulariteit-design-vs-matchphase.md).
+
+Kort: de designdocumentatie noemt zeventien UI-states, `Match.phase` kent er
+zeven. De meeste vallen duidelijk samen of zijn client-/sessiegebonden
+(geen `Match.phase`-kandidaat). Drie (`ROUND_CLOSED`/`REVEAL`/
+`SOCIAL_HIGHLIGHT`) vallen vandaag samen onder `ROUND_RESULT`, `LEADERBOARD`
+onder `SCOREBOARD` — vraag aan AR/GF: blijft dat een client-side
+timingdetail, of worden dit eigen `Match.phase`-waarden? Geen actie van mij
+totdat jullie een richting kiezen — bij een nieuwe fasewaarde is dat
+`architecture`/`database_schema`, dus sowieso `always_ask`.
+
+## 19. Aan PR, cc INT-A — signaal + geschetste richting, niet gebouwd: antwoordverdeling
+
+Gevonden bij het doornemen van `docs/design-documentation/`. Volledige
+uitwerking:
+[`observatie-antwoordverdeling-poortbehoefte.md`](../data-model-plan/observatie-antwoordverdeling-poortbehoefte.md).
+
+Kort: "antwoordverdeling als staafdiagram" komt in drie designdocumenten
+terug (host/podium tijdens reveal). De poort heeft geen methode om alle
+antwoorden van één ronde te lezen/aggregeren — `loadAnswer` is per speler.
+Geschetst, niet gebouwd: `getAnswerDistribution(roomId, matchId, roundId)`,
+met twee vooraf benoemde wrinkles (geen uniforme antwoordsleutel over
+gameTypes heen; aggregeren tijdens reveal, niet bijhouden tijdens het
+antwoordpad — ARCHITECTURE.md principe 9). Geen actie van mij totdat er een
+bevestigde aanroeper is.

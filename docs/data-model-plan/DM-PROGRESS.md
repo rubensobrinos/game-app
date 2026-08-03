@@ -182,6 +182,24 @@ een beslissing van DM zelf:
   **GR**.
 - ~~**INTB-8** (testfixtures)~~ — ✅ opgelost door **de DT-agent** (2026-08-02).
 
-Geen van deze twee resterende heeft een vervolgactie van DM nodig totdat de
-genoemde eigenaar heeft gereageerd. **Domein rustend — heropstart begint bij
+**Drie nieuwe observaties, uit het doornemen van
+`docs/design-documentation/`** (product-/UX-designbaseline, geen
+backend-scope, maar met drie concrete raakpunten):
+
+- **`HANDOFF.md` §18** — statengranulariteit design (17 UI-states) vs.
+  `Match.phase` (7 waarden). Signaal, geen voorstel — wacht extern,
+  geadresseerd bij **AR + GF**.
+  [`observatie-statengranulariteit-design-vs-matchphase.md`](observatie-statengranulariteit-design-vs-matchphase.md).
+- **`HANDOFF.md` §19** — antwoordverdeling (staafdiagram) heeft geen
+  poortmethode; geschetst maar niet gebouwd, geen bevestigde aanroeper. Wacht
+  extern, geadresseerd bij **PR, cc INT-A**.
+  [`observatie-antwoordverdeling-poortbehoefte.md`](observatie-antwoordverdeling-poortbehoefte.md).
+- **`proposals/observatie-eventcontract-vs-designdocumentatie.md`** — DM8's
+  eventcontract mist falen-events en `reconnect_*` t.o.v. wat de
+  designdocumentatie noemt. Geen externe wachtstatus — input voor de
+  volgende **DM8**-reviewronde, niet urgent.
+
+Geen van deze vijf resterende punten heeft een vervolgactie van DM nodig
+totdat de genoemde eigenaar heeft gereageerd (of, voor het laatste punt, totdat
+DM8 zelf weer wordt opgepakt). **Domein rustend — heropstart begint bij
 `DM-PROGRESS.md`.**
