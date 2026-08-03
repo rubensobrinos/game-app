@@ -82,6 +82,45 @@
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+
+  /* Thema 3-review, M0: het bovenstaande verkort een :active-scale naar
+     0,001ms, maar verwijdert 'm niet — 06 §7 zegt "geen scale/spring", niet
+     "sneller scale". Schakel transform hier expliciet uit voor elke control
+     die er een heeft (components.css), en geef een non-transform
+     alternatief zodat de tik nog steeds voelbaar is.
+
+     `!important` is hier bewust, niet uit gewoonte: base.css laadt vóór
+     components.css, dus bij gelijke specificiteit wint anders alsnog de
+     latere, onvoorwaardelijke `transform: scale(...)` uit components.css —
+     geverifieerd met CDP's forcePseudoState vóór deze regel er stond, de
+     scale bleef zichtbaar zonder `!important`. Zelfde discipline als de
+     duration-override hierboven: een vangnet moet winnen ongeacht waar de
+     brongebruiker later in de cascade zit. */
+  .btn-primary:active,
+  .podium-rematch:active,
+  .btn-secondary:active,
+  .btn-destructive:active,
+  .gameplay-option:not(:disabled):active {
+    transform: none !important;
+  }
+
+  .btn-primary:active,
+  .podium-rematch:active {
+    box-shadow: 0 0 0 4px var(--accent-glow);
+  }
+
+  .btn-secondary:active {
+    border-color: var(--accent-light);
+  }
+
+  .btn-destructive:active {
+    background: var(--error-bg);
+  }
+
+  .gameplay-option:not(:disabled):active {
+    border-color: var(--accent-light);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
 }
 
 *,
