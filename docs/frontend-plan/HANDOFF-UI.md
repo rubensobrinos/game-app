@@ -11,7 +11,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-2 | UI (zelf) | ✅ opgelost | Pauze-overlay met reden bouwen |
 | UI-3 | INT-A / ARCHITECTURE | ✅ opgelost | Hoe worden `client/flow/` en `shared/` aan de browser geserveerd? |
 | UI-8 | INT-A / PR | 🔵 open | `room:state` bevat geen deelnemerslijst — een joiner ziet geen namen van al aanwezige spelers |
-| UI-9 | thema 3 | 🔵 open | Motion-tokens hebben twee eigenaren; `M1` schrijft in het tokenblok van thema 2 |
+| UI-9 | thema 3 | ✅ opgelost | Motion-tokens geleverd door thema 2; `M1` kan starten |
 | UI-10 | thema 1 | 🔵 open | `room-header.mjs` is dode code — `D-018` daardoor nog niet zichtbaar |
 | UI-11 | producteigenaar | 🔵 open | `O-002`/`O-003` blokkeren wereldmotieven, iconografie en thema 5's composities |
 
@@ -363,8 +363,40 @@ bij. `M1` verliest dan stap 1 en houdt stap 2 en 3. Andersom kan ook — dan
 schrapt thema 2 de regel `Motion-tokens` uit zijn `PROGRESS.md`. Wat niet kan
 is allebei.
 
-Zolang dit niet beslecht is schrijft thema 2 geen concurrerende prompt, en
-blijft de regel in beide bestanden staan zodat het zichtbaar blijft.
+### ✅ Opgelost — thema 2 heeft geleverd
+
+Thema 3 accepteerde het voorstel en herschreef `M1` tot "E01 op álle controls
+(consumeert thema 2's motion-tokens)". Daarna bleef thema 2 er nog even op
+zitten — dat was de werkelijke blokkade, niet het meningsverschil.
+
+De tokens staan nu in `base.css`'s `:root`:
+
+```css
+--motion-instant: 100ms;    /*  80–120ms  — indrukken, directe respons */
+--motion-fast: 160ms;       /* 140–180ms  — kleine statuswissels */
+--motion-base: 250ms;       /* 220–280ms  — verschijnen en verdwijnen */
+--motion-emphasis: 400ms;   /* 350–500ms  — reveal, rangwisseling */
+--motion-stage: 900ms;      /* 700–1200ms — podium, finale */
+
+--ease-press:  cubic-bezier(0.4, 0, 1, 1);       /* snelle ease-out */
+--ease-enter:  cubic-bezier(0.16, 1, 0.3, 1);    /* zachte deceleratie */
+--ease-rank:   cubic-bezier(0.34, 1.56, 0.64, 1); /* spring, beheerst */
+--ease-stage:  cubic-bezier(0.22, 1, 0.36, 1);   /* podium */
+```
+
+Meegenomen bij het landen: alle harde duraties in `base.css` en
+`components.css` zijn vervangen, en `transition: all` op `.btn-opt` is een
+expliciete eigenschappenlijst geworden — `all` animeerde ook layout, wat `06`
+§9 juist wil vermijden.
+
+Geverifieerd in de browser met en zonder `prefers-reduced-motion`: de tokens
+worden toegepast (`.btn-primary` 0,1s met `--ease-press`, `.btn-opt` 0,16s) en
+met `reduce` zakt alles naar 0,001s — het vangnet uit `M0` wint nog steeds van
+elke token.
+
+Thema 3 kan `M1` starten. Beheer van de schaal blijft bij thema 2: wie een duur
+nodig heeft die er niet in past meldt dat, in plaats van er een losse waarde
+naast te zetten.
 
 ### ✅ Akkoord — thema 2 levert, thema 3 consumeert
 

@@ -64,8 +64,10 @@ p { color: var(--text-muted); }
   font-size: 1.05rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease,
-    background-color 0.12s ease;
+  transition: transform var(--motion-instant) var(--ease-press),
+    box-shadow var(--motion-instant) var(--ease-press),
+    border-color var(--motion-instant) var(--ease-press),
+    background-color var(--motion-instant) var(--ease-press);
   -webkit-tap-highlight-color: transparent;
 }
 

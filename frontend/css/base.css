@@ -33,6 +33,29 @@
      duwt de pagina exact deze hoogte te ver door. `.screen` trekt 'm er
      daarom weer af — zie de opmerking daar. */
   --header-h: 3.5rem;
+
+  /* ── Motion (06 §3) ────────────────────────────────────────────────────
+     Eigendom van thema 2 (designsysteem), consument is thema 3
+     (HANDOFF-UI UI-9). Eén waarde per bucket, gekozen binnen de bandbreedte
+     die 06 §3 als werkhypothese geeft — de exacte ms daarbinnen is een
+     implementatiedetail, geen ontwerpbesluit.
+
+     Wie hier een waarde wijzigt raakt élke overgang in de app; dat is de
+     bedoeling. Wie een nieuwe duur nodig heeft die hier niet in past, meldt
+     dat in plaats van er een losse waarde naast te zetten. */
+  --motion-instant: 100ms;    /*  80–120ms  — indrukken, directe respons */
+  --motion-fast: 160ms;       /* 140–180ms  — kleine statuswissels */
+  --motion-base: 250ms;       /* 220–280ms  — verschijnen en verdwijnen */
+  --motion-emphasis: 400ms;   /* 350–500ms  — reveal, rangwisseling */
+  --motion-stage: 900ms;      /* 700–1200ms — podium, finale */
+
+  /* Easingrollen uit 06 §3. Namen volgen de rol, niet de curve: wie
+     `--ease-press` leest weet waarvoor het is, `cubic-bezier(0.4, 0, 1, 1)`
+     niet. */
+  --ease-press: cubic-bezier(0.4, 0, 1, 1);       /* snelle ease-out */
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);    /* zachte deceleratie */
+  --ease-rank: cubic-bezier(0.34, 1.56, 0.64, 1); /* spring, beheerst */
+  --ease-stage: cubic-bezier(0.22, 1, 0.36, 1);   /* podium */
 }
 
 /* Lichte variant (UI-vraag: thema-instelling naast de taalkeuze). Bewust geen
@@ -254,7 +277,7 @@ button {
   align-items: center;
   justify-content: center;
   font-size: 1.1rem;
-  transition: border-color 0.2s;
+  transition: border-color var(--motion-fast) var(--ease-press);
 }
 
 .btn-icon:hover {
@@ -306,7 +329,12 @@ button {
   min-height: 40px;
   font-size: 0.8rem;
   font-weight: 600;
-  transition: all 0.18s;
+  /* Expliciete lijst i.p.v. `all`: die animeerde ook layout-eigenschappen,
+     wat 06 §9 (transform/opacity waar het kan) juist wil vermijden. Hier
+     wisselen alleen kleur en rand. */
+  transition: border-color var(--motion-fast) var(--ease-press),
+    background-color var(--motion-fast) var(--ease-press),
+    color var(--motion-fast) var(--ease-press);
   white-space: nowrap;
 }
 
@@ -463,11 +491,24 @@ button {
 }
 
 .lobby-player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   padding: 0.75rem 1rem;
   font-weight: 600;
+}
+
+/* S17: inline verwijderknop voor de host — zelfde compacte stijl als
+   `.session-hostbar-kick`, niet volle breedte zoals `.btn-secondary`
+   standaard is. */
+.lobby-player-kick {
+  flex: none;
+  width: auto;
+  min-width: 0;
 }
 
 .lobby-empty {
@@ -629,10 +670,15 @@ button {
   max-width: 320px;
 }
 
-.session-pause-resume {
-  display: block;
-  width: 100%;
-  margin-top: 1.25rem;
+/* S16: tijdens PAUSED verplaatst session-shell.mjs de hostbalk zelf ín de
+   pauze-kaart (zie renderPauseOverlay) zodat lock/kick/finish bereikbaar
+   blijven — hier alleen de layout aanpassen aan die nieuwe context, geen
+   nieuwe knoppen. */
+.session-pause-card .session-hostbar {
+  margin: 1.25rem 0 0;
+  max-width: none;
+  text-align: left;
+  justify-content: center;
 }
 
 /* ── UI5: Hostbalk (views/hostbar.mjs) ────────────────────────────────────
