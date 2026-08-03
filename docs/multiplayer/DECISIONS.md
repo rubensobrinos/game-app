@@ -127,6 +127,28 @@ document totdat de betreffende fundamentele specificatie is bijgewerkt.
     eenmalige klus; de keten-test pint het lek exact vast en gaat rood zodra
     er méér lekt dan dit ene bekende pad).
 
+39. **De productnaam is Rounda** (besloten 3 aug 2026, producteigenaar, na
+    naamtraject met o.a. Playeso/Playora/Playiso als kandidaten):
+    - Merknaam: **Rounda** — één woord, geen streepje, accent of leesteken.
+    - Hoofddomein: **rounda.io**. `play.aseso.nl` blijft bestaan als redirect
+      (bestaande QR's en links breken nooit).
+    - Socials: profielnaam Rounda; handle-voorkeur `@playrounda` (exacte
+      `@rounda` is bezet; "Play Rounda" is tevens de vaste call-to-action).
+    - Rationale: eenduidige uitspraak, betekenisanker ("nog een Rounda" =
+      het rematch-ritueel van het product), natuurlijk in spreektaal, en een
+      visuele ontwerpwereld (rondes, cirkels, countdown, arena).
+    - `playeso.com`-achtige premiumdomeinen en de exacte-handle-jacht zijn
+      bewust losgelaten: het merk hoeft niet overal dezelfde tekenreeks te
+      zijn (vgl. Claude / @claudeai).
+    - **Aandachtspunt vóór merkregistratie** (zelfde lat als besluit 38-stijl
+      risico's): gerichte merkcheck op ROUNDS (Landfall, multiplayergame) en
+      op de spaarapp/het securitybedrijf die "Rounda" voeren. Beheersbaar
+      aandachtspunt, geen blokkade; geen registratie-uitgaven vóór die check.
+    - Uitvoering (rebrand-checklist, pas op sein van de producteigenaar ná
+      domeinkoppeling): `PUBLIC_APP_URL`, `public-mode.js`
+      (PUBLIC_HOSTNAMES + applyBrandName), titels/og-tags beide index.html's,
+      Cloudflare-tunnel/DNS voor rounda.io, redirect play.aseso.nl.
+
 ## Uitvoeringsakkoord test- en deploymentwerk
 
 De producteigenaar heeft akkoord gegeven om de eerder geparkeerde test- en
