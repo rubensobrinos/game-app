@@ -241,6 +241,86 @@ button.is-loading::after {
   }
 }
 
+/* ── Lege en foutstaten (T2-11, 05 §13) ────────────────────────────────────
+   Twee staten, dezelfde opbouw: kop, uitleg, uitweg. Wat ze scheidt is de
+   betekenis — "er is nog niets" tegenover "er ging iets mis" — en die zit in
+   de kleur en de rand, niet in de vorm. */
+.state-empty,
+.state-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--r-sm);
+  text-align: center;
+}
+
+/* Leeg is rustig: geen rand, geen vlak. Het is geen probleem, er is alleen
+   nog niets — dat mag niet als storing lezen. */
+.state-empty {
+  padding: 20px 16px;
+  color: var(--color-text-muted);
+}
+
+.state-empty .state-title {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.state-hint {
+  font-size: var(--type-body-sm);
+  margin: 0;
+}
+
+/* Fout draagt wél kleur — maar als rand en tekst, niet als vol rood vlak
+   (05 §4.5's redenering geldt ook hier: geen doorlopende alarmkleur). */
+.state-error {
+  background: var(--color-danger-surface);
+  border: 1px solid var(--color-danger);
+  color: var(--color-danger);
+}
+
+.state-error.is-inline {
+  padding: 10px 14px;
+  font-size: var(--type-caption);
+}
+
+.state-error.is-page {
+  padding: 28px 20px;
+  gap: 12px;
+}
+
+.state-error.is-page .state-title {
+  font-size: var(--type-heading-3);
+  font-weight: 800;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+/* De tekst van een paginafout is leesbaar, niet alarmerend: rood is de rand
+   en de kop-accentuering, de uitleg zelf blijft gewone tekst. */
+.state-error.is-page .state-message {
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.state-error.is-inline .state-message {
+  margin: 0;
+  color: inherit;
+}
+
+/* De actie is onderdeel van de staat, dus hij hoort ook binnen de vorm te
+   passen — niet volle breedte zoals een schermknop. */
+.state-action {
+  width: auto;
+  margin-top: 4px;
+}
+
+.state-error.is-page .state-action {
+  width: 100%;
+  max-width: 320px;
+}
+
 /* ── Leaderboard-rij (T2-6, 05 §10) ────────────────────────────────────────
    Vier kolommen: rank, naam, score, beweging.
 
