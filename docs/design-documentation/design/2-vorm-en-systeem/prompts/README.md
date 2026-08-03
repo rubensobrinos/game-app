@@ -18,8 +18,14 @@ waar niemand op wacht.
 | [`T2-3-timer-en-progress.md`](T2-3-timer-en-progress.md) | Progressbalk i.p.v. kaal getal | 1 → 2 | thema 1 (`S08`) |
 | [`T2-4-spelerchip.md`](T2-4-spelerchip.md) | Tijdelijke kleur/symboolidentiteit (`D-022`) | 1 → 2 | thema 1 (`S05`/`S06`) |
 | [`T2-6-leaderboard-rij.md`](T2-6-leaderboard-rij.md) | Rankkolom + bewegingskolom (`↑2`) | 1 → 2 | thema 1 (`S15`) |
-| [`T2-9-overlays-bottom-sheets.md`](T2-9-overlays-bottom-sheets.md) | Bottom sheet op mobiel (`05` §12) | 1 → 2 | thema 1 (`S17`/`S18`) |
-| [`T2-7-besluitverzoek-o002-o003.md`](T2-7-besluitverzoek-o002-o003.md) | Wat de producteigenaar moet beslissen | 0 → bouwbaar | thema 5 |
+| [`T2-9-overlays-bottom-sheets.md`](T2-9-overlays-bottom-sheets.md) | Bottom sheet op mobiel (`05` §12) | 1 → 2 | thema 1 (`S18`) |
+| [`T2-10-typografierollen.md`](T2-10-typografierollen.md) | Elf losse lettergroottes → negen rollen (`05` §2.3) | 1 → 2 | thema 1 (code, score, timer) |
+| [`T2-11-lege-en-foutstaten.md`](T2-11-lege-en-foutstaten.md) | `05` §13's empty en error als patroon i.p.v. per scherm | 1 → 2 | thema 1 en 4 |
+| [`T2-7-besluitverzoek-o002-o003.md`](T2-7-besluitverzoek-o002-o003.md) | Wat de producteigenaar moet beslissen | ⏸ | — |
+
+**Gebouwd:** `T2-8` (`8eb1996`), `T2-1` (`9ca5af0`), `T2-2` (`bc89e18`),
+`T2-3` (`34aecd7`), `T2-4` (`f615a70`). `T2-5` is vervallen — thema 1 heeft
+`room-header.mjs` zelf ingehangen en gestyled (`UI-10` ✅).
 
 ## Volgorde
 
