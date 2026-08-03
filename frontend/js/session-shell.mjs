@@ -58,6 +58,10 @@ import { createHostBar } from './views/hostbar.mjs';
 
 const GAMEPLAY_TICK_MS = 250;
 const RECOVERED_MESSAGE_MS = 3000;
+// S19: hoelang onafgebroken disconnected/reconnecting vóór de terugvalknop
+// verschijnt. Geen brondocumentwaarde hiervoor — 8-10s uit de prompt, 9s als
+// middelste keuze.
+const RECONNECT_FALLBACK_MS = 9000;
 
 // Codes waarbij een opgeslagen sessie principieel niet meer bruikbaar is —
 // verder proberen (reconnect, opnieuw snapshot ophalen) heeft geen zin, de
@@ -87,6 +91,16 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
   const answerSavedNote = document.createElement('p');
   answerSavedNote.className = 'session-answer-saved';
   answerSavedNote.hidden = true;
+
+  // S19: geen nieuwe reconnectpoging forceren (de transportlaag doet dat al
+  // zelf, HANDOFF-afspraak) — alleen een terugvalroute als het écht te lang
+  // duurt. Zelfde knop/actie als `terminate()`'s `join.retry`-knop hieronder:
+  // "terug naar start" via `onLeaveHome`, niet een letterlijke retry.
+  const reconnectFallbackButton = document.createElement('button');
+  reconnectFallbackButton.type = 'button';
+  reconnectFallbackButton.className = 'btn-secondary session-reconnect-fallback';
+  reconnectFallbackButton.hidden = true;
+  reconnectFallbackButton.addEventListener('click', onLeaveHome);
 
   // UI5: de hostbalk (pauzeren/hervatten, vergrendelen, spelers verwijderen,
   // handmatig volgende ronde bij hostgestuurde pacing). Vervangt de eerdere
@@ -119,19 +133,7 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
   pauseCardWrap.className = 'session-pause-card';
   pauseCardWrap.tabIndex = -1; // focustarget voor een niet-host (geen knop om op te focussen)
   const pauseCard = document.createElement('p');
-  // De overlay dekt het hele scherm (position: fixed, inset: 0) en zit vóór
-  // de hostbalk in de DOM — die is dus onbereikbaar zolang de overlay open
-  // is. De host hervat daarom vanuit de overlay zelf, niet door "erlangs" te
-  // klikken op de knop erachter.
-  const pauseResumeButton = document.createElement('button');
-  pauseResumeButton.type = 'button';
-  pauseResumeButton.className = 'btn-primary session-pause-resume';
-  pauseResumeButton.hidden = true;
-  pauseResumeButton.addEventListener('click', () => {
-    sendHostAction('resume');
-    hostBar.focusPause();
-  });
-  pauseCardWrap.append(pauseCard, pauseResumeButton);
+  pauseCardWrap.appendChild(pauseCard);
   pauseOverlay.appendChild(pauseCardWrap);
   pauseOverlay.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && isHost()) {
@@ -141,7 +143,7 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
     }
   });
 
-  root.append(banner, answerSavedNote, hostBarRoot, phaseContainer, pauseOverlay);
+  root.append(banner, answerSavedNote, reconnectFallbackButton, hostBarRoot, phaseContainer, pauseOverlay);
 
   let matchPhase = initialMatchPhaseState();
   let reconnect = initialReconnectState();
@@ -165,6 +167,8 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
   // uitgevoerd — anders een TDZ-`ReferenceError`.
   let recoveredMessageTimer = null;
   let showingRecoveredMessage = false;
+  let reconnectFallbackTimer = null;
+  let reconnectFallbackVisible = false;
 
   const capabilities = { nativeShareAvailable: typeof navigator !== 'undefined' && 'share' in navigator };
 
@@ -224,6 +228,17 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
       // hersteld-melding van een vorige, kortstondige reconnect.
       cancelRecoveredMessage();
     }
+
+    // S19: terugvalroute. Start de klok zodra we niet (meer) `connected` zijn
+    // en er nog geen klok loopt of knop zichtbaar is; annuleer 'm zodra we
+    // weer `connected` zijn. Forceert zelf niets — de transportlaag blijft
+    // zelf de enige die opnieuw `connect()` aanroept.
+    if (reconnect.status === 'connected') {
+      cancelReconnectFallback();
+    } else if (reconnectFallbackTimer === null && !reconnectFallbackVisible) {
+      scheduleReconnectFallback();
+    }
+
     renderBanner();
 
     const action = reconnectNextAction(reconnect);
@@ -231,6 +246,20 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
       reconnect = reconnectTransition(reconnect, { type: 'SNAPSHOT_REQUEST_SENT' });
       requestFreshSnapshot();
     }
+  }
+
+  function scheduleReconnectFallback() {
+    reconnectFallbackTimer = setTimeout(() => {
+      reconnectFallbackTimer = null;
+      reconnectFallbackVisible = true;
+      renderBanner();
+    }, RECONNECT_FALLBACK_MS);
+  }
+
+  function cancelReconnectFallback() {
+    clearTimeout(reconnectFallbackTimer);
+    reconnectFallbackTimer = null;
+    reconnectFallbackVisible = false;
   }
 
   // "We zijn weer verbonden." — alleen ná een écht herstel (nooit bij de
@@ -295,11 +324,21 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
     if (!answerSavedNote.hidden) {
       answerSavedNote.textContent = t('connection.answerSaved');
     }
+
+    // S19: pas tonen als de klok echt is afgelopen (`reconnectFallbackVisible`)
+    // én we nog steeds niet verbonden zijn — een ondertussen geslaagd herstel
+    // annuleert de klok al in `handleStatus`, maar dit is de render-kant van
+    // diezelfde voorwaarde.
+    reconnectFallbackButton.hidden = !(reconnectFallbackVisible && reconnect.status !== 'connected');
+    if (!reconnectFallbackButton.hidden) {
+      reconnectFallbackButton.textContent = t('join.retry');
+    }
   }
 
   function renderPauseOverlay() {
     if (matchPhase.phase !== 'PAUSED') {
       pauseOverlay.hidden = true;
+      restoreHostBarPosition();
       return;
     }
     const wasHidden = pauseOverlay.hidden;
@@ -307,15 +346,33 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
     pauseOverlay.hidden = false;
     pauseOverlay.setAttribute('aria-label', reasonText);
     pauseCard.textContent = reasonText;
-    // De overlay dekt het scherm, dus de hostbalk (erachter) is nu
-    // onbereikbaar — de host hervat vanuit de overlay zelf.
-    pauseResumeButton.hidden = !isHost();
-    pauseResumeButton.textContent = t('session.resume');
+    // S16: de overlay dekt het scherm (position: fixed, inset: 0) en zit vóór
+    // de hostbalk in de DOM — die is dus onbereikbaar zolang de overlay open
+    // is. In plaats van losse duplicaatknoppen voor lock/kick/finish (zoals
+    // eerder alleen voor hervatten) verplaatsen we de bestaande hostBar-node
+    // zelf ín de overlay: de host kan zo alles (pauzeren/hervatten,
+    // vergrendelen, verwijderen, beëindigen) blijven doen zonder eerst te
+    // hervatten. Een niet-host heeft sowieso geen hostbalk (bar.hidden), dus
+    // voor hen verandert er niets zichtbaars.
+    if (isHost()) {
+      pauseCardWrap.appendChild(hostBarRoot);
+    } else {
+      restoreHostBarPosition();
+    }
     // Alleen bij het daadwerkelijk openen focus verplaatsen, niet bij elke
     // her-render terwijl 'm al open staat (bv. een taalwissel tijdens pauze
     // zou anders de focus steeds wegkapen).
     if (wasHidden) {
-      (isHost() ? pauseResumeButton : pauseCardWrap).focus();
+      pauseCardWrap.focus();
+    }
+  }
+
+  // hostBarRoot's vaste plek is vóór `phaseContainer`, ná `answerSavedNote`
+  // (zie de `root.append(...)` verderop) — hier expliciet terugzetten zodra
+  // de pauze-overlay niet (meer) actief is voor deze speler.
+  function restoreHostBarPosition() {
+    if (hostBarRoot.nextSibling !== phaseContainer) {
+      root.insertBefore(hostBarRoot, phaseContainer);
     }
   }
 
@@ -328,6 +385,7 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
       isHost: isHost(),
       availableActions: availableHostActions(buildHostContext()),
       participants,
+      phase: matchPhase.phase,
     });
   }
 
@@ -361,7 +419,18 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
         roundModel = applyRoundEnded(roundModel, envelope.payload);
         break;
       case 'scoreboard:updated':
+        standingsPayload = envelope.payload;
+        break;
       case 'game:finished':
+        // S21 (gereproduceerd tegen transport-mock.mjs: `game:finish` vanuit
+        // een lege LOBBY levert `{podium: [], self: null}` op): een podium
+        // zonder één deelnemer is geen zinnig scherm — terug naar start
+        // i.p.v. dat leeg podium te mounten. Geen eigen S21-scherm nodig,
+        // dit dekt alleen dat ene randgeval.
+        if (isEmptyFinish(envelope.payload)) {
+          onLeaveHome();
+          return;
+        }
         standingsPayload = envelope.payload;
         break;
       case 'session:kicked':
@@ -425,6 +494,7 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
     terminated = true;
     stopGameplayTicker();
     cancelRecoveredMessage();
+    cancelReconnectFallback();
     socket.close();
     clearSession(storage, code);
     root.textContent = '';
@@ -471,6 +541,7 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
         gameCode: code,
         onStart: () => sendHostAction('start'),
         onShareAction: (action) => sendShareOpened(action),
+        onKickPlayer: (playerId) => sendHostAction('kick', { playerId }),
       });
       return;
     }
@@ -508,6 +579,7 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
         playerCount,
         participants,
         canStart: availableHostActions(buildHostContext()).includes('start'),
+        canKick: availableHostActions(buildHostContext()).includes('kick'),
         capabilities,
         joinUrl,
       });
@@ -594,6 +666,7 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
       terminated = true;
       stopGameplayTicker();
       cancelRecoveredMessage();
+      cancelReconnectFallback();
       socket.close();
     },
   };
@@ -601,4 +674,10 @@ export function createSessionShell({ root, t, tCount, transport, storage, code, 
 
 function randomActionId() {
   return globalThis.crypto.randomUUID();
+}
+
+// S21: `game:finished`'s payload voor een room zonder één deelnemer
+// (transport-mock.mjs's `finishGame`, `rankPlayers` op een lege `players`-Map).
+function isEmptyFinish(payload) {
+  return Array.isArray(payload?.podium) && payload.podium.length === 0 && payload?.self === null;
 }

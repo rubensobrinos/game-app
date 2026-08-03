@@ -16,7 +16,7 @@
 import { shareActionsFor, shareUrlsFor } from '../../../client/flow/share-actions.mjs';
 import { qrDataUrl } from '../qr.mjs';
 
-export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, onShareAction }) {
+export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, onShareAction, onKickPlayer }) {
   root.textContent = '';
 
   // Geen eigen `.screen`-klasse: de aanroeper (session-shell.mjs) mount dit in
@@ -230,10 +230,29 @@ export function createLobbyView({ root, t, tCount, isHost, gameCode, onStart, on
       // `tCount` en niet `${n} ${t(...)}`: dat laatste gaf "1 spelers".
       countLine.textContent = tCount('lobby.playerCount', model.playerCount);
       list.textContent = '';
-      for (const name of model.participants.values()) {
+      for (const [playerId, name] of model.participants) {
         const item = document.createElement('li');
         item.className = 'lobby-player';
-        item.textContent = name;
+        const label = document.createElement('span');
+        label.textContent = name;
+        item.appendChild(label);
+        // S17: dit is nu de enige plek die deelnemersnamen toont tijdens
+        // LOBBY (hostbar.mjs's eigen lijst blijft daar bewust verborgen) —
+        // de host krijgt de verwijderknop daarom hier, inline, niet in een
+        // tweede lijst elders.
+        if (isHost && model.canKick) {
+          const kickButton = document.createElement('button');
+          kickButton.type = 'button';
+          kickButton.className = 'btn-secondary lobby-player-kick';
+          kickButton.textContent = t('hostbar.kick');
+          kickButton.setAttribute('aria-label', `${t('hostbar.kick')} ${name}`);
+          kickButton.addEventListener('click', () => {
+            if (window.confirm(`${t('hostbar.kickConfirmPrefix')} ${name}`)) {
+              onKickPlayer(playerId);
+            }
+          });
+          item.appendChild(kickButton);
+        }
         list.appendChild(item);
       }
     }

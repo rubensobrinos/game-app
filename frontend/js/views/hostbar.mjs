@@ -80,9 +80,9 @@ export function createHostBar({ root, t, onAction }) {
   });
 
   /**
-   * @param {{ isHost: boolean, availableActions: string[], participants: Map<string,string> }} model
+   * @param {{ isHost: boolean, availableActions: string[], participants: Map<string,string>, phase: string }} model
    */
-  function update({ isHost, availableActions, participants }) {
+  function update({ isHost, availableActions, participants, phase }) {
     bar.hidden = !isHost;
     if (!isHost) {
       return;
@@ -102,7 +102,12 @@ export function createHostBar({ root, t, onAction }) {
     finishButton.hidden = !availableActions.includes('finish');
     finishButton.textContent = t('hostbar.finish');
 
-    const canKick = availableActions.includes('kick') && participants.size > 0;
+    // S17: tijdens LOBBY toont lobby.mjs's eigen lijst de deelnemers al, mét
+    // inline verwijderknoppen — deze aparte lijst blijft daarom verborgen
+    // zolang die lobbylijst zichtbaar is, en verschijnt pas in de fases
+    // daarna (gameplay, scoreboard, podium) waar geen deelnemerslijst meer
+    // op het scherm staat.
+    const canKick = availableActions.includes('kick') && participants.size > 0 && phase !== 'LOBBY';
     playersToggle.hidden = !canKick;
     playersToggle.textContent = t('hostbar.players');
     if (!canKick) {
