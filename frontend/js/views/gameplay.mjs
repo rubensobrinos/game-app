@@ -34,7 +34,16 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
 
   const header = el('div', 'gameplay-header');
   const roundLabel = el('p', 'gameplay-round');
-  const timer = el('p', 'gameplay-timer');
+  // M8/E07: thema 2 leverde de balkvorm (`.timer`/`.timer-track`/
+  // `.timer-fill`, T2-3, 05 §9) en de contrast-kant van `.is-urgent`
+  // (`components.css`) al, met expliciet "de puls is thema 3's werk" — dit
+  // bouwt op die structuur voort i.p.v. een eigen platte-tekst-timer.
+  const timer = el('div', 'timer');
+  const timerTrack = el('div', 'timer-track');
+  const timerFill = el('div', 'timer-fill');
+  timerTrack.appendChild(timerFill);
+  const timerValue = el('p', 'timer-value');
+  timer.append(timerTrack, timerValue);
   header.append(roundLabel, timer);
 
   const questionPrompt = el('p', 'gameplay-question');
@@ -47,6 +56,18 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   // screenreader gebruikt, vóórdat ze kunnen "kijken" zoals een ziende
   // speler. Zelfde vraag, zelfde uitdaging, geen voorsprong of achterstand.
   flag.alt = t('game.flagAlt');
+  // T5-4 (gemeten): zonder dit toont een falende asset (404, of lokaal het
+  // bekende `/flags/*`-gat) het browser-standaard gebroken-icoon. Fallback
+  // toont dezelfde `alt`-tekst als zichtbare tekst i.p.v. onzichtbaar attribuut
+  // — geen landnaam (08 §7: geen antwoordlek), wél duidelijk dat er een vlag
+  // hoorde te staan.
+  const flagFallback = el('p', 'gameplay-flag-fallback');
+  flagFallback.hidden = true;
+  flag.addEventListener('error', () => {
+    flag.hidden = true;
+    flagFallback.hidden = false;
+    flagFallback.textContent = t('game.flagAlt');
+  });
 
   const options = el('div', 'gameplay-options');
   const status = el('p', 'gameplay-status');
@@ -69,7 +90,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     }
   });
 
-  root.append(screenTitle, countdown, header, questionPrompt, flag, options, status, progress, result, headline);
+  root.append(screenTitle, countdown, header, questionPrompt, flag, flagFallback, options, status, progress, result, headline);
 
   let renderedRoundId = null;
   let optionButtons = new Map();
@@ -95,9 +116,13 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
 
     if (state === 'empty') {
       roundLabel.textContent = '';
-      timer.textContent = '';
+      timerValue.textContent = '';
+      timerFill.style.width = '100%';
+      timer.classList.remove('is-urgent');
       questionPrompt.hidden = true;
       flag.removeAttribute('src');
+      flag.hidden = false;
+      flagFallback.hidden = true;
       options.textContent = '';
       status.textContent = '';
       progress.textContent = '';
@@ -121,6 +146,10 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     // Vraag (her)opbouwen bij een nieuwe ronde
     if (model.roundId !== renderedRoundId) {
       renderedRoundId = model.roundId;
+      // Reset vóór de nieuwe src: een fallback van de vorige ronde mag niet
+      // blijven hangen als deze ronde's vlag wél laadt.
+      flag.hidden = false;
+      flagFallback.hidden = true;
       flag.src = flagAssetPath(model.question.targetIso2);
       options.textContent = '';
       optionButtons = new Map();
@@ -163,12 +192,27 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
 
     // Timer en voortgang (verborgen zodra de uitslag er is)
     if (model.result === null) {
-      timer.textContent = secondsLeft === null ? '' : String(Math.max(0, secondsLeft));
+      timerValue.textContent = secondsLeft === null ? '' : String(Math.max(0, secondsLeft));
+      // M8/E07: `.timer-fill`'s breedte volgt de resterende tijd —
+      // `model.startsAt`/`endsAt` staan al op het model (round-model.mjs),
+      // geen aparte totaalduur-parameter nodig. Urgentie (contrast + puls)
+      // pas in de laatste drie seconden (06 §4 E07, checklist F).
+      const totalSeconds =
+        model.startsAt !== null && model.endsAt !== null
+          ? Math.max(1, Math.round((model.endsAt - model.startsAt) / 1000))
+          : null;
+      const fillPercent =
+        totalSeconds !== null && secondsLeft !== null
+          ? Math.max(0, Math.min(100, (Math.max(0, secondsLeft) / totalSeconds) * 100))
+          : 100;
+      timerFill.style.width = `${fillPercent}%`;
+      timer.classList.toggle('is-urgent', secondsLeft !== null && secondsLeft <= 3);
       progress.textContent = model.progress
         ? `${model.progress.answeredCount}/${model.progress.eligiblePlayerCount} ${t('game.answered')}`
         : '';
     } else {
-      timer.textContent = '';
+      timerValue.textContent = '';
+      timer.classList.remove('is-urgent');
       progress.textContent = '';
     }
 

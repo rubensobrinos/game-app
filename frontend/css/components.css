@@ -344,13 +344,6 @@ button.is-loading::after {
   margin: 2rem 0;
 }
 
-.gameplay-timer {
-  font-size: 1.6rem;
-  font-weight: 800;
-  color: var(--color-accent-primary-hover);
-  font-variant-numeric: tabular-nums;
-}
-
 /* ── Timer als balk (T2-3, 05 §9) ──────────────────────────────────────────
    Sluit aan op de vormtaal die de singleplayer al heeft (`style.css`
    `.timer-track`/`.timer-fill`) — niet opnieuw bedacht.
@@ -404,6 +397,14 @@ button.is-loading::after {
 
 .timer.is-urgent .timer-value {
   color: var(--color-warning);
+  /* M8/E07: de puls (thema 3's deel, zie boven) — contrast blijft ook
+     zonder motion staan (M0's blanket-regel dekt reduced motion al). */
+  animation: timer-urgent-pulse var(--motion-fast) var(--ease-enter) infinite;
+}
+
+@keyframes timer-urgent-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
 }
 
 .gameplay-flag {
@@ -414,6 +415,26 @@ button.is-loading::after {
   border-radius: var(--r-sm);
   border: 1px solid var(--color-border-subtle);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+
+/* T5-4: fallback bij een falende vlagafbeelding — zelfde afmeting/plek als
+   `.gameplay-flag`, vaste 3:2-verhouding (typische vlagratio) i.p.v. de
+   natuurlijke afbeeldingshoogte, want die bestaat hier niet. Toont de
+   bestaande `alt`-tekst zichtbaar, geen landnaam (anti-afkijkregel). */
+.gameplay-flag-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 340px;
+  aspect-ratio: 3 / 2;
+  margin: 8px auto 18px;
+  padding: 12px;
+  border-radius: var(--r-sm);
+  border: 1px dashed var(--color-border-subtle);
+  background: var(--color-surface-1);
+  color: var(--color-text-muted);
+  text-align: center;
 }
 
 .gameplay-options { display: grid; gap: 10px; }
