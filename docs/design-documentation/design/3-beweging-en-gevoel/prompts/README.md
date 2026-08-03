@@ -27,7 +27,7 @@ antwoord hebben (`M8`, `M10`) en één open coördinatiepunt met thema 4 over
 | Bestand | Fase | Status | Dekt | Afhankelijk van |
 | --- | --- | --- | --- | --- |
 | [`M0-reduced-motion.md`](M0-reduced-motion.md) | M0 | ✅ gedaan (`7a146a0`) | `prefers-reduced-motion`: blanket-regel + scale echt uitgeschakeld | niets |
-| [`M1-motion-tokens-en-e01.md`](M1-motion-tokens-en-e01.md) | M1 | 🔵 gedeblokkeerd, klaar om te bouwen | E01 op álle acht controls (volledige inventaris), transities aanvullen i.p.v. vervangen | M0, **thema 2's motion-tokens** — geleverd (`8eb1996`) |
+| [`M1-motion-tokens-en-e01.md`](M1-motion-tokens-en-e01.md) | M1 | ✅ gedaan (`99634a9`) | E01 op álle acht controls — niveau 1 → 2 | niets |
 | [`M2-choreografie-niveau1-naar-2.md`](M2-choreografie-niveau1-naar-2.md) | M2 | 🔵 klaar om te bouwen | E05/E06/E09/E10/E15 naar niveau 2. E08 samengevoegd met E09 (protocolgat, gemeld) | M1 |
 | [`M5-performancebudget.md`](M5-performancebudget.md) | M5 | 🔵 klaar om te bouwen | `06` §9 als meetbare gate, direct ná M2 | M1, M2 (niet M3) |
 | [`M4-mute-mechanisme.md`](M4-mute-mechanisme.md) | M4 | ✅ gedaan (`0d94744`) | Alleen de voorkeurlaag (`loadMuted`/`saveMuted` + gedeelde `safeSet`) — **geen zichtbare schakelaar** tot er geluid is | niets |
@@ -43,8 +43,9 @@ antwoord hebben (`M8`, `M10`) en één open coördinatiepunt met thema 4 over
 
 1. ✅ **M0** — gedaan (`7a146a0`): blanket-regel geverifieerd, scale-
    verwijdering die de review terecht miste toegevoegd en herverifieerd.
-2. **M1** — gedeblokkeerd (thema 2's tokens geleverd, `8eb1996`): E01 op
-   de volledige inventaris van acht controls.
+2. ✅ **M1** — gedaan (`99634a9`): E01 op de volledige inventaris van acht
+   controls, inclusief de twee die de tweede reviewronde als achterhaald
+   markeerde (`.btn-opt`/`.btn-icon` waren al gemigreerd naar tokens).
 3. **M2** — met E08 samengevoegd/geparkeerd en E06 pas bij `accepted`, niet
    bij `sending`.
 4. **M5** — direct ná M2, als meetbare kwaliteitsgate, niet als

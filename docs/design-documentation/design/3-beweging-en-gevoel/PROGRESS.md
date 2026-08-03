@@ -32,7 +32,7 @@ de laag die pas zin heeft als de schermen eronder staan.
 
 | # | Moment | Fase | Niveau | Wat er vuurt (of niet) |
 |---|---|---|---|---|
-| E01 | Knop indrukken | overal | 1 | `:active` geeft een kleine schaalsprong op `.btn-primary`, `.btn-secondary`, `.btn-destructive` en `.gameplay-option` (geverifieerd in `components.css`). **Ontbreekt met naam op `.btn-opt` (taal-/themaknoppen in het hamburgermenu) en `.btn-icon` (hamburgerknop, QR-terugknop)** — geen haptiek nergens. Nog steeds `M1`'s werk. |
+| E01 | Knop indrukken | overal | 2 | **Gedaan (`M1`, commit `99634a9`).** Alle acht controls uit de inventaris (`.btn-primary`/`.podium-rematch`/`.btn-secondary`/`.btn-destructive`/`.gameplay-option`/`.btn-quiet`/`.btn-opt`/`.btn-icon`) hebben nu identieke, tokengebaseerde `:active`-scale, elk met een non-transform reduced-motion-alternatief. Niveau 2 (niet 3): nog geen haptiek nergens, en niets op een echt apparaat getest. |
 | E02 | Potje maken | landing | 1 | **Gedaan (`M6`, commit `a6be5d4`).** Knop-label wisselt zelf naar `Potje maken…` via de gedeelde `setButtonLoading()` (thema 2, T2-2) — spinner, breedte-lock, `aria-busy`. |
 | E03 | Speler komt binnen | lobby | 1 | **Gedaan (`M7`, commit `ed6d313`).** Nieuwe spelerchip fade+scale via reconciliatie (geen volledige lijstherbouw meer), tellerpuls gedebouncet (300ms) tegen bulkjoin-ruis. |
 | E04 | Countdown | rondestart | 1 | **Niet langer afhankelijk — thema 1 bouwde `S07`** (`1b7f40f`): `countdown`-substate in `gameplay.mjs`, cijfer uit `secondsRemaining(countdownEndsAt)`. Nog geen choreografie (tick-cue, opmaak) — dat is nu een niveau-1→2-vervolgstap, niet langer "bestaat niet". |
@@ -88,8 +88,8 @@ beheer wordt gedekt, maar niet door motion.
 
 | Niveau | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| Momenten (14, `E08` vervallen/samengevoegd met `E09`) | 1 | 13 (2 dichtbij niveau 2: E11, E14 — zie hun rijen) | 0 | 0 |
-| Momenten incl. voorstel `E16` | 2 | 13 | 0 | 0 |
+| Momenten (14, `E08` vervallen/samengevoegd met `E09`) | 1 | 12 (2 dichtbij niveau 2: E11, E14 — zie hun rijen) | 1 (E01) | 0 |
+| Momenten incl. voorstel `E16` | 2 | 12 | 1 | 0 |
 | Fundamenten (Motion-tokens nu bij thema 2, zie hieronder) | 4 | 1 | 0 | 0 |
 
 **Let op voor wie dit vergelijkt met het lokale dashboard
