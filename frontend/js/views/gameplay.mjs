@@ -42,6 +42,10 @@ function correctValueFor(model) {
   return model.result.correctOptionId;
 }
 
+// 11-verzoek (BOUWSPRINT doel 4): eigen keuze, geen voorschrift in
+// GAME-RULES.md — een streak van 1 of 2 is geen "reactie" waard.
+const STREAK_REACTION_THRESHOLD = 3;
+
 export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   root.textContent = '';
 
@@ -58,6 +62,13 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   const countdown = el('p', 'gameplay-countdown');
   countdown.setAttribute('aria-live', 'polite');
   countdown.hidden = true;
+  // BOUWSPRINT: kaal getal had geen enkele tekst errond — voor een
+  // screenreader zijn "5… 4… 3…" losse getallen zonder context. Label +
+  // getal als aparte spans zodat de tick-animatie (hieronder) alleen op het
+  // getal blijft werken, niet op de hele regel.
+  const countdownLabel = el('span', 'gameplay-countdown-label');
+  const countdownValue = el('span', 'gameplay-countdown-value');
+  countdown.append(countdownLabel, countdownValue);
 
   const header = el('div', 'gameplay-header');
   const roundLabel = el('p', 'gameplay-round');
@@ -232,7 +243,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     return `${t('game.correctAnswer')}: ${countryName(model.result.correctOptionId, lang)}`;
   }
 
-  function update(model, { secondsLeft = null, phase = null, countdownSecondsLeft = null } = {}) {
+  function update(model, { secondsLeft = null, phase = null, countdownSecondsLeft = null, streak = 0 } = {}) {
     // Reken het getal uit de resterende tijd (`secondsRemaining()` rondt al af
     // op hele seconden) — geen vaste `3`/`2`/`1`-reeks aannemen, want de
     // serverduur kan afwijken (zie 04-S07-countdown.md's HANDOFF-punt over
@@ -241,16 +252,17 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     if (countdown.hidden) {
       tickedCountdownValue = null;
     } else {
-      countdown.textContent = countdownSecondsLeft === null ? '' : String(countdownSecondsLeft);
+      countdownLabel.textContent = t('game.countdownLabel');
+      countdownValue.textContent = countdownSecondsLeft === null ? '' : String(countdownSecondsLeft);
       // BOUWSPRINT/E04: "zachte tick per cijfer" (06 §4) — een puls per
       // wisselend cijfer, niet per render-tick. Klasse verwijderen+
       // terugzetten (forceer reflow) om de animatie telkens opnieuw te
       // laten spelen, zelfde patroon als M7's tellerpuls (lobby.mjs).
       if (countdownSecondsLeft !== null && countdownSecondsLeft !== tickedCountdownValue) {
         tickedCountdownValue = countdownSecondsLeft;
-        countdown.classList.remove('gameplay-countdown-tick');
-        void countdown.offsetWidth;
-        countdown.classList.add('gameplay-countdown-tick');
+        countdownValue.classList.remove('gameplay-countdown-tick');
+        void countdownValue.offsetWidth;
+        countdownValue.classList.add('gameplay-countdown-tick');
       }
     }
 
@@ -374,6 +386,20 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
       const own = el('p', `gameplay-own ${resultClass} gameplay-reveal-enter`);
       own.textContent = t(resultKey);
       result.append(correct, own);
+      // 11-verzoek (BOUWSPRINT doel 4): naast (niet i.p.v.) het stempel
+      // hierboven, alleen vanaf STREAK_REACTION_THRESHOLD op een rij — een
+      // streak van 1 of 2 is geen "reactie" waard (GAME-RULES.md geeft geen
+      // eigen drempel, eigen keuze). `streak` is al `0` van de aanroeper als
+      // reactiezinnen uitstaan of dit geen `selfCorrect`-ronde is (session-
+      // shell.mjs's `applyRoundResult` reset 'm dan al) — hier dus geen
+      // aparte `selfCorrect`-check nodig, `streak >= drempel` volstaat.
+      if (streak >= STREAK_REACTION_THRESHOLD) {
+        // Nooit een telbare vorm nodig: de drempel is al 3, dus dit pad
+        // toont nooit "1" — geen `tCount`/enkelvoudsvorm hoeft hierheen.
+        const streakReaction = el('p', 'gameplay-streak gameplay-reveal-enter');
+        streakReaction.textContent = t('headline.streak').replace('{n}', String(streak));
+        result.append(streakReaction);
+      }
       if (model.result.roundPoints !== null) {
         // M2/E10: twee losse nodes — de `aria-hidden`-span animeert
         // visueel, de `sr-only`-span krijgt meteen de definitieve waarde.

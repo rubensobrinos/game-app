@@ -20,6 +20,7 @@
 
 import { shareActionsFor, shareUrlsFor } from '../../../client/flow/share-actions.mjs';
 import { participantPresentationFor } from './participant-presentation.mjs';
+import { createPlayerChip } from '../player-chip.mjs';
 
 // T5-9: hoeveel van de meest recente joins zichtbaar blijven in de
 // samengevouwen 'aggregate'-weergave (36+ spelers) vóórdat "Bekijk alle
@@ -107,6 +108,13 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
       onStart();
     }
   });
+  // BOUWSPRINT: subregel onder de knoplabel, zelfde patroon als home.mjs's
+  // quickStartLabel/-Sub — twee spans in één knop i.p.v. een los element,
+  // zodat er geen tweede grid-area-toewijzing nodig is voor T5-7's
+  // tabletlayout (`.lobby-start` blijft het enige grid-item).
+  const startButtonLabel = el('span', 'lobby-start-label');
+  const startButtonSub = el('span', 'lobby-start-sub');
+  startButton.append(startButtonLabel, startButtonSub);
 
   // Feedback en link horen bij het deelblok — die stonden eerder los onder de
   // knoppen, waardoor "Gekopieerd!" losgezongen van zijn actie verscheen.
@@ -192,7 +200,8 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     title.textContent = t('lobby.title');
     waiting.textContent = t('lobby.waiting');
     shareTitle.textContent = t('lobby.share');
-    startButton.textContent = t('lobby.start');
+    startButtonLabel.textContent = t('lobby.start');
+    startButtonSub.textContent = t('lobby.startSub');
     linkFallback.setAttribute('aria-label', t('lobby.shareCopy'));
     emptyTitle.textContent = t('lobby.emptyTitle');
     emptyHint.textContent = t('lobby.emptyHint');
@@ -200,7 +209,16 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     playerWaitingForHost.textContent = t('lobby.playerWaitingForHost');
     playerInviteHint.textContent = t('lobby.playerInviteHint');
     recentJoinsLabel.textContent = t('lobby.recentJoins');
-    viewAllButton.textContent = showAllPlayers ? t('lobby.viewAllHide') : t('lobby.viewAllShow');
+    if (showAllPlayers) {
+      viewAllButton.textContent = t('lobby.viewAllHide');
+    } else {
+      // BOUWSPRINT ("+N meer"): alleen zinvol als er ook daadwerkelijk een
+      // aantal is om te tonen — vóór de eerste `update()` (init-aanroep van
+      // `renderStatic()`) is `lastModel` nog niet gezet.
+      const hiddenCount = lastModel ? Math.max(0, lastModel.playerCount - RECENT_JOINS_COUNT) : 0;
+      const moreCount = hiddenCount > 0 ? ` (${t('lobby.moreCount').replace('{n}', String(hiddenCount))})` : '';
+      viewAllButton.textContent = `${t('lobby.viewAllShow')}${moreCount}`;
+    }
     for (const [action, btn] of shareButtons) {
       btn.textContent = t(SHARE_LABEL_KEYS[action]);
       btn.hidden = !availableActions.includes(action);
@@ -292,9 +310,17 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
         }
         const item = document.createElement('li');
         item.className = 'lobby-player lobby-player-enter';
-        const label = document.createElement('span');
-        label.textContent = name;
-        item.appendChild(label);
+        // D-022: naam plus een tijdelijke kleur/symboolidentiteit, berekend uit
+        // de playerId (thema 2's `player-chip.mjs`). Zonder dat is dit een
+        // lijst namen; mét is het een groepje mensen — `05` §8, en `04` S06
+        // vereist die identiteit expliciet in de spelerslobby.
+        // Bewust zonder `isSelf`: het model kent hier alleen `selfName`, en
+        // namen kunnen dubbel zijn. Wie jij bent staat al in de eigen regel
+        // ("Je speelt als …") — een tweede markering op naam zou de verkeerde
+        // rij kunnen raken.
+        const chip = createPlayerChip({ name, playerId });
+        const label = chip.querySelector('.player-chip-name');
+        item.appendChild(chip);
         let kickButton;
         // S17: dit is nu de enige plek die deelnemersnamen toont tijdens
         // LOBBY (hostbar.mjs's eigen lijst blijft daar bewust verborgen) —

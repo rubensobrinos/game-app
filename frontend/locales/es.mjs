@@ -11,6 +11,9 @@ export const es = Object.freeze({
   'menu.theme': 'Tema',
   'menu.themeDark': 'Oscuro',
   'menu.themeLight': 'Claro',
+  'menu.reactions': 'Mensajes de reacción',
+  'menu.reactionsOn': 'Activado',
+  'menu.reactionsOff': 'Desactivado',
 
   'home.title': 'Rounda',
   'home.promise': 'Sin cuenta. Sin descarga. Cada uno juega en su propio teléfono.',
@@ -68,6 +71,7 @@ export const es = Object.freeze({
   'game.screenTitle': 'Partida',
   'game.flagAlt': 'Bandera a adivinar',
   'game.questionPrompt': '¿A qué país pertenece esta bandera?',
+  'game.countdownLabel': 'La pregunta empieza en',
   'game.round': 'Ronda',
   'game.secondsLeft': 'segundos restantes',
   'game.sending': 'Enviando…',
@@ -94,6 +98,7 @@ export const es = Object.freeze({
   'headline.everyoneWrong': '¡Nadie acertó esta ronda!',
   'headline.misleadingAnswer': '¡Muchos jugadores pensaron que era {country}!',
   'headline.comeback': '¡{naam} sube {n} puestos! 📈',
+  'headline.streak': '¡{n} seguidas! 🔥',
   'standings.title': 'Clasificación',
   'standings.you': 'Tú',
   'standings.moveUp.one': 'sube {n} puesto',
@@ -191,6 +196,7 @@ export const es = Object.freeze({
   'lobby.recentJoins': 'Incorporaciones recientes',
   'lobby.viewAllShow': 'Ver todos los jugadores',
   'lobby.viewAllHide': 'Ocultar lista completa',
+  'lobby.moreCount': '+{n} más',
   'lobby.playerCount.one': '{n} jugador',
   'lobby.playerCount.other': '{n} jugadores',
   'lobby.share': 'Invitar',
@@ -202,4 +208,14 @@ export const es = Object.freeze({
   'lobby.code': 'Código',
   'lobby.back': 'Atrás',
   'lobby.start': 'Start Rounda',
+  'lobby.startSub': '¿Están todos? Puedes empezar',
+
+  'shapes.diamond': 'Diamante',
+  'shapes.sphere': 'Esfera',
+  'shapes.peak': 'Pico',
+  'shapes.block': 'Bloque',
+
+  'rondo.explanation': 'Desliza para girar la rueda y atrapar la bola',
+  'rondo.lobbyRecord': 'Mejor de esta sala: {n}',
+  'rondo.pauseMessage': 'Un momento — ¡prueba la rueda!',
 });

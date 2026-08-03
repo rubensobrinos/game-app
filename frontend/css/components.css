@@ -556,10 +556,24 @@ button.is-loading::after {
    elke servergekozen duur. */
 .gameplay-countdown {
   text-align: center;
-  font-size: var(--type-display-xl);
-  font-weight: 800;
   color: var(--color-accent-primary-hover);
   margin: 2rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* BOUWSPRINT: label boven het getal — normale tekstgrootte, het getal zelf
+   draagt de nadruk (`--type-display-xl`), niet de introducerende zin. */
+.gameplay-countdown-label {
+  font-size: var(--type-body);
+  font-weight: 600;
+}
+
+.gameplay-countdown-value {
+  font-size: var(--type-display-xl);
+  font-weight: 800;
 }
 
 /* BOUWSPRINT/E04: zachte tick per cijfer (06 §4) — een korte scale/opacity-
@@ -818,6 +832,15 @@ button.is-loading::after {
   margin: 0;
   padding: 0;
   display: grid;
+  /* T5-6-zoom-audit (gemeten, niet aangenomen): zonder expliciete
+     `grid-template-columns` is de enige impliciete kolom `auto` — die groeit
+     mee met het breedste kind i.p.v. te krimpen tot de beschikbare ruimte.
+     Bij een lange naam (S15's rank/naam/beweging/score-rij) duwde dat de
+     hele `<li>`, en dus de pagina, breder dan de viewport — `.scoreboard-
+     name`'s eigen `overflow:hidden`/`ellipsis` kwam daardoor nooit in actie,
+     want de rij zelf was al te breed. Zelfde fix als `.lobby-players` (T5-1)
+     kreeg voor precies dezelfde grid-auto-breedte-val. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 

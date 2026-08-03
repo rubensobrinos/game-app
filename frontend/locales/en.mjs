@@ -13,6 +13,9 @@ export const en = Object.freeze({
   'menu.theme': 'Theme',
   'menu.themeDark': 'Dark',
   'menu.themeLight': 'Light',
+  'menu.reactions': 'Reaction messages',
+  'menu.reactionsOn': 'On',
+  'menu.reactionsOff': 'Off',
 
   'home.title': 'Rounda',
   'home.promise': 'No account. No download. Everyone plays on their own phone.',
@@ -70,6 +73,7 @@ export const en = Object.freeze({
   'game.screenTitle': 'Gameplay',
   'game.flagAlt': 'Flag to guess',
   'game.questionPrompt': 'Which country does this flag belong to?',
+  'game.countdownLabel': 'Question starts in',
   'game.round': 'Round',
   'game.secondsLeft': 'seconds left',
   'game.sending': 'Sending…',
@@ -96,6 +100,7 @@ export const en = Object.freeze({
   'headline.everyoneWrong': 'Nobody got it right this round!',
   'headline.misleadingAnswer': 'Lots of players thought it was {country}!',
   'headline.comeback': '{naam} climbs {n} places! 📈',
+  'headline.streak': '{n} in a row! 🔥',
   'standings.title': 'Standings',
   'standings.you': 'You',
   'standings.moveUp.one': 'up {n} place',
@@ -193,6 +198,7 @@ export const en = Object.freeze({
   'lobby.recentJoins': 'Recently joined',
   'lobby.viewAllShow': 'View all players',
   'lobby.viewAllHide': 'Hide full list',
+  'lobby.moreCount': '+{n} more',
   'lobby.playerCount.one': '{n} player',
   'lobby.playerCount.other': '{n} players',
   'lobby.share': 'Invite',
@@ -204,4 +210,14 @@ export const en = Object.freeze({
   'lobby.code': 'Code',
   'lobby.back': 'Back',
   'lobby.start': 'Start Rounda',
+  'lobby.startSub': 'Everyone in? You can start',
+
+  'shapes.diamond': 'Diamond',
+  'shapes.sphere': 'Sphere',
+  'shapes.peak': 'Peak',
+  'shapes.block': 'Block',
+
+  'rondo.explanation': 'Swipe to spin the wheel and catch the ball',
+  'rondo.lobbyRecord': 'Best of this lobby: {n}',
+  'rondo.pauseMessage': 'Hang tight — try the wheel!',
 });

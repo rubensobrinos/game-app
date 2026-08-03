@@ -664,6 +664,23 @@ button {
   margin: 0 0 0.5rem;
 }
 
+/* T5-6-zoom-audit (gemeten, niet aangenomen): `rounda-1c.css` zet een vaste
+   `font-size: 46px` op `.home-title` (regie's compositielaag, niet hier
+   aangeraakt — zie STATUS.md). Op 200%-paginazoom (≈195px effectieve
+   breedte, zelfde meetmethode als T5-1) past "ROUNDA" bij 46px niet meer:
+   184px content op 147px beschikbare ruimte, geen spatie om op af te breken,
+   dus schuift de hele pagina zijwaarts. `.screen .home-title` (specificiteit
+   0,2,0) wint bewust van rounda-1c.css's `.home-title` (0,1,0) ondanks de
+   latere laadvolgorde — dit is de robuustheidslaag die base.css hoort te
+   leveren, geen visuele keuze. Alleen actief onder een breedte die geen
+   echt toestel ongezoomd haalt (~320px is de smalste), dus nooit zichtbaar
+   bij normaal gebruik. */
+@media (max-width: 260px) {
+  .screen .home-title {
+    font-size: clamp(1.5rem, 13vw, 2.5rem);
+  }
+}
+
 .join-title {
   font-size: var(--type-heading-3);
   text-align: center;

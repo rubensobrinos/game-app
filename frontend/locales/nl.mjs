@@ -15,6 +15,11 @@ export const nl = Object.freeze({
   'menu.theme': 'Thema',
   'menu.themeDark': 'Donker',
   'menu.themeLight': 'Licht',
+  // 11-verzoek (BOUWSPRINT doel 4): GAME-RULES.md eist "per speler
+  // uitzetbaar" — dit paneel is de aangewezen plek, standaard aan.
+  'menu.reactions': 'Reactiezinnen',
+  'menu.reactionsOn': 'Aan',
+  'menu.reactionsOff': 'Uit',
 
   // — UI1-sleutels (Home + Preview/join) —
   'home.title': 'Rounda',
@@ -88,6 +93,12 @@ export const nl = Object.freeze({
   // (questionPrompt, .gameplay-question, boven de vlag), alleen de copy
   // week af van rounda-1c.html's letterlijke tekst.
   'game.questionPrompt': 'Bij welk land hoort deze vlag?',
+  // BOUWSPRINT (rounda-1c): countdown toonde alleen een kaal getal, geen
+  // enkele tekst errond — voor een screenreader zijn "5… 4… 3…" losse
+  // getallen zonder context. Staat in dezelfde `aria-live`-regio als het
+  // getal (session-shell.mjs), dus wordt bij elke tik samen met de nieuwe
+  // waarde voorgelezen.
+  'game.countdownLabel': 'Zo begint de vraag',
   'game.round': 'Ronde',
   'game.secondsLeft': 'seconden te gaan',
   'game.sending': 'Versturen…',
@@ -125,6 +136,9 @@ export const nl = Object.freeze({
   'headline.everyoneWrong': 'Niemand had het goed deze ronde!',
   'headline.misleadingAnswer': 'Veel spelers dachten dat het {country} was!',
   'headline.comeback': '{naam} klimt {n} plaatsen! 📈',
+  // 11-verzoek (BOUWSPRINT doel 4): alleen vanaf 3 op een rij, nooit
+  // vernederend voor wie geen streak heeft (dan simpelweg niets tonen).
+  'headline.streak': '{n} op een rij! 🔥',
   'standings.title': 'Tussenstand',
   'standings.you': 'Jij',
   'standings.moveUp.one': '{n} plaats gestegen',
@@ -239,6 +253,9 @@ export const nl = Object.freeze({
   'lobby.recentJoins': 'Recent binnengekomen',
   'lobby.viewAllShow': 'Bekijk alle spelers',
   'lobby.viewAllHide': 'Verberg volledige lijst',
+  // BOUWSPRINT: badge naast "Bekijk alle spelers" in de samengevouwen
+  // (36+) weergave — telt hoeveel spelers achter die knop schuilgaan.
+  'lobby.moreCount': '+{n} meer',
   // Telbaar via `tCount('lobby.playerCount', n)` — `{n}` wordt ingevuld.
   'lobby.playerCount.one': '{n} speler',
   'lobby.playerCount.other': '{n} spelers',
@@ -251,4 +268,31 @@ export const nl = Object.freeze({
   'lobby.code': 'Code',
   'lobby.back': 'Terug',
   'lobby.start': 'Start Rounda',
+  // BOUWSPRINT: subregel onder de startknop — géén rondeaantal/tijdsduur
+  // erin (dat is per host instelbaar, `lobby.mjs` krijgt dat aantal niet
+  // door; een vast getal zou hier kunnen liegen), alleen een geruststelling.
+  'lobby.startSub': 'Iedereen mee? Dan kun je beginnen',
+
+  // BOUWSPRINT (3 aug 2026) vroeg om vormnamen RUIT/BOL/PIEK/BLOK, drietalig.
+  // Geen enkele component in deze repo gebruikt ze nog (geen grond gevonden
+  // in `rounda-1c.css`, geen bouwticket, geen bestaand scherm) — dit zijn dus
+  // zelf vastgelegde placeholders, expliciet zo afgesproken met de
+  // producteigenaar (thema 4 verzint en legt vast). Wie deze vormen ooit
+  // bouwt (vermoedelijk 1c) gebruikt deze sleutels in plaats van eigen tekst
+  // te verzinnen. NL-namen kwamen letterlijk uit de sprintopdracht.
+  'shapes.diamond': 'Ruit',
+  'shapes.sphere': 'Bol',
+  'shapes.peak': 'Piek',
+  'shapes.block': 'Blok',
+
+  // BOUWSPRINT: het volledige Rondo-vocabulaire uit
+  // `docs/frontend-plan/BOUWTICKET-rondo-lobbygame.md` — dat ticket zelf
+  // bevat GEEN copy (geen uitleg, geen lobbyrecord-label, geen
+  // pauzemelding), dus ook dit zijn zelf vastgelegde placeholders, niet
+  // overgenomen uit een bestaand mockup. Eigenaarschap van het component
+  // zelf (`rondo.mjs`) ligt bij thema 1+3, niet hier — deze sleutels staan
+  // klaar om in te haken zodra dat component bestaat.
+  'rondo.explanation': 'Veeg om het rad te draaien en de bal te vangen',
+  'rondo.lobbyRecord': 'Beste van deze lobby: {n}',
+  'rondo.pauseMessage': 'Nog even geduld — probeer het rad!',
 });
