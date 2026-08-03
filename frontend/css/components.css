@@ -644,6 +644,43 @@ button.is-loading::after {
 .gameplay-own.is-noanswer { color: var(--color-text-muted); }
 .gameplay-score { color: var(--color-accent-competition, #f59e0b); font-weight: 700; }
 
+/* M2/E09: vaste, korte opbouwvolgorde — de correcte optie krijgt eerst
+   accent (gameplay.mjs zet `.is-correct` direct, geen delay hier), dit
+   tekstblok verschijnt daarna. De tekst zelf staat al synchroon in de DOM/
+   aria-live-regio (gameplay.mjs) — dit is uitsluitend de visuele fade. */
+.gameplay-reveal-enter {
+  animation: gameplay-reveal-enter var(--motion-base) var(--ease-enter) both;
+  animation-delay: var(--motion-emphasis);
+}
+
+@keyframes gameplay-reveal-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* M2/E09: korte accentpuls op de correcte optie zodra 'm verschijnt — het
+   "eerst accent" deel van de opbouw, vóór het tekstblok (hierboven). */
+.gameplay-option.is-correct {
+  animation: gameplay-option-correct-enter var(--motion-emphasis) var(--ease-enter);
+}
+
+@keyframes gameplay-option-correct-enter {
+  0% { box-shadow: 0 0 0 0 var(--color-success-surface); }
+  50% { box-shadow: 0 0 0 6px var(--color-success-surface); }
+  100% { box-shadow: 0 0 0 0 var(--color-success-surface); }
+}
+
+/* M0's blanket-regel verkort alleen `animation-duration`, niet
+   `animation-delay` — zonder deze regel bleef het reveal-tekstblok hier
+   nog ~400ms onzichtbaar (fill-mode `both` houdt `opacity: 0` tijdens de
+   delay) vóórdat de (dan wel bijna-instante) animatie start. Onder
+   reduced motion hoort er geen wachttijd te zijn, punt. */
+@media (prefers-reduced-motion: reduce) {
+  .gameplay-reveal-enter {
+    animation-delay: 0ms !important;
+  }
+}
+
 /* S14: hooguit één sociale headline, pas ná de reveal-vertraging. */
 .gameplay-headline {
   margin-top: 12px;
