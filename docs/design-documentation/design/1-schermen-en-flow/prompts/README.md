@@ -22,6 +22,31 @@ best na elkaar gedaan.
 | 08 | [`08-leaderboard-en-podium.md`](08-leaderboard-en-podium.md) | S15, S20 — rankbeweging, tie-regel, podiumopbouw | 2, hoog impact |
 | 09 | [`09-S02-spel-aanpassen.md`](09-S02-spel-aanpassen.md) | S02 — instellingen-sheet, reducer bestaat al | 2 |
 
+**Status: alle negen uitgevoerd (3 aug 2026).** Zie `../PROGRESS.md` per
+scherm en `docs/frontend-plan/HANDOFF-UI.md` (`UI-13` t/m `UI-17`) voor de
+opengebleven punten die uit het uitvoeren volgden.
+
+## Verzoeken/besluiten die uit het uitvoeren volgden
+
+Vier van de vijf oorspronkelijke `HANDOFF`-kandidaten hieronder bleken bij
+nader onderzoek (zie elk bestand voor de reproductie) al eerder besloten in
+`docs/multiplayer/GAME-RULES.md`/`docs/game-rules-plan/` — alleen niet
+geraadpleegd toen ze voor het eerst genoteerd werden. Geschreven zoals
+`docs/handoff-principles.md` het voorschrijft, elk met een expliciete
+intrekking of correctie waar van toepassing (principe 8):
+
+| # | Bestand | Voor | Status |
+| --- | --- | --- | --- |
+| 10 | [`10-besluitverzoek-UI-15-tie-regel.md`](10-besluitverzoek-UI-15-tie-regel.md) | INT-A | Tie-regel zelf is al bevestigd; `scoreboard:updated` en `game:finished` passen 'm inconsistent toe |
+| 11 | [`11-verzoek-streak-reactiezinnen.md`](11-verzoek-streak-reactiezinnen.md) | producteigenaar | Ontdekt: streak-reactiezinnen zijn client-side bouwbaar (eigen-speler, geen protocolgat) — niet gebouwd |
+| 12 | [`12-besluitverzoek-UI-14-dubbele-tab.md`](12-besluitverzoek-UI-14-dubbele-tab.md) | producteigenaar | Bevestig de al-gebouwde `BroadcastChannel`-aanpak voor dubbele tabs |
+| 13 | [`13-verzoek-UI-17-tijd-per-ronde-en-teams.md`](13-verzoek-UI-17-tijd-per-ronde-en-teams.md) | `client/flow/`-eigenaar | Tijd-per-ronde heeft al een bevestigde default+range zonder veld; teams zijn al bevestigd voor "fase 1.5" |
+
+`UI-13` (countdown-duur) kreeg geen eigen prompt: die bleek bij dezelfde
+controle volledig opgelost door verduidelijking (`GAME-RULES.md` bevestigt 3s,
+de mock is een zelf-gedocumenteerde testversnelling) — geen actie nodig, zie
+`HANDOFF-UI.md`.
+
 ## Review
 
 [`REVIEW.md`](REVIEW.md) — feitelijke controle van alle claims in deze negen
@@ -37,13 +62,12 @@ vallen sowieso buiten de lanceerscope. Thema 2's eigen fundamentgat (wereldmotie
 iconografie, lettertype/accentkleur — `O-002`/`O-003`) en thema 5's
 device-/screenreadertests horen niet hier, ook al raken ze dezelfde schermen.
 
-## Bekende `HANDOFF`-kandidaten die uit deze prompts kunnen volgen
+## Wat hierboven (bewust) niet is ingetrokken
 
-- `07`: drie sociale-headline-typen die meer serverdata nodig hebben dan nu
-  beschikbaar is (speleridentiteit bij "enige correct", antwoordtijd,
-  streak-historie).
-- `09`: teammodus (`mode` kent alleen `'individual'`) en tijd-per-ronde
-  (bestaat niet in `HostConfig`) — alleen als teams/tijdslimiet alsnog
-  gewenst blijken.
-- `02`: de keuze of `lobby.mjs`'s eigen QR/code-ingang blijft bestaan naast
-  de nieuwe permanente header, of vervalt.
+- `07`'s twee resterende niet-bouwbare headline-typen (speleridentiteit bij
+  "enige correct" voor een ándere speler, antwoordtijd voor "snelste
+  speler") — daar vond het herzoek geen tegenbewijs, blijven een echte
+  `HANDOFF` aan INT-A (`UI-16`, `HANDOFF-UI.md`).
+- `02`'s keuze om `lobby.mjs`'s eigen QR/code-ingang te verwijderen (niet te
+  laten bestaan naast de nieuwe permanente header) — dat is al uitgevoerd,
+  geen open punt meer (zie `../PROGRESS.md` S05).

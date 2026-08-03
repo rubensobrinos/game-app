@@ -597,3 +597,64 @@ test('collision suffix uses the "Naam 2" format (space + bare number), not "Naam
   const third = await transport.joinGame({ inviteId: created.inviteId, displayName: 'Sanne' });
   assert.equal(third.effectiveName, 'Sanne 3');
 });
+
+// ---------------------------------------------------------------------------
+// UI-15 (HANDOFF-UI.md, pin per handoff-principles.md §6): de tie-regel ZELF
+// is al bevestigd (GAME-RULES.md §Gelijke eindscore, GR2-standings.md,
+// server/rules/standings.js) — score, dan correctCount, dan responstijd, dan
+// gedeelde positie (competitierangschikking). Deze mock implementeert die
+// regel niet: hij gebruikt een eigen `joinedAt`-tiebreak en kent geen gedeelde
+// positie. Gepind zodat een toekomstige aanpassing hier zichtbaar rood wordt
+// i.p.v. stilzwijgend te verschuiven. Zodra `UI-15` (het server-side
+// consistentiepunt tussen `scoreboard:updated` en `game:finished`, zie
+// 10-besluitverzoek-UI-15-tie-regel.md) sluit en de mock wordt aangepast: flip
+// deze assertie naar het echte gedrag (score/correctCount/responstijd, met
+// gedeelde `position` bij een volledige tie) — verwijder de test niet zonder
+// de reden erbij te zetten (principe 8).
+test(
+  'UI-15 (pin, mock wijkt af van de al-bevestigde regel): bij gelijke score wint in deze mock wie eerder joinde — de echte regel (GAME-RULES.md) is score/correctCount/responstijd + gedeelde positie',
+  withFakeTimers(async () => {
+    const transport = createMockTransport();
+    const created = await transport.createGame({ hostParticipates: false, config: {} });
+    const first = await transport.joinGame({ inviteId: created.inviteId, displayName: 'Eerste' });
+    const second = await transport.joinGame({ inviteId: created.inviteId, displayName: 'Tweede' });
+
+    let scoreboardPayload = null;
+    const hostConn = transport.connect(created.sessionToken, { onEvent: () => {} });
+    const firstConn = transport.connect(first.sessionToken, { onEvent: () => {} });
+    const secondConn = transport.connect(second.sessionToken, {
+      onEvent: (envelope) => {
+        if (envelope.event === 'scoreboard:updated') {
+          scoreboardPayload = envelope.payload;
+        }
+      },
+    });
+
+    await hostConn.send('game:start', 'act_start', {});
+    mock.timers.tick(1300); // > COUNTDOWN_MS
+
+    const state = await transport.fetchState(created.gameCode, first.sessionToken);
+    const correctOptionId = state.currentRound.question.targetIso2;
+
+    // Beide spelers antwoorden correct in dezelfde ronde: identieke score
+    // (+100, geen snelheidsbonus in de mock — zie submitAnswer()), maar
+    // "Eerste" joinde als eerste.
+    await firstConn.send('round:answer', 'act_first', {
+      roundId: state.currentRound.roundId,
+      answer: { optionId: correctOptionId },
+    });
+    await secondConn.send('round:answer', 'act_second', {
+      roundId: state.currentRound.roundId,
+      answer: { optionId: correctOptionId },
+    });
+
+    mock.timers.tick(8300); // > ROUND_ACTIVE_MS + startsAt-marge
+    mock.timers.tick(2600); // > ROUND_RESULT_MS -> scoreboard:updated
+
+    assert.notEqual(scoreboardPayload, null);
+    const [rank1, rank2] = scoreboardPayload.top;
+    assert.equal(rank1.score, rank2.score); // de tie zelf: écht gelijke score
+    assert.equal(rank1.effectiveName, 'Eerste'); // vandaag: eerder-join wint
+    assert.equal(rank2.effectiveName, 'Tweede');
+  }),
+);
