@@ -544,9 +544,10 @@ button {
   }
 }
 
-/* `.btn-secondary` is volle breedte (components.css) — binnen deze strip
-   moeten knoppen juist naast elkaar passen. */
-.session-hostbar .btn-secondary {
+/* `.btn-secondary`/`.btn-destructive` zijn volle breedte (components.css) —
+   binnen deze strip moeten knoppen juist naast elkaar passen. */
+.session-hostbar .btn-secondary,
+.session-hostbar .btn-destructive {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -564,6 +565,19 @@ button {
 
 .session-hostbar .btn-secondary:hover {
   color: var(--text);
+}
+
+/* Beëindigen blijft ook in de compacte strip herkenbaar destructief, maar
+   zonder de hele balk rood te maken. */
+.session-hostbar .btn-destructive {
+  background: transparent;
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.session-hostbar .btn-destructive:hover {
+  background: var(--error-bg);
+  color: var(--error);
 }
 
 /* Past gewoon naast de andere knoppen; alleen de uitklappende lijst eronder

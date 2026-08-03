@@ -23,7 +23,9 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   const screen = el('div', 'screen home-screen');
   const logo = el('div', 'app-logo');
   logo.textContent = '🌍';
-  const title = el('h1', 'home-title');
+  // `brand-title`: het homescherm toont de productnaam zelf, en dat is het
+  // enige element dat de gradient nog mag dragen (D-017).
+  const title = el('h1', 'home-title brand-title');
   const quickStartButton = document.createElement('button');
   quickStartButton.type = 'button';
   quickStartButton.className = 'home-quick-start btn-primary';

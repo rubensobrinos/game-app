@@ -35,9 +35,11 @@ export function createHostBar({ root, t, onAction }) {
   nextButton.hidden = true;
   nextButton.addEventListener('click', () => onAction('next'));
 
+  // Destructive, niet secondary: een game beëindigen is onomkeerbaar voor
+  // iedereen in de room (05 §4.5 — nooit visueel gelijk aan een gewone actie).
   const finishButton = document.createElement('button');
   finishButton.type = 'button';
-  finishButton.className = 'btn-secondary session-hostbar-finish';
+  finishButton.className = 'btn-destructive session-hostbar-finish';
   finishButton.hidden = true;
   finishButton.addEventListener('click', () => {
     if (window.confirm(t('hostbar.finishConfirm'))) {

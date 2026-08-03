@@ -16,14 +16,13 @@
    base.css is eigenaar van reset + layout, dit bestand van de componenten;
    die grens stond al in beide headers maar werd hier doorbroken. */
 
-/* Titels — zelfde gradient als .app-title in de singleplayer */
+/* Titels. D-017: gradient is uitsluitend voor de merknaam, niet voor elke
+   heading — dat was de "gradient-inflatie" uit de audit, en het maakte
+   `Lobby`, `Tussenstand` en `Eindstand` net zo luid als de productnaam zelf.
+   Dit beslecht ook UI-5 in HANDOFF-UI, dat het omgekeerde vroeg. */
 h1,
 h2 {
-  background: linear-gradient(135deg, #a855f7, #60a5fa);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
+  color: var(--text);
   font-weight: 800;
   letter-spacing: -0.02em;
 }
@@ -31,11 +30,30 @@ h2 {
 h1 { font-size: 2.2rem; margin: 12px 0 20px; }
 h2 { font-size: 1.5rem; margin: 8px 0 16px; }
 
+/* De merklock-up — het enige element dat de gradient nog draagt. */
+.brand-title {
+  background: linear-gradient(135deg, #a855f7, #60a5fa);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
 p { color: var(--text-muted); }
 
-/* Knoppen — zelfde taal als de singleplayer-knoppen */
+/* ── Knophiërarchie ───────────────────────────────────────────────────────
+   05-DESIGN-SYSTEM §15 waarschuwt letterlijk tegen "één gedeeld regelblok dat
+   hero, secondary, gameplay-option en podiumrematch identiek maakt" — precies
+   wat hier stond. Daardoor woog elke actie even zwaar, wat P1/P15 breekt: de
+   primaire actie moet domineren.
+
+   De rollen hieronder zijn gescheiden. Alleen de echt gedeelde eigenschappen
+   (vorm, tikgedrag) staan in `.btn`; kleur en gewicht volgen betekenis. */
+.btn,
 .btn-primary,
 .btn-secondary,
+.btn-quiet,
+.btn-destructive,
 .gameplay-option,
 .podium-rematch {
   display: block;
@@ -46,15 +64,18 @@ p { color: var(--text-muted); }
   font-size: 1.05rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease,
+    background-color 0.12s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Primary — de ene dominante actie per scherm (Start Rounda, Meedoen). */
 .btn-primary,
 .podium-rematch {
   background: var(--accent);
   color: #fff;
   border: 1px solid var(--accent);
+  font-weight: 700;
 }
 
 .btn-primary:active,
@@ -63,17 +84,73 @@ p { color: var(--text-muted); }
 .btn-primary:hover,
 .podium-rematch:hover { box-shadow: 0 0 0 4px var(--accent-glow); }
 
-.btn-secondary,
-.gameplay-option {
+/* Secondary — een echt alternatief, zichtbaar maar niet dominant. */
+.btn-secondary {
   background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
 }
 
-.btn-secondary:hover,
-.gameplay-option:not(:disabled):hover { border-color: var(--accent-light); }
+.btn-secondary:hover { border-color: var(--accent-light); }
+.btn-secondary:active { transform: scale(0.99); }
 
-button:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Quiet — lage prioriteit (Delen, Voorkeuren, Spel aanpassen). Geen vlak,
+   geen rand: het mag gevonden worden, niet opvallen. */
+.btn-quiet {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.btn-quiet:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+
+/* Destructive — beëindigen, verwijderen. Rood is hier een rand en tekst, geen
+   permanent vol vlak: 05 §4.5 wil geen doorlopende alarmkleur in een normale
+   view, en het mag nooit op primary lijken. */
+.btn-destructive {
+  background: transparent;
+  color: var(--error);
+  border: 1px solid var(--error);
+}
+
+.btn-destructive:hover { background: var(--error-bg); }
+.btn-destructive:active { transform: scale(0.99); }
+
+/* Gameplay option — géén secondary-knop (05 §5). Vorm blijft nu gelijk
+   (D-021 stelt letter/vorm-identiteit bewust uit), maar de regel staat apart
+   zodat die wijziging later niet de hele knoplaag meesleept. */
+.gameplay-option {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.gameplay-option:not(:disabled):hover { border-color: var(--accent-light); }
+.gameplay-option:not(:disabled):active { transform: scale(0.99); }
+
+/* Disabled — 05 §13 en de QA-checklist verbieden "alleen opacity 0.5":
+   daarmee zakt de tekst onder het contrastminimum en lijkt de knop kapot in
+   plaats van tijdelijk niet-beschikbaar. Nu: gedempt vlak, leesbare tekst. */
+button:disabled {
+  cursor: not-allowed;
+  background: var(--surface2);
+  color: var(--text-muted);
+  border-color: var(--border);
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+}
+
+button:disabled:hover {
+  border-color: var(--border);
+  box-shadow: none;
+}
 
 /* Invoervelden */
 .field-input {
