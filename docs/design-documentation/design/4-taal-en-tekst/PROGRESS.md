@@ -3,7 +3,7 @@
 **Eigenaar:** UI (frontend-implementatie)
 **Documenten:** `09-CONTENT-AND-MICROCOPY.md`
 **Criteria uit:** `11-DESIGN-QA-CHECKLIST.md` sectie J · schaal: [`NIVEAUS.md`](../NIVEAUS.md)
-**Bijgewerkt:** 3 augustus 2026 — ná uitvoering van [`prompts/T4-1`](prompts/T4-1-terminologie-en-directe-correcties.md), [`T4-2a`](prompts/T4-2a-statusteksten-direct-uitvoerbaar.md), [`T4-3`](prompts/T4-3-vraagtekst-en-geen-antwoord-staat.md) en de score-bugfix uit §9. [`T4-2b`](prompts/T4-2b-reconnect-drempel-en-handmatige-retry.md) staat nog open, wacht op een PO-besluit. [`T4-4`](prompts/T4-4-pure-aanvullingen-zonder-afhankelijkheden.md) en [`T4-5`](prompts/T4-5-host-specifieke-copy.md) zijn geschreven maar hebben elk één correctie nodig vóór uitvoering (zie [`REVIEW.md`](prompts/REVIEW.md) F1/F2).
+**Bijgewerkt:** 3 augustus 2026 — ná uitvoering van [`prompts/T4-1`](prompts/T4-1-terminologie-en-directe-correcties.md), [`T4-2a`](prompts/T4-2a-statusteksten-direct-uitvoerbaar.md), [`T4-3`](prompts/T4-3-vraagtekst-en-geen-antwoord-staat.md), de score-bugfix uit §9, en [`T4-4`](prompts/T4-4-pure-aanvullingen-zonder-afhankelijkheden.md)/[`T4-5`](prompts/T4-5-host-specifieke-copy.md) (elk met één correctie uit [`REVIEW.md`](prompts/REVIEW.md) F1/F2 vóór uitvoering). Alleen [`T4-2b`](prompts/T4-2b-reconnect-drempel-en-handmatige-retry.md) staat nog open, wacht op een PO-besluit.
 
 Herzien: de vorige versie dekte `09` §4–§11 maar sloeg §12 (pauze/beheer) en
 §13 (reconnect) helemaal over, en had één onjuiste claim (foutcodedekking).
@@ -44,7 +44,7 @@ daar wijken we soms van af.
 |---|---|---|---|
 | Startknop landing | 2 | `Start direct een game` (T4-1) | ✅ letterlijk gelijk |
 | Code-invoerlabel | 2 | `Voer de gamecode in` (T4-1) | ✅ letterlijk gelijk |
-| Belofte-regel | 0 | bestaat niet | `Geen account. Geen download. Iedereen speelt op zijn eigen telefoon.` |
+| Belofte-regel | 2 | `home.promise`, altijd zichtbaar onder de titel (T4-4) | ✅ letterlijk gelijk |
 | Loadingstatussen | 1 | `Potje maken…` tijdens `state.status === 'creating'` (T4-2a) | ✅ voor Snel starten; `Gamecode controleren…`/`Je wordt toegevoegd…` bleven inhoudelijk gelijk aan de bestaande `join.mjs`-teksten, niet aangepast |
 | Errors | 2 | aanwezig, dekt alle gevallen uit dit `09`-lijstje | inhoudelijk gelijkwaardig aan `09`'s vijf voorbeelden |
 
@@ -53,8 +53,8 @@ daar wijken we soms van af.
 | Waar | Niveau | Nu | Volgens `09` |
 |---|---|---|---|
 | Naamvraag | 2 | `Hoe noemen we je?` + `join.nameOptionalHint`: "Optioneel — laat leeg voor een voorgestelde naam." (T4-1) | ✅ letterlijk gelijk, plus behoud van de optioneel-aanwijzing die de kale tekstvervanging zelf had weggehaald |
-| Sociaal bewijs | 0 | bestaat niet | `19 spelers wachten al` |
-| Naam-botsingsmelding | 0 | suffix wordt toegepast (`Naam 2`), nooit uitgelegd | `Deze naam wordt al gebruikt. We hebben er "2" achter gezet.` |
+| Sociaal bewijs | 2 | `join.waitingCount` (`tCount`), zichtbaar zodra de preview is opgehaald en `playerCount > 0` (T4-4) | ✅ letterlijk gelijk — **alleen ná een uitnodigingslink**, niet ná een ingetikte gamecode (die slaat de preview-stap over, `REVIEW.md` F2); `09` maakt dat onderscheid zelf niet |
+| Naam-botsingsmelding | 0 | suffix wordt toegepast (`Naam 2`), nooit uitgelegd | `Deze naam wordt al gebruikt. We hebben er "2" achter gezet.` — blijft geblokkeerd: de server geeft geen signaal dat er een botsing was (`nameSource` onderscheidt alleen server-verzonnen/zelf-gekozen), dit vraagt een protocolveld |
 
 ## §6 — Lobby (host)
 
@@ -64,17 +64,24 @@ daar wijken we soms van af.
 | Spelersaantal | 2 | `tCount('lobby.playerCount', n)` | `7 spelers aanwezig` — dekt zich |
 | Startknop | 2 | `Start Rounda` | wijkt bewust af van `Start game — N spelers` (`D-020`, expliciet besloten) |
 | Lege lobby | 2 | `lobby.emptyTitle` + `lobby.emptyHint` tonen i.p.v. de telling zolang `playerCount === 0` (T4-2a) | ✅ letterlijk gelijk |
-| Vergrendelstatus | 0 | geen zichtbare tekst dat de room op slot zit | `Room vergrendeld` / `Nieuwe spelers kunnen weer meedoen` |
+| Vergrendelstatus | 2 | `lobby.locked` zolang `locked === true`; kort `lobby.unlocked` ná het ontgrendelen (3s, T4-4) | ✅ letterlijk gelijk |
 
 ## §6 — Lobby (speler)
 
-**Niveau 0 als geheel, ontbrak als eigen rij in de vorige versie.** `lobby.mjs`
-toont host en speler exact hetzelfde scherm — geen van de vier
-spelerspecifieke teksten uit `09` bestaat: `Je bent binnen`, `De host start
-zo`, `Nodig iemand uit`, `Je speelt als {naam}`. Dit stond al als schermgat in
-thema 1 (S06), maar niet als tekstgat hier — het is allebei: het scherm mist
-een aparte staat, en die staat heeft eigen copy nodig die nog nergens is
-opgeschreven.
+**Niveau 2 — uitgevoerd (T4-5).** `lobby.mjs` toonde host en speler exact
+hetzelfde scherm; er is nu een additieve `isHost === false`-tak met de vier
+teksten uit `09`: `lobby.playerJoined` ("Je bent binnen"),
+`lobby.playerWaitingForHost` ("De host start zo"), `lobby.playerInviteHint`
+("Nodig iemand uit"), `lobby.playerSelf` ("Je speelt als {naam}" — de naam
+komt uit een nieuwe `selfName`-waarde in `lobby.mjs`'s `update()`-payload,
+gevoed door `session-shell.mjs`'s al bestaande `selfInfo.effectiveName`;
+`REVIEW.md` F1 signaleerde terecht dat dit geen bestaande modeldata was).
+Browserverifieerd: een niet-host ziet alle vier teksten inclusief de eigen
+naam, de host-kant (deelactie, spelersaantal, startknop) blijft ongewijzigd.
+Dit was zowel een tekst- als een schermgat (thema 1, S06) — het schermgat
+(een écht aparte staat, niet alleen extra tekst in dezelfde staat) blijft in
+zoverre openstaan dat dit een additieve tak is, geen volledig herontworpen
+staat; voor de tekst zelf is het gat gedicht.
 
 ## §7 — Countdown en vraag
 
@@ -162,7 +169,7 @@ in `09`; wij hebben er één, en die ene wijkt af.
 | Waar | Niveau | Nu | Volgens `09` |
 |---|---|---|---|
 | Pauzetekst (speler) | 1 | `Gepauzeerd door de host` | ✅ vrijwel gelijk, mist alleen `We gaan zo verder.` als tweede regel |
-| **Pauzetekst (host)** | 0 | **speler en host zien exact dezelfde reden-tekst** | Host hoort een stempel te zien (`GAME GEPAUZEERD`), geen kalme spelerszin — dit is een aparte staat die nooit is gebouwd, niet alleen ontbrekende tekst |
+| Pauzetekst (host) | 2 | `pause.hostStamp` ("Game gepauzeerd", hoofdletters via CSS) i.p.v. de spelerszin wanneer `isHost() === true` (T4-5) | ✅ letterlijk gelijk aan de bedoeling — browserverifieerd: host ziet het stempel, speler blijft de kalme zin zien |
 | Vergrendelknop | 2 | `hostbar.lock`: "Room vergrendelen" / `hostbar.unlock`: "Room ontgrendelen" (T4-1) | ✅ letterlijk gelijk |
 | Beëindigknop | 2 | `hostbar.finish`: "Game beëindigen" (T4-1) | ✅ letterlijk gelijk |
 | Beëindig-bevestiging | 2 | `hostbar.finishConfirm`: "Weet je zeker dat je het potje wilt beëindigen?" (T4-1, letterlijk overgenomen incl. de "potje"-keuze uit `09` zelf) | ✅ letterlijk gelijk — de `game`/`potje`-inconsistentie zit al in `09` zelf, zie §3 |
@@ -202,7 +209,7 @@ in `09`; wij hebben er één, en die ene wijkt af.
 
 | Niveau | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| Aantal rijen hierboven (§4–§14) | 14 | 13 | 22 | 0 |
+| Aantal rijen hierboven (§4–§14) | 9 | 13 | 27 | 0 |
 
 Herteld ná uitvoering van T4-1/T4-2a/T4-3 + de score-bugfix (49 rijen,
 §4–§14 — consistenter afgebakend dan de vorige telling van 17/15/12/0, die
@@ -213,35 +220,29 @@ voorkomen.
 
 ## Wat dit voor de eerdere conclusie betekent
 
-De vorige versie signaleerde drie dingen die geen zuiver tekstgat waren; twee
-daarvan zijn nu opgelost:
+De vorige versie signaleerde drie dingen die geen zuiver tekstgat waren; alle
+drie zijn nu opgelost:
 
 - **§9 (geen-antwoord-staat) is opgelost** — `round-model.mjs` maakt nu
   server-autoritatief onderscheid via `hydrateFromSnapshot` +
   preciezere `selfNoAnswer`-logica (T4-3), niet meer verward met "fout".
   Als bijvangst is ook een dieper bug gefixt: `roundModel` werd vóór deze fix
   nooit gehydrateerd uit een snapshot, dus toonde een reconnect/reload
-  midden in een ronde een lege gameplay-staat.
-- **§12 (host-pauzestempel) staat nog open** — dit vroeg een aparte
-  hostpauzeweergave (stempel i.p.v. spelerszin), geen tekstcorrectie; niet
-  meegenomen in T4-1/T4-2a/T4-3, blijft niveau 0.
+  midden in een ronde een lege gameplay-staat. Een tweede, later gevonden bug
+  (`ownCorrect`/`ownPoints` matchten de echte server niet) is ook opgelost.
+- **§12 (host-pauzestempel) is opgelost** (T4-5) — de host ziet nu
+  `pause.hostStamp` i.p.v. de kalme spelerszin, browserverifieerd.
 - **§10 (sociale headlines) is voor de helft niet van hier** — ongewijzigd,
   wacht op thema 1 (S14).
-- **§13 (reconnect) is voor drie van de vijf rijen uitgevoerd** (T4-2a):
-  hersteld-bevestiging en geruststelling staan er, met een precies
-  timer-/state-model. De resterende twee (langdurig-mislukt-tekst +
-  handmatige retry-knop, T4-2b) zijn welbewust niet gebouwd: beide vragen een
-  productbesluit (drempel, knopgedrag) dat niet aan een tekstcorrectie hangt
-  — zie [`T4-2b`](prompts/T4-2b-reconnect-drempel-en-handmatige-retry.md).
 
-Grootste resterende directe winst: [`T4-4`](prompts/T4-4-pure-aanvullingen-zonder-afhankelijkheden.md)
-(belofte-regel, sociaal bewijs, vergrendelstatus) en
-[`T4-5`](prompts/T4-5-host-specifieke-copy.md) (spelerslobby-copy +
-host-pauzestempel) — vijf niveau-0-rijen, alle vijf geverifieerd tegen de
-code dat de benodigde data al bestaat. Beide hebben één correctie nodig vóór
-uitvoering (`REVIEW.md` F1/F2) — geen productbesluit, wel een feitelijke
-aanpassing van de prompttekst zelf.
+`§13` (reconnect) blijft voor drie van de vijf rijen uitgevoerd (T4-2a); de
+resterende twee (langdurig-mislukt-tekst + handmatige retry-knop, T4-2b) zijn
+welbewust niet gebouwd — beide vragen een productbesluit (drempel,
+knopgedrag) dat niet aan een tekstcorrectie hangt, zie
+[`T4-2b`](prompts/T4-2b-reconnect-drempel-en-handmatige-retry.md).
 
-De `ownCorrect`/`ownPoints`-bugmelding bij §9 is inmiddels opgelost (zie
-aldaar) — die stond los van de niveau-0-prompts en is niet meer een
-blokkade.
+Resterende gaten zonder open productbesluit: **§5 sociaal bewijs bij
+naam-botsing** en **§9 puntendelta/rank-uitsplitsing** vragen allebei een
+protocolveld dat er nog niet is (zie `HANDOFF-UI.md` UI-12 voor het
+verwante §9-gat). §10's selectielogica en §11's tie-regel/podium-acties
+blijven bij thema 1 resp. een PO-besluit liggen, niet bij mij.

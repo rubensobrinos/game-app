@@ -1,8 +1,11 @@
 # Prompt — T4-4: Pure aanvullingen zonder afhankelijkheden
 
-Onderdeel van [`../PROGRESS.md`](../PROGRESS.md), thema 4. Brengt drie
-niveau-0-rijen naar niveau 1: alle drie geverifieerd als puur tekst/UI-werk
-met data die al bestaat — geen protocolwijziging, geen PO-besluit nodig.
+**Status: uitgevoerd.** Onderdeel van [`../PROGRESS.md`](../PROGRESS.md),
+thema 4. Bracht drie niveau-0-rijen naar niveau 2: alle drie geverifieerd als
+puur tekst/UI-werk met data die al bestaat — geen protocolwijziging, geen
+PO-besluit nodig. **Punt 2 gecorrigeerd ná [`REVIEW.md`](REVIEW.md) F2** —
+het geldt alleen voor het uitnodigingslink-pad, niet voor een ingetikte
+gamecode.
 
 ## Brondocument
 
@@ -17,21 +20,33 @@ met data die al bestaat — geen protocolwijziging, geen PO-besluit nodig.
   speelt op zijn eigen telefoon.`
 - Altijd zichtbaar op het startscherm, geen voorwaarde.
 
-## 2 — Sociaal bewijs bij het invoeren van een gamecode
+## 2 — Sociaal bewijs ná een uitnodigingslink
 
-De data bestaat al: `GET /games/preview` retourneert `playerCount`
-(`server/protocol/preview-endpoint.mjs:100-121`, ook al doorgegeven via
-`transport.previewInvite()` in zowel `transport.mjs:250-252` als
-`transport-mock.mjs:135-150`). `views/join.mjs:83-84` gebruikt momenteel
+**Correctie (`REVIEW.md` F2):** dit werkt alléén ná een uitnodigingslink,
+niet ná het intikken van een gamecode. Een code-locator slaat de
+`previewing`-status in `join-state.mjs:145-155` volledig over en landt
+direct in `name-entry` (met `suggestedName: null`) — `previewInvite()` wordt
+dan nooit aangeroepen, dus er is geen respons om `playerCount` uit te halen.
+`transport.mjs:245-247` bevestigt hetzelfde aan de transportkant: het
+preview-eindpunt is uitsluitend `inviteId`, geen `gameCode`-variant
+(`PROTOCOL.md`). Thema 1's `06-start-en-join-polish.md` S04.2 documenteert
+deze beperking al.
+
+De data bestaat wél voor het invite-pad: `GET /games/preview` retourneert
+`playerCount` (`server/protocol/preview-endpoint.mjs:100-121`, ook al
+doorgegeven via `transport.previewInvite()` in zowel `transport.mjs:250-252`
+als `transport-mock.mjs:135-150`). `views/join.mjs:83-84` gebruikt momenteel
 alleen `preview.suggestedName` uit die respons — `playerCount` wordt nergens
-uitgelezen. Dit is dus geen ontbrekende data, alleen ontbrekende UI.
+uitgelezen. Dit is dus geen ontbrekende data, alleen ontbrekende UI, en
+uitsluitend op het moment dat `join-state.status === 'previewing'` bestaat.
 
 - Nieuwe sleutel (pluraliseerbaar, gebruik `tCount`, zie de bestaande
   `lobby.playerCount`): `join.waitingCount` — `.one`: `1 speler wacht al`,
   `.other`: `{n} spelers wachten al`.
-- Toon deze regel in `join.mjs` zodra de preview is opgehaald en
-  `playerCount > 0`; verberg 'm bij `playerCount === 0` (dan is er niemand om
-  over te berichten) en tijdens het laden.
+- Toon deze regel in `join.mjs` alleen tijdens/ná de `previewing`-status
+  (dus nooit voor een code-locator) en zodra `playerCount > 0`; verberg 'm
+  bij `playerCount === 0` (dan is er niemand om over te berichten) en
+  tijdens het laden.
 
 ## 3 — Vergrendelstatus zichtbaar in de lobby
 
@@ -58,13 +73,14 @@ room op slot zit — dat is het gat.
 - Geen nieuwe transport-aanroepen nodig voor punt 2 en 3 — alleen bestaande
   respons-/snapshotvelden eindelijk uitlezen.
 
-## Definition of done
+## Definition of done — behaald
 
-- Handmatig tegen `transport-mock.mjs`: startpagina toont de belofte-regel;
-  een tweede speler die een code intikt ziet "1 speler wacht al" ná het
-  aanmaken van een game door de host; de host ziet "Room vergrendeld" in de
-  lobby ná `game:lock`, kort "Nieuwe spelers kunnen weer meedoen" ná
-  `game:unlock`.
-- `node --test` groen (volledige suite, niet alleen frontend).
+- Browserverifieerd tegen `transport-mock.mjs` (Playwright, echte UI-clicks):
+  startpagina toont de belofte-regel; een tweede speler die de
+  uitnodigingslink opent (niet: een code intikt) ziet "1 speler wacht al" ná
+  het aanmaken van een game door de host; de host ziet "Room vergrendeld" in
+  de lobby ná het klikken van de vergrendelknop, kort "Nieuwe spelers kunnen
+  weer meedoen" ná het ontgrendelen.
+- `node --test`: 2749/2749 groen (volledige suite).
 - `PROGRESS.md` §4 (belofte-regel), §5 (sociaal bewijs), §6-host
-  (vergrendelstatus) naar niveau 1.
+  (vergrendelstatus) naar niveau 2.

@@ -10,13 +10,14 @@ voor/na-tekst, Regels, Definition of Done.
 | [`T4-2a-statusteksten-direct-uitvoerbaar.md`](T4-2a-statusteksten-direct-uitvoerbaar.md) | uitgevoerd | Loadingstatus, lege lobby, hersteld-bevestiging + antwoord-geruststelling | T4-3 (`answerSaved` leunt op de hydratatiefix) |
 | [`T4-2b-reconnect-drempel-en-handmatige-retry.md`](T4-2b-reconnect-drempel-en-handmatige-retry.md) | open — wacht op PO-besluit | `connection.reconnectFailed`-drempel + handmatige retry-knoppen | PO-besluit over drempel en knopgedrag |
 | [`T4-3-vraagtekst-en-geen-antwoord-staat.md`](T4-3-vraagtekst-en-geen-antwoord-staat.md) | uitgevoerd, herontworpen ná reviewfeedback | Vraagtekst + snapshot-hydratatie zodat `GEEN ANTWOORD` server-autoritatief is | niets |
-| [`T4-4-pure-aanvullingen-zonder-afhankelijkheden.md`](T4-4-pure-aanvullingen-zonder-afhankelijkheden.md) | open — corrigeer eerst de kop van §2, zie [`REVIEW.md`](REVIEW.md) | Belofte-regel, sociaal bewijs bij join, vergrendelstatus in de lobby | niets — data bestaat al; let op de overlap met thema 1 |
-| [`T4-5-host-specifieke-copy.md`](T4-5-host-specifieke-copy.md) | open — `lobby.playerSelf` vraagt eerst een prop, zie [`REVIEW.md`](REVIEW.md) | Spelerslobby-copy + host-pauzestempel | `lobby.playerSelf` vraagt tóch een nieuwe prop in `createLobbyView` |
+| [`T4-4-pure-aanvullingen-zonder-afhankelijkheden.md`](T4-4-pure-aanvullingen-zonder-afhankelijkheden.md) | uitgevoerd, F2 verwerkt vóór uitvoering | Belofte-regel, sociaal bewijs ná uitnodigingslink, vergrendelstatus in de lobby | niets |
+| [`T4-5-host-specifieke-copy.md`](T4-5-host-specifieke-copy.md) | uitgevoerd, F1 verwerkt vóór uitvoering (`selfName`-prop toegevoegd) | Spelerslobby-copy + host-pauzestempel | niets |
 
-[`REVIEW.md`](REVIEW.md) — feitelijke controle van T4-4/T4-5 en de bugmelding
-tegen de code (3 aug 2026). Zes bevindingen; **de ontbrekende `playerSelf`-prop
-(T4-5 §1) en de kop van T4-4 §2 moeten gecorrigeerd zijn vóórdat iemand deze
-twee prompts uitvoert.**
+[`REVIEW.md`](REVIEW.md) — feitelijke controle van T4-4/T4-5 en de
+(inmiddels opgeloste) bugmelding tegen de code (3 aug 2026). Zes bevindingen;
+F1 en F2 zijn verwerkt in de prompts zelf vóór uitvoering, F4/F5/F6 in de
+bugfix (zie `PROGRESS.md` §9), F3 blijft een open coördinatiepunt met
+thema 1.
 
 T4-2 is na reviewfeedback opgesplitst in T4-2a (geen open productbesluit,
 direct uitvoerbaar) en T4-2b (wél een open productbesluit) — zie de uitleg
@@ -38,7 +39,7 @@ Bewust nog geen prompt voor (geverifieerd tegen de code, niet aangenomen):
   een apart signaal (`nameSource` onderscheidt alleen server-verzonnen van
   zelf-gekozen, niet "botste met een bestaande naam"). Vraagt een
   protocolveld, geen tekstwerk — buiten mijn bevoegdheid zonder overleg.
-- **Puntendelta + rank movement** (§9) — geblokkeerd, zie de aparte
-  bugmelding: de echte `round:ended`-payload heeft niet eens de velden die
-  `round-model.mjs` momenteel verwacht, dus dit moet eerst als bugfix
-  opgelost worden vóórdat er een delta-tekst op gebouwd kan worden.
+- **Rank movement** (§9) — geblokkeerd: `standings-model.mjs` bewaart geen
+  vorige positie, dus "twee plaatsen omhoog" is niet af te leiden zonder een
+  nieuwe stukje state. (Puntendelta is inmiddels wél opgelost, als onderdeel
+  van de score-bugfix — zie `PROGRESS.md` §9.)
