@@ -22,6 +22,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-17 | client/flow (eigenaar) | 🔵 open | Teams zijn al volledig gespecificeerd (`GAME-RULES.md` §Teams — fase 1.5) maar niet in `HostConfig`; tijd-per-ronde heeft een bevestigde default+range (`15s, 10–30s`) zonder instelveld — zie herziene toelichting |
 | UI-18 | INT-A / PR | 🔵 open | Geen server-side timeout ná `host_disconnected` — een hostloze room blijft voor onbepaalde tijd gepauzeerd, geen uitslagbehoud-event mogelijk (thema 5, T5-10) |
 | UI-19 | INT-A / PR | 🔵 open | Geen protocolmoment tussen "ronde actief" en "uitslag compleet" — `round:closing` bestaat niet, thema 3 voegt E08 daarom samen met E09's begin |
+| UI-20 | thema 5 / thema 2 | 🔵 open | `T2-9` en `T5-7` claimen allebei het voorkeurenpaneel; de een wijzigt compact portrait, de ander eist dat het ongewijzigd blijft |
 
 ---
 
@@ -826,3 +827,39 @@ besluit is dat thema 3 alleen mag nemen:
 (optie 1) — geen aanname die de client zelf zou moeten verzinnen. Tot dan
 blijft E08 samengevoegd met E09, vastgelegd in
 `3-beweging-en-gevoel/PROGRESS.md` en `prompts/M2-choreografie-niveau1-naar-2.md`.
+
+---
+
+## UI-20 — twee prompts claimen het voorkeurenpaneel (thema 2, 3 aug 2026)
+
+**Voor:** thema 5, en thema 2 zelf. **Blokkeert:** `T2-9` (thema 2) en
+`T5-7` (thema 5) — allebei, tot dit één ticket is.
+
+`05` §12 vraagt op mobiel een bottom sheet en op desktop een zijpaneel; het
+benchmarkrapport §9 noemt het huidige zwevende voorkeurenpaneel met naam als
+wat het níét moet zijn. Twee thema's hebben daar onafhankelijk een prompt voor
+geschreven, en die spreken elkaar tegen:
+
+| | Wat het voorschrijft |
+| --- | --- |
+| `T2-9` (thema 2) | Bottom sheet op compact, zijpaneel op desktop — dus een wijziging op 390px |
+| `T5-7` (thema 5) | Hamburgermenu vanaf medium als vast zijpaneel, met als definition of done: *"geen regressie op compact portrait (390×844 blijft ongewijzigd)"* |
+
+De ene verandert precies de breedte die de andere onveranderd wil houden.
+Geen van beide prompts noemt de ander; ik vond het pas bij de tweede
+reviewronde.
+
+**Voorstel, geen besluit:** één ticket, bij thema 5, omdat `T5-7` het
+bredere plaatje heeft (medium en large samen). Thema 2 levert dan de
+sheet-component en de toegankelijkheidsgaranties; thema 5 bepaalt de
+breakpoints en de compositie. `T2-9` vervalt of krimpt tot de component.
+
+**Eén ding dat in beide prompts ontbreekt en dat de bouwer moet weten:** het
+voorkeurenpaneel is vandaag een *disclosure* (`aria-haspopup`/`-expanded`/
+`-controls`, geen focus trap), geen dialog. De QR- en pauze-overlay zijn dat
+wél. Omzetten naar een sheet is dus een ARIA-patroonwissel en niet een
+verbouwing — wie alleen een `role` toevoegt levert een half patroon op.
+
+Ook nog: `05` §12 verbiedt een popover over een onbeantwoorde vraag "behalve
+essentiële mute/noodactie", en die uitzondering telt hier — `06` §5 eist dat
+mute altijd bereikbaar is, en die komt straks in dit paneel (`O-008`).

@@ -1,6 +1,12 @@
 # Prompt — T2-9: Overlays als bottom sheet op mobiel
 
-Onderdeel van [`README.md`](README.md). Blokkeert thema 1 (`S17`, `S18`).
+> **⏸ Geblokkeerd — niet uitvoeren vóór `HANDOFF-UI.md` UI-20 beslecht is.**
+> Thema 5's `T5-7` claimt hetzelfde onderdeel en eist in zijn definition of
+> done dat compact portrait (390×844) ongewijzigd blijft — precies de breedte
+> waar deze prompt de sheet invoert. Twee prompts op één component; dat moet
+> er eerst één worden.
+
+Onderdeel van [`README.md`](README.md). Blokkeert thema 1 (`S18`).
 
 Deze prompt ontbrak in de eerste ronde. `Overlays` staat op niveau 1 en
 blokkeert thema 1, maar stond niet in de lijst en ook niet bij de bewust

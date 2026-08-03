@@ -1,5 +1,17 @@
 # Prompt — T2-5: QR-kaart als component
 
+> **⏹ Vervallen — niet uitvoeren.** Thema 1 heeft `room-header.mjs` zelf
+> ingehangen én gestyled (`HANDOFF-UI.md` UI-10 ✅). Daarmee is de blokkade
+> weg en is deze prompt zonder inhoud geraakt.
+>
+> Het bestand blijft staan omdat de redenering eronder nog geldt: de
+> scopeafbakening tussen "component" (thema 2) en "scherm" (thema 1), en het
+> punt dat de code in de appheader klein hoort te blijven terwijl de code in
+> de modal groot moet. Dat laatste is alsnog uitgevoerd in `T2-10`.
+>
+> Wie hier een nieuwe QR-kaart nodig heeft — podium, groot scherm — begint met
+> een nieuw ticket, niet met dit bestand.
+
 Onderdeel van [`README.md`](README.md).
 
 _Herzien ná review. De eerste versie nam werk over dat volgens `HANDOFF-UI.md`
