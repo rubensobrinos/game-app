@@ -3,6 +3,7 @@
 **Eigenaar:** UX/UI-frontend (Claude) — sinds 3 augustus 2026
 **Documenten:** `02-DESIGN-PRINCIPLES.md`, `05-DESIGN-SYSTEM.md`
 **Criteria uit:** `11-DESIGN-QA-CHECKLIST.md` sectie I · schaal: [`NIVEAUS.md`](../NIVEAUS.md)
+**Prompts:** [`prompts/`](prompts/) — zeven tickets, gesorteerd op wie erop wacht
 **Bijgewerkt:** 3 augustus 2026 · commit `49028a8`
 
 Dit gebied gaat niet over schermen maar over het **gereedschap waarmee elk
