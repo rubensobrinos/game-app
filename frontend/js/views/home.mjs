@@ -34,7 +34,16 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   quickStartButton.type = 'button';
   quickStartButton.className = 'home-quick-start btn-primary';
   const quickStartError = el('p', 'home-quick-start-error field-error');
-  const quickStartStatus = el('p', 'home-quick-start-status');
+  // M6/E02: twee kanalen, één betekenis. `quickStartProgress` is de
+  // zichtbare, decoratieve indicator (geen tekstduplicaat van de knop);
+  // `quickStartStatus` blijft de aria-live-aankondiging maar is nu
+  // visueel verborgen (`sr-only`) zodat "Potje maken…" niet twee keer
+  // zichtbaar op het scherm staat (knop + paragraaf).
+  const quickStartProgress = el('div', 'home-quick-start-progress');
+  quickStartProgress.hidden = true;
+  quickStartProgress.setAttribute('aria-hidden', 'true');
+  quickStartProgress.append(el('span', 'home-quick-start-dot'), el('span', 'home-quick-start-dot'), el('span', 'home-quick-start-dot'));
+  const quickStartStatus = el('p', 'home-quick-start-status sr-only');
   quickStartStatus.setAttribute('aria-live', 'polite');
 
   const divider = el('p', 'home-divider');
@@ -64,7 +73,7 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   hostSetupLink.className = 'home-host-setup-link btn-quiet';
   hostSetupLink.addEventListener('click', () => dispatch({ type: 'OPEN_ADVANCED' }));
 
-  const quickStartGroup = [logo, title, promise, quickStartButton, quickStartStatus, quickStartError, divider, codeLabel, codeError, codeSubmitButton, hostSetupLink];
+  const quickStartGroup = [logo, title, promise, quickStartButton, quickStartProgress, quickStartStatus, quickStartError, divider, codeLabel, codeError, codeSubmitButton, hostSetupLink];
   screen.append(...quickStartGroup);
 
   // S02: los scherm, hergebruikt dezelfde HostSetupState-instantie (geen
@@ -192,8 +201,12 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
     title.textContent = t('home.title');
     promise.textContent = t('home.promise');
     codeLabelText.textContent = t('home.codeLabel');
-    quickStartButton.textContent = t('home.quickStart');
+    // M6/E02: de knop-tekst zelf wisselt naar de "bezig"-copy (checklist C:
+    // "Verandert de knop direct naar `Potje maken…`?") i.p.v. alleen een
+    // aparte paragraaf ernaast.
+    quickStartButton.textContent = state.status === 'creating' ? t('home.creating') : t('home.quickStart');
     quickStartButton.disabled = state.status === 'creating';
+    quickStartProgress.hidden = state.status !== 'creating';
     divider.hidden = state.status === 'creating';
     codeLabel.hidden = state.status === 'creating';
     codeSubmitButton.hidden = state.status === 'creating';
