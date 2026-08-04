@@ -51,10 +51,6 @@ export function createHostBar({ root, t, onAction }) {
     morePanel.hidden = expanded;
   });
 
-  const lockButton = document.createElement('button');
-  lockButton.type = 'button';
-  lockButton.className = 'btn-secondary session-hostbar-lock';
-  lockButton.hidden = true;
 
   // Destructive, niet secondary: een game beëindigen is onomkeerbaar voor
   // iedereen in de room (05 §4.5 — nooit visueel gelijk aan een gewone actie).
@@ -72,21 +68,15 @@ export function createHostBar({ root, t, onAction }) {
   playersList.className = 'session-hostbar-players';
   playersList.hidden = true;
 
-  morePanel.append(lockButton, finishButton, playersList);
+  morePanel.append(finishButton, playersList);
   bar.append(pauseButton, nextButton, moreButton, morePanel);
   root.appendChild(bar);
 
   let pauseAction = null;
-  let lockAction = null;
 
   pauseButton.addEventListener('click', () => {
     if (pauseAction !== null) {
       onAction(pauseAction);
-    }
-  });
-  lockButton.addEventListener('click', () => {
-    if (lockAction !== null) {
-      onAction(lockAction);
     }
   });
 
@@ -105,10 +95,6 @@ export function createHostBar({ root, t, onAction }) {
     pauseButton.textContent = pauseAction === 'resume' ? '▶' : '⏸';
     pauseButton.setAttribute('aria-label', pauseAction === 'resume' ? t('session.resume') : t('session.pause'));
 
-    lockAction = availableActions.includes('unlock') ? 'unlock' : availableActions.includes('lock') ? 'lock' : null;
-    lockButton.hidden = lockAction === null;
-    lockButton.textContent = lockAction === 'unlock' ? t('hostbar.unlock') : t('hostbar.lock');
-
     nextButton.hidden = !availableActions.includes('next');
     nextButton.textContent = t('hostbar.next');
 
@@ -123,7 +109,7 @@ export function createHostBar({ root, t, onAction }) {
 
     // De ⋯-knop bestaat alleen als er iets in het paneel zit; dichtklappen
     // zodra alles eruit verdwijnt.
-    const hasMore = lockAction !== null || !finishButton.hidden || canKick;
+    const hasMore = !finishButton.hidden || canKick;
     moreButton.hidden = !hasMore;
     moreButton.setAttribute('aria-label', t('hostbar.more'));
     if (!hasMore) {
@@ -133,21 +119,34 @@ export function createHostBar({ root, t, onAction }) {
 
     playersList.textContent = '';
     for (const [playerId, name] of participants) {
+      // Feedbackronde 2 (punt 5/14): geen kale verwijderknop naast elke naam
+      // — een klein ⋯ per rij, verwijderen zit daarachter (met confirm).
       const item = document.createElement('li');
       item.className = 'session-hostbar-player';
       const label = document.createElement('span');
       label.textContent = name;
+      const rowMenuButton = document.createElement('button');
+      rowMenuButton.type = 'button';
+      rowMenuButton.className = 'btn-secondary session-hostbar-player-menu';
+      rowMenuButton.textContent = '⋯';
+      rowMenuButton.setAttribute('aria-expanded', 'false');
+      rowMenuButton.setAttribute('aria-label', `${t('lobby.playerOptions')} ${name}`);
       const kickButton = document.createElement('button');
       kickButton.type = 'button';
-      kickButton.className = 'btn-secondary session-hostbar-kick';
+      kickButton.className = 'btn-destructive session-hostbar-kick';
       kickButton.textContent = t('hostbar.kick');
-      kickButton.setAttribute('aria-label', `${t('hostbar.kick')} ${name}`);
+      kickButton.hidden = true;
       kickButton.addEventListener('click', () => {
         if (window.confirm(`${t('hostbar.kickConfirmPrefix')} ${name}`)) {
           onAction('kick', { playerId });
         }
       });
-      item.append(label, kickButton);
+      rowMenuButton.addEventListener('click', () => {
+        const open = rowMenuButton.getAttribute('aria-expanded') === 'true';
+        rowMenuButton.setAttribute('aria-expanded', String(!open));
+        kickButton.hidden = open;
+      });
+      item.append(label, rowMenuButton, kickButton);
       playersList.appendChild(item);
     }
   }

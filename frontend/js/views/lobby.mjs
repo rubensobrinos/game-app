@@ -145,15 +145,49 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     }
   }
 
-  // GAME-kaart (alleen tonen; carrousel is 40D-werk)
-  const gameLabel = settingsLabel('lobby-settings-game-label');
+  // Punt 6+7 (feedbackronde 2): geen "GAME"-label, wél de vier wereldgames
+  // als draaibare carrousel (DOELBEELD §1). Alleen "Raad de vlag" is
+  // speelbaar; de andere drie tonen BINNENKORT en het spel start altijd met
+  // de vlaggen (geen serverkeuze zolang er maar één gameType bestaat).
+  const GAMES = [
+    { key: 'flag', speelbaar: true },
+    { key: 'realfake', speelbaar: false },
+    { key: 'odd', speelbaar: false },
+    { key: 'outline', speelbaar: false },
+  ];
+  let gameIndex = 0;
+  const gameRow = el('div', 'lobby-gamerow');
+  const gamePrev = document.createElement('button');
+  gamePrev.type = 'button';
+  gamePrev.className = 'lobby-gamearrow';
+  gamePrev.textContent = '‹';
+  const gameNext = document.createElement('button');
+  gameNext.type = 'button';
+  gameNext.className = 'lobby-gamearrow';
+  gameNext.textContent = '›';
   const gameCard = el('div', 'lobby-gamecard');
   const gameCardTitle = el('b', 'lobby-gamecard-title');
   gameCard.appendChild(gameCardTitle);
+  gameRow.append(gamePrev, gameCard, gameNext);
   const gameCardSub = el('div', 'lobby-gamecard-sub');
   const gameCardDesc = el('span', 'lobby-gamecard-desc');
   const gameCardSoon = el('span', 'lobby-gamecard-soon');
   gameCardSub.append(gameCardDesc, gameCardSoon);
+  function renderGameCard() {
+    const game = GAMES[gameIndex];
+    gameCardTitle.textContent = t(`lobby.game_${game.key}`);
+    gameCardDesc.textContent = t(`lobby.game_${game.key}_desc`);
+    gameCard.classList.toggle('is-soon', !game.speelbaar);
+    gameCardSoon.textContent = game.speelbaar ? '' : t('lobby.gameSoonStart');
+  }
+  gamePrev.addEventListener('click', () => {
+    gameIndex = (gameIndex - 1 + GAMES.length) % GAMES.length;
+    renderGameCard();
+  });
+  gameNext.addEventListener('click', () => {
+    gameIndex = (gameIndex + 1) % GAMES.length;
+    renderGameCard();
+  });
 
   // ANTWOORDEN: Kiezen actief; Mix/Typen disabled (40D)
   const answersLabel = settingsLabel('lobby-settings-answers-label');
@@ -196,13 +230,61 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     pushConfig({ pacing: currentPacing === 'auto' ? 'host' : 'auto' });
   });
   autoNextRow.append(autoNextLabel, autoNextToggle);
+  const autoRevealRow = el('div', 'lobby-toggle-row is-soon');
+  const autoRevealLabel = el('span', 'lobby-toggle-label');
+  const autoRevealSoon = el('span', 'lobby-toggle-soon');
+  autoRevealRow.append(autoRevealLabel, autoRevealSoon);
+
+  const moreToggle = document.createElement('button');
+  moreToggle.type = 'button';
+  moreToggle.className = 'btn-quiet lobby-settings-more';
+  moreToggle.setAttribute('aria-expanded', 'false');
+  const moreBody = el('div', 'lobby-settings-morebody');
+  moreBody.hidden = true;
+  moreToggle.addEventListener('click', () => {
+    const open = moreToggle.getAttribute('aria-expanded') === 'true';
+    moreToggle.setAttribute('aria-expanded', String(!open));
+    moreBody.hidden = open;
+  });
+
+  // Vraagtaal (in Meer instellingen)
+  const qLangLabel = settingsLabel('lobby-settings-qlang-label');
+  const qLangGroup = segGroup();
+  const qLangButtons = new Map();
+  for (const lang of ['nl', 'en', 'es']) {
+    const btn = segButton(qLangGroup, { onPick: () => pushConfig({ language: lang }) });
+    btn.textContent = lang.toUpperCase();
+    qLangButtons.set(lang, btn);
+  }
+  // Snelheidsbonus + late join (in Meer instellingen)
+  const bonusRow = el('div', 'lobby-toggle-row');
+  const bonusLabel = el('span', 'lobby-toggle-label');
+  const bonusToggle = document.createElement('button');
+  bonusToggle.type = 'button';
+  bonusToggle.className = 'lobby-toggle';
+  bonusToggle.setAttribute('role', 'switch');
+  bonusToggle.appendChild(el('i', ''));
+  let currentBonus = true;
+  bonusToggle.addEventListener('click', () => pushConfig({ speedBonus: !currentBonus }));
+  bonusRow.append(bonusLabel, bonusToggle);
+  const lateRow = el('div', 'lobby-toggle-row');
+  const lateLabel = el('span', 'lobby-toggle-label');
+  const lateToggle = document.createElement('button');
+  lateToggle.type = 'button';
+  lateToggle.className = 'lobby-toggle';
+  lateToggle.setAttribute('role', 'switch');
+  lateToggle.appendChild(el('i', ''));
+  let currentLate = true;
+  lateToggle.addEventListener('click', () => pushConfig({ allowLateJoin: !currentLate }));
+  lateRow.append(lateLabel, lateToggle);
+  moreBody.append(questionsLabel, questionsGroup, qLangLabel, qLangGroup, bonusRow, lateRow);
 
   settingsBody.append(
-    gameLabel, gameCard, gameCardSub,
+    gameRow, gameCardSub,
     answersLabel, answersGroup,
     levelLabel, levelGroup,
-    questionsLabel, questionsGroup,
-    autoNextRow,
+    autoNextRow, autoRevealRow,
+    moreToggle, moreBody,
   );
   settingsSection.append(settingsHeader, settingsBody);
 
@@ -464,10 +546,15 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   function renderStatic() {
     title.textContent = t('lobby.title');
     settingsHeaderLabel.textContent = t('lobby.settings');
-    gameLabel.textContent = t('lobby.game');
-    gameCardTitle.textContent = t('lobby.gameFlagTitle');
-    gameCardDesc.textContent = t('lobby.gameFlagDesc');
-    gameCardSoon.textContent = t('lobby.gameSoon');
+    renderGameCard();
+    gamePrev.setAttribute('aria-label', t('lobby.gameTurn'));
+    gameNext.setAttribute('aria-label', t('lobby.gameTurn'));
+    autoRevealLabel.textContent = t('lobby.autoReveal');
+    autoRevealSoon.textContent = t('lobby.soon');
+    moreToggle.textContent = t('lobby.moreSettings');
+    qLangLabel.textContent = t('lobby.questionLanguage');
+    bonusLabel.textContent = t('lobby.speedBonus');
+    lateLabel.textContent = t('lobby.lateJoin');
     answersLabel.textContent = t('lobby.answers');
     answersChoose.textContent = t('lobby.answersChoose');
     answersMix.textContent = t('lobby.answersMix');
@@ -615,22 +702,35 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
         const label = chip.querySelector('.player-chip-name');
         item.appendChild(chip);
         let kickButton;
-        // S17: dit is nu de enige plek die deelnemersnamen toont tijdens
-        // LOBBY (hostbar.mjs's eigen lijst blijft daar bewust verborgen) —
-        // de host krijgt de verwijderknop daarom hier, inline, niet in een
-        // tweede lijst elders.
+        // Feedbackronde 2 (punt 5): NOOIT een kale verwijderknop in de rij —
+        // een klein ⋯-menu per speler, met daarin (voor nu) Verwijderen.
+        // Naam/kleur van ándermans rij wijzigen vergt serverwerk (ticket).
         if (isHost && model.canKick) {
+          const rowMenuButton = document.createElement('button');
+          rowMenuButton.type = 'button';
+          rowMenuButton.className = 'btn-secondary lobby-player-menu';
+          rowMenuButton.textContent = '⋯';
+          rowMenuButton.setAttribute('aria-haspopup', 'true');
+          rowMenuButton.setAttribute('aria-expanded', 'false');
+          rowMenuButton.setAttribute('aria-label', `${t('lobby.playerOptions')} ${name}`);
+          const rowMenu = el('div', 'lobby-player-menu-panel');
+          rowMenu.hidden = true;
           kickButton = document.createElement('button');
           kickButton.type = 'button';
-          kickButton.className = 'btn-secondary lobby-player-kick';
+          kickButton.className = 'btn-destructive lobby-player-kick';
           kickButton.textContent = t('hostbar.kick');
-          kickButton.setAttribute('aria-label', `${t('hostbar.kick')} ${name}`);
           kickButton.addEventListener('click', () => {
             if (window.confirm(`${t('hostbar.kickConfirmPrefix')} ${name}`)) {
               onKickPlayer(playerId);
             }
           });
-          item.appendChild(kickButton);
+          rowMenu.appendChild(kickButton);
+          rowMenuButton.addEventListener('click', () => {
+            const open = rowMenuButton.getAttribute('aria-expanded') === 'true';
+            rowMenuButton.setAttribute('aria-expanded', String(!open));
+            rowMenu.hidden = open;
+          });
+          item.append(rowMenuButton, rowMenu);
         }
         list.appendChild(item);
         renderedRows.set(playerId, { item, label, kickButton });
@@ -666,6 +766,17 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
       autoNextToggle.classList.toggle('is-on', currentPacing === 'auto');
       autoNextToggle.setAttribute('aria-checked', String(currentPacing === 'auto'));
       autoNextToggle.setAttribute('aria-label', t('lobby.autoNext'));
+      for (const [lang, btn] of qLangButtons) {
+        btn.classList.toggle('is-active', config.language === lang);
+      }
+      currentBonus = config.speedBonus !== false;
+      bonusToggle.classList.toggle('is-on', currentBonus);
+      bonusToggle.setAttribute('aria-checked', String(currentBonus));
+      bonusToggle.setAttribute('aria-label', t('lobby.speedBonus'));
+      currentLate = config.allowLateJoin !== false;
+      lateToggle.classList.toggle('is-on', currentLate);
+      lateToggle.setAttribute('aria-checked', String(currentLate));
+      lateToggle.setAttribute('aria-label', t('lobby.lateJoin'));
     }
   }
 

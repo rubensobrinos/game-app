@@ -875,6 +875,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         // Beat 1/2 (besluit 40): ROUND_RESULT toont alleen de reveal,
         // SCOREBOARD voegt de (dan pas kloppende) tussenstand toe.
         phase: matchPhase.phase,
+        scoreboardSeconds: typeof roomConfig?.scoreboardSeconds === 'number' ? roomConfig.scoreboardSeconds : null,
       });
       return;
     }

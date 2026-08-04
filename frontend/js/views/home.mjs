@@ -92,7 +92,10 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   hostSetupLink.className = 'home-host-setup-link btn-quiet';
   hostSetupLink.addEventListener('click', () => dispatch({ type: 'OPEN_ADVANCED' }));
 
-  const quickStartGroup = [logo, title, promise, quickStartButton, quickStartStatus, quickStartError, divider, codeSection, codeError, codeSubmitButton, hostSetupLink];
+  // Feedbackronde 2 (4 aug, punt 1+2): "Spel aanpassen" is hier weg — je
+  // stelt een spel pas in als er een lobby ís (scherm 2). De hostSetup-flow
+  // blijft in de code bestaan maar heeft geen ingang meer.
+  const quickStartGroup = [logo, title, promise, quickStartButton, quickStartStatus, quickStartError, divider, codeSection, codeError, codeSubmitButton];
   screen.append(...quickStartGroup);
 
   // S02: los scherm, hergebruikt dezelfde HostSetupState-instantie (geen
@@ -260,7 +263,7 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
     codeSubmitButton.hidden = state.status === 'creating';
     codeSubmitButton.textContent = t('home.codeSubmit');
     hostSetupLink.textContent = t('home.hostSetupLink');
-    hostSetupLink.hidden = state.status === 'creating';
+    hostSetupLink.hidden = true; // punt 1+2: geen instellingen-ingang zonder lobby
     quickStartStatus.textContent = state.status === 'creating' ? t('home.creating') : '';
     quickStartError.textContent = state.status === 'error' ? t(`error.${messageForErrorCode(state.errorCode)}`) : '';
   }

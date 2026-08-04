@@ -133,6 +133,19 @@ host-instellingen ÍN de lobby (in/uitklapbaar) — gamekaart, Kiezen actief
 serverstand is de waarheid. 17 nieuwe i18n-sleutels ×3. Cachebust `?v=1c20`.
 Suites: 795 server + 498 client groen.
 
+## Ronde 6 (4 aug): feedbackronde 2 — 14 punten
+
+"Spel aanpassen" weg van home (instellingen = lobby); QR-glyph nu echt
+QR-achtig (5×5); DEEL als woordknop; per-speler ⋯-menu i.p.v. kale
+verwijderknop (lobby én hostbar-paneel); carrousel met de 4 wereldgames
+(3 × BINNENKORT); GAME-label weg; toggle-dubbeldik gefixt (base-button-
+padding); "Antwoord automatisch tonen" zichtbaar-uit (40C blijft ticket);
+"Meer instellingen" met vragen/vraagtaal/snelheidsbonus/late-join;
+vergrendelen volledig uit de UI; scherm 5-voet is nu een échte aflopende
+balk op scoreboardSeconds uit de serverconfig. Cachebust `?v=1c21`;
+498 client-tests groen. Ticket nieuw: host wijzigt naam/kleur van ánderen
+(serverwerk). 
+
 ## Wachtend op producteigenaar
 
 - `rm -f .git/index.lock .git/HEAD.lock` (blocker 1)

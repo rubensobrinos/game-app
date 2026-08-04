@@ -42,19 +42,31 @@ export function createRoomHeader({ root, t, gameCode, joinUrl, onShareAction }) 
   qrButton.className = 'btn-icon room-header-qr';
   qrButton.setAttribute('aria-haspopup', 'dialog');
   qrButton.setAttribute('aria-expanded', 'false');
+  // Feedbackronde 2 (punt 3): een herkenbare mini-QR — 5×5 met de drie
+  // vierkante finder-hoeken die iedereen van echte QR's kent.
   const qrGlyph = el('span', 'room-header-qr-glyph');
   qrGlyph.setAttribute('aria-hidden', 'true');
-  for (let i = 0; i < 9; i += 1) {
-    qrGlyph.appendChild(el('i', ''));
+  const QR_PATROON = [
+    1, 1, 0, 1, 1,
+    1, 0, 0, 0, 1,
+    0, 0, 1, 0, 0,
+    1, 0, 0, 1, 0,
+    1, 1, 0, 0, 1,
+  ];
+  for (const aan of QR_PATROON) {
+    const cel = el('i', aan ? 'is-aan' : '');
+    qrGlyph.appendChild(cel);
   }
   qrButton.appendChild(qrGlyph);
 
   // Feedback 4 aug (punt 14): delen hoort hier als klein pictogram — niet
   // als groot "UITNODIGEN"-blok onderin de lobby dat de startknop wegduwt.
+  // Feedbackronde 2 (punt 4): het schuine pijltje was onduidelijk — een
+  // klein woord is ondubbelzinnig.
   const shareButton = document.createElement('button');
   shareButton.type = 'button';
   shareButton.className = 'btn-icon room-header-share';
-  shareButton.textContent = '↗';
+  shareButton.textContent = 'DEEL';
   const shareToast = el('span', 'room-header-share-toast');
   shareToast.hidden = true;
   shareToast.setAttribute('role', 'status');

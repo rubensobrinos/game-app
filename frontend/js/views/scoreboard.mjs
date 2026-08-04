@@ -97,7 +97,9 @@ export function createScoreboardView({ root, t, tCount }) {
    *   en die tonen zou verkeerde bewegingspijlen geven. Beat 2 (SCOREBOARD)
    *   toont beide. Reload zonder result valt terug op alleen-de-stand.
    */
-  function update(standings, { movement = new Map(), participants = new Map(), round = null, lang = 'nl', pacing = null, phase = null } = {}) {
+  let lastDrainKey = null;
+
+  function update(standings, { movement = new Map(), participants = new Map(), round = null, lang = 'nl', pacing = null, phase = null, scoreboardSeconds = null } = {}) {
     // ── Scherm 5, beat 1: reveal ──
     const result = round?.result ?? null;
     // Beat 1 = ROUND_RESULT mét een uitslag om te tonen; anders (SCOREBOARD,
@@ -256,6 +258,19 @@ export function createScoreboardView({ root, t, tCount }) {
     if (!nextFooter.hidden) {
       nextBar.hidden = pacing !== 'auto';
       nextText.textContent = t(pacing === 'auto' ? 'standings.nextAuto' : 'standings.nextHost');
+      // Feedbackronde 2 (punt 12): geen pendel — een echte aflopende balk.
+      // `scoreboardSeconds` komt uit de serverconfig (room:state/config-
+      // changed); de aftelling start bij beat 2 (SCOREBOARD) en herstart
+      // alleen bij een nieuwe ronde, niet bij elke re-render.
+      const bar = nextBar.firstElementChild;
+      const drainKey = `${round?.roundId ?? ''}:${phase}`;
+      if (pacing === 'auto' && phase === 'SCOREBOARD' && bar != null && typeof bar.style === 'object' && drainKey !== lastDrainKey) {
+        lastDrainKey = drainKey;
+        const seconds = typeof scoreboardSeconds === 'number' && scoreboardSeconds > 0 ? scoreboardSeconds : 4;
+        bar.style.animation = 'none';
+        void bar.offsetWidth; // reflow zodat de animatie echt herstart
+        bar.style.animation = `reveal-drain ${seconds}s linear forwards`;
+      }
     }
   }
 
