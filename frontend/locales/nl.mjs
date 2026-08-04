@@ -23,11 +23,11 @@ export const nl = Object.freeze({
 
   // — UI1-sleutels (Home + Preview/join) —
   'home.title': 'Rounda',
-  'home.promise': 'Geen account. Geen download. Iedereen speelt op zijn eigen telefoon.',
+  'home.promise': 'Wereldgames met de hele kamer. Goed én snel telt.',
   'home.quickStart': 'Start direct een game',
   // BOUWSPRINT (rounda-1c): sublabel in de startknop — wie hierop drukt is
   // altijd host (hostParticipates default), dus onvoorwaardelijk waar.
-  'home.quickStartSub': 'Je bent de spelleider',
+  'home.quickStartSub': 'Geen account · Jij leidt',
   'home.creating': 'Potje maken…',
   'home.divider': 'of',
   'home.codeLabel': 'Voer de gamecode in',
@@ -139,6 +139,14 @@ export const nl = Object.freeze({
   // 11-verzoek (BOUWSPRINT doel 4): alleen vanaf 3 op een rij, nooit
   // vernederend voor wie geen streak heeft (dan simpelweg niets tonen).
   'headline.streak': '{n} op een rij! 🔥',
+  // Scherm 5 (besluit 40): reveal + tussenstand als één scherm.
+  'reveal.correctLabel': 'Het goede antwoord',
+  'reveal.countCorrect': '{n} van {m} zaten goed',
+  'reveal.youCorrect': 'Jij zat goed',
+  'reveal.youWrong': 'Jij zat ernaast',
+  'reveal.youNone': 'Geen antwoord',
+  'standings.nextAuto': 'Volgende vraag komt eraan…',
+  'standings.nextHost': 'De host start de volgende vraag',
   'standings.title': 'Tussenstand',
   'standings.you': 'Jij',
   'standings.moveUp.one': '{n} plaats gestegen',
@@ -231,6 +239,7 @@ export const nl = Object.freeze({
   // — UI5: Hostbalk (lock/kick/finish/next; pauze zit hierboven) —
   'hostbar.lock': 'Room vergrendelen',
   'hostbar.unlock': 'Room ontgrendelen',
+  'hostbar.more': 'Meer opties',
   'hostbar.next': 'Volgende',
   'hostbar.finish': 'Game beëindigen',
   'hostbar.finishConfirm': 'Weet je zeker dat je het potje wilt beëindigen?',
@@ -244,6 +253,11 @@ export const nl = Object.freeze({
   'lobby.waiting': 'Wachten tot de host start…',
   'lobby.emptyTitle': 'Nog niemand binnen',
   'lobby.emptyHint': 'Laat iemand de QR scannen om te beginnen.',
+  // Scherm 3 (besluit 40B): naam kiezen ín de lobby + IK BEN KLAAR.
+  'lobby.selfNameLead': 'Zo heet je vanavond:',
+  'lobby.selfRename': 'Typ zelf',
+  'lobby.selfRenameSave': 'Bewaar',
+  'lobby.ready': 'Ik ben klaar',
   'lobby.locked': 'Room vergrendeld',
   'lobby.unlocked': 'Nieuwe spelers kunnen weer meedoen',
   'lobby.playerJoined': 'Je bent binnen',
@@ -293,6 +307,10 @@ export const nl = Object.freeze({
   // bestaand mockup. Eigenaarschap van het component zelf (`rounda.mjs`)
   // ligt bij thema 1+3, niet hier — deze sleutels staan klaar om in te
   // haken zodra dat component bestaat.
+  'rounda.flagAria': 'Rounda warm-upspel: spring over de vlaggen',
+  'rounda.flagStart': 'Tik om te starten',
+  'rounda.flagOver': 'Af! {n} vlaggen — tik voor nog een run',
+  'rounda.flagJump': 'Tik om te springen — pak elke vlag',
   'rounda.explanation': 'Veeg om het rad te draaien en de bal te vangen',
   'rounda.lobbyRecord': 'Beste van deze lobby: {n}',
   'rounda.pauseMessage': 'Nog even geduld — probeer het rad!',

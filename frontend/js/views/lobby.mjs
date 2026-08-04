@@ -21,14 +21,14 @@
 import { shareActionsFor, shareUrlsFor } from '../../../client/flow/share-actions.mjs';
 import { participantPresentationFor } from './participant-presentation.mjs';
 import { createPlayerChip } from '../player-chip.mjs';
-import { createRoundaView } from './rounda.mjs';
+import { createRoundaFlagView } from './rounda-flag.mjs';
 
 // T5-9: hoeveel van de meest recente joins zichtbaar blijven in de
 // samengevouwen 'aggregate'-weergave (36+ spelers) vóórdat "Bekijk alle
 // spelers" wordt gebruikt.
 const RECENT_JOINS_COUNT = 5;
 
-export function createLobbyView({ root, t, tCount, isHost, onStart, onShareAction, onKickPlayer }) {
+export function createLobbyView({ root, t, tCount, isHost, onStart, onShareAction, onKickPlayer, onRename }) {
   root.textContent = '';
 
   // Geen eigen `.screen`-klasse: de aanroeper (session-shell.mjs) mount dit in
@@ -47,7 +47,120 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   const playerInviteHint = el('p', 'lobby-player-invite-hint');
   const playerSelf = el('p', 'lobby-player-self');
   playerStatus.append(playerJoined, playerWaitingForHost, playerInviteHint, playerSelf);
+
+  // ── SCHERM 3 (besluit 40B): "Zo heet je vanavond" — naam kiezen gebeurt
+  // hier, niet meer vóór het joinen. `player:rename` mag alleen in LOBBY en
+  // max. één keer (protocol) — na een geslaagde rename verdwijnt de knop.
+  // "IK BEN KLAAR" is puur client-side bevestigen (40B): naamblok klapt om
+  // naar de wachtstand, er gaat níéts over de lijn. ──
+  const selfSection = el('section', 'lobby-self');
+  selfSection.hidden = isHost;
+  const selfLead = el('p', 'lobby-self-lead');
+  const selfRow = el('div', 'lobby-self-row');
+  const selfName = el('span', 'lobby-self-name');
+  const renameButton = document.createElement('button');
+  renameButton.type = 'button';
+  renameButton.className = 'btn-secondary lobby-self-rename';
+  const renameInput = document.createElement('input');
+  renameInput.type = 'text';
+  renameInput.className = 'field-input lobby-self-input';
+  renameInput.maxLength = 60;
+  renameInput.hidden = true;
+  const renameSave = document.createElement('button');
+  renameSave.type = 'button';
+  renameSave.className = 'btn-secondary lobby-self-save';
+  renameSave.hidden = true;
+  const renameError = el('p', 'lobby-self-error field-error');
+  selfRow.append(selfName, renameButton, renameInput, renameSave);
+  const readyButton = document.createElement('button');
+  readyButton.type = 'button';
+  readyButton.className = 'btn-primary lobby-ready';
+  const readyPill = el('div', 'lobby-ready-pill');
+  readyPill.hidden = true;
+  const readyPillDot = el('span', 'lobby-ready-dot');
+  const readyPillText = el('span', 'lobby-ready-text');
+  const readyPillName = el('span', 'lobby-ready-name');
+  readyPill.append(readyPillDot, readyPillText, readyPillName);
+  selfSection.append(selfLead, selfRow, renameError, readyButton, readyPill);
+
+  let renameUsed = false; // protocol: player:rename max één keer
+  let renameBusy = false;
+  let isReady = false; // client-side (40B)
+
+  renameButton.addEventListener('click', () => {
+    renameInput.hidden = false;
+    renameSave.hidden = false;
+    renameButton.hidden = true;
+    renameInput.value = selfName.textContent;
+    renameInput.focus();
+    renameInput.select();
+  });
+  renameInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      renameSave.click();
+    }
+  });
+  renameSave.addEventListener('click', async () => {
+    const value = renameInput.value.trim();
+    if (renameBusy || value === '' || value === selfName.textContent) {
+      closeRenameEditor();
+      return;
+    }
+    renameBusy = true;
+    renameError.textContent = '';
+    try {
+      await onRename?.(value);
+      renameUsed = true; // gelukt → protocol staat geen tweede toe
+      closeRenameEditor();
+    } catch (err) {
+      renameError.textContent = t(`error.${err?.code ?? 'UNKNOWN_ERROR'}`);
+      // Live-audit 4 aug: de echte server kent `player:rename` nog niet
+      // (UNSUPPORTED_EVENT — protocol-pad bestaat, composition mist; zie
+      // serverticket). Dan is opnieuw proberen zinloos: editor dicht, knop
+      // weg — geen dode belofte laten staan.
+      if (err?.code === 'UNSUPPORTED_EVENT') {
+        renameUsed = true;
+        closeRenameEditor();
+      }
+      renameBusy = false;
+      return;
+    }
+    renameBusy = false;
+  });
+  function closeRenameEditor() {
+    renameInput.hidden = true;
+    renameSave.hidden = true;
+    renameButton.hidden = renameUsed;
+  }
+  readyButton.addEventListener('click', () => {
+    isReady = true;
+    renameError.textContent = ''; // een hangende rename-fout hoort niet boven de wachtpil
+    renderSelfSection();
+  });
+
+  function renderSelfSection() {
+    if (isHost) {
+      return;
+    }
+    selfLead.textContent = t('lobby.selfNameLead');
+    renameButton.textContent = t('lobby.selfRename');
+    renameSave.textContent = t('lobby.selfRenameSave');
+    readyButton.textContent = t('lobby.ready');
+    readyPillText.textContent = t('lobby.playerWaitingForHost');
+    readyPillName.textContent = selfName.textContent;
+    // Klaar-stand: naamregels weg, wachtpil ervoor in de plaats.
+    selfLead.hidden = isReady;
+    selfRow.hidden = isReady;
+    readyButton.hidden = isReady;
+    readyPill.hidden = !isReady;
+    renameButton.hidden = isReady || renameUsed || !renameInput.hidden;
+  }
+  // Mock-review 3 aug (#3): dit is spelers-copy — de host "wacht" niet op
+  // zichzelf. Spelers hebben bovendien `playerWaitingForHost` hierboven al,
+  // dus deze regel zou daar dubbelen; alleen tonen als playerStatus verborgen
+  // is (defensief: zou niet voorkomen, maar dan is er tenminste één wachttekst).
   const waiting = el('p', 'lobby-waiting');
+  waiting.hidden = isHost || !playerStatus.hidden;
   const countLine = el('p', 'lobby-count');
   const list = document.createElement('ul');
   list.className = 'lobby-players';
@@ -126,11 +239,13 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   // nu alleen zodat CSS Grid-areas ze kan plaatsen zonder de leesvolgorde
   // voor toetsenbord/screenreader te wijzigen.
   const mainColumn = el('div', 'lobby-main-column');
-  mainColumn.append(title, lockedNotice, playerStatus, waiting, countLine, recentJoinsLabel, list, viewAllButton, emptyState);
-  // Bouwticket-inhang (regie): de wacht-minigame in de lobby — attract-stand
-  // default, spel start bij eerste aanraking, volledig client-side.
+  mainColumn.append(title, lockedNotice, playerStatus, waiting, countLine, recentJoinsLabel, list, viewAllButton, emptyState, selfSection);
+  // De lobby-warm-up is sinds 3 aug de Rounda-Flag ("Wave Run") van de
+  // producteigenaar — spring over de vlaggen, score telt, record blijft
+  // lokaal bewaard. De rad-warm-up (rounda.mjs) blijft de vulling voor de
+  // kleine wachtmomenten (reconnect/pauze, session-shell.mjs).
   const roundaGameRoot = el('div', 'lobby-rounda');
-  const roundaGame = createRoundaView({ root: roundaGameRoot });
+  const roundaGame = createRoundaFlagView({ root: roundaGameRoot, t });
   mainColumn.append(roundaGameRoot);
 
   screen.append(mainColumn, shareSection, startButton);
@@ -244,7 +359,13 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     renderStatic();
 
     if (!isHost) {
-      playerSelf.textContent = model.selfName ? t('lobby.playerSelf').replace('{naam}', model.selfName) : '';
+      // Scherm 3 (40B): het JIJ-blok is nu de plek voor naam + wachtstand —
+      // de oude losse regels hieronder blijven verborgen om dubbeling te
+      // voorkomen (playerJoined + inviteHint blijven wél staan).
+      playerSelf.hidden = true;
+      playerWaitingForHost.hidden = true;
+      selfName.textContent = model.selfName ?? '';
+      renderSelfSection();
     }
 
     if (model.locked === true) {

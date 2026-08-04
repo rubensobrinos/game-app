@@ -55,6 +55,7 @@ import {
 } from './views/round-model.mjs';
 import { initialStreakModel, applyRoundResult as applyStreakResult } from './views/streak-model.mjs';
 import { loadReactionsEnabled } from './preferences.mjs';
+import { getLang } from './i18n.mjs';
 import { standingsFrom, rankMovementFrom } from './views/standings-model.mjs';
 import { createRoomHeader } from './views/room-header.mjs';
 import { createLobbyView } from './views/lobby.mjs';
@@ -682,6 +683,12 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     if (delta.type === 'join' || delta.type === 'rename') {
       if (typeof delta.playerId === 'string') {
         participants.set(delta.playerId, delta.effectiveName ?? '');
+        // Scherm 3 (40B): een rename van jezélf moet ook `selfInfo` verversen
+        // — daar leest de lobby (`selfName`) uit, en die werd tot nu toe
+        // alleen bij `room:state` gezet.
+        if (delta.type === 'rename' && selfInfo?.playerId === delta.playerId) {
+          selfInfo = { ...selfInfo, effectiveName: delta.effectiveName ?? selfInfo.effectiveName };
+        }
       }
     } else if (delta.type === 'leave' || delta.type === 'kick') {
       if (typeof delta.playerId === 'string') {
@@ -758,6 +765,9 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         onStart: () => sendHostAction('start'),
         onShareAction: (action) => sendShareOpened(action),
         onKickPlayer: (playerId) => sendHostAction('kick', { playerId }),
+        // Scherm 3 (besluit 40B): naam kiezen ín de lobby. Gooit door bij een
+        // protocolfout (NAME_TOO_LONG, INVALID_PHASE, …) — de lobby toont die.
+        onRename: (displayName) => socket.send('player:rename', randomActionId(), { displayName }),
       });
       return;
     }
@@ -815,6 +825,16 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       mountedView.update(currentStandings, {
         movement: rankMovementFrom(previousStandings, currentStandings),
         participants,
+        // Scherm 5 (besluit 40): de reveal-kaart bovenop de tussenstand leest
+        // het result van de zojuist geëindigde ronde. `roundModel` is hier
+        // nog niet gereset (dat gebeurt pas bij de volgende round:started),
+        // dus dit is precies de uitslag die bij deze stand hoort.
+        round: roundModel,
+        lang: getLang(),
+        pacing,
+        // Beat 1/2 (besluit 40): ROUND_RESULT toont alleen de reveal,
+        // SCOREBOARD voegt de (dan pas kloppende) tussenstand toe.
+        phase: matchPhase.phase,
       });
       return;
     }

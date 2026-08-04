@@ -1,5 +1,11 @@
-// views/scoreboard.mjs — UI4. Tussenstand (fase SCOREBOARD): top 5 + eigen
-// positie, rechtstreeks uit `scoreboard:updated` via standings-model.mjs.
+// views/scoreboard.mjs — UI4. Sinds doelbeeld v2 (besluit 40, scherm 5) is
+// dit het samengevoegde REVEAL + TUSSENSTAND-scherm: bovenaan het goede
+// antwoord groot (lime kaart) + het eigen resultaat (+punten), daaronder de
+// top 5 + eigen positie uit `scoreboard:updated` via standings-model.mjs,
+// onderaan de "volgende vraag"-voet (auto-pacing) of de host-hint. De
+// reveal-data komt uit `round-model.mjs`'s `result` (round:ended) en wordt
+// door session-shell.mjs meegegeven — dit scherm rekent zelf niets uit
+// (serverwaarheid, zie round-model.mjs kop).
 // Namen altijd via textContent (het zijn spelersnamen = gebruikersinvoer).
 //
 // S14: comeback-headline landt hier, niet in gameplay.mjs's reveal — die
@@ -8,9 +14,28 @@
 // S15, al gedeeld met deze headline via dezelfde `movement`-Map).
 
 import { socialHeadlineFor } from './social-headline.mjs';
+import { countryName } from './country-names.mjs';
 
 export function createScoreboardView({ root, t, tCount }) {
   root.textContent = '';
+
+  // ── Scherm 5, beat 1: het goede antwoord (lime kaart) + eigen resultaat ──
+  const revealCard = document.createElement('div');
+  revealCard.className = 'reveal-card';
+  revealCard.hidden = true;
+  const revealLabel = el('span', 'reveal-card-label');
+  revealLabel.textContent = t('reveal.correctLabel');
+  const revealAnswer = el('strong', 'reveal-card-answer');
+  const revealCount = el('span', 'reveal-card-count');
+  revealCard.append(revealLabel, revealAnswer, revealCount);
+
+  const revealSelf = document.createElement('div');
+  revealSelf.className = 'reveal-self';
+  revealSelf.hidden = true;
+  const revealSelfIcon = el('span', 'reveal-self-icon');
+  const revealSelfText = el('span', 'reveal-self-text');
+  const revealSelfPoints = el('strong', 'reveal-self-points');
+  revealSelf.append(revealSelfIcon, revealSelfText, revealSelfPoints);
 
   const title = document.createElement('h2');
   title.className = 'scoreboard-title';
@@ -28,17 +53,92 @@ export function createScoreboardView({ root, t, tCount }) {
   headline.hidden = true;
   headline.setAttribute('aria-live', 'polite');
 
-  root.append(title, list, selfLine, headline);
+  // ── Scherm 5, voet: wat er hierna gebeurt. Auto-pacing: aftelbalk-gevoel
+  // zonder secondenclaim (het protocol geeft géén "volgende ronde om"-
+  // tijdstip mee, dus we beloven geen getal dat we niet hebben — alleen een
+  // lopende balk + tekst). Host-pacing: kalme hint voor de speler; de host
+  // heeft z'n eigen Volgende-knop al in de hostbalk.
+  const nextFooter = document.createElement('div');
+  nextFooter.className = 'reveal-next';
+  nextFooter.hidden = true;
+  const nextBar = el('div', 'reveal-next-bar');
+  nextBar.appendChild(el('i', ''));
+  const nextText = el('p', 'reveal-next-text');
+  nextFooter.append(nextBar, nextText);
+
+  root.append(revealCard, revealSelf, title, list, selfLine, headline, nextFooter);
+
+  /** Correcte-antwoordtekst per gameType — zelfde bronvelden als gameplay.mjs. */
+  function correctAnswerTextFor(round, lang) {
+    const result = round.result;
+    if (round.gameType === 'real_or_fake_flag') {
+      return t(result.correctChoice === 'real' ? 'game.wasReal' : 'game.wasFake');
+    }
+    if (round.gameType === 'higher_lower') {
+      const side = round.question?.sides?.find((s) => s.side === result.correctSide);
+      return side ? countryName(side.iso2, lang) : null;
+    }
+    return result.correctOptionId !== null ? countryName(result.correctOptionId, lang) : null;
+  }
 
   /**
    * @param {import('./standings-model.mjs').standingsFrom extends (p: any) => infer R ? R : never} standings
-   * @param {{ movement?: Map<string, number>, participants?: Map<string, string> }} [options] S15:
+   * @param {{ movement?: Map<string, number>, participants?: Map<string, string>, round?: object | null, lang?: string, pacing?: string }} [options] S15:
    *   positieverschil t.o.v. de vorige stand (`rankMovementFrom()`,
    *   session-shell.mjs) — geen entry (nieuwe speler, of nog geen vorige
    *   stand) toont geen badge. `participants` voor de comeback-headline
-   *   (S14), om de naam bij de grootste stijger te tonen.
+   *   (S14), om de naam bij de grootste stijger te tonen. `round` (scherm 5):
+   *   het roundModel van de zojuist geëindigde ronde — zonder `result` (bv.
+   *   reload middenin SCOREBOARD, snapshot draagt geen rondeuitslag) blijft
+   *   de revealkaart gewoon verborgen en is dit het oude tussenstand-scherm.
+   *   `phase` stuurt de twee beats: tijdens ROUND_RESULT (beat 1) is alleen
+   *   de reveal zichtbaar — de stand van dát moment is nog de vórige ronde
+   *   (scoreboard:updated komt pas bij de faseovergang, zie reveal-model.mjs)
+   *   en die tonen zou verkeerde bewegingspijlen geven. Beat 2 (SCOREBOARD)
+   *   toont beide. Reload zonder result valt terug op alleen-de-stand.
    */
-  function update(standings, { movement = new Map(), participants = new Map() } = {}) {
+  function update(standings, { movement = new Map(), participants = new Map(), round = null, lang = 'nl', pacing = null, phase = null } = {}) {
+    // ── Scherm 5, beat 1: reveal ──
+    const result = round?.result ?? null;
+    // Beat 1 = ROUND_RESULT mét een uitslag om te tonen; anders (SCOREBOARD,
+    // of een reload zonder result) direct beat 2.
+    const beatOne = phase === 'ROUND_RESULT' && result !== null;
+    for (const node of [title, list, selfLine]) {
+      node.hidden = beatOne;
+    }
+    const answerText = result !== null ? correctAnswerTextFor(round, lang) : null;
+    revealCard.hidden = answerText === null;
+    if (answerText !== null) {
+      revealAnswer.textContent = answerText;
+      // "9 van 14 zaten goed" — alleen als beide getallen er echt zijn:
+      // het aantal goede antwoorden uit de distributie, het totaal uit de
+      // laatste round:progress (eligiblePlayerCount). Niets verzinnen.
+      const correctCount = Array.isArray(result.distribution)
+        ? (result.distribution.find((d) => d.optionId === result.correctOptionId)?.count ?? null)
+        : null;
+      const total = round.progress?.eligiblePlayerCount ?? null;
+      if (typeof correctCount === 'number' && typeof total === 'number' && total > 0) {
+        revealCount.hidden = false;
+        revealCount.textContent = t('reveal.countCorrect').replace('{n}', String(correctCount)).replace('{m}', String(total));
+      } else {
+        revealCount.hidden = true;
+        revealCount.textContent = '';
+      }
+    }
+
+    // ── Scherm 5, beat 1b: eigen resultaat + punten ──
+    revealSelf.hidden = result === null;
+    if (result !== null) {
+      const state = result.selfNoAnswer ? 'noanswer' : result.selfCorrect ? 'correct' : 'wrong';
+      revealSelf.dataset.state = state;
+      revealSelfIcon.textContent = state === 'correct' ? '✓' : state === 'wrong' ? '✗' : '·';
+      revealSelfText.textContent = t(
+        state === 'correct' ? 'reveal.youCorrect' : state === 'wrong' ? 'reveal.youWrong' : 'reveal.youNone'
+      );
+      const points = typeof result.roundPoints === 'number' ? result.roundPoints : null;
+      revealSelfPoints.hidden = points === null;
+      revealSelfPoints.textContent = points !== null ? `+${points}` : '';
+    }
     // M9/E11: FLIP — meet waar bestaande rijen NU staan (op `playerId`,
     // vóór de herbouw), zodat we ze ná de herbouw naar hun oude plek terug
     // kunnen zetten en dan pas laten bewegen naar de nieuwe. Overgeslagen
@@ -56,10 +156,15 @@ export function createScoreboardView({ root, t, tCount }) {
     }
 
     list.textContent = '';
-    for (const entry of standings.entries.slice(0, 5)) {
+    standings.entries.slice(0, 5).forEach((entry, index) => {
       const item = document.createElement('li');
       item.className = entry.isSelf ? 'scoreboard-entry is-self' : 'scoreboard-entry';
       item.dataset.playerId = entry.playerId;
+      // S15 toont top vijf plús de eigen rij, dus de reeks is discontinu —
+      // #1 t/m #5 en dan #12. "De zoveelste rij" klopt daar niet, dus de rang
+      // staat er expliciet bij (`05` §10: rankkolom vast).
+      const rank = el('span', 'scoreboard-rank');
+      rank.textContent = `#${index + 1}`;
       const name = document.createElement('span');
       name.className = 'scoreboard-name';
       name.textContent = entry.effectiveName;
@@ -82,9 +187,9 @@ export function createScoreboardView({ root, t, tCount }) {
       const score = document.createElement('span');
       score.className = 'scoreboard-score';
       score.textContent = String(entry.score);
-      item.append(name, move, score);
+      item.append(rank, name, move, score);
       list.appendChild(item);
-    }
+    });
 
     // M9/E11: FLIP-afspelen — voor elke rij die vóór en ná bestond, zet 'm
     // direct terug op zijn oude plek (geen transitie), forceer een reflow,
@@ -126,23 +231,53 @@ export function createScoreboardView({ root, t, tCount }) {
       selfLine.textContent = '';
     }
 
-    // S14: alleen de comeback-conditie kan hier ooit vuren (geen distribution/
-    // correctOptionId beschikbaar op dit scherm) — precies de bedoeling, de
-    // andere headline-typen horen bij gameplay.mjs's reveal.
+    // S14: sinds ROUND_RESULT hier ook landt (besluit 40) draagt dit scherm
+    // álle headline-typen — de distribution-gebaseerde (gameplay's oude
+    // reveal-headlines) én de comeback uit de rankbeweging. Nog steeds
+    // hooguit één per ronde (social-headline.mjs kiest).
     const found = socialHeadlineFor({
-      distribution: [],
-      correctOptionId: null,
-      eligiblePlayerCount: null,
-      movement,
+      distribution: result?.distribution ?? [],
+      correctOptionId: result?.correctOptionId ?? null,
+      eligiblePlayerCount: round?.progress?.eligiblePlayerCount ?? null,
+      movement: beatOne ? new Map() : movement, // stale beweging nooit in beat 1
       participants,
+      selfCorrect: result?.selfCorrect,
     });
-    if (found !== null && found.type === 'comeback') {
+    if (found !== null) {
       headline.hidden = false;
-      headline.textContent = t('headline.comeback').replace('{naam}', found.name).replace('{n}', String(found.diff));
+      headline.textContent = textForHeadline(found, lang);
     } else {
       headline.hidden = true;
       headline.textContent = '';
     }
+
+    // ── Scherm 5, voet ──
+    nextFooter.hidden = pacing !== 'auto' && pacing !== 'host';
+    if (!nextFooter.hidden) {
+      nextBar.hidden = pacing !== 'auto';
+      nextText.textContent = t(pacing === 'auto' ? 'standings.nextAuto' : 'standings.nextHost');
+    }
+  }
+
+  // Zelfde sleutel-mapping als gameplay.mjs's textForHeadline — de
+  // distribution-headlines zijn met besluit 40 meeverhuisd naar dit scherm.
+  function textForHeadline(found, lang) {
+    if (found.type === 'self-sole-correct') {
+      return t('headline.selfSoleCorrect');
+    }
+    if (found.type === 'everyone-correct') {
+      return t('headline.everyoneCorrect');
+    }
+    if (found.type === 'everyone-wrong') {
+      return t('headline.everyoneWrong');
+    }
+    if (found.type === 'misleading-answer') {
+      return t('headline.misleadingAnswer').replace('{country}', countryName(found.optionId, lang));
+    }
+    if (found.type === 'comeback') {
+      return t('headline.comeback').replace('{naam}', found.name).replace('{n}', String(found.diff));
+    }
+    return '';
   }
 
   return { update };

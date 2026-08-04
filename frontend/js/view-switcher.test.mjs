@@ -30,15 +30,19 @@ test('route: host, phase LOBBY -> lobby', () => {
   assert.equal(viewFor({ route: 'host', code: '482917', phase: 'LOBBY' }), 'lobby');
 });
 
-for (const phase of ['COUNTDOWN', 'ROUND_ACTIVE', 'ROUND_RESULT']) {
+for (const phase of ['COUNTDOWN', 'ROUND_ACTIVE']) {
   test(`route: game, phase ${phase} -> gameplay`, () => {
     assert.equal(viewFor({ route: 'game', code: '482917', phase }), 'gameplay');
   });
 }
 
-test('route: game, phase SCOREBOARD -> scoreboard', () => {
-  assert.equal(viewFor({ route: 'game', code: '482917', phase: 'SCOREBOARD' }), 'scoreboard');
-});
+// Besluit 40, scherm 5: ROUND_RESULT en SCOREBOARD zijn samen het
+// reveal+tussenstand-scherm (scoreboard.mjs, beat 1 en beat 2).
+for (const phase of ['ROUND_RESULT', 'SCOREBOARD']) {
+  test(`route: game, phase ${phase} -> scoreboard (scherm 5)`, () => {
+    assert.equal(viewFor({ route: 'game', code: '482917', phase }), 'scoreboard');
+  });
+}
 
 test('route: game, phase FINISHED -> podium', () => {
   assert.equal(viewFor({ route: 'game', code: '482917', phase: 'FINISHED' }), 'podium');

@@ -28,6 +28,15 @@ import { saveSession } from '../../../client/flow/session-store.mjs';
 import { messageForErrorCode, joinErrorCategoryFor } from '../../../client/flow/edge-case-messaging.mjs';
 import { formatCode } from './room-header.mjs';
 
+// SCHERM 3 (besluit 40B, doelbeeld v2): de aparte naamstap is hier weg —
+// een gast joint direct met het servervoorstel en landt meteen in de lobby;
+// naam kiezen ("Zo heet je vanavond") gebeurt dáár, via `player:rename`.
+// De naamveld-DOM blijft bestaan maar wordt niet meer getoond: de reducer
+// (join-state.mjs) is ongewijzigd, dit bestand submit alleen automatisch
+// zodra 'name-entry' bereikt is. Foutpaden (code bestaat niet, room op slot,
+// vol, al bezig) werken onveranderd — auto-join stopt daar gewoon op de
+// bestaande foutschermen.
+
 export function createJoinView({ root, t, tCount, transport, storage, onJoined, onLeaveHome }) {
   root.textContent = '';
 
@@ -81,6 +90,17 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined, 
   root.append(screen);
 
   let state = initialJoinState();
+  // Besluit 40B: éénmaal automatisch submitten per flow-poging. Na een RETRY
+  // wordt dit weer op false gezet zodat de nieuwe poging óók weer auto-joint.
+  let autoJoined = false;
+
+  function maybeAutoJoin() {
+    if (state.status === 'name-entry' && !autoJoined) {
+      autoJoined = true;
+      dispatch({ type: 'SUBMIT' });
+      runJoin();
+    }
+  }
 
   nameInput.addEventListener('input', () => {
     dispatch({ type: 'NAME_CHANGED', value: nameInput.value });
@@ -110,9 +130,12 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined, 
   });
 
   retryButton.addEventListener('click', () => {
+    autoJoined = false; // nieuwe poging mag opnieuw automatisch joinen (40B)
     dispatch({ type: 'RETRY' });
     if (state.status === 'previewing') {
       runPreview();
+    } else {
+      maybeAutoJoin();
     }
   });
 
@@ -130,6 +153,7 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined, 
       const preview = await transport.previewInvite(request.inviteId);
       previewPlayerCount = typeof preview.playerCount === 'number' ? preview.playerCount : null;
       dispatch({ type: 'PREVIEW_SUCCEEDED', suggestedName: preview.suggestedName });
+      maybeAutoJoin();
     } catch (err) {
       dispatch({ type: 'PREVIEW_FAILED', code: err?.code });
     }
@@ -171,7 +195,10 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined, 
     }
 
     if (state.status === 'name-entry' || state.status === 'submitting') {
-      status.textContent = state.status === 'submitting' ? t('join.submitting') : '';
+      // Besluit 40B: geen naamstap meer — dit is nog hooguit één tel
+      // zichtbaar terwijl de auto-join loopt. Naamveld/submit blijven
+      // verborgen; naam kiezen gebeurt in de lobby.
+      status.textContent = t('join.submitting');
       if (state.locator.type === 'code') {
         roomConfirmation.hidden = false;
         roomConfirmation.textContent = t('join.roomConfirmation').replace('{code}', formatCode(state.locator.code));
@@ -180,20 +207,6 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined, 
         waitingCount.hidden = false;
         waitingCount.textContent = tCount('join.waitingCount', previewPlayerCount);
       }
-      nameLabel.hidden = false;
-      nameLabelText.textContent = t('join.nameLabel');
-      nameOptionalHint.textContent = t('join.nameOptionalHint');
-      // Voorinvullen, niet als placeholder (harde regel 2: één tik moet
-      // volstaan zonder te typen) — alleen bij het eerste render van dit
-      // status, anders overschrijft elke render de eigen typeactie.
-      if (nameInput.dataset.prefilledFor !== state.locator.type + (state.suggestedName ?? '')) {
-        nameInput.value = state.displayName ?? state.suggestedName ?? '';
-        nameInput.dataset.prefilledFor = state.locator.type + (state.suggestedName ?? '');
-      }
-      updateNameCounter();
-      submitButton.hidden = false;
-      submitButton.disabled = state.status === 'submitting';
-      submitButton.textContent = t('join.submit');
       return;
     }
 
@@ -224,9 +237,12 @@ export function createJoinView({ root, t, tCount, transport, storage, onJoined, 
     start(locator) {
       state = initialJoinState();
       previewPlayerCount = null;
+      autoJoined = false;
       dispatch({ type: 'LOCATOR_OBTAINED', locator });
       if (state.status === 'previewing') {
         runPreview();
+      } else {
+        maybeAutoJoin(); // code-locator slaat preview over → direct joinen (40B)
       }
     },
     // Ná een taalwissel (app-menu.mjs) — ververst labels/knoppen zonder de

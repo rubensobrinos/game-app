@@ -29,35 +29,38 @@ import { qrDataUrl } from '../qr.mjs';
 export function createRoomHeader({ root, t, gameCode, joinUrl, onShareAction }) {
   const bar = el('div', 'room-header');
 
-  // De code zelf. `tabular-nums` + letterspacing in CSS: dit is een getal dat
-  // wordt voorgelezen en overgetypt, geen gewone tekst.
-  const codeWrap = el('div', 'room-header-code');
-  const codeLabel = el('span', 'room-header-code-label');
+  // Feedback 4 aug (punten 5+6): geen "CODE"-label meer (spreekt voor zich)
+  // en de code op ÉÉN regel — het klemde eerder in twee regels onder elkaar.
   const codeValue = el('span', 'room-header-code-value');
   codeValue.textContent = formatCode(gameCode);
-  codeWrap.append(codeLabel, codeValue);
 
+  // Feedback 4 aug (punt 7): geen halve witte QR permanent in de balk — een
+  // compact lime QR-pictogram (CSS-getekend, geen witte achtergrond); de
+  // grote, mooie QR zit één tik verderop in de modal.
   const qrButton = document.createElement('button');
   qrButton.type = 'button';
   qrButton.className = 'btn-icon room-header-qr';
-  // Pictogram + toegankelijk label: 05 §3 vraagt om een tekstlabel bij elke
-  // niet-universele iconactie, en een QR-glyph is dat niet.
-  qrButton.textContent = '▦';
   qrButton.setAttribute('aria-haspopup', 'dialog');
   qrButton.setAttribute('aria-expanded', 'false');
+  const qrGlyph = el('span', 'room-header-qr-glyph');
+  qrGlyph.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 9; i += 1) {
+    qrGlyph.appendChild(el('i', ''));
+  }
+  qrButton.appendChild(qrGlyph);
 
-  // Reviewfix #6 (producteigenaar): de QR is PERMANENT zichtbaar in het
-  // paneel zodra de joinUrl bekend is — scanbaar zonder één tik. De knop
-  // blijft bestaan voor de grote modale versie (verder weg zitten = groter
-  // nodig). Decoratief duplicaat van de knopactie: aria-hidden, de knop
-  // draagt het toegankelijke pad.
-  const inlineQr = document.createElement('img');
-  inlineQr.className = 'room-header-qr-inline';
-  inlineQr.alt = '';
-  inlineQr.setAttribute('aria-hidden', 'true');
-  inlineQr.hidden = true;
+  // Feedback 4 aug (punt 14): delen hoort hier als klein pictogram — niet
+  // als groot "UITNODIGEN"-blok onderin de lobby dat de startknop wegduwt.
+  const shareButton = document.createElement('button');
+  shareButton.type = 'button';
+  shareButton.className = 'btn-icon room-header-share';
+  shareButton.textContent = '↗';
+  const shareToast = el('span', 'room-header-share-toast');
+  shareToast.hidden = true;
+  shareToast.setAttribute('role', 'status');
+  let shareToastTimer = null;
 
-  bar.append(codeWrap, inlineQr, qrButton);
+  bar.append(codeValue, qrButton, shareButton, shareToast);
   root.appendChild(bar);
 
   // Modale QR-overlay. Zelfde discipline als app-menu.mjs en de eerdere
@@ -113,6 +116,32 @@ export function createRoomHeader({ root, t, gameCode, joinUrl, onShareAction }) 
       close({ returnFocus: true });
     }
   });
+  shareButton.addEventListener('click', async () => {
+    if (currentJoinUrl === '') {
+      return;
+    }
+    if (typeof navigator !== 'undefined' && 'share' in navigator) {
+      onShareAction?.('native-share');
+      try {
+        await navigator.share({ url: currentJoinUrl });
+      } catch {
+        // geannuleerd — normale uitkomst van de deelsheet
+      }
+      return;
+    }
+    onShareAction?.('copy-link');
+    try {
+      await navigator.clipboard.writeText(currentJoinUrl);
+      shareToast.textContent = t('lobby.copied');
+    } catch {
+      shareToast.textContent = displayUrl(currentJoinUrl); // kopiëren kan niet: toon de link zelf
+    }
+    shareToast.hidden = false;
+    clearTimeout(shareToastTimer);
+    shareToastTimer = setTimeout(() => {
+      shareToast.hidden = true;
+    }, 2500);
+  });
   closeButton.addEventListener('click', () => close({ returnFocus: true }));
   overlay.addEventListener('click', (event) => {
     if (event.target === overlay) {
@@ -127,12 +156,12 @@ export function createRoomHeader({ root, t, gameCode, joinUrl, onShareAction }) 
   });
 
   function render() {
-    codeLabel.textContent = t('lobby.code');
     cardTitle.textContent = t('room.scanToJoin');
     image.alt = t('room.scanToJoin');
     cardUrl.textContent = displayUrl(currentJoinUrl);
     closeButton.textContent = t('lobby.back');
     qrButton.setAttribute('aria-label', t('lobby.shareQr'));
+    shareButton.setAttribute('aria-label', t('lobby.shareCopy'));
   }
 
   render();
@@ -144,9 +173,6 @@ export function createRoomHeader({ root, t, gameCode, joinUrl, onShareAction }) 
       if (typeof nextJoinUrl === 'string' && nextJoinUrl !== '') {
         currentJoinUrl = nextJoinUrl;
         cardUrl.textContent = displayUrl(currentJoinUrl);
-        // Reviewfix #6: mini-QR direct tonen zodra er iets te scannen valt.
-        inlineQr.src = qrDataUrl(currentJoinUrl, { cellSize: 4 });
-        inlineQr.hidden = false;
       }
     },
     /** Verwijdert de balk en de overlay — bij het verlaten van een sessie. */

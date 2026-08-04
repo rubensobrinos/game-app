@@ -32,8 +32,8 @@ body { font-family: var(--font-body); }
 
 .app-logo {
   font-size: 0;
-  width: 78px;
-  height: 78px;
+  width: 96px; /* feedback 4 aug (punt 3): groter */
+  height: 96px;
   margin: 0 auto;
   border-radius: 50%;
   background: conic-gradient(from var(--rad-a), var(--rounda-lime) 0 25%, #17171d 25% 50%, var(--rounda-lime) 50% 75%, #17171d 75%);
@@ -42,7 +42,7 @@ body { font-family: var(--font-body); }
 .app-logo::before {
   content: '';
   position: absolute;
-  inset: 14px;
+  inset: 17px;
   border-radius: 50%;
   background:
     conic-gradient(from var(--rad-b), transparent 0 50%, rgba(216, 255, 62, 0.16) 50% 100%),
@@ -64,7 +64,7 @@ body { font-family: var(--font-body); }
   display: flex;
   align-items: center;
   justify-content: center;
-  font: 700 22px/1 var(--font-display);
+  font: 700 27px/1 var(--font-display);
   color: var(--rounda-lime);
 }
 
@@ -78,7 +78,7 @@ h1, h2 {
 }
 .home-title {
   text-transform: uppercase;
-  font-size: clamp(30px, 10vw, 46px); /* thema 5-bug: vaste 46px brak 200%-zoom */
+  font-size: clamp(34px, 11.5vw, 53px); /* +15% (feedback 4 aug punt 4); clamp ivm 200%-zoom */
   line-height: 0.95;
   letter-spacing: -0.045em;
 }
@@ -115,19 +115,73 @@ h1, h2 {
 /* ── Host-lobby: het oplichtende paneel is de ster ── */
 .room-header-slot { width: 100%; }
 .room-header {
-  border-radius: 26px;
+  border-radius: 18px;
   background: linear-gradient(160deg, #1b2208, #0f0f13 62%);
   border: 1px solid rgba(216, 255, 62, 0.22);
-  padding: 16px 20px;
-  gap: 12px;
+  padding: 10px 14px;
+  gap: 10px;
 }
+.room-header { display: flex; align-items: center; }
+.room-header-code { display: contents; }
 .room-header-code-value {
-  font: 700 clamp(30px, 9vw, 44px)/0.95 var(--font-mono);
+  flex: 1;
+  font: 700 clamp(24px, 7vw, 34px)/1 var(--font-mono);
   color: var(--rounda-lime);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
+  white-space: nowrap; /* punt 6: één regel, nooit gestapeld */
 }
-.room-header-qr { border-radius: 12px; background: #f4f4f6; color: var(--rounda-ink); }
-.room-qr-image { border-radius: 12px; background: #f4f4f6; padding: 8px; }
+/* Punt 7: compact lime QR-pictogram, geen witte achtergrond */
+.room-header-qr {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: none;
+  border: 1px solid var(--rounda-row-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.room-header-qr-glyph {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+}
+.room-header-qr-glyph i { background: var(--rounda-lime); border-radius: 1px; }
+.room-header-qr-glyph i:nth-child(5) { background: transparent; }
+/* Punt 14: delen als klein icoon in de balk */
+.room-header-share {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: none;
+  border: 1px solid var(--rounda-row-border);
+  color: var(--rounda-lime);
+  font: 700 18px/1 var(--font-display);
+}
+.room-header-share-toast {
+  font: 500 11px/1.2 var(--font-body);
+  color: #b9b9c6;
+  max-width: 12ch;
+  overflow-wrap: anywhere;
+}
+/* De grote QR in de modal: het fancy-frame uit claude design — wit
+   afgerond paneel (nodig voor scanbaarheid) met lime accentrand */
+.room-qr-image {
+  border-radius: 18px;
+  background: #f4f4f6;
+  padding: 10px;
+  box-shadow: 0 0 0 1.5px rgba(216, 255, 62, 0.5), 0 22px 55px rgba(0, 0, 0, 0.5);
+}
+.room-qr-card {
+  border-radius: 24px;
+  background: #101015;
+  border: 1px solid var(--rounda-row-border);
+}
+.room-qr-code { font: 700 24px/1 var(--font-mono); color: var(--rounda-lime); letter-spacing: 0.08em; }
 
 /* ── Spelerslijst: donkere rijkaarten, nieuwste licht op ── */
 .lobby-players { display: flex; flex-direction: column; gap: 8px; }
@@ -268,7 +322,7 @@ h1, h2 {
 }
 
 /* ── Start: merkblok linksboven, lucht in het midden, START onderaan ── */
-.home-screen .app-logo { margin: 28px 0 20px; }
+.home-screen .app-logo { margin: 14px 0 22px; } /* punt 3: ook wat hoger */
 .home-screen .home-title { text-align: left; margin: 0 0 10px; }
 .home-screen > p, .home-screen .home-tagline { text-align: left; max-width: 26ch; }
 .home-quick-start { margin-top: auto; }
@@ -340,3 +394,398 @@ body:has(.home-screen) .app-footer { display: block; }
 
 /* Minigame in de lobby: compact, tussen lijst en uitnodigen */
 .lobby-rounda { margin-top: 14px; display: flex; justify-content: center; }
+
+/* Rounda-Flag ("Wave Run", producteigenaar 3 aug) — de lobbygame-kaart.
+   Zelfde kaarttaal als de mockup: 1px rand, 24px radius, donker vlak. */
+.rounda-flag-card {
+  position: relative;
+  width: 100%;
+  height: clamp(260px, 38vh, 360px);
+  overflow: hidden;
+  border: 1px solid var(--rounda-row-border);
+  border-radius: 24px;
+  background: #101016;
+}
+.rounda-flag-label {
+  position: absolute;
+  z-index: 2;
+  left: 18px;
+  top: 14px;
+  font: 700 11px/1 var(--font-mono);
+  letter-spacing: 0.24em;
+  color: #5c5c6b;
+  pointer-events: none;
+}
+.rounda-flag-score {
+  position: absolute;
+  z-index: 2;
+  right: 18px;
+  top: 12px;
+  font: 700 18px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--rounda-lime);
+  pointer-events: none;
+}
+.rounda-flag-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+.rounda-flag-hint {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  margin: 0;
+  text-align: center;
+  font: 400 11.5px/1.3 var(--font-body);
+  color: #5c5c6b;
+  pointer-events: none;
+}
+
+/* ════ SCHERM 5 (besluit 40): reveal + tussenstand als één scherm ════
+   Bron: rounda-screens.html (design-handoff, 3 aug 2026). Twee beats:
+   de lime antwoordkaart popt eerst, het eigen-resultaatpaneel volgt met
+   een kwart seconde vertraging; de tussenstand eronder is rustig. */
+
+.reveal-card {
+  position: relative;
+  border-radius: 22px;
+  background: var(--rounda-lime);
+  padding: 20px 22px 18px;
+  overflow: hidden;
+  box-shadow: 0 22px 55px rgba(216, 255, 62, 0.32);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.reveal-card-label {
+  font: 700 10px/1 var(--font-mono);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--rounda-lime-dim);
+}
+.reveal-card-answer {
+  font: 700 clamp(30px, 9vw, 42px)/1 var(--font-display);
+  color: var(--rounda-ink);
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere; /* lange landnamen (bv. "Equatoriaal-Guinea") */
+}
+.reveal-card-count {
+  font: 700 11px/1 var(--font-mono);
+  color: var(--rounda-lime-dim);
+  padding-top: 4px;
+}
+
+.reveal-self {
+  border-radius: 16px;
+  background: var(--rounda-row);
+  border: 1.5px solid rgba(216, 255, 62, 0.4);
+  padding: 14px 18px;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.reveal-self[data-state='wrong'] { border-color: var(--rounda-row-border); }
+.reveal-self[data-state='noanswer'] { border-color: var(--rounda-row-border); opacity: 0.85; }
+.reveal-self-icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--rounda-lime);
+  color: var(--rounda-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 13px/1 var(--font-display);
+}
+.reveal-self[data-state='wrong'] .reveal-self-icon { background: var(--rounda-magenta); color: var(--rounda-ink); }
+.reveal-self[data-state='noanswer'] .reveal-self-icon { background: var(--rounda-row-border); color: #b9b9c6; }
+.reveal-self-text {
+  flex: 1;
+  font: 700 15px/1.2 var(--font-display);
+}
+.reveal-self-points {
+  font: 700 28px/1 var(--font-mono);
+  color: var(--rounda-lime);
+}
+.reveal-self[data-state='wrong'] .reveal-self-points,
+.reveal-self[data-state='noanswer'] .reveal-self-points { color: #5c5c6b; }
+
+/* De tussenstand-kop wordt in dit samengestelde scherm een mono-label */
+.screen-top .scoreboard-title {
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+  margin: 18px 0 4px;
+}
+
+/* Voet: lopende balk (auto-pacing) of host-hint, onderaan in duimzicht */
+.reveal-next { margin-top: auto; padding-top: 12px; }
+.reveal-next-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: #17171d;
+  overflow: hidden;
+}
+.reveal-next-bar i {
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: 999px;
+  background: var(--rounda-lime);
+}
+.reveal-next-text {
+  font: 700 10px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+  text-align: center;
+  margin: 7px 0 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveal-card { animation: rounda-pop 0.55s cubic-bezier(0.2, 1.4, 0.4, 1); }
+  .reveal-self { animation: rounda-pop 0.55s 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) backwards; }
+  /* Geen secondenclaim uit het protocol → geen aftel-illusie; de balk
+     pendelt (transform-only, gecomposit — zelfde les als reviewfix #10). */
+  .reveal-next-bar i { animation: reveal-pendel 1.6s ease-in-out infinite alternate; }
+  @keyframes reveal-pendel { from { transform: translateX(0); } to { transform: translateX(150%); } }
+}
+
+:root[data-theme='light'] .reveal-self { background: var(--color-surface-1); }
+:root[data-theme='light'] .reveal-card-label,
+:root[data-theme='light'] .reveal-card-count { color: #55731a; }
+:root[data-theme='light'] .reveal-next-bar { background: var(--color-surface-1); }
+
+/* ════ MOCK-REVIEWFIXES (3 aug, na doelbeeld v2-vergelijking) ════ */
+
+/* Producteigenaar: "de achtergrond klopt niet met de screenshot met
+   gradient" — mockup 1 (`.screen--glow`): lime-ademende radial bovenin het
+   startscherm. Eerste versie (::before met z-index -1) renderde als flauwe
+   band met een zichtbare rand — visueel gecheckt op 4 aug: als background
+   op body zelf is de gloed vol en egaal, zonder z-index-gedoe. Alleen
+   donker: op licht zou 14% lime als vlek ogen. */
+:root[data-theme='dark'] body:has(.home-screen) {
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(216, 255, 62, 0.14), transparent 70%) no-repeat,
+    var(--color-bg-canvas);
+}
+
+/* #4: startknop — label en subregel stonden als twee inline spans tegen
+   elkaar aan ("Start Roundaledereen mee?"). Zelfde opbouw als de mockup-
+   hero-pil: label groot, subregel mono eronder. */
+.lobby-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.lobby-start-sub {
+  font: 700 11px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rounda-lime-dim);
+}
+
+/* #5: de kick-knop was een volle-breedte joekel onder elke spelerrij —
+   mockup: stille rij. Nu een klein stil pilletje rechts in de rij. */
+.lobby-player { display: flex; align-items: center; gap: 10px; }
+.lobby-player .player-chip { flex: 1; min-width: 0; }
+.lobby-player .lobby-player-kick {
+  flex: none;
+  width: auto;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: none;
+  border: 1px solid var(--rounda-row-border);
+  color: #8e8e9c;
+  font: 500 12px/1 var(--font-body);
+  min-height: 44px; /* tikdoel-eis blijft staan, visueel toch klein */
+}
+
+/* Scherm 3 (besluit 40B): het JIJ-blok in de gastlobby — naamvoorstel,
+   "Typ zelf" en IK BEN KLAAR; na klaar de wachtpil. */
+.lobby-self { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.lobby-self-lead {
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+  margin: 0;
+}
+.lobby-self-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: var(--rounda-row);
+  border: 1px solid var(--rounda-row-border);
+}
+.lobby-self-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 700 17px/1.2 var(--font-display);
+  letter-spacing: -0.02em;
+}
+.lobby-self-rename, .lobby-self-save {
+  flex: none;
+  width: auto;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #17171d;
+  border: 1px solid var(--rounda-row-border);
+  color: #b9b9c6;
+  font: 500 12px/1 var(--font-body);
+  min-height: 44px;
+}
+.lobby-self-input { flex: 1; min-width: 0; }
+.lobby-ready {
+  border-radius: 999px;
+  font: 700 17px/1 var(--font-display);
+  letter-spacing: -0.02em;
+  padding: 16px 22px;
+}
+.lobby-ready-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 999px;
+  background: var(--rounda-row);
+  border: 1px solid var(--rounda-row-border);
+  padding: 16px 22px;
+}
+.lobby-ready-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rounda-lime);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lobby-ready-dot { animation: rounda-adem 1.4s infinite; }
+  @keyframes rounda-adem { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+}
+.lobby-ready-text { flex: 1; font: 700 14px/1.2 var(--font-display); color: #d4d4de; }
+.lobby-ready-name {
+  font: 700 10px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+}
+
+/* #8: tijdens het spel en de uitslag hoort de codebalk klein te zijn
+   (mockup 4/5: minimale statusbar) — de vraag en de antwoorden zijn de ster,
+   niet het codepaneel. D-018 blijft gerespecteerd: code + mini-QR blijven
+   permanent zichtbaar, alleen compact. :has() = zelfde support-lijn als de
+   rest van deze laag. */
+body:has(.gameplay-flag) .room-header,
+body:has(.scoreboard-list) .room-header {
+  padding: 8px 14px;
+  border-radius: 14px;
+  gap: 10px;
+}
+body:has(.gameplay-flag) .room-header-code-value,
+body:has(.scoreboard-list) .room-header-code-value {
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* Hostpillen compacter tijdens het spel — twee rijen pillen duwden de
+   vraag onder de vouw. */
+body:has(.gameplay-flag) .session-hostbar .btn-secondary,
+body:has(.gameplay-flag) .session-hostbar .btn-destructive {
+  padding: 8px 11px;
+  font-size: 11.5px;
+  min-height: 36px;
+}
+
+
+/* ════ FEEDBACKRONDE 4 aug (14 punten producteigenaar) ════ */
+
+/* #8+#9: "Game beëindigen" en "Room vergrendelen" domineren de lobby niet
+   meer — de hostbalk verdwijnt daar helemaal (start/kick zitten al in de
+   lobby zelf). Tijdens het spel blijft de balk (Pauzeer enz.) bestaan;
+   beëindigen verhuist op termijn naar een geavanceerd-menu. */
+body:has(.lobby-screen) .session-hostbar { display: none; }
+
+/* #14: het blok-formaat UITNODIGEN vervalt; delen = icoon in de codebalk */
+.lobby-share { display: none; }
+
+/* #11: Wave Run — score groot rechtsboven, record klein grijs linksonder */
+.rounda-flag-record {
+  position: absolute;
+  z-index: 2;
+  left: 18px;
+  bottom: 10px;
+  font: 700 10px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  color: #5c5c6b;
+  pointer-events: none;
+}
+.rounda-flag-hint { left: auto; right: 18px; text-align: right; }
+
+/* #12: de spelers-teller in mockup-stijl: "2 SPELERS" als mono-label */
+.lobby-count {
+  font: 700 11px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+}
+
+/* #2: bescheiden copyrightregel in de footer (alleen op home zichtbaar,
+   zie reviewfix #9) */
+.app-footer-copy {
+  display: block;
+  margin-top: 8px;
+  font: 400 11px/1.4 var(--font-body);
+  color: #5c5c6b;
+  text-align: center;
+}
+
+/* #punt 2 (4 aug, tweede ronde): hostbalk = pauze-icoon + evt. Volgende +
+   een ingeklapt ⋯-paneel. Geen rijen tekstpillen meer boven het spel. */
+.session-hostbar { display: flex; align-items: center; gap: 8px; position: relative; }
+.session-hostbar-icon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 12px;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.session-hostbar-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #101015;
+  border: 1px solid var(--rounda-row-border);
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.5);
+}
+.session-hostbar-panel .btn-secondary,
+.session-hostbar-panel .btn-destructive { width: 100%; }
+.session-hostbar-players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }

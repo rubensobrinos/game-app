@@ -11,7 +11,12 @@
  * @typedef {'home' | 'preview-join' | 'lobby' | 'gameplay' | 'scoreboard' | 'podium' | 'unknown'} ViewName
  */
 
-const GAMEPLAY_PHASES = new Set(['COUNTDOWN', 'ROUND_ACTIVE', 'ROUND_RESULT']);
+// Besluit 40, scherm 5 (regie, 3 aug): ROUND_RESULT hoort sinds doelbeeld v2
+// bij het samengevoegde reveal+tussenstand-scherm (scoreboard.mjs), niet meer
+// bij gameplay — de reveal kwam anders twee keer (eerst in gameplay's eigen
+// uitslagweergave, dan nogmaals op scherm 5) en het samengevoegde scherm
+// kreeg alleen `scoreboardSeconds` (4s) i.p.v. de volle uitslagtijd (5+4s).
+const GAMEPLAY_PHASES = new Set(['COUNTDOWN', 'ROUND_ACTIVE']);
 
 /**
  * @param {{ route: string, phase?: string, pausedState?: { previousPhase: string } | null }} context
@@ -67,7 +72,7 @@ function viewForPhase(phase, pausedState) {
   if (GAMEPLAY_PHASES.has(phase)) {
     return 'gameplay';
   }
-  if (phase === 'SCOREBOARD') {
+  if (phase === 'ROUND_RESULT' || phase === 'SCOREBOARD') {
     return 'scoreboard';
   }
   if (phase === 'FINISHED') {

@@ -49,11 +49,12 @@
   var SCOPE_EXEMPT_BUTTON_IDS = ['btn-multiplayer'];
 
   /**
-   * Multiplayer-ingang. Op false tot de multiplayer live is (keten-test groen
-   * + tegencontrole + Caddy-routering actief) — dan is dit ÉÉN regel omzetten.
-   * Route: /samen → multiplayer-home (HANDOFF-UI-6).
+   * Multiplayer-ingang. AAN sinds 3 aug 2026 (opdracht producteigenaar:
+   * "één frontend-index vanuit waar je alles kan doen"). De livegang-
+   * voorwaarden waren vervuld: keten-test groen, tegencontrole-2 gedaan,
+   * Caddy-routering actief. Route: /samen → multiplayer-home (HANDOFF-UI-6).
    */
-  var SHOW_MULTIPLAYER = false;
+  var SHOW_MULTIPLAYER = true;
 
   function addMultiplayerCard() {
     if (!SHOW_MULTIPLAYER) return;

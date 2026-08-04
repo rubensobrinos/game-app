@@ -16,24 +16,45 @@
 export function createHostBar({ root, t, onAction }) {
   root.textContent = '';
 
+  // Feedbackronde 4 aug (punt 2): geen woordenbrij meer. Zichtbaar zijn
+  // hooguit twee dingen: een pauze-ICOON en (bij host-tempo) "Volgende".
+  // Al het andere (vergrendelen, beëindigen, de spelerslijst met verwijderen)
+  // zit ingeklapt achter één ⋯-knop.
   const bar = el('div', 'session-hostbar');
   bar.hidden = true;
 
   const pauseButton = document.createElement('button');
   pauseButton.type = 'button';
-  pauseButton.className = 'btn-secondary session-hostbar-pause';
+  pauseButton.className = 'btn-secondary session-hostbar-pause session-hostbar-icon';
   pauseButton.hidden = true;
-
-  const lockButton = document.createElement('button');
-  lockButton.type = 'button';
-  lockButton.className = 'btn-secondary session-hostbar-lock';
-  lockButton.hidden = true;
 
   const nextButton = document.createElement('button');
   nextButton.type = 'button';
   nextButton.className = 'btn-secondary session-hostbar-next';
   nextButton.hidden = true;
   nextButton.addEventListener('click', () => onAction('next'));
+
+  const moreButton = document.createElement('button');
+  moreButton.type = 'button';
+  moreButton.className = 'btn-secondary session-hostbar-more session-hostbar-icon';
+  moreButton.textContent = '⋯';
+  moreButton.hidden = true;
+  moreButton.setAttribute('aria-haspopup', 'true');
+  moreButton.setAttribute('aria-expanded', 'false');
+
+  const morePanel = el('div', 'session-hostbar-panel');
+  morePanel.hidden = true;
+
+  moreButton.addEventListener('click', () => {
+    const expanded = moreButton.getAttribute('aria-expanded') === 'true';
+    moreButton.setAttribute('aria-expanded', String(!expanded));
+    morePanel.hidden = expanded;
+  });
+
+  const lockButton = document.createElement('button');
+  lockButton.type = 'button';
+  lockButton.className = 'btn-secondary session-hostbar-lock';
+  lockButton.hidden = true;
 
   // Destructive, niet secondary: een game beëindigen is onomkeerbaar voor
   // iedereen in de room (05 §4.5 — nooit visueel gelijk aan een gewone actie).
@@ -47,22 +68,12 @@ export function createHostBar({ root, t, onAction }) {
     }
   });
 
-  const playersToggle = document.createElement('button');
-  playersToggle.type = 'button';
-  playersToggle.className = 'btn-secondary session-hostbar-players-toggle';
-  playersToggle.hidden = true;
-  playersToggle.setAttribute('aria-expanded', 'false');
   const playersList = document.createElement('ul');
   playersList.className = 'session-hostbar-players';
   playersList.hidden = true;
 
-  playersToggle.addEventListener('click', () => {
-    const expanded = playersToggle.getAttribute('aria-expanded') === 'true';
-    playersToggle.setAttribute('aria-expanded', String(!expanded));
-    playersList.hidden = expanded;
-  });
-
-  bar.append(pauseButton, lockButton, nextButton, finishButton, playersToggle, playersList);
+  morePanel.append(lockButton, finishButton, playersList);
+  bar.append(pauseButton, nextButton, moreButton, morePanel);
   root.appendChild(bar);
 
   let pauseAction = null;
@@ -90,7 +101,9 @@ export function createHostBar({ root, t, onAction }) {
 
     pauseAction = availableActions.includes('resume') ? 'resume' : availableActions.includes('pause') ? 'pause' : null;
     pauseButton.hidden = pauseAction === null;
-    pauseButton.textContent = pauseAction === 'resume' ? t('session.resume') : t('session.pause');
+    // Punt 2: icoon i.p.v. het woord — de betekenis zit in het aria-label.
+    pauseButton.textContent = pauseAction === 'resume' ? '▶' : '⏸';
+    pauseButton.setAttribute('aria-label', pauseAction === 'resume' ? t('session.resume') : t('session.pause'));
 
     lockAction = availableActions.includes('unlock') ? 'unlock' : availableActions.includes('lock') ? 'lock' : null;
     lockButton.hidden = lockAction === null;
@@ -103,16 +116,19 @@ export function createHostBar({ root, t, onAction }) {
     finishButton.textContent = t('hostbar.finish');
 
     // S17: tijdens LOBBY toont lobby.mjs's eigen lijst de deelnemers al, mét
-    // inline verwijderknoppen — deze aparte lijst blijft daarom verborgen
-    // zolang die lobbylijst zichtbaar is, en verschijnt pas in de fases
-    // daarna (gameplay, scoreboard, podium) waar geen deelnemerslijst meer
-    // op het scherm staat.
+    // inline verwijderknoppen — de lijst hier verschijnt pas in de fases
+    // daarna (gameplay, scoreboard, podium).
     const canKick = availableActions.includes('kick') && participants.size > 0 && phase !== 'LOBBY';
-    playersToggle.hidden = !canKick;
-    playersToggle.textContent = t('hostbar.players');
-    if (!canKick) {
-      playersList.hidden = true;
-      playersToggle.setAttribute('aria-expanded', 'false');
+    playersList.hidden = !canKick;
+
+    // De ⋯-knop bestaat alleen als er iets in het paneel zit; dichtklappen
+    // zodra alles eruit verdwijnt.
+    const hasMore = lockAction !== null || !finishButton.hidden || canKick;
+    moreButton.hidden = !hasMore;
+    moreButton.setAttribute('aria-label', t('hostbar.more'));
+    if (!hasMore) {
+      morePanel.hidden = true;
+      moreButton.setAttribute('aria-expanded', 'false');
     }
 
     playersList.textContent = '';

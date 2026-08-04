@@ -54,6 +54,7 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
     btn.textContent = `${LANG_FLAG[lang]} ${lang.toUpperCase()}`;
     btn.addEventListener('click', () => {
       onLangChange(lang);
+      setOpen(false); // feedback 4 aug: keuze gemaakt = paneel dicht
     });
     langButtons.set(lang, btn);
     langGroup.appendChild(btn);
@@ -77,6 +78,7 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
     btn.append(`${icon} `, textSpan);
     btn.addEventListener('click', () => {
       onThemeChange(theme);
+      setOpen(false);
     });
     themeButtons.set(theme, btn);
     themeGroup.appendChild(btn);
@@ -101,6 +103,7 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
       reactionsEnabled = enabled;
       saveReactionsEnabled(storage, enabled);
       refresh();
+      setOpen(false);
     });
     reactionsButtons.set(enabled, btn);
     reactionsGroup.appendChild(btn);
