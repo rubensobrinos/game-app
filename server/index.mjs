@@ -35,6 +35,12 @@ import Fastify from 'fastify';
 
 import { createContext } from './composition/context.mjs';
 import restRoutes, { REST_PREFIX } from './transport/rest.mjs';
+import {
+  createSafeLogger,
+  errorLabel,
+  safeFastifyOptions,
+  withSafeSerializers,
+} from './transport/safe-logger.mjs';
 import { CONTENT_VERSION } from '../shared/content/index.mjs';
 // CommonJS-interop: `module.exports = { createInMemoryStore }` wordt door
 // Node's cjs-module-lexer herkend, dus een named import werkt (besluit 28).
@@ -439,12 +445,27 @@ async function sendFile(reply, absolutePath) {
   if (!stats.isFile()) {
     return false;
   }
+  // Cachebeleid (regie-fix, 3 aug 2026): zonder headers vielen browsers terug
+  // op heuristische caching en draaiden spelers ná een deploy minutenlang
+  // oude `.mjs`-modules (gezien bij de doelbeeld v2-verificatie: de pagina
+  // laadde verse HTML met oude JS — de CSS-cachebust `?v=` dekt de module-
+  // graaf niet). `no-cache` = wél cachen, maar élke keer revalideren; met
+  // Last-Modified + 304 kost dat één conditionele request per bestand en is
+  // elke deploy direct overal zichtbaar.
+  const lastModified = stats.mtime.toUTCString();
+  reply
+    .header('x-content-type-options', 'nosniff')
+    .header('cache-control', 'no-cache')
+    .header('last-modified', lastModified);
+  if (reply.request?.headers['if-modified-since'] === lastModified) {
+    reply.code(304).send();
+    return true;
+  }
   const contentType = CONTENT_TYPE_BY_EXTENSION[path.extname(absolutePath).toLowerCase()]
     ?? 'application/octet-stream';
   reply
     .header('content-type', contentType)
     .header('content-length', String(stats.size))
-    .header('x-content-type-options', 'nosniff')
     .send(createReadStream(absolutePath));
   return true;
 }
@@ -602,7 +623,23 @@ export async function buildServer(options = {}) {
     throw error;
   }
 
-  const fastify = Fastify({ logger });
+  // FASTIFY'S EIGEN LOGGER MAG DE PRIVACYREGELS NIET OMZEILEN (INT4a deel 5).
+  //
+  // Dit is de gevaarlijkste logweg, want er komt geen regel code van ons aan te
+  // pas: Pino serialiseert een `req` standaard mét `headers` (inclusief
+  // `Authorization`) en `remoteAddress`, en een `err` mét `message` en `stack`.
+  // Een veilige applicatielog is waardeloos als de automatische requestlogging
+  // daar een IP of een token naast zet. Vandaar allebei:
+  //   - `safeFastifyOptions()` haalt de per-verzoek-regels weg via Fastify's
+  //     `logController`;
+  //   - `withSafeSerializers` vervangt de `req`/`res`/`err`-serializers door
+  //     versies die een NIEUW object bouwen met alleen wat veilig is, voor het
+  //     geval Fastify tóch iets logt (bijvoorbeeld via zijn eigen
+  //     foutafhandeling op de statische routes).
+  const fastify = Fastify({ ...safeFastifyOptions(), logger: withSafeSerializers(logger) });
+
+  /** De lifecyclelogs van dit bestand: dezelfde allowlist, `layer: 'server'`. */
+  const logServer = createSafeLogger({ logger: fastify.log, layer: 'server' });
   fastify.decorate('appContext', context);
   fastify.decorate('appConfig', config);
   fastify.decorate('appStore', handle);
@@ -685,16 +722,46 @@ export async function buildServer(options = {}) {
 
   if (attachSockets) {
     await fastify.ready();
-    socketsRef.current = await attachSocketsIfAvailable(fastify.server, { context, config });
+    // De socketlaag krijgt DEZELFDE logsink als Fastify. Zonder deze regel
+    // draaide `attachSocketServer` in productie op zijn stille NOOP_LOGGER —
+    // achttien `logSafe()`-aanroepen die nergens uitkwamen.
+    socketsRef.current = await attachSocketsIfAvailable(fastify.server, {
+      context,
+      config: { ...config, logger: fastify.log },
+    });
+    logServer('info', 'socketlaag aangehaakt', { store: handle.kind });
   }
 
   return fastify;
 }
 
-/** Gestructureerde JSON-logregel zonder persoonsgegevens (zoals de placeholder). */
-function log(level, msg, extra = {}) {
-  process.stdout.write(`${JSON.stringify({ t: Date.now(), level, msg, ...extra })}\n`);
+/**
+ * De sink voor de opstart-/afsluitregels: gestructureerde JSON naar stdout.
+ *
+ * Deze regels vallen buiten Fastify — ze worden geschreven vóórdat de server
+ * bestaat (de env-waarschuwingen) en tijdens het afsluiten. De vorm is bewust
+ * dezelfde `(fields, message)`-vorm die Pino gebruikt, zodat er precies één
+ * formatter over blijft: `createSafeLogger` hieronder.
+ * @type {{ info: Function, warn: Function, error: Function }}
+ */
+const STDOUT_LOGGER = Object.freeze({
+  info: (fields, msg) => writeLine('info', msg, fields),
+  warn: (fields, msg) => writeLine('warn', msg, fields),
+  error: (fields, msg) => writeLine('error', msg, fields),
+});
+
+function writeLine(level, msg, fields) {
+  process.stdout.write(`${JSON.stringify({ t: Date.now(), level, msg, ...fields })}\n`);
 }
+
+/**
+ * De lifecyclelogs van het entrypoint. Gaat door dezelfde allowlist als REST en
+ * socket: `layer: 'server'`, en velden die de vormtoets niet halen worden
+ * vervangen in plaats van doorgegeven. Dat is niet theoretisch — het is precies
+ * wat voorkomt dat een `error.message` uit een mislukte Redis-verbinding (die
+ * de URL kan bevatten) in een logregel belandt.
+ */
+const log = createSafeLogger({ logger: STDOUT_LOGGER, layer: 'server' });
 
 /** Start de server echt: env lezen, bouwen, luisteren, signalen afvangen. */
 async function start() {
@@ -709,10 +776,17 @@ async function start() {
   }
 
   await fastify.listen({ port: config.port, host: config.host });
-  // `describe()` van de Redis-verbinding is per constructie credential-vrij
-  // (alleen protocol, host en poort), dus dit is veilig om te loggen — en het
-  // is de regel waaraan je ziet of deze server op de persistente store draait.
-  log('info', 'game-server gestart', { port: config.port, store: fastify.appStore.describe() });
+  // `describe().endpoint` van de Redis-verbinding is per constructie
+  // credential-vrij (alleen protocol, host en poort — `redactEndpoint()`), dus
+  // dit is veilig om te loggen; het is bovendien ONZE infrastructuur en nooit
+  // het adres van een speler, waar de "geen IP in applicatielogs"-regel over
+  // gaat. Samen met `store` is dit de regel waaraan je ziet of deze server op
+  // de persistente store draait.
+  log('info', 'game-server gestart', {
+    port: config.port,
+    store: fastify.appStore.kind,
+    endpoint: fastify.appStore.describe().endpoint,
+  });
 }
 
 // Alleen starten wanneer dit bestand direct wordt uitgevoerd — een import
@@ -721,7 +795,15 @@ const isDirectRun = process.argv[1] !== undefined
   && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isDirectRun) {
   start().catch((error) => {
-    log('error', 'opstarten mislukt', { reason: error?.message ?? 'onbekend' });
+    // De APPLICATIELOGREGEL draagt alleen de stabiele foutklasse: `reason` gaat
+    // door dezelfde allowlist als al het andere en een `error.message` haalt die
+    // vormtoets niet — een mislukte Redis-verbinding zou er anders zijn URL in
+    // kunnen zetten. De onbewerkte melding gaat naar STDERR en niet naar het
+    // applicatielog: dit is het opstartpad, er is nog geen enkele speler en
+    // geen enkel verzoek, en een deploy die niet start moet wél te diagnosticeren
+    // blijven.
+    log('error', 'opstarten mislukt', { reason: errorLabel(error) });
+    process.stderr.write(`${error?.message ?? String(error)}\n`);
     process.exit(1);
   });
 }

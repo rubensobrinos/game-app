@@ -76,6 +76,15 @@ function makeManualScheduler() {
     clearTimer(id) {
       timers.delete(id);
     },
+    /**
+     * De nog geplande callbacks, ZONDER ze te verwijderen. De race-test heeft
+     * dit nodig: hij wil de échte `runAdvanceOnTimer` van de transportlaag
+     * tweemaal gelijktijdig starten in plaats van een gemockte returnwaarde te
+     * verzinnen.
+     */
+    pendingFns() {
+      return [...timers.values()];
+    },
     /** Vuurt alle op dit moment geplande timers precies één keer af. */
     async fireAll() {
       const pending = [...timers.values()];
@@ -94,9 +103,25 @@ function makeManualScheduler() {
 // Harness
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function makeHarness(t, { config = {}, seed = 7 } = {}) {
+/** Vangt op wat de socketlaag werkelijk logt. */
+function makeCapturingLogger() {
+  /** @type {Array<{ level: string, record: object, message: string }>} */
+  const lines = [];
+  const push = (level) => (record, message) => lines.push({ level, record, message });
+  return {
+    lines,
+    logger: { info: push('info'), warn: push('warn'), error: push('error') },
+    /** Alle regels met deze boodschap. */
+    named(message) {
+      return lines.filter((line) => line.message === message);
+    },
+  };
+}
+
+async function makeHarness(t, { config = {}, seed = 7, wrapStore = (store) => store } = {}) {
   const clock = makeClock();
-  const store = createInMemoryStore();
+  const rawStore = createInMemoryStore();
+  const store = wrapStore(rawStore);
   const context = createContext({
     store,
     now: clock.now,
@@ -111,18 +136,21 @@ async function makeHarness(t, { config = {}, seed = 7 } = {}) {
   });
 
   const scheduler = makeManualScheduler();
+  const log = makeCapturingLogger();
   const httpServer = createServer();
   await new Promise((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
   const port = httpServer.address().port;
-  const attached = attachSocketServer(httpServer, { context, config: { scheduler } });
+  const attached = attachSocketServer(httpServer, { context, config: { scheduler, logger: log.logger } });
 
   /** @type {Array<{ close(): void }>} */
   const clients = [];
   const harness = {
     clock,
     store,
+    rawStore,
     context,
     scheduler,
+    log,
     attached,
     port,
     async connect(auth) {
@@ -585,4 +613,244 @@ test('close() verbreekt alle verbindingen en laat geen timers achter', async (t)
 
   // Tweemaal sluiten is veilig (de harness sluit hierna nog een keer).
   await harness.attached.close();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INT4a — traceerbaarheid
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('logregels dragen roomId en sessionId zodra de handshake ze kent', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness);
+
+  const client = await harness.connect(authFor(room));
+  assert.ok(client, 'de verbinding moet echt staan');
+  assert.equal((await harness.attached.io.fetchSockets()).length, 1, 'anders bewijst het log hieronder niets');
+
+  const connected = harness.log.named('socket verbonden');
+  assert.equal(connected.length, 1);
+  assert.deepEqual(connected[0].record, { roomId: room.roomId, sessionId: room.sessionId, layer: 'socket' });
+});
+
+test('een uitgaand serverevent logt werkelijk zijn eventId', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness);
+  const host = await harness.connect(authFor(room));
+
+  // OPZETCONTROLE: het event moet echt de deur uit zijn gegaan, anders zegt
+  // een logregel over een eventId niets.
+  const ack = await host.emitWithAck('game:lock', { actionId: 'act_lock_1', payload: { locked: true } });
+  assert.equal(ack.ok, true);
+  const broadcast = await host.waitFor('room:lock-changed');
+  assert.ok(broadcast.eventId.startsWith('evt_'), 'de client ontving een eventId');
+
+  const published = harness.log.named('serverevent verstuurd')
+    .filter((line) => line.record.event === 'room:lock-changed');
+  assert.equal(published.length, 1, 'precies één logregel voor dit ene event');
+  assert.equal(
+    published[0].record.eventId,
+    broadcast.eventId,
+    'het gelogde eventId moet HETZELFDE zijn als dat op de wire — anders correleert het niets',
+  );
+  assert.equal(published[0].record.roomId, room.roomId);
+  assert.equal(published[0].record.layer, 'socket');
+});
+
+test('een geweigerde clientactie logt haar actionId, de interne uitkomst én de publieke code', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness);
+  const player = await seedPlayer(harness, room, 'Speler');
+  const client = await harness.connect(authFor(player));
+
+  const ack = await client.emitWithAck('game:lock', { actionId: 'act_rol_1', payload: { locked: true } });
+  assert.equal(ack.ok, false, 'de afwijzing moet echt hebben plaatsgevonden');
+  assert.equal(ack.payload.code, 'NOT_HOST');
+
+  const rejected = harness.log.named('clientevent geweigerd');
+  assert.equal(rejected.length, 1);
+  assert.deepEqual(rejected[0].record, {
+    layer: 'socket',
+    roomId: room.roomId,
+    sessionId: player.sessionId,
+    event: 'game:lock',
+    actionId: 'act_rol_1',
+    outcome: 'rejected',
+    code: 'NOT_HOST',
+  });
+});
+
+test('INTERNAL_ERROR_CODES: INVALID_PAUSE_STATE is al vóór deze laag vertaald — vastgelegd gat', async (t) => {
+  // INT4a vroeg `INTERNAL_ERROR_CODES` (state-machine.js, vandaag alleen
+  // `INVALID_PAUSE_STATE`) na te lopen op dezelfde vermomming als
+  // `PHASE_RACE_LOST`. BEVINDING: die vermomming bestaat, maar niet hier.
+  // `applyTransition()` in server/composition/match-lifecycle.mjs geeft
+  // `fail(toWireCode(result.code))` terug (regels 544, 799, 956, 1035), dus de
+  // transportlaag KRIJGT `INVALID_PAUSE_STATE` nooit te zien — hij krijgt al
+  // `INVALID_PHASE` binnen en kan het verschil niet meer maken.
+  // `PHASE_RACE_LOST` ontsnapt daaraan doordat `phaseConflict()` hem buiten
+  // `toWireCode` om teruggeeft; alleen dáárom kon INT4a hem hier repareren.
+  //
+  // Deze test legt de huidige, eerlijke stand vast in plaats van te doen alsof
+  // het gat gedicht is. Repareren vraagt een wijziging in server/composition/,
+  // en dat is andermans eigendom — zie het handoff-item.
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness);
+  const host = await harness.connect(authFor(room));
+
+  // Pauzeren tijdens COUNTDOWN levert intern `INVALID_PAUSE_STATE`
+  // (besluit 12).
+  await host.emitWithAck('game:start', { actionId: 'act_start', payload: {} });
+  await host.waitFor('game:started');
+  const ack = await host.emitWithAck('game:pause', { actionId: 'act_pause', payload: {} });
+  assert.equal(ack.ok, false, 'de interne fout moet zich echt hebben voorgedaan');
+  assert.equal(ack.payload.code, 'INVALID_PHASE', 'de CLIENT krijgt de publieke code — dat verandert niet');
+
+  const rejected = harness.log.named('clientevent geweigerd')
+    .filter((line) => line.record.event === 'game:pause');
+  assert.equal(rejected.length, 1);
+  assert.equal(rejected[0].record.code, 'INVALID_PHASE');
+  assert.equal(
+    rejected[0].record.outcome,
+    'rejected',
+    'zodra de compositielaag INVALID_PAUSE_STATE ongefilterd doorgeeft, hoort hier "invalid_pause_state" te staan',
+  );
+});
+
+// ── De race-test ─────────────────────────────────────────────────────────────
+//
+// GEEN `Promise.all()` OP TWEE FASEWISSELS. Dat geeft een timinggevoelige test
+// die soms groen wordt zonder dat er ooit een race was: als de eerste aanroep
+// helemaal klaar is voordat de tweede begint, verliest de tweede op een gewone
+// fasecontrole en niet op de compare-and-set. Hieronder staat bestuurde
+// gelijktijdigheid: de échte compositie, de échte dubbele compare-and-set van
+// `setRoomAndMatchPhaseAtomically`, en een barrière IN DE STORE die beide
+// aanroepen vasthoudt op precies het punt vóór de atomaire claim.
+
+/**
+ * Wikkelt de store zodat `setRoomAndMatchPhaseAtomically` kan worden
+ * vastgehouden vlak vóór de atomaire claim. Alles eromheen — lezen, de
+ * boekhoud-`saveMatch`, de reducer — draait onaangeroerd door.
+ */
+function makeCasBarrier() {
+  /** @type {Array<{ args: unknown[], release: () => void, settled: Promise<object> }>} */
+  const arrivals = [];
+  let armed = false;
+
+  function wrap(store) {
+    return {
+      ...store,
+      async setRoomAndMatchPhaseAtomically(...args) {
+        if (!armed) {
+          return store.setRoomAndMatchPhaseAtomically(...args);
+        }
+        let release;
+        let settle;
+        const held = new Promise((resolve) => { release = resolve; });
+        const settled = new Promise((resolve) => { settle = resolve; });
+        arrivals.push({ args, release, settled });
+        await held;
+        const result = await store.setRoomAndMatchPhaseAtomically(...args);
+        settle(result);
+        return result;
+      },
+    };
+  }
+
+  return {
+    wrap,
+    arrivals,
+    arm() { armed = true; },
+    /**
+     * Wacht tot er `count` aanroepen daadwerkelijk vóór de claim staan te
+     * wachten. Loopt dat mis, dan faalt de test met een verklarende melding in
+     * plaats van stilzwijgend een niet-bestaande race te "bewijzen".
+     */
+    async waitForArrivals(count, timeoutMs = 2000) {
+      const deadline = Date.now() + timeoutMs;
+      while (arrivals.length < count) {
+        if (Date.now() > deadline) {
+          throw new Error(`barrière: slechts ${arrivals.length} van ${count} aanroepen bereikten de compare-and-set`);
+        }
+        await new Promise((resolve) => { setTimeout(resolve, 1); });
+      }
+    },
+    /** Laat één wachtende aanroep door en geeft zijn compare-and-set-uitkomst. */
+    release(index) {
+      arrivals[index].release();
+      return arrivals[index].settled;
+    },
+  };
+}
+
+test('een verloren fase-race wordt gelogd als phase_race_lost, niet als een generieke INVALID_PHASE', async (t) => {
+  const barrier = makeCasBarrier();
+  const harness = await makeHarness(t, { wrapStore: barrier.wrap });
+  const room = await seedRoom(harness);
+  const host = await harness.connect(authFor(room));
+
+  // Breng de room via de ECHTE weg tot in ROUND_RESULT: start → countdown →
+  // ronde → einde ronde. Daarna staat er precies één timer gepland, en die
+  // voert de overgang uit die we zo laten botsen.
+  const started = await startFirstRound(harness, host);
+  assert.ok(started.payload.roundId, 'de ronde moet echt geopend zijn');
+  harness.clock.advance(30_000);
+  await harness.scheduler.fireAll();
+  await host.waitFor('round:ended');
+
+  const match = await harness.rawStore.loadMatch(room.roomId, (await harness.rawStore.loadRoom(room.roomId)).currentMatchId);
+  assert.equal(match.phase, 'ROUND_RESULT', 'OPZETCONTROLE: zonder deze beginfase botst er straks niets');
+
+  const pending = harness.scheduler.pendingFns();
+  assert.equal(pending.length, 1, 'er hoort precies één timergedreven overgang gepland te staan');
+  const advanceOnTimer = pending[0];
+
+  // 1 + 2. Beide aanroepen starten en lopen door tot vlak vóór de atomaire
+  //        claim; daar houdt de barrière ze vast.
+  barrier.arm();
+  const first = advanceOnTimer();
+  const second = advanceOnTimer();
+  await barrier.waitForArrivals(2);
+
+  const [expectedFirst, expectedSecond] = barrier.arrivals.map((arrival) => arrival.args[2].expectedPhase);
+  assert.equal(expectedFirst, 'ROUND_RESULT');
+  assert.equal(expectedSecond, 'ROUND_RESULT', 'beide aanroepen moeten dezelfde beginfase hebben gelezen');
+
+  // 3. Eén laten winnen.
+  const winner = await barrier.release(0);
+  assert.equal(winner.ok, true, 'de eerste compare-and-set hoort te slagen');
+  const phaseAfterWinner = (await harness.rawStore.loadMatch(room.roomId, match.id)).phase;
+  assert.notEqual(phaseAfterWinner, 'ROUND_RESULT', 'de winnaar heeft de fase echt verzet');
+
+  // 4. De ander loslaten en aantonen dat híj verliest.
+  const loser = await barrier.release(1);
+  assert.equal(loser.ok, false, 'de tweede compare-and-set hoort te verliezen');
+  assert.equal(loser.actualPhase, phaseAfterWinner, 'de verliezer zag de fase van de winnaar');
+
+  await first;
+  await second;
+
+  // 5. En dan pas de logregel.
+  const rejected = harness.log.named('timerovergang geweigerd');
+  assert.equal(rejected.length, 1, 'precies één van de twee overgangen is geweigerd');
+  const line = rejected[0];
+  assert.deepEqual(line.record, {
+    layer: 'socket',
+    outcome: 'phase_race_lost',
+    roomId: room.roomId,
+    source: 'timer',
+    expectedPhase: 'ROUND_RESULT',
+    actualPhase: phaseAfterWinner,
+  });
+  // DIT is de reparatie: vóór INT4a stond hier `code: 'INVALID_PHASE'` — een
+  // generieke fasefout, terwijl het in werkelijkheid verwachte gelijktijdigheid
+  // was. De twee vragen operationeel om een tegenovergestelde reactie.
+  assert.equal(Object.hasOwn(line.record, 'code'), false, 'een verloren race is geen foutcode');
+  assert.equal(line.level, 'info', 'verwachte gelijktijdigheid is geen waarschuwing');
+
+  // De CLIENT merkt hier nog steeds niets van: er gaat geen ack en geen
+  // error-event naar aanleiding van een servergedreven overgang.
+  await settle();
+  assert.equal(host.eventsNamed('error').length, 0);
+  const wire = JSON.stringify(host.received);
+  assert.ok(!wire.includes('PHASE_RACE_LOST'), 'de interne code verlaat de server nooit');
 });

@@ -22,8 +22,20 @@
 // 3. Tijden zijn absoluut in epoch-ms en komen uit `context.now()`. Dit bestand
 //    roept `Date.now()` niet aan.
 //
-// Er wordt hier niet gelogd op het requestpad (geen `console.log`): Fastify's
-// eigen logger is de enige logweg en die staat standaard uit in `buildServer`.
+// LOGGEN (INT4a). Er wordt hier niet met `console.log` gelogd; de enige
+// loguitgang is `logSafe`, de gedeelde veilige logger uit ./safe-logger.mjs die
+// ook `socket.mjs` en `index.mjs` gebruiken. Wat er gelogd wordt is bewust
+// SMAL: een afgewezen verzoek met zijn foutcode, een authenticatiefout, een
+// 500, en de room-brede `room:player-changed` die deze laag namens de socket
+// uitstuurt. NIET elk geslaagd verzoek — dat is ruis die de echte signalen
+// begraaft.
+//
+// IDENTIFICATIE PER LAAG: `requestId` (Fastify's `request.id`) identificeert
+// één REST-verzoek, en zodra de room is opgelost draagt de regel ook `roomId`.
+// Dat is operationele CONTEXT en geen doorlopend correlatie-ID: je kunt alles
+// van één spelavond bij elkaar zoeken en binnen één verzoek de keten volgen,
+// maar niet vaststellen wélk serverevent door wélk verzoek werd veroorzaakt.
+// Zie de kop van socket.mjs voor waarom dat hier bewust niet is gebouwd.
 
 import { ALL_ERROR_CODES } from '../protocol/error-codes.mjs';
 import { buildErrorPayload } from '../protocol/error-payload.mjs';
@@ -47,6 +59,7 @@ import { verifySessionToken } from '../composition/context.mjs';
 import { createRoom, joinRoom, previewInvite } from '../composition/room-lifecycle.mjs';
 import { buildSnapshot } from '../composition/match-lifecycle.mjs';
 import { assertPlayerShape } from '../data/types/player.js';
+import { OUTCOME, classifyOutcome, createSafeLogger, errorLabel } from './safe-logger.mjs';
 
 /** @typedef {import('../composition/context.mjs').Context} Context */
 /** @typedef {import('../protocol/error-codes.mjs').ErrorCode} ErrorCode */
@@ -238,47 +251,6 @@ export async function authenticateRequest(context, authorizationHeader) {
   return { ok: true, value: { session, token: parsed.token } };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Antwoordhulpjes
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Stuurt een foutrespons. `buildErrorPayload` is het tweede vangnet: die
- * wérpt op een niet-gepubliceerde code, dus een code die om wat voor reden dan
- * ook langs `toPublishedErrorCode` glipt wordt een 500 in plaats van een lek.
- * @param {import('fastify').FastifyReply} reply
- * @param {unknown} code
- */
-function sendError(reply, code) {
-  const wireCode = toPublishedErrorCode(code);
-  return reply.code(httpStatusForErrorCode(wireCode)).send(buildErrorPayload(wireCode));
-}
-
-/**
- * Serverfout: 500 zonder enig detail over wat er misging. `meta` blijft leeg —
- * debugdetails gaan alleen naar serverlogs (`PROTOCOL.md` §Foutcodes).
- * @param {import('fastify').FastifyReply} reply
- */
-function sendInternalError(reply) {
-  return reply.code(500).send({ code: INTERNAL_ERROR_MARKER, meta: {} });
-}
-
-/**
- * Keurt een uitgaande body met de bijbehorende protocol-validator en stuurt
- * hem pas dán. Faalt de validatie, dan is dat per definitie een serverfout:
- * de compositielaag heeft iets opgeleverd dat het contract niet haalt.
- * @param {import('fastify').FastifyReply} reply
- * @param {number} status
- * @param {object} body
- * @param {(body: unknown) => { ok: boolean }} validate
- */
-function sendValidatedResponse(reply, status, body, validate) {
-  if (!validate(body).ok) {
-    return sendInternalError(reply);
-  }
-  return reply.code(status).send(body);
-}
-
 /**
  * Zoekt de room bij een `{code}`-pathparameter op en controleert dat de
  * geauthenticeerde sessie ook echt bij díé room hoort.
@@ -338,6 +310,85 @@ export default async function restRoutes(fastify, options) {
     throw new TypeError('restRoutes: `options.context` is verplicht (zie server/composition/context.mjs).');
   }
 
+  // ── De enige loguitgang van deze laag ──────────────────────────────────────
+  //
+  // Dezelfde allowlist en dezelfde formatter als socket.mjs en index.mjs
+  // (./safe-logger.mjs). De onderliggende sink is `fastify.log`, zodat er maar
+  // één logstroom bestaat: wat Fastify zelf zou schrijven en wat wij schrijven
+  // komen op dezelfde plek uit en gaan door dezelfde veilige serializers (zie
+  // `withSafeSerializers` in index.mjs).
+  const logSafe = createSafeLogger({ logger: fastify.log, layer: 'rest' });
+
+  /**
+   * Stuurt een foutrespons en logt hem. `buildErrorPayload` is het tweede
+   * vangnet: die wérpt op een niet-gepubliceerde code, dus een code die om wat
+   * voor reden dan ook langs `toPublishedErrorCode` glipt wordt een 500 in
+   * plaats van een lek.
+   *
+   * `outcome` draagt de INTERNE betekenis en `code` wat de client kreeg. Die
+   * twee lopen uiteen zodra een interne code (`INVALID_PAUSE_STATE`,
+   * `PHASE_RACE_LOST`) publiek wordt vertaald — zonder `outcome` staat er een
+   * generieke `INVALID_PHASE` in het log en is niet meer te zien wat er echt
+   * gebeurde.
+   *
+   * @param {import('fastify').FastifyRequest} request
+   * @param {import('fastify').FastifyReply} reply
+   * @param {unknown} code
+   * @param {Record<string, unknown>} [fields] - extra veilige context (roomId, outcome)
+   */
+  function sendError(request, reply, code, fields = {}) {
+    const wireCode = toPublishedErrorCode(code);
+    logSafe('warn', 'verzoek afgewezen', {
+      requestId: String(request.id),
+      method: request.method,
+      outcome: classifyOutcome(code),
+      code: wireCode,
+      ...fields,
+    });
+    return reply.code(httpStatusForErrorCode(wireCode)).send(buildErrorPayload(wireCode));
+  }
+
+  /**
+   * Serverfout: 500 zonder enig detail over wat er misging. `meta` blijft leeg
+   * — debugdetails gaan alleen naar serverlogs (`PROTOCOL.md` §Foutcodes), en
+   * ook dáár uitsluitend als STABIELE FOUTKLASSE: `reason` gaat door
+   * `errorLabel()` en de vormtoets van de allowlist laat een `error.message` of
+   * een stacktrace er niet doorheen.
+   *
+   * @param {import('fastify').FastifyRequest} request
+   * @param {import('fastify').FastifyReply} reply
+   * @param {string} [reason] - reeds gelabelde foutklasse
+   * @param {Record<string, unknown>} [fields]
+   */
+  function sendInternalError(request, reply, reason = 'unknown', fields = {}) {
+    logSafe('error', 'serverfout', {
+      requestId: String(request.id),
+      method: request.method,
+      outcome: OUTCOME.SERVER_ERROR,
+      code: INTERNAL_ERROR_MARKER,
+      reason,
+      ...fields,
+    });
+    return reply.code(500).send({ code: INTERNAL_ERROR_MARKER, meta: {} });
+  }
+
+  /**
+   * Keurt een uitgaande body met de bijbehorende protocol-validator en stuurt
+   * hem pas dán. Faalt de validatie, dan is dat per definitie een serverfout:
+   * de compositielaag heeft iets opgeleverd dat het contract niet haalt.
+   * @param {import('fastify').FastifyRequest} request
+   * @param {import('fastify').FastifyReply} reply
+   * @param {number} status
+   * @param {object} body
+   * @param {(body: unknown) => { ok: boolean }} validate
+   */
+  function sendValidatedResponse(request, reply, status, body, validate) {
+    if (!validate(body).ok) {
+      return sendInternalError(request, reply, 'response_validation_failed');
+    }
+    return reply.code(status).send(body);
+  }
+
   /**
    * Stuurt `room:player-changed` room-breed via de socketlaag.
    *
@@ -350,8 +401,16 @@ export default async function restRoutes(fastify, options) {
    *
    * Een mislukte broadcast mag de HTTP-respons NOOIT omzetten in een fout: de
    * join/leave is dan al doorgevoerd en een 500 zou de client laten denken dat
-   * hij niet in de room zit. Hij wordt gelogd via Fastify's eigen logger (de
-   * enige logweg hier) en verder genegeerd.
+   * hij niet in de room zit. Hij wordt gelogd via de gedeelde veilige logger en
+   * verder genegeerd.
+   *
+   * DIT IS DE ENIGE GESLAAGDE HANDELING DIE DEZE LAAG LOGT, en met reden: het
+   * is het punt waar een REST-verzoek een room-breed serverevent veroorzaakt.
+   * Samen met de `serverevent verstuurd`-regel van socket.mjs levert dat
+   * ROOMCORRELATIE op — beide regels dragen dezelfde `roomId`. Het is
+   * uitdrukkelijk geen causale één-op-één-trace: bij twintig gelijktijdige
+   * joins in dezelfde room is niet vast te stellen welk `requestId` bij welk
+   * `eventId` hoort. Zie de kop van dit bestand.
    *
    * `delta.type` kent vier waarden (`server-events-room-lifecycle.mjs`). Twee
    * daarvan lopen hierlangs (`join`, `leave`); `kick` stuurt `socket.mjs` zelf
@@ -376,10 +435,23 @@ export default async function restRoutes(fastify, options) {
     }
     try {
       await sockets.broadcastPlayerChanged(roomId, delta);
+      logSafe('info', 'room:player-changed uitgezonden', {
+        requestId: String(request.id),
+        method: request.method,
+        roomId,
+        event: 'room:player-changed',
+      });
       return true;
-    } catch {
+    } catch (error) {
       // Geen `error.message` en geen stacktrace in de log — regel 2.
-      request.log?.warn?.({ layer: 'rest', roomId, delta: delta.type }, 'room:player-changed niet verstuurd');
+      logSafe('warn', 'room:player-changed niet verstuurd', {
+        requestId: String(request.id),
+        method: request.method,
+        roomId,
+        event: 'room:player-changed',
+        outcome: OUTCOME.SERVER_ERROR,
+        reason: errorLabel(error),
+      });
       return false;
     }
   }
@@ -406,20 +478,20 @@ export default async function restRoutes(fastify, options) {
   // serverfout en levert 500 zonder detail — nooit een stacktrace.
   fastify.setErrorHandler((error, request, reply) => {
     if (typeof error?.protocolCode === 'string') {
-      return sendError(reply, error.protocolCode);
+      return sendError(request, reply, error.protocolCode);
     }
-    return sendInternalError(reply);
+    return sendInternalError(request, reply, errorLabel(error));
   });
 
   // Een onbekend pad binnen /api/v1 is geen room: `GAME_NOT_FOUND` in de
   // gedeelde foutvorm in plaats van Fastify's eigen 404-vorm.
-  fastify.setNotFoundHandler((request, reply) => sendError(reply, 'GAME_NOT_FOUND'));
+  fastify.setNotFoundHandler((request, reply) => sendError(request, reply, 'GAME_NOT_FOUND'));
 
   // ── POST /api/v1/games ─────────────────────────────────────────────────────
   fastify.post('/games', async (request, reply) => {
     const validated = validateCreateGameRequest(request.body);
     if (!validated.ok) {
-      return sendError(reply, validated.code);
+      return sendError(request, reply, validated.code);
     }
 
     const created = await createRoom(context, {
@@ -428,12 +500,12 @@ export default async function restRoutes(fastify, options) {
       displayName: validated.value.displayName,
     });
     if (!created.ok) {
-      return sendError(reply, created.code);
+      return sendError(request, reply, created.code);
     }
 
     const state = await snapshotFor(context, created.value.roomId, created.value.sessionId);
     if (state === null) {
-      return sendInternalError(reply);
+      return sendInternalError(request, reply, 'snapshot_unavailable', { roomId: created.value.roomId });
     }
 
     // Expliciet opgebouwd, niet doorgegeven: `createRoom` levert ook
@@ -454,7 +526,7 @@ export default async function restRoutes(fastify, options) {
     // ("bij hostParticipates=false zijn playerId en effectiveName null").
     if (!validateCreateGameResponse(body).ok
       || !hostParticipatesInvariantHolds(validated.value, body)) {
-      return sendInternalError(reply);
+      return sendInternalError(request, reply, 'response_validation_failed', { roomId: created.value.roomId });
     }
     return reply.code(201).send(body);
   });
@@ -463,12 +535,12 @@ export default async function restRoutes(fastify, options) {
   fastify.post('/games/join', async (request, reply) => {
     const validated = validateJoinGameRequest(request.body);
     if (!validated.ok) {
-      return sendError(reply, validated.code);
+      return sendError(request, reply, validated.code);
     }
 
     const joined = await joinRoom(context, validated.value);
     if (!joined.ok) {
-      return sendError(reply, joined.code);
+      return sendError(request, reply, joined.code);
     }
 
     // De rest van de room hoort de nieuwe speler te zien verschijnen.
@@ -487,7 +559,7 @@ export default async function restRoutes(fastify, options) {
 
     const state = await snapshotFor(context, joined.value.roomId, joined.value.sessionId);
     if (state === null) {
-      return sendInternalError(reply);
+      return sendInternalError(request, reply, 'snapshot_unavailable', { roomId: joined.value.roomId });
     }
 
     // Zonder `sessionId`/`joinSource`: die zijn intern resp. een echo van de
@@ -501,21 +573,21 @@ export default async function restRoutes(fastify, options) {
       effectiveName: joined.value.effectiveName,
       state,
     };
-    return sendValidatedResponse(reply, 200, body, validateJoinGameResponse);
+    return sendValidatedResponse(request, reply, 200, body, validateJoinGameResponse);
   });
 
   // ── GET /api/v1/games/preview ──────────────────────────────────────────────
   fastify.get('/games/preview', async (request, reply) => {
     const validated = validatePreviewRequest(request.query);
     if (!validated.ok) {
-      return sendError(reply, validated.code);
+      return sendError(request, reply, validated.code);
     }
 
     const preview = await previewInvite(context, { inviteId: validated.value.inviteId });
     if (!preview.ok) {
-      return sendError(reply, preview.code);
+      return sendError(request, reply, preview.code);
     }
-    return sendValidatedResponse(reply, 200, preview.value, validatePreviewResponse);
+    return sendValidatedResponse(request, reply, 200, preview.value, validatePreviewResponse);
   });
 
   // ── GET /api/v1/games/:code/state ──────────────────────────────────────────
@@ -525,23 +597,27 @@ export default async function restRoutes(fastify, options) {
       authorizationHeader: request.headers.authorization,
     });
     if (!validated.ok) {
-      return sendError(reply, validated.code);
+      return sendError(request, reply, validated.code);
     }
 
     const authenticated = await authenticateRequest(context, request.headers.authorization);
     if (!authenticated.ok) {
-      return sendError(reply, authenticated.code);
+      return sendError(request, reply, authenticated.code, { outcome: OUTCOME.AUTH_FAILED });
     }
     const { session } = authenticated.value;
 
     const located = await resolveRoomForSession(context, validated.value.code, session);
     if (!located.ok) {
-      return sendError(reply, located.code);
+      return sendError(request, reply, located.code, { sessionId: session.id });
     }
+    // Vanaf hier is de room bekend, dus draagt elke logregel van dit verzoek
+    // `roomId` — dat is het veld waarmee alles van één spelavond bij elkaar te
+    // zoeken is.
+    const roomId = located.value.id;
 
-    const snapshot = await buildSnapshot(context, { roomId: located.value.id, sessionId: session.id });
+    const snapshot = await buildSnapshot(context, { roomId, sessionId: session.id });
     if (!snapshot.ok) {
-      return sendError(reply, snapshot.code);
+      return sendError(request, reply, snapshot.code, { roomId, sessionId: session.id });
     }
 
     // Twee keuringen, allebei blokkerend. `assertNoActiveRoundAnswerLeak` is de
@@ -552,7 +628,7 @@ export default async function restRoutes(fastify, options) {
     // match niet bestaan. Bewust niet omheen gebouwd.
     if (!assertNoActiveRoundAnswerLeak(snapshot.value).ok
       || !validateSnapshotShape(snapshot.value).ok) {
-      return sendInternalError(reply);
+      return sendInternalError(request, reply, 'snapshot_validation_failed', { roomId, sessionId: session.id });
     }
     return reply.code(200).send(snapshot.value);
   });
@@ -574,29 +650,29 @@ export default async function restRoutes(fastify, options) {
       authorizationHeader: request.headers.authorization,
     });
     if (!validated.ok) {
-      return sendError(reply, validated.code);
+      return sendError(request, reply, validated.code);
     }
 
     const authenticated = await authenticateRequest(context, request.headers.authorization);
     if (!authenticated.ok) {
-      return sendError(reply, authenticated.code);
+      return sendError(request, reply, authenticated.code, { outcome: OUTCOME.AUTH_FAILED });
     }
     const { session } = authenticated.value;
 
     const located = await resolveRoomForSession(context, validated.value.code, session);
     if (!located.ok) {
-      return sendError(reply, located.code);
+      return sendError(request, reply, located.code, { sessionId: session.id });
     }
 
     // "Vereist spelerrol" (PROTOCOL.md §leave): een host die niet meespeelt
     // heeft `roles: ['host']` en `playerId: null` en kan dus niets verlaten.
     if (!Array.isArray(session.roles) || !session.roles.includes('player') || session.playerId === null) {
-      return sendError(reply, 'NOT_PLAYER');
+      return sendError(request, reply, 'NOT_PLAYER', { roomId: located.value.id, sessionId: session.id });
     }
 
     const player = await context.store.loadPlayer(located.value.id, session.playerId);
     if (player === null) {
-      return sendError(reply, 'NOT_PLAYER');
+      return sendError(request, reply, 'NOT_PLAYER', { roomId: located.value.id, sessionId: session.id });
     }
 
     if (player.left !== true) {
@@ -622,7 +698,7 @@ export default async function restRoutes(fastify, options) {
   fastify.get('/time', async (request, reply) => {
     // Epoch-ms uit de geïnjecteerde klok, niet uit `Date.now()`.
     const body = { serverTime: context.now() };
-    return sendValidatedResponse(reply, 200, body, validateTimeResponse);
+    return sendValidatedResponse(request, reply, 200, body, validateTimeResponse);
   });
 }
 

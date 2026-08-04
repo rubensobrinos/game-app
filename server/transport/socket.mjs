@@ -27,7 +27,21 @@
 //    geen enkele timer-tick over de socket; er zijn alleen servertimers die op
 //    een absoluut tijdstip één fasewissel doen.
 // 4. Er wordt niets gelogd wat een token, een displaynaam of een stacktrace
-//    bevat. `logSafe()` is de enige loguitgang.
+//    bevat. `logSafe()` is de enige loguitgang, en die komt sinds INT4a uit
+//    ../transport/safe-logger.mjs — REST en index.mjs gebruiken dezelfde
+//    allowlist, zodat er geen tweede logmechanisme naast dit bestand staat.
+//
+// OPERATIONELE CONTEXT (INT4a deel 1) — dit is uitdrukkelijk GEEN doorlopend
+// correlatie-ID. Elke logregel van deze laag draagt `roomId` (bekend meteen na
+// de handshake, uit `socket.data`) plus het identificerende veld van de
+// gebeurtenis: `sessionId` voor een verbinding, `actionId` voor een muterende
+// clientactie, `eventId` voor een uitgaand serverevent. Daarmee is alles van
+// één spelavond bij elkaar te zoeken en is binnen één clientactie de keten te
+// volgen. WAT DIT NIET OPLOST: bij twintig joins in dezelfde room valt niet te
+// bepalen wélk serverevent door wélk verzoek is veroorzaakt. Dat vraagt een
+// echte `traceId` die van REST via de compositie naar de publicatie wordt
+// doorgegeven — raakt interne signaturen en mogelijk publieke contracten, dus
+// bewust niet hier gebouwd. Zie het handoff-item.
 
 import { Server as SocketIOServer } from 'socket.io';
 
@@ -47,6 +61,7 @@ import { assertNoActiveRoundAnswerLeak, validateSnapshotShape } from '../protoco
 
 import { createId, verifySessionToken } from '../composition/context.mjs';
 import {
+  PHASE_RACE_LOST,
   advancePhase,
   buildSnapshot,
   endRound,
@@ -60,6 +75,14 @@ import {
 import { kickPlayer, setRoomLocked } from '../composition/room-lifecycle.mjs';
 
 import { isEligibleForRound } from '../rules/eligibility.js';
+
+import {
+  NOOP_LOGGER,
+  OUTCOME,
+  classifyOutcome,
+  createSafeLogger,
+  errorLabel,
+} from './safe-logger.mjs';
 
 /** De protocolversies die deze server accepteert (PROTOCOL.md, kop). */
 export const SUPPORTED_PROTOCOL_VERSIONS = Object.freeze(new Set(['v1']));
@@ -202,9 +225,6 @@ const DEFAULT_SCHEDULER = Object.freeze({
   },
 });
 
-/** Stille standaardlogger: deze laag logt nooit ongevraagd naar stdout. */
-const NOOP_LOGGER = Object.freeze({ info() {}, warn() {}, error() {} });
-
 /**
  * Koppelt de Socket.IO-server aan een bestaande HTTP-server.
  *
@@ -286,34 +306,51 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
   }
 
   /**
-   * Logt zonder ooit een token, displaynaam of stacktrace mee te nemen
-   * (PROTOCOL.md Basisregel 8, DEPLOYMENT-AND-TESTING.md §Logging).
-   *
-   * DIT IS EEN ALLOWLIST, GEEN FILTER. Een eerdere versie kopieerde alle
-   * meegegeven velden en sloeg alleen `undefined` over; de belofte in dit
-   * comment werd toen afgedwongen door de discipline van de aanroeper en niet
-   * door de code. Eén `logSafe('info', '…', { token })` verderop was genoeg om
-   * een sessietoken in productielogs te zetten. Daarom staat hieronder een
-   * expliciete lijst: alles wat er niet in staat wordt weggegooid, ook als het
-   * nieuw en onschuldig lijkt. Wil je een veld toevoegen, doe dat hier en
-   * bedenk eerst of het een geheim of een persoonsgegeven kan dragen.
+   * De enige loguitgang van deze laag. De allowlist en de vormtoetsen wonen in
+   * `./safe-logger.mjs`, gedeeld met `rest.mjs` en `index.mjs` — vroeger stond
+   * hier een eigen kopie, en dat is precies het tweede mechanisme dat
+   * `AGENTS.md` verbiedt.
    */
-  const LOGGABLE_FIELDS = Object.freeze([
-    'roomId', // opaak id, geen join-capability (dat zijn code en inviteId)
-    'sessionId', // opaak id, niet het token
-    'event', // eventnaam uit het vaste protocolalfabet
-    'code', // gepubliceerde PROTOCOL.md-foutcode
-    'reason', // reeds gelabelde foutklasse, nooit een message of stacktrace
-    'method', // share:opened → qr | link | native
-  ]);
+  const logSafe = createSafeLogger({ logger, layer: 'socket' });
 
-  function logSafe(level, message, fields = {}) {
-    const safe = {};
-    for (const key of LOGGABLE_FIELDS) {
-      const value = fields[key];
-      if (value !== undefined) safe[key] = value;
+  /**
+   * Logt een geweigerde fase-overgang met zijn INTERNE betekenis.
+   *
+   * WAAROM DIT NIET GEWOON `code: toPublicErrorCode(...)` MAG ZIJN (INT4a deel
+   * 3): die functie beeldt `PHASE_RACE_LOST` af op `INVALID_PHASE`, dus in het
+   * log stond een generieke fasefout waar in werkelijkheid een verwachte
+   * verloren compare-and-set zat. Operationeel zijn dat twee verschillende
+   * dingen — een `INVALID_PHASE` van een hostactie wijst op een achterhaald
+   * scherm of een bug, een verloren race is normale gelijktijdigheid. Vandaar
+   * ook het niveau: een verloren race is `info`, al het andere `warn`.
+   *
+   * De CLIENT verandert hier niets van: die krijgt nog steeds uitsluitend
+   * `toPublicErrorCode()`, en deze paden sturen sowieso niets terug.
+   *
+   * @param {string} message
+   * @param {string} roomId
+   * @param {{ code?: unknown, conflict?: { expectedPhase?: string, actualPhase?: string } }} result
+   * @param {'host' | 'timer' | 'recovery'} source
+   */
+  function logPhaseRejected(message, roomId, result, source) {
+    if (result.code === PHASE_RACE_LOST) {
+      logSafe('info', message, {
+        outcome: OUTCOME.PHASE_RACE_LOST,
+        roomId,
+        source,
+        expectedPhase: result.conflict?.expectedPhase,
+        actualPhase: result.conflict?.actualPhase,
+      });
+      return;
     }
-    logger[level]?.({ layer: 'socket', ...safe }, message);
+    logSafe('warn', message, {
+      outcome: classifyOutcome(result.code),
+      roomId,
+      source,
+      code: toPublicErrorCode(result.code),
+      expectedPhase: result.conflict?.expectedPhase,
+      actualPhase: result.conflict?.actualPhase,
+    });
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -344,24 +381,32 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
       // De promise wordt teruggegeven zodat een geïnjecteerde (test)scheduler
       // de afhandeling kan afwachten; de echte `setTimeout` negeert hem.
       return Promise.resolve(fn()).catch((error) => {
-        logSafe('error', 'geplande fasewissel mislukt', { roomId, reason: errorLabel(error) });
+        logSafe('error', 'geplande fasewissel mislukt', {
+          roomId,
+          source: 'timer',
+          outcome: OUTCOME.SERVER_ERROR,
+          reason: errorLabel(error),
+        });
       });
     });
-  }
-
-  /** Een korte, veilige labelvorm van een exception: nooit de stacktrace. */
-  function errorLabel(error) {
-    if (error === null || typeof error !== 'object') return 'unknown';
-    if (typeof error.code === 'string') return error.code;
-    return error.constructor?.name ?? 'Error';
   }
 
   // ───────────────────────────────────────────────────────────────────────────
   // Server → client
   // ───────────────────────────────────────────────────────────────────────────
 
-  function envelopeFor(event, payload) {
-    const built = buildServerEnvelope(event, payload, context.now(), createId(context, 'evt'));
+  /**
+   * `eventId` is de identificatie van één uitgaand serverevent (INT4a deel 1).
+   * Hij wordt hier gemaakt en meegegeven in plaats van diep in `envelopeFor`,
+   * zodat de logregel dezelfde `eventId` kan noemen die de client ontvangt —
+   * anders zou het log een ander id dragen dan de wire en niets correleren.
+   */
+  function nextEventId() {
+    return createId(context, 'evt');
+  }
+
+  function envelopeFor(event, payload, eventId = nextEventId()) {
+    const built = buildServerEnvelope(event, payload, context.now(), eventId);
     if (!built.ok) {
       throw new Error(`socket: kon envelope voor "${event}" niet bouwen (${built.reason})`);
     }
@@ -369,13 +414,15 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
   }
 
   /** `room`-events: naar de Socket.IO-room van deze game-room, nergens anders heen. */
-  function emitToRoom(roomId, event, payload) {
-    io.to(roomChannel(roomId)).emit(event, envelopeFor(event, payload));
+  function emitToRoom(roomId, event, payload, eventId = nextEventId()) {
+    io.to(roomChannel(roomId)).emit(event, envelopeFor(event, payload, eventId));
+    return eventId;
   }
 
   /** `single_session`-events: alleen naar de sockets van die ene sessie. */
-  function emitToSession(sessionId, event, payload) {
-    io.to(sessionChannel(sessionId)).emit(event, envelopeFor(event, payload));
+  function emitToSession(sessionId, event, payload, eventId = nextEventId()) {
+    io.to(sessionChannel(sessionId)).emit(event, envelopeFor(event, payload, eventId));
+    return eventId;
   }
 
   /**
@@ -383,10 +430,9 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
    * `serverTime`) maar per ontvanger aangevuld met diens eigen velden. De
    * persoonlijke velden gaan dus nooit room-breed de lucht in.
    */
-  async function emitToRoomWithPersonalFields(roomId, event, basePayload, personalByPlayerId, fallbackPersonal) {
+  async function emitToRoomWithPersonalFields(roomId, event, basePayload, personalByPlayerId, fallbackPersonal, eventId = nextEventId()) {
     const sockets = await io.in(roomChannel(roomId)).fetchSockets();
     const serverTime = context.now();
-    const eventId = createId(context, 'evt');
     for (const socket of sockets) {
       const playerId = socket.data?.playerId ?? null;
       const personal = (playerId !== null ? personalByPlayerId.get(playerId) : undefined) ?? fallbackPersonal;
@@ -395,6 +441,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
         socket.emit(event, built.envelope);
       }
     }
+    return eventId;
   }
 
   /**
@@ -404,19 +451,19 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
    */
   async function publish(event, { roomId, sessionId = null, payload, personalByPlayerId, fallbackPersonal }) {
     const rule = resolveRecipientRule(event);
+    const eventId = nextEventId();
     if (rule === 'single_session') {
-      emitToSession(sessionId, event, payload);
-      return;
+      emitToSession(sessionId, event, payload, eventId);
+    } else if (rule === 'room_with_personal_fields') {
+      await emitToRoomWithPersonalFields(roomId, event, payload, personalByPlayerId ?? new Map(), fallbackPersonal ?? {}, eventId);
+    } else if (rule === 'room') {
+      emitToRoom(roomId, event, payload, eventId);
+    } else {
+      throw new Error(`socket: onbekend serverevent "${event}" — geen ontvangersregel`);
     }
-    if (rule === 'room_with_personal_fields') {
-      await emitToRoomWithPersonalFields(roomId, event, payload, personalByPlayerId ?? new Map(), fallbackPersonal ?? {});
-      return;
-    }
-    if (rule === 'room') {
-      emitToRoom(roomId, event, payload);
-      return;
-    }
-    throw new Error(`socket: onbekend serverevent "${event}" — geen ontvangersregel`);
+    // De identificatie van één uitgaand serverevent. Bewust ná het verzenden:
+    // een regel over een event dat niet de deur uit ging is misleidend.
+    logSafe('info', 'serverevent verstuurd', { roomId, sessionId, event, eventId });
   }
 
   /** `error` gaat naar precies één sessie (tabel §Server → client events). */
@@ -506,7 +553,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
   async function runStartRound(roomId) {
     const result = await startRound(context, { roomId });
     if (!result.ok) {
-      logSafe('warn', 'startRound geweigerd', { roomId, code: toPublicErrorCode(result.code) });
+      logPhaseRejected('startRound geweigerd', roomId, result, 'timer');
       return;
     }
     const runtime = runtimeFor(roomId);
@@ -525,7 +572,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
   async function runEndRound(roomId) {
     const result = await endRound(context, { roomId });
     if (!result.ok) {
-      logSafe('warn', 'endRound geweigerd', { roomId, code: toPublicErrorCode(result.code) });
+      logPhaseRejected('endRound geweigerd', roomId, result, 'timer');
       return;
     }
     const value = result.value;
@@ -561,7 +608,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
   async function runAdvanceOnTimer(roomId) {
     const result = await advancePhase(context, { roomId, event: { type: TIMER_ELAPSED } });
     if (!result.ok) {
-      logSafe('warn', 'timerovergang geweigerd', { roomId, code: toPublicErrorCode(result.code) });
+      logPhaseRejected('timerovergang geweigerd', roomId, result, 'timer');
       return;
     }
     await onPhaseEntered(roomId, result.value.phase, result.value.phaseEndsAt);
@@ -571,7 +618,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
   async function publishFinished(roomId) {
     const result = await finishMatch(context, { roomId });
     if (!result.ok) {
-      logSafe('warn', 'finishMatch geweigerd', { roomId, code: toPublicErrorCode(result.code) });
+      logPhaseRejected('finishMatch geweigerd', roomId, result, 'timer');
       return result;
     }
     const personal = new Map(result.value.standings.map((entry) => [entry.playerId, { self: entry }]));
@@ -629,7 +676,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
     const { sessionToken, protocolVersion } = auth;
 
     if (!SUPPORTED_PROTOCOL_VERSIONS.has(protocolVersion)) {
-      logSafe('warn', 'handshake geweigerd', { code: 'PROTOCOL_VERSION_UNSUPPORTED' });
+      logSafe('warn', 'handshake geweigerd', { outcome: OUTCOME.AUTH_FAILED, code: 'PROTOCOL_VERSION_UNSUPPORTED' });
       next(handshakeError('PROTOCOL_VERSION_UNSUPPORTED'));
       return;
     }
@@ -640,13 +687,13 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
     } catch (error) {
       // De poort kan werpen (INTB-10: de Redis-adapter blokkeert deze methode
       // nog). Naar buiten is dat een gewone afwijzing; nooit een stacktrace.
-      logSafe('error', 'sessie-lookup mislukt', { reason: errorLabel(error) });
+      logSafe('error', 'sessie-lookup mislukt', { outcome: OUTCOME.SERVER_ERROR, reason: errorLabel(error) });
       next(handshakeError('TOKEN_INVALID'));
       return;
     }
 
     if (!found.ok) {
-      logSafe('warn', 'handshake geweigerd', { code: found.code });
+      logSafe('warn', 'handshake geweigerd', { outcome: OUTCOME.AUTH_FAILED, code: toPublicErrorCode(found.code) });
       next(handshakeError(found.code));
       return;
     }
@@ -670,7 +717,12 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
     socket.onAny((eventName, ...args) => {
       const ack = typeof args[args.length - 1] === 'function' ? args.pop() : null;
       handleClientEvent(socket, eventName, args[0], ack).catch((error) => {
-        logSafe('error', 'clientevent mislukt', { roomId, event: eventName, reason: errorLabel(error) });
+        logSafe('error', 'clientevent mislukt', {
+          roomId,
+          event: eventName,
+          outcome: OUTCOME.SERVER_ERROR,
+          reason: errorLabel(error),
+        });
         respondFailure(socket, UNKNOWN_ACTION_ID, FALLBACK_PUBLIC_CODE, ack);
       });
     });
@@ -718,8 +770,27 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
     const { roomId, sessionId, roles } = socket.data;
     const body = isPlainObject(raw) ? raw : {};
 
+    /**
+     * Eén afwijzing = één logregel. Vroeger logde alleen het pad ná de
+     * compositie-aanroep; een geweigerde rol, een misvormde payload of een
+     * onbekend event verdween spoorloos. `outcome` draagt de INTERNE betekenis
+     * (`classifyOutcome`), `code` wat de client daadwerkelijk terugkreeg — die
+     * twee lopen uiteen zodra een interne code publiek wordt vertaald.
+     */
+    const reject = (rejectedActionId, code) => {
+      logSafe('warn', 'clientevent geweigerd', {
+        roomId,
+        sessionId,
+        event: eventName,
+        actionId: rejectedActionId,
+        outcome: classifyOutcome(code),
+        code: toPublicErrorCode(code),
+      });
+      respondFailure(socket, rejectedActionId, code, ack);
+    };
+
     if (typeof body.event === 'string' && body.event !== eventName) {
-      respondFailure(socket, typeof body.actionId === 'string' && body.actionId.length > 0 ? body.actionId : UNKNOWN_ACTION_ID, 'UNSUPPORTED_EVENT', ack);
+      reject(typeof body.actionId === 'string' && body.actionId.length > 0 ? body.actionId : UNKNOWN_ACTION_ID, 'UNSUPPORTED_EVENT');
       return;
     }
 
@@ -730,7 +801,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
     });
     if (!parsed.ok) {
       const actionId = typeof body.actionId === 'string' && body.actionId.length > 0 ? body.actionId : UNKNOWN_ACTION_ID;
-      respondFailure(socket, actionId, parsed.reason === 'missing-event' ? 'UNSUPPORTED_EVENT' : MALFORMED_PAYLOAD_CODE, ack);
+      reject(actionId, parsed.reason === 'missing-event' ? 'UNSUPPORTED_EVENT' : MALFORMED_PAYLOAD_CODE);
       return;
     }
     const { actionId, payload } = parsed;
@@ -738,19 +809,19 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
     // Basisregel 7: het alfabet van 12 eventnamen zit in client-events-dispatch.
     const resolved = resolveEventValidator(eventName);
     if (!resolved.ok) {
-      respondFailure(socket, actionId, resolved.code, ack);
+      reject(actionId, resolved.code);
       return;
     }
     const entry = resolved.entry;
 
     if (!hasRequiredRole(roles, entry.requiredRole)) {
-      respondFailure(socket, actionId, entry.requiredRole === 'host' ? 'NOT_HOST' : 'NOT_PLAYER', ack);
+      reject(actionId, entry.requiredRole === 'host' ? 'NOT_HOST' : 'NOT_PLAYER');
       return;
     }
 
     const validated = entry.validate(payload);
     if (!validated.ok) {
-      respondFailure(socket, actionId, validated.code ?? MALFORMED_PAYLOAD_CODE, ack);
+      reject(actionId, validated.code ?? MALFORMED_PAYLOAD_CODE);
       return;
     }
 
@@ -765,14 +836,13 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
       return;
     }
     if (!duplicate.ok) {
-      respondFailure(socket, actionId, duplicate.reason, ack);
+      reject(actionId, duplicate.reason);
       return;
     }
 
     const outcome = await runEvent(socket, eventName, actionId, payload);
     if (!outcome.ok) {
-      logSafe('warn', 'clientevent geweigerd', { roomId, sessionId, event: eventName, code: toPublicErrorCode(outcome.code) });
-      respondFailure(socket, actionId, outcome.code, ack);
+      reject(actionId, outcome.code);
       return;
     }
 
@@ -965,7 +1035,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
 
       case 'share:opened': {
         // "analytics, mag falen zonder UX-effect" — geen mutatie, alleen een ack.
-        logSafe('info', 'share geopend', { roomId, method: payload.method });
+        logSafe('info', 'share geopend', { roomId, sessionId, actionId, method: payload.method });
         return { ok: true, value: {} };
       }
 
@@ -976,7 +1046,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
         // `kickPlayer`). Hier wordt er BEWUST niet omheen gebouwd met een eigen
         // mutatie: dat zou naamnormalisatie/`left: true`-semantiek buiten de
         // eigenaar om vastleggen. Zie het handoff-item.
-        logSafe('warn', 'clientevent zonder compositiefunctie', { roomId, event: eventName });
+        logSafe('warn', 'clientevent zonder compositiefunctie', { roomId, actionId, event: eventName });
         return { ok: false, code: 'UNSUPPORTED_EVENT' };
       }
 
@@ -1003,7 +1073,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
     const shape = validateSnapshotShape(snapshot.value);
     const leak = assertNoActiveRoundAnswerLeak(snapshot.value);
     if (!shape.ok || !leak.ok) {
-      logSafe('error', 'snapshot afgekeurd, niet verstuurd', { roomId, sessionId });
+      logSafe('error', 'snapshot afgekeurd, niet verstuurd', { roomId, sessionId, outcome: OUTCOME.SERVER_ERROR });
       return { ok: false, code: FALLBACK_PUBLIC_CODE };
     }
     await publish('room:state', { roomId, sessionId, payload: snapshot.value });

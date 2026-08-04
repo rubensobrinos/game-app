@@ -72,8 +72,8 @@ const CREATE_REQUEST = Object.freeze({
  * @param {import('node:test').TestContext} t
  * @param {{ autoClose?: boolean }} [options]
  */
-async function startServer(t, { autoClose = true } = {}) {
-  const fastify = await buildServer({ config: { ...CONFIG }, attachSockets: true });
+async function startServer(t, { autoClose = true, logger = false } = {}) {
+  const fastify = await buildServer({ config: { ...CONFIG }, attachSockets: true, logger });
   await fastify.listen({ port: 0, host: '127.0.0.1' });
   const { port } = fastify.server.address();
 
@@ -645,4 +645,190 @@ test('de startgate op UNIMPLEMENTED_METHODS weigert een onvolledige adapter', as
     () => createRedisStoreHandle('redis://127.0.0.1:1', { connection: FAIL_FAST_CONNECTION }),
     /Verbinden met Redis/,
   );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INT4a — privacy en roomcorrelatie over de ECHTE server
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Pino's eigen basisvelden; geen van beide is door ons geschreven. */
+const PINO_BASE_FIELDS = Object.freeze(['level', 'time', 'pid', 'hostname']);
+
+/**
+ * Vangt ALLE loggeroutput op: onze eigen veilige logger én die van
+ * Fastify/Pino zelf. Dat tweede is het punt van deze tests — Pino's standaard
+ * `req`-serializer schrijft `url`, `remoteAddress` en `remotePort`, en dat lekt
+ * zonder dat iemand er code voor schrijft.
+ */
+function makeLogCapture() {
+  /** @type {string[]} */
+  const lines = [];
+  return {
+    lines,
+    option: { level: 'trace', stream: { write: (line) => { lines.push(line); } } },
+    records: () => lines.map((line) => JSON.parse(line)),
+    /**
+     * Alles wat gelogd is, zonder Pino's eigen basisvelden.
+     *
+     * Die worden weggelaten omdat `time` een epoch-ms van dertien cijfers is en
+     * `pid` een getal: een zoektocht naar een zescijferige `gameCode` zou daar
+     * bij toeval op kunnen aanslaan en de test broos maken. Alles wat WIJ
+     * loggen blijft staan.
+     */
+    payloadText() {
+      return lines
+        .map((line) => {
+          const record = JSON.parse(line);
+          for (const field of PINO_BASE_FIELDS) delete record[field];
+          return JSON.stringify(record);
+        })
+        .join('\n');
+    },
+    raw: () => lines.join('\n'),
+  };
+}
+
+/** Zoekt recursief naar een SLEUTEL, op elk niveau en binnen arrays. */
+function containsKey(value, key) {
+  if (Array.isArray(value)) return value.some((entry) => containsKey(entry, key));
+  if (value === null || typeof value !== 'object') return false;
+  if (Object.hasOwn(value, key)) return true;
+  return Object.values(value).some((entry) => containsKey(entry, key));
+}
+
+test('privacy: geen token, gameCode, inviteId, displaynaam of IP in ENIGE loggeroutput', async (t) => {
+  const capture = makeLogCapture();
+  const { baseUrl, connect } = await startServer(t, { logger: capture.option });
+
+  const IP_CANARY = '203.0.113.77';
+  const HOST_NAME = 'Kanarie-Gastheer';
+  const PLAYER_NAME = 'Kanarie-Speler';
+
+  // 1. Een echt verzoek MET een displaynaam en een IP-kanarie in een header.
+  const createResponse = await fetch(`${baseUrl}/api/v1/games`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-forwarded-for': IP_CANARY,
+      'x-real-ip': IP_CANARY,
+    },
+    body: JSON.stringify({ ...CREATE_REQUEST, displayName: HOST_NAME }),
+  });
+  // OPZETCONTROLE: zonder een geslaagde create bestaan het token, de gameCode
+  // en het inviteId niet eens, en bewijst "die waarden staan niet in het log"
+  // helemaal niets.
+  const createBody = await createResponse.text();
+  assert.equal(createResponse.status, 201, createBody);
+  const created = JSON.parse(createBody);
+  assert.ok(created.sessionToken.length > 10);
+  assert.match(created.gameCode, /^[0-9]{6}$/);
+  assert.ok(created.inviteId.length > 5);
+
+  // 2. Een echte WebSocket-handshake mét het token in de auth-payload.
+  const host = await connect(created.sessionToken);
+  assert.ok(host, 'de socketverbinding moet echt staan');
+
+  // 3. Een tweede displaynaam via join, opnieuw met de IP-kanarie.
+  const joinResponse = await fetch(`${baseUrl}/api/v1/games/join`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': IP_CANARY },
+    body: JSON.stringify({ gameCode: created.gameCode, displayName: PLAYER_NAME, joinSource: 'code' }),
+  });
+  const joinBody = await joinResponse.text();
+  assert.equal(joinResponse.status, 200, joinBody);
+  const joinedSession = JSON.parse(joinBody);
+  assert.ok(joinedSession.sessionToken.length > 10, 'ook dit token moet echt bestaan');
+
+  // 4. Een AFGEWEZEN verzoek met het token, zodat er gegarandeerd logregels
+  //    zijn om in te zoeken.
+  const rejected = await fetch(`${baseUrl}/api/v1/games/000000/state`, {
+    headers: { authorization: `Bearer ${created.sessionToken}`, 'x-forwarded-for': IP_CANARY },
+  });
+  assert.equal(rejected.status, 404);
+
+  await withTimeout(host.waitFor('room:player-changed'), 5000, 'room:player-changed');
+
+  // OPZETCONTROLE OP DE OPVANG ZELF: een lege logstroom zou elke assertie
+  // hieronder triviaal groen maken.
+  const records = capture.records();
+  assert.ok(records.length > 0, 'er is niets opgevangen — dan bewijst deze test niets');
+  assert.ok(
+    records.some((record) => record.layer === 'rest' && typeof record.requestId === 'string'),
+    'onze eigen REST-regels moeten in dezelfde stroom terechtkomen',
+  );
+  assert.ok(
+    records.some((record) => record.layer === 'socket' && record.msg === 'serverevent verstuurd'),
+    'en die van de socketlaag ook — anders is die logsink niet bedraad',
+  );
+
+  // ZOEKEN OP DE WAARDE, NIET OP DE VELDNAAM. Een test die controleert of het
+  // woord "token" ontbreekt bewijst niets; deze zoekt de echte waarden.
+  const text = capture.payloadText();
+  const secrets = {
+    sessionToken: created.sessionToken,
+    joinSessionToken: joinedSession.sessionToken,
+    gameCode: created.gameCode,
+    inviteId: created.inviteId,
+    joinUrl: created.joinUrl,
+    hostName: HOST_NAME,
+    playerName: PLAYER_NAME,
+    ipCanary: IP_CANARY,
+  };
+  for (const [label, value] of Object.entries(secrets)) {
+    if (typeof value !== 'string') continue;
+    assert.ok(!text.includes(value), `${label} (${value}) staat in de loggeroutput`);
+  }
+  // De IP-kanarie ook in de ONBEWERKTE stroom, inclusief Pino's basisvelden.
+  assert.ok(!capture.raw().includes(IP_CANARY), 'de IP-kanarie mag nergens staan, ook niet in een basisveld');
+
+  // STRUCTUREEL: Pino's automatische request-/responsserializers mogen nooit
+  // hebben gedraaid. Dit vangt ook een leeggemaakte header die morgen weer
+  // gevuld raakt.
+  for (const record of records) {
+    for (const forbidden of ['req', 'res', 'headers', 'remoteAddress', 'remotePort', 'stack', 'sessionToken', 'displayName']) {
+      assert.ok(!containsKey(record, forbidden), `sleutel "${forbidden}" hoort in geen enkele logregel (${JSON.stringify(record)})`);
+    }
+  }
+});
+
+test('roomcorrelatie: een REST-join en het volgende room:player-changed delen hetzelfde roomId', async (t) => {
+  // WAT DIT IS: roomcorrelatie. Alles van één spelavond is met `roomId` bij
+  // elkaar te zoeken.
+  //
+  // WAT DIT NIET IS: een causale één-op-één-trace. Bij twintig gelijktijdige
+  // joins in dezelfde room valt uit deze twee regels NIET af te leiden welk
+  // `requestId` welk `eventId` veroorzaakte — daarvoor zou een echte `traceId`
+  // van REST via de compositie naar de publicatie moeten lopen, en die raakt
+  // interne signaturen en mogelijk publieke contracten. Bewust niet gebouwd;
+  // zie het handoff-item.
+  const capture = makeLogCapture();
+  const { baseUrl, connect } = await startServer(t, { logger: capture.option });
+
+  const created = await createGame(baseUrl);
+  const host = await connect(created.sessionToken);
+  const joined = await joinGame(baseUrl, created.gameCode, 'Speler');
+
+  // OPZETCONTROLE: het event moet echt zijn aangekomen.
+  const envelope = await withTimeout(
+    host.waitFor('room:player-changed'),
+    5000,
+    'room:player-changed na POST /games/join',
+  );
+  assert.deepEqual(envelope.payload.delta, { type: 'join', playerId: joined.playerId });
+
+  const records = capture.records();
+  const restLine = records.find((record) => record.layer === 'rest' && record.msg === 'room:player-changed uitgezonden');
+  const socketLine = records.find(
+    (record) => record.layer === 'socket'
+      && record.msg === 'serverevent verstuurd'
+      && record.event === 'room:player-changed',
+  );
+
+  assert.ok(restLine, 'de REST-laag hoort te melden dat zij het event heeft laten uitzenden');
+  assert.ok(socketLine, 'de socketlaag hoort het verstuurde event te melden');
+
+  assert.equal(restLine.roomId, created.roomId, 'de REST-regel draagt de roomId van deze spelavond');
+  assert.equal(socketLine.roomId, created.roomId, 'en de socketregel dezelfde');
+  assert.match(restLine.requestId, /^req-\d+$/, 'binnen dat verzoek is de keten te volgen');
+  assert.equal(socketLine.eventId, envelope.eventId, 'het gelogde eventId is dat van het event op de wire');
 });

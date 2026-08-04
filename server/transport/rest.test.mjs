@@ -39,6 +39,35 @@ async function makeServer({ store = createInMemoryStore(), now = () => FIXED_NOW
   return fastify;
 }
 
+/**
+ * Een server die ALLE loggeroutput opvangt — die van onze eigen veilige logger
+ * én die van Fastify/Pino zelf. Dat tweede is het punt: Pino's standaard
+ * `req`-serializer schrijft `url`, `remoteAddress` en `remotePort`, dus een
+ * test die alleen naar onze eigen regels kijkt zou het gevaarlijkste lek missen.
+ */
+async function makeLoggingServer({ store = createInMemoryStore(), now = () => FIXED_NOW } = {}) {
+  /** @type {string[]} */
+  const lines = [];
+  const fastify = await buildServer({
+    config: { ...CONFIG },
+    store,
+    now,
+    logger: {
+      level: 'trace',
+      stream: { write: (line) => { lines.push(line); } },
+    },
+  });
+  await fastify.ready();
+  return {
+    fastify,
+    lines,
+    /** Alle opgevangen regels als JSON-objecten. */
+    records: () => lines.map((line) => JSON.parse(line)),
+    /** De ruwe tekst van alles wat er gelogd is — hierin zoeken we naar WAARDEN. */
+    raw: () => lines.join('\n'),
+  };
+}
+
 /** Alleen de REST-plugin, met een handmatig samengestelde context. */
 async function makeRestOnlyServer(context, { getSockets } = {}) {
   const fastify = Fastify();
@@ -948,3 +977,103 @@ test('statische paden ontsnappen niet aan hun map', async (t) => {
 function bodyContainsKey(body, key) {
   return JSON.stringify(body).includes(`"${key}"`);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INT4a — traceerbaarheid van de REST-laag
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('een afgewezen verzoek logt zijn requestId, methode en foutcode', async (t) => {
+  const server = await makeLoggingServer();
+  t.after(() => server.fastify.close());
+
+  // OPZETCONTROLE: de afwijzing moet echt gebeurd zijn.
+  const response = await server.fastify.inject({
+    method: 'POST',
+    url: '/api/v1/games',
+    payload: { config: { preset: 'quick_start', language: 'nl' }, displayName: null },
+  });
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().code, 'INVALID_REQUEST');
+
+  const rejected = server.records().filter((record) => record.msg === 'verzoek afgewezen');
+  assert.equal(rejected.length, 1);
+  assert.equal(rejected[0].layer, 'rest');
+  assert.equal(rejected[0].code, 'INVALID_REQUEST');
+  assert.equal(rejected[0].outcome, 'rejected');
+  assert.equal(rejected[0].method, 'POST');
+  assert.match(rejected[0].requestId, /^req-\d+$/);
+});
+
+test('een authenticatiefout logt outcome auth_failed en nooit het aangeboden token', async (t) => {
+  const server = await makeLoggingServer();
+  t.after(() => server.fastify.close());
+
+  const created = await createGameOverHttp(server.fastify);
+  const response = await server.fastify.inject({
+    method: 'GET',
+    url: `/api/v1/games/${created.gameCode}/state`,
+    headers: bearer('tok_dit_token_bestaat_niet'),
+  });
+  assert.equal(response.statusCode, 401, 'de authenticatiefout moet echt hebben plaatsgevonden');
+  assert.equal(response.json().code, 'TOKEN_INVALID');
+
+  const failures = server.records().filter((record) => record.outcome === 'auth_failed');
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0].code, 'TOKEN_INVALID');
+  assert.equal(failures[0].layer, 'rest');
+  assert.ok(!server.raw().includes('tok_dit_token_bestaat_niet'), 'het aangeboden token mag nergens in het log staan');
+});
+
+test('een onverwachte exception logt een stabiele foutklasse, geen message en geen stack', async (t) => {
+  // De poort werpt — precies het geval dat INTB-10 beschrijft (de Redis-adapter
+  // blokkeert `loadSessionByTokenHash` nog). De melding is met opzet vol
+  // gevoelige waarden: die moeten nergens in het log terechtkomen.
+  const store = createInMemoryStore();
+  const throwing = {
+    ...store,
+    async loadSessionByTokenHash() {
+      throw new RangeError('Jan Jansen kreeg token tok_geheim op 203.0.113.9');
+    },
+  };
+  const server = await makeLoggingServer({ store: throwing });
+  t.after(() => server.fastify.close());
+
+  const response = await server.fastify.inject({
+    method: 'GET',
+    url: '/api/v1/games/123456/state',
+    headers: bearer('tok_wat_dan_ook'),
+  });
+  // OPZETCONTROLE: zonder een echte 500 bewijst de rest van deze test niets.
+  assert.equal(response.statusCode, 500, response.body);
+  assert.deepEqual(response.json(), { code: 'INTERNAL_ERROR', meta: {} });
+
+  const serverErrors = server.records().filter((record) => record.msg === 'serverfout');
+  assert.equal(serverErrors.length, 1);
+  assert.equal(serverErrors[0].reason, 'RangeError', 'alleen de stabiele foutklasse');
+  assert.equal(serverErrors[0].outcome, 'server_error');
+  assert.equal(serverErrors[0].code, 'INTERNAL_ERROR');
+  assert.equal(serverErrors[0].layer, 'rest');
+
+  const raw = server.raw();
+  for (const secret of ['Jan Jansen', 'tok_geheim', '203.0.113.9', 'tok_wat_dan_ook', 'at Object']) {
+    assert.ok(!raw.includes(secret), `"${secret}" hoort niet in het log`);
+  }
+  assert.ok(!raw.includes('stack'), 'geen stacktrace, ook niet onder een andere sleutel');
+});
+
+test('een geslaagd verzoek levert GEEN logregel op — dat zou de echte signalen begraven', async (t) => {
+  const server = await makeLoggingServer();
+  t.after(() => server.fastify.close());
+
+  const created = await createGameOverHttp(server.fastify);
+  const state = await server.fastify.inject({
+    method: 'GET',
+    url: `/api/v1/games/${created.gameCode}/state`,
+    headers: bearer(created.sessionToken),
+  });
+  // OPZETCONTROLE: deze twee verzoeken moeten echt geslaagd zijn, anders
+  // bewijst "geen logregels" alleen dat er niets gebeurde.
+  assert.equal(state.statusCode, 200, state.body);
+
+  assert.deepEqual(server.records(), [], 'geen enkele logregel voor twee geslaagde verzoeken');
+});

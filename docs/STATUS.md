@@ -82,6 +82,42 @@ update). Commit door regie klaargezet maar geblokkeerd op `.git/index.lock`/
 5. **Herstelpad ontbreekt** (ARCHITECTURE.md §10 ongeïmplementeerd) —
    voorstel: accepted risk t/m pilots → **besluit producteigenaar**
 
+## Scherm 5 gebouwd (regie, 3 aug avond — besluit 40)
+
+Reveal + tussenstand zijn één scherm: `scoreboard.mjs` toont nu bovenaan de
+lime antwoordkaart (goede antwoord groot, "N van M zaten goed") + het eigen
+resultaat (+punten), daaronder de bestaande top 5 + eigen rij, onderaan de
+"volgende vraag"-voet (auto) of host-hint (host-pacing). Data uit
+`round-model.mjs`'s result via session-shell; 7 nieuwe i18n-sleutels (3/3
+talen, pariteit groen); CSS in `rounda-1c.css` (regie-laag); cachebust
+`?v=1c8`; smoke-tests in `scoreboard.test.mjs`. Frontend-suite 178 groen.
+**Fixronde na mock-review (zelfde avond):** ROUND_RESULT routeert nu óók
+naar scherm 5 (beat 1 = reveal, beat 2 = tussenstand zodra
+`scoreboard:updated` landt) — dubbele reveal weg, scherm krijgt 5+4s i.p.v.
+4s; alle headline-typen meeverhuisd naar scherm 5. Verder: lobby-rolfout
+("Wachten tot de host start" bij de host) weg, startknop-label/sub
+gescheiden, kick-knop compact, home-copy naar doelbeeld v2-tagline (3
+talen), codebalk + hostpillen compact tijdens spel/uitslag (:has, D-018
+blijft gerespecteerd). Cachebust `?v=1c9`; suite 263 groen.
+**Ronde 3 (zelfde avond): scherm 3 + achtergrond + JS-cache.**
+Gast landt nu direct in de lobby (auto-join met servervoorstel, naamstap
+weg uit join.mjs); in de gastlobby het JIJ-blok "Zo heet je vanavond" met
+"Typ zelf" (via bestaand `player:rename`, max 1×, alleen LOBBY) en IK BEN
+KLAAR (puur client-side, besluit 40B) → wachtpil. Home kreeg de lime-gloed
+uit mockup 1 (donker thema). Game-server stuurt nu `Cache-Control:
+no-cache` + Last-Modified/304 op statics — spelers draaien na een deploy
+nooit meer minutenlang oude `.mjs`-modules (vandaag live gezien). Cachebust
+`?v=1c10`; 498 tests groen (frontend+client/flow+server-index).
+**Ronde 4: Rounda-Flag ("Wave Run") is de lobbygame.** Door de product-
+eigenaar aangeleverd als standalone HTML, door regie verbatim geport naar
+`views/rounda-flag.mjs` (spellogica/tuning onaangeroerd; alleen verpakking:
+view-patroon met destroy(), merkkleuren 1c, reduced-motion = stilstaand tot
+start, toetsen kapen nooit een invoerveld, record in localStorage
+ongewijzigd). Lobby mount 'm nu; het rad (rounda.mjs) blijft voor de kleine
+wachtmomenten (reconnect/pauze). 3 nieuwe i18n-sleutels ×3 talen. Cachebust
+`?v=1c11`; suite 263 groen.
+**Nog niet gedeployed** — volgende docker-rebuild neemt alles mee.
+
 ## Wachtend op producteigenaar
 
 - `rm -f .git/index.lock .git/HEAD.lock` (blocker 1)
