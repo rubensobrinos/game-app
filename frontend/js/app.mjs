@@ -146,7 +146,10 @@ function initialTheme() {
   if (stored !== null) {
     return stored;
   }
-  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  // 1c is donker-eerst (producteigenaar, 4 aug: "waarom is de achtergrond
+  // wit?"): het systeemthema wordt NIET meer gevolgd — donker is de
+  // merkstand, licht is een bewuste keuze via het menu (en die onthouden we).
+  return 'dark';
 }
 
 function applyTheme(theme) {

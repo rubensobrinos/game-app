@@ -977,3 +977,22 @@ gelaten in plaats van de eerdere regel stil te verwijderen, zodat een
 volgende lezer de geschiedenis van de knoop ziet in plaats van 'm opnieuw
 door te hakken. **Dit is de geldende stand; niet opnieuw omdraaien zonder
 een nieuw, expliciet producteigenaarbesluit.**
+
+## UI-24 — BESLOTEN (producteigenaar, 3 aug 2026): Doelbeeld v2 is leidend
+
+De nieuwe 5-schermen-designiteratie is canoniek vastgelegd in
+`DOELBEELD-v2-schermen-en-games.md` en besluit 40 (DECISIONS.md). Voor
+UI-werk betekent dit concreet:
+
+- Hostlobby en instellingen worden ÉÉN scrollbaar scherm met sticky START;
+  het aparte instellingenscherm verdwijnt op termijn.
+- De grote code/QR-hero in de hostlobby wordt een smalle permanente
+  codebalk met QR-op-één-tik (besluit 40A — herziet de eerdere
+  "permanent groot"-eis).
+- Gast landt direct in de lobby (geen apart meedoen-scherm); naamvoorstel
+  + "IK BEN KLAAR" is client-side bevestigen (40B).
+- Reveal + tussenstand worden één scherm (scherm 5).
+- Mix/Typen en games 2–4: zichtbaar maar disabled tot ze bestaan (40D).
+
+Bouwvolgorde: scherm 5 → scherm 3 → scherm 2 (incl. host-onthul 40C,
+serverwerk) → carrousel/disabled-states.

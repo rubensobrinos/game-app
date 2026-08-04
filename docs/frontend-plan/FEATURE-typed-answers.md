@@ -65,3 +65,11 @@ server + content — géén solo-UI-klus.**
 Mockmodus (`?mock=1`, zelfde sessie gevraagd) is los hiervan al gebouwd in
 `frontend/js/app.mjs` — solo testen zonder server/host. De intyp-modus moet
 t.z.t. óók in de mock werken zodat hij solo te demonstreren is.
+
+## Aanvulling (besluit 40, 3 aug 2026): derde stand "Mix"
+
+De hostkeuze wordt een drie-stand: **Kiezen / Mix / Typen**. Mix is niet
+willekeurig maar voorspelbaar eerlijk: bij tien vragen vijf kiezen + vijf
+typen, volgorde willekeurig, nooit meer dan twee dezelfde vormen achter
+elkaar. In de UI staan Mix en Typen zichtbaar maar disabled ("binnenkort")
+tot deze feature gebouwd is (besluit 40D).

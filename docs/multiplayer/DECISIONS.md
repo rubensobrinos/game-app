@@ -149,6 +149,24 @@ document totdat de betreffende fundamentele specificatie is bijgewerkt.
       (PUBLIC_HOSTNAMES + applyBrandName), titels/og-tags beide index.html's,
       Cloudflare-tunnel/DNS voor rounda.io, redirect play.aseso.nl.
 
+40. **Doelbeeld v2 is canoniek** (producteigenaar, 3 aug 2026): de
+    5-schermen-designiteratie ("screenshot leidend") plus het bijbehorende
+    productconcept van vier wereldgames. Volledige vastlegging:
+    `docs/frontend-plan/DOELBEELD-v2-schermen-en-games.md`. Kernbesluiten:
+    - **A** — smalle permanente codebalk + QR-op-één-tik vervangt het grote
+      code/QR-paneel in de hostlobby (herziening van BRIEFING §3.3).
+    - **B** — "IK BEN KLAAR" (gastlobby) is client-side naam-bevestiging,
+      daarna wachten tot start; géén ready-check in het protocol.
+    - **C** — host-getriggerde reveal wordt gebouwd: toggle "Antwoord
+      automatisch tonen" uit → host onthult (serverwerk, match-lifecycle).
+    - **D** — Mix/Typen en games 2–4 zichtbaar maar disabled ("binnenkort")
+      tot de betreffende feature bestaat; geen dode maar klikbaar ogende
+      knoppen.
+    - Verruimt besluit 32 (single-game-type): Rounda is een verzameling van
+      vier wereldgames — Raad de vlag, Echt of nep, Welke hoort er niet
+      bij?, Raad het land — die per game gebouwd worden; `flags_mc` blijft
+      de enige bestaande.
+
 ## Uitvoeringsakkoord test- en deploymentwerk
 
 De producteigenaar heeft akkoord gegeven om de eerder geparkeerde test- en
