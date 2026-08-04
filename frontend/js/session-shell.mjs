@@ -241,6 +241,13 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   // vorige-versus-huidige-vergelijking). `null` tot de tweede stand binnenkomt.
   let previousStandings = null;
   let participants = new Map();
+  // Feedbackronde 4 aug: serverkleur per speler (join/recolor-delta's +
+  // snapshot); aparte Map naast de namen zodat bestaande afnemers van
+  // `participants` (hostbar, scoreboard) ongewijzigd blijven.
+  let participantColors = new Map();
+  // Besluit 40 (scherm 2): de volledige actuele config — gevoed door
+  // room:state en room:config-changed; de lobby-instellingen lezen hieruit.
+  let roomConfig = null;
   let playerCount = 0;
   let locked = false;
   let pacing = 'auto';
@@ -552,6 +559,14 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       case 'room:lock-changed':
         locked = envelope.payload?.locked === true;
         break;
+      case 'room:config-changed':
+        // Besluit 40 (scherm 2): iedereen hoort de nieuwe instellingen; de
+        // pacing-afgeleide blijft dezelfde bron gebruiken als room:state.
+        if (envelope.payload?.config && typeof envelope.payload.config === 'object') {
+          roomConfig = envelope.payload.config;
+          pacing = roomConfig.pacing === 'host' ? 'host' : 'auto';
+        }
+        break;
       case 'game:started':
         // S07: `countdownEndsAt` is de enige plek waar dit tijdstip binnenkomt
         // — `match-phase-state.mjs` bewaart 'm bewust niet (net als rondedata),
@@ -648,6 +663,9 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     roomHeader.setJoinUrl(joinUrl);
     locked = typeof room.locked === 'boolean' ? room.locked : locked;
     pacing = room.config?.pacing === 'host' ? 'host' : 'auto';
+    if (room.config && typeof room.config === 'object') {
+      roomConfig = room.config;
+    }
     // `room:state` komt alleen bij de eerste verbinding en ná een reconnect
     // binnen (nooit tussendoor tijdens een stabiele sessie) — hydrateer
     // `roundModel` daarom telkens opnieuw vanuit de snapshot. Zonder dit
@@ -667,6 +685,9 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     if (payload?.self && typeof payload.self.playerId === 'string') {
       selfInfo = payload.self;
       participants.set(payload.self.playerId, payload.self.effectiveName ?? '');
+      if (typeof payload.self.color === 'string') {
+        participantColors.set(payload.self.playerId, payload.self.color);
+      }
     } else if (payload?.self) {
       selfInfo = payload.self; // host zonder spelersrol: roles wel bekend, playerId null
     }
@@ -680,9 +701,19 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     if (delta === null || typeof delta !== 'object') {
       return;
     }
-    if (delta.type === 'join' || delta.type === 'rename') {
+    if (delta.type === 'recolor') {
+      if (typeof delta.playerId === 'string' && typeof delta.color === 'string') {
+        participantColors.set(delta.playerId, delta.color);
+        if (selfInfo?.playerId === delta.playerId) {
+          selfInfo = { ...selfInfo, color: delta.color };
+        }
+      }
+    } else if (delta.type === 'join' || delta.type === 'rename') {
       if (typeof delta.playerId === 'string') {
         participants.set(delta.playerId, delta.effectiveName ?? '');
+        if (typeof delta.color === 'string') {
+          participantColors.set(delta.playerId, delta.color);
+        }
         // Scherm 3 (40B): een rename van jezélf moet ook `selfInfo` verversen
         // — daar leest de lobby (`selfName`) uit, en die werd tot nu toe
         // alleen bij `room:state` gezet.
@@ -693,6 +724,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     } else if (delta.type === 'leave' || delta.type === 'kick') {
       if (typeof delta.playerId === 'string') {
         participants.delete(delta.playerId);
+        participantColors.delete(delta.playerId);
       }
     }
   }
@@ -768,6 +800,10 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         // Scherm 3 (besluit 40B): naam kiezen ín de lobby. Gooit door bij een
         // protocolfout (NAME_TOO_LONG, INVALID_PHASE, …) — de lobby toont die.
         onRename: (displayName) => socket.send('player:rename', randomActionId(), { displayName }),
+        // Feedbackronde punt 13: kleurkeuze — server broadcast de recolor-delta.
+        onRecolor: (color) => socket.send('player:recolor', randomActionId(), { color }),
+        // Besluit 40 (scherm 2): host stelt bij; room:config-changed komt terug.
+        onConfigChange: (patch) => socket.send('game:update-config', randomActionId(), patch),
       });
       return;
     }
@@ -811,6 +847,10 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         canKick: availableHostActions(buildHostContext()).includes('kick'),
         locked,
         selfName: selfInfo?.effectiveName ?? null,
+        selfColor: selfInfo?.color ?? null,
+        selfIsPlayer: typeof selfInfo?.playerId === 'string',
+        participantColors,
+        config: roomConfig,
         capabilities,
         joinUrl,
       });

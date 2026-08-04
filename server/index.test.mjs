@@ -186,7 +186,12 @@ test('een REST-join levert de lobby een room:player-changed op', async (t) => {
     'room:player-changed na POST /games/join',
   );
   assert.equal(envelope.event, 'room:player-changed');
-  assert.deepEqual(envelope.payload.delta, { type: 'join', playerId: joined.playerId });
+  // Sinds de feedbackronde van 4 aug draagt de join-delta naam + kleur mee.
+  assert.equal(envelope.payload.delta.type, 'join');
+  assert.equal(envelope.payload.delta.playerId, joined.playerId);
+  assert.equal(typeof envelope.payload.delta.effectiveName, 'string');
+  assert.ok(envelope.payload.delta.effectiveName.length > 0);
+  assert.equal(typeof envelope.payload.delta.color, 'string');
   // Host + joiner. De telling komt uit de socketlaag (de snapshot), niet uit
   // rest.mjs — deze assertie bewaakt dat er geen tweede telregel is ontstaan.
   assert.equal(envelope.payload.playerCount, 2);
@@ -814,7 +819,12 @@ test('roomcorrelatie: een REST-join en het volgende room:player-changed delen he
     5000,
     'room:player-changed na POST /games/join',
   );
-  assert.deepEqual(envelope.payload.delta, { type: 'join', playerId: joined.playerId });
+  // Sinds de feedbackronde van 4 aug draagt de join-delta naam + kleur mee.
+  assert.equal(envelope.payload.delta.type, 'join');
+  assert.equal(envelope.payload.delta.playerId, joined.playerId);
+  assert.equal(typeof envelope.payload.delta.effectiveName, 'string');
+  assert.ok(envelope.payload.delta.effectiveName.length > 0);
+  assert.equal(typeof envelope.payload.delta.color, 'string');
 
   const records = capture.records();
   const restLine = records.find((record) => record.layer === 'rest' && record.msg === 'room:player-changed uitgezonden');

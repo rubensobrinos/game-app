@@ -88,6 +88,103 @@ export function validateRoundAnswerEnvelope(payload) {
   return { ok: true };
 }
 
+/**
+ * De acht toegestane spelerkleuren (besluit 40 + feedbackronde
+ * producteigenaar, 4 aug 2026 — de feedbackronde verving `blue` door `red`).
+ * Gesloten enum: elke andere waarde is een vormfout, geen open veld. De
+ * VOLGORDE is betekenisvol: de server wijst bij join round-robin toe in deze
+ * volgorde (zie `room-lifecycle.mjs`). Geëxporteerd zodat de compositielaag
+ * (`recolorPlayer`) en tests dezelfde lijst gebruiken — geen tweede opsomming.
+ * @type {ReadonlyArray<'orange' | 'magenta' | 'cyan' | 'green' | 'yellow' | 'purple' | 'lime' | 'red'>}
+ */
+export const PLAYER_COLORS = Object.freeze([
+  'orange', 'magenta', 'cyan', 'green', 'yellow', 'purple', 'lime', 'red',
+]);
+const VALID_PLAYER_COLORS = new Set(PLAYER_COLORS);
+
+/**
+ * Valideert de payload van `player:recolor` (besluit 40 + feedbackronde,
+ * 4 aug 2026 — eventnaam was in het 40B/13-voorwerk nog `player:set-color`):
+ * exact één sleutel `color`, waarde uit de gesloten `PLAYER_COLORS`-enum.
+ * Geen andere sleutels toegestaan. Een ongeldige kleursleutel is een
+ * vormfout (`code: null`), die de transportlaag — net als elk ander
+ * vormprobleem — als `INVALID_ANSWER_FORMAT` op de wire zet; er is bewust
+ * geen aparte `COLOR_INVALID`-code toegevoegd.
+ * @param {unknown} payload
+ * @returns {ValidationResult}
+ */
+export function validatePlayerRecolorPayload(payload) {
+  if (!isPlainObject(payload)) return { ok: false, code: null };
+  const keys = Object.keys(payload);
+  if (keys.length !== 1 || keys[0] !== 'color') return { ok: false, code: null };
+  if (!VALID_PLAYER_COLORS.has(payload.color)) return { ok: false, code: null };
+  return { ok: true };
+}
+
+/**
+ * De zes configuratievelden die een host ná creatie nog mag bijstellen
+ * (besluit 40 + feedbackronde producteigenaar, 4 aug 2026). Bewust een subset
+ * van GameConfiguration: de overige velden (preset, gameTypes, mode, ...)
+ * blijven create-only. De feedbackronde verving `questionSeconds` (bewust
+ * NIET meer wijzigbaar na creatie) door `speedBonus`; `hostParticipates`
+ * blijft eveneens uitgesloten (te laat na join).
+ * @type {ReadonlyArray<string>}
+ */
+export const UPDATABLE_CONFIG_KEYS = Object.freeze([
+  'totalRounds', 'difficulty', 'language', 'pacing', 'speedBonus', 'allowLateJoin',
+]);
+
+/** Zelfde gesloten enums als `server/data/types/game-configuration.js` — de
+ * create-validatie. Lokaal getranscribeerd omdat dat CJS-bestand in de
+ * datalaag woont en protocol → data de verkeerde afhankelijkheidsrichting is
+ * (zelfde afweging als PACING_VALUES dáár, zie dat bestand). */
+const UPDATE_LANGUAGE_VALUES = new Set(['nl', 'en', 'es']);
+const UPDATE_PACING_VALUES = new Set(['auto', 'host']);
+
+/**
+ * Valideert de payload van `game:update-config` (besluit 40 + feedbackronde,
+ * 4 aug 2026): een NIET-LEGE subset van `UPDATABLE_CONFIG_KEYS`. Onbekende
+ * sleutels — waaronder expliciet `questionSeconds` en `hostParticipates` —
+ * zijn een vormfout (de transportlaag vertaalt `code: null` naar haar
+ * `MALFORMED_PAYLOAD_CODE`, net als bij elk ander vormprobleem).
+ *
+ * Grenzen per veld volgen de create-validatie
+ * (`assertGameConfigurationShape`): `language` en `pacing` gesloten enums,
+ * `speedBonus` en `allowLateJoin` boolean, `difficulty` string. Voor
+ * `totalRounds` eist create alleen "number"; hier geldt aanvullend
+ * positief-geheel — dezelfde grens die `validateGameStartedPayload` al aan
+ * `totalRounds` stelt, zodat er nooit een config ontstaat waar `game:started`
+ * niet meer doorheen komt.
+ * @param {unknown} payload
+ * @returns {ValidationResult}
+ */
+export function validateGameUpdateConfigPayload(payload) {
+  if (!isPlainObject(payload)) return { ok: false, code: null };
+  const keys = Object.keys(payload);
+  if (keys.length === 0) return { ok: false, code: null };
+  if (!keys.every((key) => UPDATABLE_CONFIG_KEYS.includes(key))) return { ok: false, code: null };
+
+  if ('totalRounds' in payload && (!Number.isInteger(payload.totalRounds) || payload.totalRounds <= 0)) {
+    return { ok: false, code: null };
+  }
+  if ('difficulty' in payload && (typeof payload.difficulty !== 'string' || payload.difficulty.length === 0)) {
+    return { ok: false, code: null };
+  }
+  if ('language' in payload && !UPDATE_LANGUAGE_VALUES.has(payload.language)) {
+    return { ok: false, code: null };
+  }
+  if ('pacing' in payload && !UPDATE_PACING_VALUES.has(payload.pacing)) {
+    return { ok: false, code: null };
+  }
+  if ('speedBonus' in payload && typeof payload.speedBonus !== 'boolean') {
+    return { ok: false, code: null };
+  }
+  if ('allowLateJoin' in payload && typeof payload.allowLateJoin !== 'boolean') {
+    return { ok: false, code: null };
+  }
+  return { ok: true };
+}
+
 /** @type {ReadonlySet<'qr' | 'link' | 'native' | 'code'>} */
 const VALID_SHARE_METHODS = new Set(['qr', 'link', 'native', 'code']);
 
@@ -116,9 +213,11 @@ export function validateShareOpenedPayload(payload) {
  */
 
 /**
- * De 12 bekende clientevents uit §Client → server events, met hun validator
- * en vereiste rol. Enige bron van waarheid voor "welke eventnamen bestaan" —
- * `resolveEventValidator` doet een pure lookup hierop, geen tweede lijst.
+ * De 14 bekende clientevents (de 12 uit §Client → server events, plus
+ * `player:recolor` en `game:update-config` uit besluit 40 + feedbackronde,
+ * 4 aug 2026), met hun validator en vereiste rol. Enige bron van waarheid voor
+ * "welke eventnamen bestaan" — `resolveEventValidator` doet een pure lookup
+ * hierop, geen tweede lijst.
  * @type {ReadonlyMap<string, EventValidatorEntry>}
  */
 const EVENT_VALIDATORS_BY_NAME = new Map([
@@ -130,14 +229,16 @@ const EVENT_VALIDATORS_BY_NAME = new Map([
   ['game:kick', { validate: validateGameKickPayload, requiredRole: 'host' }],
   ['game:finish', { validate: validateGameFinishPayload, requiredRole: 'host' }],
   ['game:rematch', { validate: validateGameRematchPayload, requiredRole: 'host' }],
+  ['game:update-config', { validate: validateGameUpdateConfigPayload, requiredRole: 'host' }],
   ['player:rename', { validate: validatePlayerRenamePayload, requiredRole: 'player' }],
+  ['player:recolor', { validate: validatePlayerRecolorPayload, requiredRole: 'player' }],
   ['player:leave', { validate: validatePlayerLeavePayload, requiredRole: 'player' }],
   ['round:answer', { validate: validateRoundAnswerEnvelope, requiredRole: 'player' }],
   ['share:opened', { validate: validateShareOpenedPayload, requiredRole: 'host_or_player' }],
 ]);
 
 /**
- * Alle 12 bekende clientevent-namen, afgeleid van `EVENT_VALIDATORS_BY_NAME`
+ * Alle 14 bekende clientevent-namen, afgeleid van `EVENT_VALIDATORS_BY_NAME`
  * (geen tweede handmatige lijst), voor gebruik in exhaustiviteitstests.
  * @type {ReadonlyArray<string>}
  */

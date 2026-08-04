@@ -118,6 +118,21 @@ wachtmomenten (reconnect/pauze). 3 nieuwe i18n-sleutels ×3 talen. Cachebust
 `?v=1c11`; suite 263 groen.
 **Nog niet gedeployed** — volgende docker-rebuild neemt alles mee.
 
+## Ronde 5 (4 aug): serverwerk + scherm 2 + kleurkiezer (regie, solo)
+
+Server: `player:rename` uitgevoerd (compositie + socket, LOBBY-only, 1×,
+volle naamnormalisatie), `player:recolor` (8-kleurenpalet, kleur bij join
+round-robin, snapshot draagt self.color), `game:update-config` (host,
+LOBBY-only, subset → `room:config-changed` broadcast), join-delta draagt
+naam+kleur (lege-gastnaam-bug weg). Mock volledig in pariteit.
+Client: JIJ-blok nu voor iedereen mét spelersrol (ook meespelende host),
+kleurkiezer (8 stippen), chips kleuren op serverkleur, en scherm 2: de
+host-instellingen ÍN de lobby (in/uitklapbaar) — gamekaart, Kiezen actief
+(Mix/Typen zichtbaar-uitgeschakeld, 40D), niveau Easy/Medium/Hard, vragen
+5/10/15, toggle automatisch-volgende (pacing) — alles op game:update-config,
+serverstand is de waarheid. 17 nieuwe i18n-sleutels ×3. Cachebust `?v=1c20`.
+Suites: 795 server + 498 client groen.
+
 ## Wachtend op producteigenaar
 
 - `rm -f .git/index.lock .git/HEAD.lock` (blocker 1)

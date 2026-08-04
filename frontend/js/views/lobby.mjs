@@ -20,7 +20,7 @@
 
 import { shareActionsFor, shareUrlsFor } from '../../../client/flow/share-actions.mjs';
 import { participantPresentationFor } from './participant-presentation.mjs';
-import { createPlayerChip } from '../player-chip.mjs';
+import { createPlayerChip, SERVER_KLEUREN } from '../player-chip.mjs';
 import { createRoundaFlagView } from './rounda-flag.mjs';
 
 // T5-9: hoeveel van de meest recente joins zichtbaar blijven in de
@@ -28,7 +28,7 @@ import { createRoundaFlagView } from './rounda-flag.mjs';
 // spelers" wordt gebruikt.
 const RECENT_JOINS_COUNT = 5;
 
-export function createLobbyView({ root, t, tCount, isHost, onStart, onShareAction, onKickPlayer, onRename }) {
+export function createLobbyView({ root, t, tCount, isHost, onStart, onShareAction, onKickPlayer, onRename, onRecolor, onConfigChange }) {
   root.textContent = '';
 
   // Geen eigen `.screen`-klasse: de aanroeper (session-shell.mjs) mount dit in
@@ -54,7 +54,9 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   // "IK BEN KLAAR" is puur client-side bevestigen (40B): naamblok klapt om
   // naar de wachtstand, er gaat níéts over de lijn. ──
   const selfSection = el('section', 'lobby-self');
-  selfSection.hidden = isHost;
+  // Zichtbaar voor iedereen MET een spelersrol (ook de meespelende host,
+  // feedback 4 aug); update() zet dit op basis van selfIsPlayer.
+  selfSection.hidden = true;
   const selfLead = el('p', 'lobby-self-lead');
   const selfRow = el('div', 'lobby-self-row');
   const selfName = el('span', 'lobby-self-name');
@@ -71,7 +73,139 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   renameSave.className = 'btn-secondary lobby-self-save';
   renameSave.hidden = true;
   const renameError = el('p', 'lobby-self-error field-error');
-  selfRow.append(selfName, renameButton, renameInput, renameSave);
+  const selfSwatch = el('span', 'lobby-self-swatch');
+  selfSwatch.setAttribute('aria-hidden', 'true');
+  selfRow.append(selfSwatch, selfName, renameButton, renameInput, renameSave);
+  // Feedback punt 13: kleurkiezer — acht tikbare stippen, serverpalet.
+  const colorRow = el('div', 'lobby-self-colors');
+  colorRow.setAttribute('role', 'group');
+  const colorButtons = new Map();
+  for (const [colorName, hex] of Object.entries(SERVER_KLEUREN)) {
+    const dot = document.createElement('button');
+    dot.type = 'button';
+    dot.className = 'lobby-self-color';
+    dot.style.backgroundColor = hex;
+    dot.addEventListener('click', async () => {
+      try {
+        await onRecolor?.(colorName);
+      } catch {
+        // kleurwissel is nice-to-have: fout stil laten, stand blijft server-waarheid
+      }
+    });
+    colorButtons.set(colorName, dot);
+    colorRow.appendChild(dot);
+  }
+  // ── SCHERM 2 (besluit 40): host-instellingen ÍN de lobby — in/uitklapbaar,
+  // aangesloten op game:update-config. Mix/Typen en de game-carrousel staan
+  // zichtbaar maar uitgeschakeld tot de features bestaan (besluit 40D). ──
+  const settingsSection = el('section', 'lobby-settings');
+  settingsSection.hidden = !isHost;
+  const settingsHeader = document.createElement('button');
+  settingsHeader.type = 'button';
+  settingsHeader.className = 'lobby-settings-header';
+  settingsHeader.setAttribute('aria-expanded', 'true');
+  const settingsHeaderLabel = el('span', 'lobby-settings-title');
+  const settingsHeaderChevron = el('span', 'lobby-settings-chevron');
+  settingsHeaderChevron.textContent = '⌃';
+  settingsHeader.append(settingsHeaderLabel, settingsHeaderChevron);
+  const settingsBody = el('div', 'lobby-settings-body');
+  settingsHeader.addEventListener('click', () => {
+    const open = settingsHeader.getAttribute('aria-expanded') === 'true';
+    settingsHeader.setAttribute('aria-expanded', String(!open));
+    settingsBody.hidden = open;
+    settingsHeaderChevron.textContent = open ? '⌄' : '⌃';
+  });
+
+  function settingsLabel(className) {
+    return el('p', `lobby-settings-label ${className}`);
+  }
+  function segGroup() {
+    const group = el('div', 'lobby-seg');
+    return group;
+  }
+  function segButton(group, { onPick = null, disabled = false } = {}) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'lobby-seg-option';
+    if (disabled) {
+      btn.disabled = true;
+      btn.classList.add('is-soon');
+    } else if (onPick !== null) {
+      btn.addEventListener('click', onPick);
+    }
+    group.appendChild(btn);
+    return btn;
+  }
+  async function pushConfig(patch) {
+    try {
+      await onConfigChange?.(patch);
+    } catch {
+      // room:config-changed blijft uit → de volgende update() zet de knoppen
+      // gewoon terug naar de serverstand; geen eigen foutkanaal nodig.
+    }
+  }
+
+  // GAME-kaart (alleen tonen; carrousel is 40D-werk)
+  const gameLabel = settingsLabel('lobby-settings-game-label');
+  const gameCard = el('div', 'lobby-gamecard');
+  const gameCardTitle = el('b', 'lobby-gamecard-title');
+  gameCard.appendChild(gameCardTitle);
+  const gameCardSub = el('div', 'lobby-gamecard-sub');
+  const gameCardDesc = el('span', 'lobby-gamecard-desc');
+  const gameCardSoon = el('span', 'lobby-gamecard-soon');
+  gameCardSub.append(gameCardDesc, gameCardSoon);
+
+  // ANTWOORDEN: Kiezen actief; Mix/Typen disabled (40D)
+  const answersLabel = settingsLabel('lobby-settings-answers-label');
+  const answersGroup = segGroup();
+  const answersChoose = segButton(answersGroup);
+  answersChoose.classList.add('is-active');
+  const answersMix = segButton(answersGroup, { disabled: true });
+  const answersType = segButton(answersGroup, { disabled: true });
+
+  // NIVEAU → difficulty (Easy→easy, Medium→normal, Hard→hard)
+  const levelLabel = settingsLabel('lobby-settings-level-label');
+  const levelGroup = segGroup();
+  const levelButtons = new Map();
+  for (const [key, difficulty] of [['easy', 'easy'], ['medium', 'normal'], ['hard', 'hard']]) {
+    levelButtons.set(difficulty, segButton(levelGroup, { onPick: () => pushConfig({ difficulty }) }));
+    levelButtons.get(difficulty).dataset.levelKey = key;
+  }
+
+  // VRAGEN → totalRounds
+  const questionsLabel = settingsLabel('lobby-settings-questions-label');
+  const questionsGroup = segGroup();
+  const questionButtons = new Map();
+  for (const n of [5, 10, 15]) {
+    const btn = segButton(questionsGroup, { onPick: () => pushConfig({ totalRounds: n }) });
+    btn.textContent = String(n);
+    questionButtons.set(n, btn);
+  }
+
+  // Toggle: automatisch volgende vraag (aan = pacing auto, uit = host)
+  const autoNextRow = el('div', 'lobby-toggle-row');
+  const autoNextLabel = el('span', 'lobby-toggle-label');
+  const autoNextToggle = document.createElement('button');
+  autoNextToggle.type = 'button';
+  autoNextToggle.className = 'lobby-toggle';
+  autoNextToggle.setAttribute('role', 'switch');
+  const autoNextKnob = el('i', '');
+  autoNextToggle.appendChild(autoNextKnob);
+  let currentPacing = 'auto';
+  autoNextToggle.addEventListener('click', () => {
+    pushConfig({ pacing: currentPacing === 'auto' ? 'host' : 'auto' });
+  });
+  autoNextRow.append(autoNextLabel, autoNextToggle);
+
+  settingsBody.append(
+    gameLabel, gameCard, gameCardSub,
+    answersLabel, answersGroup,
+    levelLabel, levelGroup,
+    questionsLabel, questionsGroup,
+    autoNextRow,
+  );
+  settingsSection.append(settingsHeader, settingsBody);
+
   const readyButton = document.createElement('button');
   readyButton.type = 'button';
   readyButton.className = 'btn-primary lobby-ready';
@@ -81,7 +215,7 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   const readyPillText = el('span', 'lobby-ready-text');
   const readyPillName = el('span', 'lobby-ready-name');
   readyPill.append(readyPillDot, readyPillText, readyPillName);
-  selfSection.append(selfLead, selfRow, renameError, readyButton, readyPill);
+  selfSection.append(selfLead, selfRow, colorRow, renameError, readyButton, readyPill);
 
   let renameUsed = false; // protocol: player:rename max één keer
   let renameBusy = false;
@@ -138,21 +272,30 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     renderSelfSection();
   });
 
+  let selfIsPlayer = false;
+
   function renderSelfSection() {
-    if (isHost) {
+    selfSection.hidden = !selfIsPlayer;
+    if (!selfIsPlayer) {
       return;
     }
     selfLead.textContent = t('lobby.selfNameLead');
+    colorRow.setAttribute('aria-label', t('lobby.colorLabel'));
+    for (const [colorName, dot] of colorButtons) {
+      dot.setAttribute('aria-label', `${t('lobby.colorLabel')}: ${colorName}`);
+    }
     renameButton.textContent = t('lobby.selfRename');
     renameSave.textContent = t('lobby.selfRenameSave');
     readyButton.textContent = t('lobby.ready');
     readyPillText.textContent = t('lobby.playerWaitingForHost');
     readyPillName.textContent = selfName.textContent;
-    // Klaar-stand: naamregels weg, wachtpil ervoor in de plaats.
+    // Klaar-stand: naamregels weg, wachtpil ervoor in de plaats. De host
+    // wacht niet op zichzelf: geen klaar-knop en geen wachtpil (die start).
     selfLead.hidden = isReady;
     selfRow.hidden = isReady;
-    readyButton.hidden = isReady;
-    readyPill.hidden = !isReady;
+    colorRow.hidden = isReady;
+    readyButton.hidden = isHost || isReady;
+    readyPill.hidden = isHost || !isReady;
     renameButton.hidden = isReady || renameUsed || !renameInput.hidden;
   }
   // Mock-review 3 aug (#3): dit is spelers-copy — de host "wacht" niet op
@@ -239,7 +382,7 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   // nu alleen zodat CSS Grid-areas ze kan plaatsen zonder de leesvolgorde
   // voor toetsenbord/screenreader te wijzigen.
   const mainColumn = el('div', 'lobby-main-column');
-  mainColumn.append(title, lockedNotice, playerStatus, waiting, countLine, recentJoinsLabel, list, viewAllButton, emptyState, selfSection);
+  mainColumn.append(title, lockedNotice, playerStatus, waiting, countLine, recentJoinsLabel, list, viewAllButton, emptyState, selfSection, settingsSection);
   // De lobby-warm-up is sinds 3 aug de Rounda-Flag ("Wave Run") van de
   // producteigenaar — spring over de vlaggen, score telt, record blijft
   // lokaal bewaard. De rad-warm-up (rounda.mjs) blijft de vulling voor de
@@ -320,6 +463,23 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
 
   function renderStatic() {
     title.textContent = t('lobby.title');
+    settingsHeaderLabel.textContent = t('lobby.settings');
+    gameLabel.textContent = t('lobby.game');
+    gameCardTitle.textContent = t('lobby.gameFlagTitle');
+    gameCardDesc.textContent = t('lobby.gameFlagDesc');
+    gameCardSoon.textContent = t('lobby.gameSoon');
+    answersLabel.textContent = t('lobby.answers');
+    answersChoose.textContent = t('lobby.answersChoose');
+    answersMix.textContent = t('lobby.answersMix');
+    answersMix.title = t('lobby.soon');
+    answersType.textContent = t('lobby.answersType');
+    answersType.title = t('lobby.soon');
+    levelLabel.textContent = t('lobby.level');
+    for (const [difficulty, btn] of levelButtons) {
+      btn.textContent = t(`lobby.level_${btn.dataset.levelKey}`);
+    }
+    questionsLabel.textContent = t('lobby.questions');
+    autoNextLabel.textContent = t('lobby.autoNext');
     waiting.textContent = t('lobby.waiting');
     shareTitle.textContent = t('lobby.share');
     startButtonLabel.textContent = t('lobby.start');
@@ -358,15 +518,20 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     shareUrls = shareUrlsFor(model.joinUrl);
     renderStatic();
 
-    if (!isHost) {
-      // Scherm 3 (40B): het JIJ-blok is nu de plek voor naam + wachtstand —
-      // de oude losse regels hieronder blijven verborgen om dubbeling te
-      // voorkomen (playerJoined + inviteHint blijven wél staan).
-      playerSelf.hidden = true;
-      playerWaitingForHost.hidden = true;
-      selfName.textContent = model.selfName ?? '';
-      renderSelfSection();
+    // Scherm 3 (40B) + feedback 4 aug: het JIJ-blok is de plek voor naam,
+    // kleur en wachtstand — voor iedereen mét spelersrol, ook de meespelende
+    // host. De oude losse regels blijven verborgen (dubbeling).
+    playerSelf.hidden = true;
+    playerWaitingForHost.hidden = true;
+    selfIsPlayer = model.selfIsPlayer === true;
+    selfName.textContent = model.selfName ?? '';
+    const selfHex = model.selfColor && model.selfColor in SERVER_KLEUREN ? SERVER_KLEUREN[model.selfColor] : null;
+    selfSwatch.style.backgroundColor = selfHex ?? 'transparent';
+    selfSwatch.hidden = selfHex === null;
+    for (const [colorName, dot] of colorButtons) {
+      dot.classList.toggle('is-active', colorName === model.selfColor);
     }
+    renderSelfSection();
 
     if (model.locked === true) {
       clearTimeout(unlockedTimer);
@@ -446,7 +611,7 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
         // namen kunnen dubbel zijn. Wie jij bent staat al in de eigen regel
         // ("Je speelt als …") — een tweede markering op naam zou de verkeerde
         // rij kunnen raken.
-        const chip = createPlayerChip({ name, playerId });
+        const chip = createPlayerChip({ name, playerId, color: model.participantColors?.get(playerId) ?? null });
         const label = chip.querySelector('.player-chip-name');
         item.appendChild(chip);
         let kickButton;
@@ -489,6 +654,18 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     if (isHost) {
       startButton.hidden = false;
       startButton.disabled = !model.canStart;
+      // Scherm 2: de serverconfig is de waarheid voor de instelknoppen.
+      const config = model.config ?? {};
+      for (const [difficulty, btn] of levelButtons) {
+        btn.classList.toggle('is-active', config.difficulty === difficulty);
+      }
+      for (const [n, btn] of questionButtons) {
+        btn.classList.toggle('is-active', config.totalRounds === n);
+      }
+      currentPacing = config.pacing === 'host' ? 'host' : 'auto';
+      autoNextToggle.classList.toggle('is-on', currentPacing === 'auto');
+      autoNextToggle.setAttribute('aria-checked', String(currentPacing === 'auto'));
+      autoNextToggle.setAttribute('aria-label', t('lobby.autoNext'));
     }
   }
 

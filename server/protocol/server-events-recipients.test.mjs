@@ -59,8 +59,9 @@ for (const eventName of ['session:kicked', 'session:revoked', 'error']) {
   });
 }
 
-test('alle 16 bekende events hebben een niet-null ontvangersregel', () => {
-  assert.equal(ALL_SERVER_EVENT_NAMES.length, 16);
+test('alle 17 bekende events hebben een niet-null ontvangersregel', () => {
+  // 17 sinds room:config-changed (besluit 40 + feedbackronde 4 aug).
+  assert.equal(ALL_SERVER_EVENT_NAMES.length, 17);
   for (const eventName of ALL_SERVER_EVENT_NAMES) {
     assert.notEqual(resolveRecipientRule(eventName), null);
   }

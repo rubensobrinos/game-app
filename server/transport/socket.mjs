@@ -72,7 +72,7 @@ import {
   startRound,
   submitAnswer,
 } from '../composition/match-lifecycle.mjs';
-import { kickPlayer, setRoomLocked } from '../composition/room-lifecycle.mjs';
+import { kickPlayer, recolorPlayer, renamePlayer, setRoomLocked, updateConfig } from '../composition/room-lifecycle.mjs';
 
 import { isEligibleForRound } from '../rules/eligibility.js';
 
@@ -1039,13 +1039,66 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
         return { ok: true, value: {} };
       }
 
-      case 'player:rename':
+      case 'player:rename': {
+        // Besluit 40B + feedbackronde 4 aug: het rename-gat is gedicht — de
+        // compositiefunctie bestaat nu (room-lifecycle.renamePlayer, LOBBY-
+        // only, max één keer, volledige naamnormalisatie).
+        const result = await renamePlayer(context, {
+          roomId,
+          playerId: session.playerId,
+          displayName: payload.displayName,
+        });
+        if (!result.ok) return result;
+        return {
+          ok: true,
+          value: { effectiveName: result.value.effectiveName },
+          after: async () => publish('room:player-changed', {
+            roomId,
+            payload: {
+              playerCount: await playerCountOf(roomId),
+              delta: { type: 'rename', playerId: session.playerId, effectiveName: result.value.effectiveName },
+            },
+          }),
+        };
+      }
+
+      case 'player:recolor': {
+        // Feedbackronde punt 13: eigen kleur kiezen (LOBBY-only, gesloten
+        // palet — protocollaag valideerde de waarde al).
+        const result = await recolorPlayer(context, {
+          roomId,
+          playerId: session.playerId,
+          color: payload.color,
+        });
+        if (!result.ok) return result;
+        return {
+          ok: true,
+          value: { color: result.value.color },
+          after: async () => publish('room:player-changed', {
+            roomId,
+            payload: {
+              playerCount: await playerCountOf(roomId),
+              delta: { type: 'recolor', playerId: session.playerId, color: result.value.color },
+            },
+          }),
+        };
+      }
+
+      case 'game:update-config': {
+        // Besluit 40 (scherm 2): host stelt in de lobby bij; iedereen hoort
+        // de nieuwe stand via room:config-changed.
+        const result = await updateConfig(context, { roomId, patch: payload });
+        if (!result.ok) return result;
+        return {
+          ok: true,
+          value: { config: result.value.config },
+          after: () => publish('room:config-changed', { roomId, payload: { config: result.value.config } }),
+        };
+      }
+
       case 'player:leave': {
-        // GAT — er bestaat geen compositiefunctie voor hernoemen of vrijwillig
-        // verlaten (`server/composition/room-lifecycle.mjs` heeft alleen
-        // `kickPlayer`). Hier wordt er BEWUST niet omheen gebouwd met een eigen
-        // mutatie: dat zou naamnormalisatie/`left: true`-semantiek buiten de
-        // eigenaar om vastleggen. Zie het handoff-item.
+        // GAT — vrijwillig verlaten heeft nog geen compositiefunctie (alleen
+        // `kickPlayer`). Bewust niet omheen gebouwd; zie het handoff-item.
         logSafe('warn', 'clientevent zonder compositiefunctie', { roomId, actionId, event: eventName });
         return { ok: false, code: 'UNSUPPORTED_EVENT' };
       }

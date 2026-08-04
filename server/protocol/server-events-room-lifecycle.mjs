@@ -18,6 +18,8 @@
  * levert voor `room:state` alleen de ondiepe plaatshoudercontrole.
  */
 
+import { PLAYER_COLORS } from './client-events-dispatch.mjs';
+
 /** @typedef {{ ok: true } | { ok: false, code: string | null }} ValidationResult */
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
@@ -39,16 +41,20 @@ export function validateRoomStatePayload(payload) {
   return { ok: true };
 }
 
-/** @type {ReadonlySet<'join' | 'leave' | 'rename' | 'kick'>} */
-const VALID_PLAYER_CHANGED_DELTA_TYPES = new Set(['join', 'leave', 'rename', 'kick']);
+/** @type {ReadonlySet<'join' | 'leave' | 'rename' | 'kick' | 'recolor'>} */
+const VALID_PLAYER_CHANGED_DELTA_TYPES = new Set(['join', 'leave', 'rename', 'kick', 'recolor']);
 
 /**
  * Valideert de payload van `room:player-changed`. Voorgesteld (geen
  * letterlijk voorbeeld in `PROTOCOL.md`): telt als geldig wanneer
  * `playerCount` een niet-negatief geheel getal is en `delta.type` één van
- * `"join" | "leave" | "rename" | "kick"` en `delta.playerId` een niet-lege
- * string is. Voorgesteld veld → coulanter schema (Ontwerpkeuze #2): geen
- * afwijzing van onbekende extra sleutels op het toplevel of binnen `delta`.
+ * `"join" | "leave" | "rename" | "kick" | "recolor"` (`recolor` sinds besluit
+ * 40 + feedbackronde, 4 aug 2026) en `delta.playerId` een niet-lege string
+ * is. Een `recolor`-delta draagt daarnaast verplicht `delta.color` uit het
+ * gesloten `PLAYER_COLORS`-palet. Voorgesteld veld → coulanter schema
+ * (Ontwerpkeuze #2): geen afwijzing van onbekende extra sleutels op het
+ * toplevel of binnen `delta` (join/rename-delta's dragen bv. `effectiveName`
+ * en `color` mee).
  * @param {unknown} payload
  * @returns {ValidationResult}
  */
@@ -67,7 +73,27 @@ export function validateRoomPlayerChangedPayload(payload) {
   if (typeof delta.playerId !== 'string' || delta.playerId.length === 0) {
     return { ok: false, code: null };
   }
+  if (delta.type === 'recolor' && !PLAYER_COLORS.includes(delta.color)) {
+    return { ok: false, code: null };
+  }
 
+  return { ok: true };
+}
+
+/**
+ * Valideert de payload van `room:config-changed` (besluit 40 + feedbackronde,
+ * 4 aug 2026): exact één sleutel `config`, een niet-null, niet-array object —
+ * de VOLLEDIGE nieuwe configuratie, niet alleen de gewijzigde subset. De
+ * inhoud van `config` is spelinhoud en wordt hier — net als bij de snapshot
+ * (`snapshot-shape.mjs`) — niet verder getoetst.
+ * @param {unknown} payload
+ * @returns {ValidationResult}
+ */
+export function validateRoomConfigChangedPayload(payload) {
+  if (!isPlainObject(payload)) return { ok: false, code: null };
+  const keys = Object.keys(payload);
+  if (keys.length !== 1 || keys[0] !== 'config') return { ok: false, code: null };
+  if (!isPlainObject(payload.config)) return { ok: false, code: null };
   return { ok: true };
 }
 

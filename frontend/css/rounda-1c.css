@@ -789,3 +789,112 @@ body:has(.lobby-screen) .session-hostbar { display: none; }
 .session-hostbar-panel .btn-secondary,
 .session-hostbar-panel .btn-destructive { width: 100%; }
 .session-hostbar-players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+
+/* ════ SCHERM 2 (besluit 40): host-instellingen in de lobby ════ */
+
+.lobby-settings { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.lobby-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  cursor: pointer;
+  min-height: 44px;
+}
+.lobby-settings-title {
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+}
+.lobby-settings-chevron { font: 700 13px/1 var(--font-display); color: #8e8e9c; }
+.lobby-settings-body { display: flex; flex-direction: column; gap: 10px; }
+.lobby-settings-label {
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+  margin: 4px 0 0;
+}
+/* Het tandwiel-gamevlak uit de mockup: dikke lime as met ribbelranden */
+.lobby-gamecard {
+  position: relative;
+  height: 62px;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #e9ff8a, var(--rounda-lime) 34%, #b6da2d 82%, #90ae1e);
+  box-shadow: inset 0 -3px 0 rgba(10, 10, 12, 0.3), 0 8px 22px rgba(216, 255, 62, 0.16);
+}
+.lobby-gamecard::before,
+.lobby-gamecard::after { content: ''; position: absolute; top: 0; bottom: 0; width: 24%; }
+.lobby-gamecard::before { left: 0; background: repeating-linear-gradient(90deg, rgba(10, 10, 12, 0.32) 0 3px, transparent 3px 9px); }
+.lobby-gamecard::after { right: 0; background: repeating-linear-gradient(270deg, rgba(10, 10, 12, 0.32) 0 3px, transparent 3px 9px); }
+.lobby-gamecard-title { position: relative; font: 700 19px/1 var(--font-display); color: var(--rounda-ink); text-transform: uppercase; }
+.lobby-gamecard-sub { display: flex; justify-content: space-between; align-items: baseline; }
+.lobby-gamecard-desc { font: 400 12.5px/1.4 var(--font-body); color: #8e8e9c; }
+.lobby-gamecard-soon { font: 700 10px/1 var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: #5c5c6b; }
+/* Drie-stand segmentkiezers (mockup .seg) */
+.lobby-seg { display: flex; background: var(--rounda-row); border-radius: 999px; padding: 4px; }
+.lobby-seg-option {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  text-align: center;
+  font: 500 13px/1 var(--font-body);
+  color: #8e8e9c;
+  min-height: 44px;
+  cursor: pointer;
+}
+.lobby-seg-option.is-active { font-weight: 700; color: var(--rounda-ink); background: var(--rounda-lime); }
+.lobby-seg-option.is-soon { color: #4d4d5c; cursor: not-allowed; }
+/* Toggle-rij (mockup .toggle-row) */
+.lobby-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: var(--rounda-row);
+  border: 1px solid var(--rounda-row-border);
+}
+.lobby-toggle-label { font: 500 13px/1 var(--font-body); color: #d4d4de; }
+.lobby-toggle {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  background: var(--rounda-row-border);
+  cursor: pointer;
+}
+.lobby-toggle i {
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #5c5c6b;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.lobby-toggle.is-on { background: var(--rounda-lime); }
+.lobby-toggle.is-on i { transform: translateX(18px); background: var(--rounda-ink); }
+/* Kleurkiezer (feedback punt 13) */
+.lobby-self-colors { display: flex; gap: 8px; flex-wrap: wrap; }
+.lobby-self-color {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.lobby-self-color.is-active { border-color: #f4f4f6; box-shadow: 0 0 0 2px var(--rounda-ink); }
+.lobby-self-swatch { flex: none; width: 26px; height: 26px; border-radius: 8px; }

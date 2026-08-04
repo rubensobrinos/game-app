@@ -289,10 +289,18 @@ test('POST /api/v1/games/join — meldt de room de nieuwe speler via de socketla
   });
 
   assert.equal(response.statusCode, 200);
+  // Feedbackronde 4 aug: de delta draagt naam + kleur mee — zonder die twee
+  // verscheen een nieuwe speler met lege naam in andermans lobbylijst.
   assert.deepEqual(sockets.broadcasts, [{
     roomId: response.json().roomId,
-    delta: { type: 'join', playerId: response.json().playerId },
+    delta: {
+      type: 'join',
+      playerId: response.json().playerId,
+      effectiveName: 'Ruben',
+      color: sockets.broadcasts[0]?.delta?.color,
+    },
   }]);
+  assert.equal(typeof sockets.broadcasts[0]?.delta?.color, 'string');
 });
 
 test('POST /api/v1/games/{code}/leave — meldt de room het vertrek, en alleen bij de eerste keer', async (t) => {

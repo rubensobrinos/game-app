@@ -70,14 +70,34 @@ export function identiteitVoor(playerId) {
 }
 
 /**
- * @param {{ name: string, playerId: string, isSelf?: boolean }} speler
+ * Serverkleuren (feedbackronde 4 aug, `player:recolor`): het gesloten
+ * 8-kleurenpalet van de server, gemapt op de 1c-merkkleuren. Als de server
+ * (of een oudere snapshot) geen kleur meegeeft valt de chip terug op de
+ * bestaande hash-identiteit — nooit kleurloos.
+ */
+export const SERVER_KLEUREN = Object.freeze({
+  orange: '#ff8a3e',
+  magenta: '#ff3ea5',
+  cyan: '#4ad2ff',
+  green: '#3ec97f',
+  yellow: '#ffd23e',
+  purple: '#b98aff',
+  lime: '#d8ff3e',
+  red: '#ff4d67',
+});
+
+/**
+ * @param {{ name: string, playerId: string, isSelf?: boolean, color?: string | null }} speler
  * @returns {HTMLElement}
  */
-export function createPlayerChip({ name, playerId, isSelf = false }) {
+export function createPlayerChip({ name, playerId, isSelf = false, color = null }) {
   const chip = document.createElement('span');
   chip.className = isSelf ? 'player-chip is-self' : 'player-chip';
 
-  const { kleur, vorm } = identiteitVoor(playerId);
+  let { kleur, vorm } = identiteitVoor(playerId);
+  if (typeof color === 'string' && color in SERVER_KLEUREN) {
+    kleur = SERVER_KLEUREN[color];
+  }
 
   const merk = document.createElement('span');
   merk.className = `player-chip-mark is-${vorm}`;

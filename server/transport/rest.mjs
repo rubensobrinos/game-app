@@ -552,9 +552,16 @@ export default async function restRoutes(fastify, options) {
     // altijd eerder dan de HTTP-respons, dus met een oudere snapshot slaat de
     // precedentieregel (`shared/protocol/snapshot-precedence.mjs`, basisregel 6)
     // terecht `STALE_SNAPSHOT` — op de verkeerde boodschap.
+    // Feedbackronde 4 aug (live-audit): de delta droeg alleen `playerId`,
+    // waardoor een nieuwe speler in andermans lobbylijst met een LEGE naam
+    // verscheen (de client leest `delta.effectiveName ?? ''`). Naam en kleur
+    // reizen nu mee — het schema staat extra deltavelden expliciet toe
+    // (server-events-room-lifecycle.mjs, Ontwerpkeuze #2).
     await broadcastPlayerChanged(request, joined.value.roomId, {
       type: 'join',
       playerId: joined.value.playerId,
+      effectiveName: joined.value.effectiveName,
+      color: joined.value.color,
     });
 
     const state = await snapshotFor(context, joined.value.roomId, joined.value.sessionId);

@@ -177,7 +177,7 @@ export function createMockTransport() {
 
     broadcast(target, 'room:player-changed', {
       playerCount: countActivePlayers(target),
-      delta: { type: 'join', playerId, effectiveName },
+      delta: { type: 'join', playerId, effectiveName, color: target.players.get(playerId)?.color },
     });
 
     return {
@@ -350,6 +350,14 @@ export function createMockTransport() {
         case 'player:rename':
           requireRole(isPlayer, 'NOT_PLAYER');
           return ackWith(renamePlayer(room, session.playerId, safePayload.displayName));
+
+        case 'player:recolor':
+          requireRole(isPlayer, 'NOT_PLAYER');
+          return ackWith(recolorPlayer(room, session.playerId, safePayload.color));
+
+        case 'game:update-config':
+          requireRole(isHost, 'NOT_HOST');
+          return ackWith(updateRoomConfig(room, safePayload));
 
         case 'player:leave':
           requireRole(isPlayer, 'NOT_PLAYER');
@@ -697,6 +705,53 @@ export function createMockTransport() {
     return { effectiveName: player.effectiveName };
   }
 
+  function recolorPlayer(target, playerId, color) {
+    if (target.phase !== 'LOBBY') {
+      throw new ProtocolError('INVALID_PHASE', 'player:recolor only allowed in LOBBY.');
+    }
+    const player = target.players.get(playerId);
+    if (player === undefined) {
+      throw new ProtocolError('NOT_PLAYER', 'Unknown player.');
+    }
+    if (!MOCK_PLAYER_COLORS.includes(color)) {
+      throw new ProtocolError('INVALID_ANSWER_FORMAT', 'Unknown color.');
+    }
+    player.color = color;
+    broadcast(target, 'room:player-changed', {
+      playerCount: countActivePlayers(target),
+      delta: { type: 'recolor', playerId, color },
+    });
+    return { color };
+  }
+
+  function updateRoomConfig(target, patch) {
+    if (target.phase !== 'LOBBY') {
+      throw new ProtocolError('INVALID_PHASE', 'game:update-config only allowed in LOBBY.');
+    }
+    const allowed = ['totalRounds', 'difficulty', 'language', 'pacing', 'speedBonus', 'allowLateJoin'];
+    const safe = {};
+    for (const key of allowed) {
+      if (patch !== null && typeof patch === 'object' && key in patch) {
+        safe[key] = patch[key];
+      }
+    }
+    if (Object.keys(safe).length === 0) {
+      throw new ProtocolError('INVALID_REQUEST', 'Empty config patch.');
+    }
+    Object.assign(target.config ?? (target.config = {}), safe);
+    if ('totalRounds' in safe) {
+      target.totalRounds = safe.totalRounds;
+    }
+    if ('pacing' in safe) {
+      target.pacing = safe.pacing;
+    }
+    if ('allowLateJoin' in safe) {
+      target.allowLateJoin = safe.allowLateJoin;
+    }
+    broadcast(target, 'room:config-changed', { config: { ...target.config } });
+    return { config: { ...target.config } };
+  }
+
   function rematch(target) {
     if (target.phase !== 'FINISHED') {
       throw new ProtocolError('INVALID_PHASE', 'game:rematch requires phase FINISHED.');
@@ -799,6 +854,7 @@ function buildSnapshot(room, sessionToken, sessionArg) {
             roles: session.roles,
             playerId: session.playerId,
             effectiveName: player?.effectiveName ?? null,
+            color: player?.color ?? null,
             score: player?.score ?? 0,
             position: player !== undefined ? findRankIndex(ranked, session.playerId) + 1 : null,
             answeredCurrentRound: player?.answeredCurrentRound ?? false,
@@ -897,10 +953,16 @@ function buildDistribution(optionIso2s, answers) {
 
 // ---- Spelers / scorebord ------------------------------------------------
 
+// Zelfde gesloten palet + volgorde als de server (client-events-dispatch.mjs).
+const MOCK_PLAYER_COLORS = Object.freeze([
+  'orange', 'magenta', 'cyan', 'green', 'yellow', 'purple', 'lime', 'red',
+]);
+
 function addPlayer(room, playerId, effectiveName) {
   room.players.set(playerId, {
     playerId,
     effectiveName,
+    color: MOCK_PLAYER_COLORS[room.players.size % MOCK_PLAYER_COLORS.length],
     score: 0,
     active: true,
     answeredCurrentRound: false,

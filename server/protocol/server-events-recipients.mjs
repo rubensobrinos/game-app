@@ -1,6 +1,7 @@
 /**
- * @file PR5 — `server-events`-module: ontvangersregel-naslag voor alle 16
- *   server→client events.
+ * @file PR5 — `server-events`-module: ontvangersregel-naslag voor alle 17
+ *   server→client events (16 uit PROTOCOL.md's oorspronkelijke tabel plus
+ *   `room:config-changed`, besluit 40 + feedbackronde 4 aug 2026).
  * @see docs/multiplayer/PROTOCOL.md — §Server → client events (de
  *   "Ontvangers"-kolom van de tabel).
  * @see docs/protocol-plan/prompts/PR5-server-events.md — sub-batch PR5a,
@@ -40,6 +41,10 @@ const RECIPIENT_RULES_BY_EVENT = new Map([
   ['room:state', 'single_session'],
   ['room:player-changed', 'room'],
   ['room:lock-changed', 'room'],
+  // Besluit 40 + feedbackronde (4 aug 2026): de volledige nieuwe config na
+  // `game:update-config`, room-breed — iedereen in de lobby ziet dezelfde
+  // instellingen, net als bij `room:lock-changed`.
+  ['room:config-changed', 'room'],
   ['game:started', 'room'],
   ['game:paused', 'room'],
   ['game:resumed', 'room'],
@@ -66,8 +71,10 @@ export function resolveRecipientRule(eventName) {
 }
 
 /**
- * Alle 16 bekende eventnamen (afgeleid van `RECIPIENT_RULES_BY_EVENT`, geen
- * tweede handmatige lijst), voor gebruik in exhaustiviteitstests.
+ * Alle 17 bekende eventnamen (de 16 uit §Server → client events plus
+ * `room:config-changed` uit besluit 40 + feedbackronde; afgeleid van
+ * `RECIPIENT_RULES_BY_EVENT`, geen tweede handmatige lijst), voor gebruik in
+ * exhaustiviteitstests.
  * @type {ReadonlyArray<string>}
  */
 export const ALL_SERVER_EVENT_NAMES = Object.freeze([...RECIPIENT_RULES_BY_EVENT.keys()]);

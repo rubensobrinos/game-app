@@ -45,6 +45,7 @@ import { assertPlayerShape } from '../data/types/player.js';
 import { assertRoomShape } from '../data/types/room.js';
 import { assertSessionShape } from '../data/types/session.js';
 import { ALL_ERROR_CODES } from '../protocol/error-codes.mjs';
+import { PLAYER_COLORS, UPDATABLE_CONFIG_KEYS, validateGameUpdateConfigPayload } from '../protocol/client-events-dispatch.mjs';
 import { createId, createSessionToken, verifySessionToken } from './context.mjs';
 
 /**
@@ -61,6 +62,10 @@ const CODES = Object.freeze({
   TOKEN_INVALID: 'TOKEN_INVALID',
   SESSION_REVOKED: 'SESSION_REVOKED',
   NOT_PLAYER: 'NOT_PLAYER',
+  // Besluit 40 + feedbackronde (4 aug 2026): rename/recolor/update-config.
+  INVALID_PHASE: 'INVALID_PHASE',
+  INVALID_ANSWER_FORMAT: 'INVALID_ANSWER_FORMAT',
+  INVALID_REQUEST: 'INVALID_REQUEST',
 });
 for (const code of Object.values(CODES)) {
   if (!ALL_ERROR_CODES.has(code)) {
@@ -152,6 +157,19 @@ export function buildJoinUrl(context, inviteId) {
 /** Spelers die nog echt in de room zitten. */
 function activePlayers(players) {
   return players.filter((player) => player.kicked !== true && player.left !== true);
+}
+
+/**
+ * De startkleur voor de n-de binnenkomer (0-based): round-robin over het
+ * gesloten `PLAYER_COLORS`-palet, op volgorde van binnenkomst (besluit 40 +
+ * feedbackronde, 4 aug 2026). De teller loopt over ALLE ooit aangemaakte
+ * spelers van de room — ook gekickte/vertrokken — zodat een vertrek de
+ * kleuren van latere binnenkomers niet verschuift.
+ * @param {number} arrivalIndex
+ * @returns {string}
+ */
+function colorForArrival(arrivalIndex) {
+  return PLAYER_COLORS[arrivalIndex % PLAYER_COLORS.length];
 }
 
 /**
@@ -420,6 +438,10 @@ export async function createRoom(context, { config, hostParticipates, displayNam
         joinedAt: createdAt,
         left: false,
         kicked: false,
+        // ADDITIEF VELD (net als Room.inviteHash hierboven: assertPlayerShape
+        // keurt alleen de velden die hij kent). De meespelende host is de
+        // eerste binnenkomer en krijgt dus PLAYER_COLORS[0].
+        color: colorForArrival(0),
       };
       assertPlayerShape(player);
     }
@@ -594,7 +616,8 @@ export async function joinRoom(context, {
     return fail(CODES.LATE_JOIN_DISABLED);
   }
 
-  const players = activePlayers(await context.store.listPlayers(room.id));
+  const allPlayers = await context.store.listPlayers(room.id);
+  const players = activePlayers(allPlayers);
   if (players.length >= room.config.maxPlayers) {
     return fail(CODES.GAME_FULL);
   }
@@ -627,6 +650,9 @@ export async function joinRoom(context, {
     joinedAt,
     left: false,
     kicked: false,
+    // Round-robin op volgorde van binnenkomst; de teller loopt over ALLE ooit
+    // aangemaakte spelers (zie colorForArrival).
+    color: colorForArrival(allPlayers.length),
   };
   assertPlayerShape(player);
 
@@ -655,6 +681,7 @@ export async function joinRoom(context, {
     roles: ['player'],
     playerId,
     effectiveName: player.effectiveName,
+    color: player.color,
     joinSource,
   });
 }
@@ -782,6 +809,140 @@ export async function kickPlayer(context, { roomId, playerId } = {}) {
   await touchRoom(context, room, at);
 
   return succeed({ roomId, playerId, sessionId: player.sessionId, revoked: session !== null });
+}
+
+/**
+ * Hernoemt een speler (besluit 40B + feedbackronde 4 aug 2026 — dicht het
+ * gedocumenteerde `player:rename`-gat in socket.mjs). Zelfde regels als de
+ * mock (transport-mock.mjs `renamePlayer`): alleen in LOBBY, en hooguit één
+ * keer — wie al een zelfgekozen naam draagt (`nameSource: 'chosen'`, door een
+ * eerdere rename of een opgegeven joinnaam) krijgt geen tweede beurt. De
+ * naam loopt door exact dezelfde normalisatie/uniekmaking/profaniteitscheck
+ * als bij join (`resolveNames`), tegen de namen van de ándere actieve
+ * spelers. AUTORISATIE ZIT HIER NIET (zie kop): de socketlaag garandeert al
+ * dat de aanroeper de speler zélf is.
+ *
+ * @param {import('./context.mjs').Context} context
+ * @param {{ roomId: string, playerId: string, displayName: unknown }} params
+ */
+export async function renamePlayer(context, { roomId, playerId, displayName } = {}) {
+  const room = await context.store.loadRoom(roomId);
+  if (room === null) {
+    return fail(CODES.GAME_NOT_FOUND);
+  }
+  if (room.phase !== 'LOBBY') {
+    return fail(CODES.INVALID_PHASE);
+  }
+  const player = await context.store.loadPlayer(roomId, playerId);
+  if (player === null || player.left === true || player.kicked === true) {
+    return fail(CODES.NOT_PLAYER);
+  }
+  if (player.nameSource === NAME_SOURCE_CHOSEN) {
+    return fail(CODES.INVALID_PHASE); // mock-pariteit: "rename allowed at most once"
+  }
+
+  const others = activePlayers(await context.store.listPlayers(room.id))
+    .filter((entry) => entry.id !== playerId);
+  const names = resolveNames(context, {
+    displayName,
+    language: room.config.language,
+    existingEffectiveNames: others.map((entry) => entry.effectiveName),
+  });
+  if (names.nameSource !== NAME_SOURCE_CHOSEN) {
+    // Na normalisatie bleef er niets bruikbaars over (leeg/profaan) — dat is
+    // een inhoudsfout van deze ene aanroep, geen no-op die stil "lukt".
+    return fail(CODES.INVALID_ANSWER_FORMAT);
+  }
+
+  const at = context.now();
+  const renamed = {
+    ...player,
+    displayName: names.displayName,
+    effectiveName: names.effectiveName,
+    nameSource: names.nameSource,
+  };
+  assertPlayerShape(renamed);
+  await context.store.savePlayer(renamed);
+  await touchRoom(context, room, at);
+
+  return succeed({ roomId, playerId, effectiveName: renamed.effectiveName });
+}
+
+/**
+ * Wijzigt de spelerkleur (feedbackronde punt 13). Alleen in LOBBY (mid-game
+ * van kleur wisselen zou chips op andermans scorebord live verspringen).
+ * De kleurwaarde zelf is al gevalideerd tegen het gesloten `PLAYER_COLORS`-
+ * palet in de protocollaag; dubbele kleuren zijn toegestaan (8 kleuren, tot
+ * 100 spelers — uniciteit afdwingen kan niet).
+ *
+ * @param {import('./context.mjs').Context} context
+ * @param {{ roomId: string, playerId: string, color: string }} params
+ */
+export async function recolorPlayer(context, { roomId, playerId, color } = {}) {
+  const room = await context.store.loadRoom(roomId);
+  if (room === null) {
+    return fail(CODES.GAME_NOT_FOUND);
+  }
+  if (room.phase !== 'LOBBY') {
+    return fail(CODES.INVALID_PHASE);
+  }
+  const player = await context.store.loadPlayer(roomId, playerId);
+  if (player === null || player.left === true || player.kicked === true) {
+    return fail(CODES.NOT_PLAYER);
+  }
+  if (!PLAYER_COLORS.includes(color)) {
+    return fail(CODES.INVALID_ANSWER_FORMAT); // defensief — de protocollaag hoort dit al te vangen
+  }
+
+  const at = context.now();
+  const recolored = { ...player, color };
+  assertPlayerShape(recolored);
+  await context.store.savePlayer(recolored);
+  await touchRoom(context, room, at);
+
+  return succeed({ roomId, playerId, color });
+}
+
+/**
+ * Past een subset van de gameconfiguratie aan ná creatie (besluit 40,
+ * scherm 2: instellingen ín de hostlobby). Alleen in LOBBY — zodra het spel
+ * loopt is de configuratie bevroren. De patch is door de protocollaag al
+ * gereduceerd tot `UPDATABLE_CONFIG_KEYS` met geldige waarden; hier wordt
+ * het samengevoegde geheel nogmaals door de create-validatie gehaald
+ * (`resolveGameConfiguration`) zodat er nooit een room ontstaat met een
+ * config die bij createRoom geweigerd zou zijn.
+ *
+ * @param {import('./context.mjs').Context} context
+ * @param {{ roomId: string, patch: Record<string, unknown> }} params
+ */
+export async function updateConfig(context, { roomId, patch } = {}) {
+  const room = await context.store.loadRoom(roomId);
+  if (room === null) {
+    return fail(CODES.GAME_NOT_FOUND);
+  }
+  if (room.phase !== 'LOBBY') {
+    return fail(CODES.INVALID_PHASE);
+  }
+
+  const safePatch = {};
+  for (const key of UPDATABLE_CONFIG_KEYS) {
+    if (patch !== null && typeof patch === 'object' && key in patch) {
+      safePatch[key] = patch[key];
+    }
+  }
+  if (Object.keys(safePatch).length === 0) {
+    return fail(CODES.INVALID_REQUEST);
+  }
+
+  let config;
+  try {
+    config = resolveGameConfiguration({ ...room.config, ...safePatch });
+  } catch {
+    return fail(CODES.INVALID_REQUEST);
+  }
+
+  await touchRoom(context, { ...room, config }, context.now());
+  return succeed({ roomId, config });
 }
 
 /**

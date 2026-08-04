@@ -105,16 +105,19 @@ test('validateShareOpenedPayload: method "qrcode" (onbekende vijfde waarde) -> a
 
 // Rij 23 — resolveEventValidator("game:start") ... ("share:opened"): elk van
 // de 12 levert { ok: true, entry }.
-test('ALL_CLIENT_EVENT_NAMES bevat exact de 12 gedocumenteerde eventnamen', () => {
+test('ALL_CLIENT_EVENT_NAMES bevat exact de 14 gedocumenteerde eventnamen', () => {
+  // 14 sinds besluit 40 + feedbackronde 4 aug: +player:recolor,
+  // +game:update-config.
   assert.deepEqual(
     [...ALL_CLIENT_EVENT_NAMES].sort(),
     [
       'game:finish', 'game:kick', 'game:lock', 'game:next', 'game:pause',
-      'game:rematch', 'game:resume', 'game:start', 'player:leave',
-      'player:rename', 'round:answer', 'share:opened',
+      'game:rematch', 'game:resume', 'game:start', 'game:update-config',
+      'player:leave', 'player:recolor', 'player:rename', 'round:answer',
+      'share:opened',
     ].sort(),
   );
-  assert.equal(ALL_CLIENT_EVENT_NAMES.length, 12);
+  assert.equal(ALL_CLIENT_EVENT_NAMES.length, 14);
 });
 
 for (const eventName of ALL_CLIENT_EVENT_NAMES) {

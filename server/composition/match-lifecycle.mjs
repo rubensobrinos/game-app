@@ -1457,6 +1457,10 @@ export async function buildSnapshot(context, { roomId, sessionId = null } = {}) 
     roles: session === null ? [] : [...session.roles],
     playerId: selfPlayer === null ? null : selfPlayer.id,
     effectiveName: selfPlayer === null ? null : selfPlayer.effectiveName,
+    // Feedbackronde 4 aug (kleurkeuze): de eigen kleur reist mee in de
+    // snapshot — de join-broadcast mist de joiner zelf (die hangt dan nog
+    // niet aan de socket), dus dit is zijn enige betrouwbare bron.
+    color: selfPlayer === null ? null : (selfPlayer.color ?? null),
     score: selfPlayer === null ? 0 : selfPlayer.score,
     position: selfPlayer === null ? null : positionById.get(selfPlayer.id) ?? null,
     answeredCurrentRound: false,
