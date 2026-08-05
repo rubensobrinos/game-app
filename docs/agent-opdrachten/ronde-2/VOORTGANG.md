@@ -3,9 +3,13 @@
 Eén plek waar te zien is hoe ver we zijn. **Bijgehouden door de lead**, na elke
 review. Agents schrijven hier niet in; zij leveren op via hun stoppunt.
 
-**Stand: 5 aug 2026.** A1 ✅ en C0 ✅ gemerged, B1 opgeleverd. Vier agents draaien
-nu parallel (A2 · B2 · C1 · D1). De lead pakt losse punten er zelf tussendoor
-bij — een deletie van één regel hoort niet in een briefing.
+> **AFGEROND — 5 aug 2026.** Alle 58 punten zijn af en staan live (v1c28), net
+> als de acht punten uit feedbackronde 2. Wat er van deze ronde overbleef is
+> doorgeschoven naar `../ronde-3/`. Dit bestand blijft staan als verslag; het
+> wordt niet meer bijgewerkt.
+
+**Eindstand: 58 van 58 af.** Vier agents, drie rondes, plus de punten die de
+lead er zelf tussendoor bij pakte.
 
 Gemeten op `main` @390×650, ná A2:
 
@@ -176,16 +180,11 @@ bewezen (B1 draaide er tests op).
   verdeelde over de antwoorden. Dat vraagt spelersidentiteit in de reveal en
   hangt daarmee aan besluit 41 (land + speels woord + vlag).
 
-## Openstaande besluiten producteigenaar
+## Besluiten producteigenaar — allemaal genomen
 
-1. ~~Warm-up in de lobby~~ ✅ **5 aug: blijft opengeklapt.** Gevolg: de lobby past
-   niet in één viewport; de eis wordt "alles wat je nodig hebt boven de vouw,
-   de warm-up mag eronder".
-2. **Palet van 36 kleuren** — de server kent er acht (gesloten enum). Meer
-   betekent protocolwerk. Blokkeert punt 20.
-3. **"Antwoord automatisch tonen"** — besluit C uit doelbeeld v2, serverwerk.
-   Blokkeert punt 27.
-4. **Screenshottool** — er zit geen headless browser in de repo (geen
-   devDependencies). Zonder tool kan de lead "past binnen één viewport" niet
-   zelf natrekken en leunt hij op de meting van de agent. Een dependency
-   toevoegen is een `deps`-besluit.
+| Vraag | Uitkomst |
+| --- | --- |
+| Warm-up in de lobby | Blijft opengeklapt; de lobby past bewust niet in één viewport |
+| Palet van 36 kleuren | 16 kleuren, gebouwd |
+| Antwoord automatisch tonen | Bouwen — agent 1, ronde 3 |
+| Screenshottool | Playwright toegevoegd; `tools/meet-viewport.mjs` |
