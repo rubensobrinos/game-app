@@ -166,6 +166,16 @@ bewezen (B1 draaide er tests op).
 | ⬜ open | 26 |
 | **Totaal** | **58 + 2** |
 
+## Later bouwen — genoteerd, niet nu
+
+- **Meer laten zien wie het goed had** (producteigenaar, 5 aug). Het simpele
+  aantal staat er al ("9 van de 14 zaten goed", `reveal.countCorrect` — die
+  werkte overigens buiten de mock nooit, want de server stuurde de
+  antwoordverdeling als object terwijl de client een array leest; gerepareerd
+  op 5 aug). Wat hij bedoelt is rijker: wíé het goed had, of hoe de groep zich
+  verdeelde over de antwoorden. Dat vraagt spelersidentiteit in de reveal en
+  hangt daarmee aan besluit 41 (land + speels woord + vlag).
+
 ## Openstaande besluiten producteigenaar
 
 1. ~~Warm-up in de lobby~~ ✅ **5 aug: blijft opengeklapt.** Gevolg: de lobby past
