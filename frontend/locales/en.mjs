@@ -122,6 +122,7 @@ export const en = Object.freeze({
   'reveal.youCorrect': 'You got it right',
   'reveal.youWrong': 'Not this time',
   'reveal.youNone': 'No answer',
+  'reveal.yourAnswer': 'You: {answer}',
   'standings.nextAuto': 'Next question coming up…',
   'standings.nextHost': 'The host starts the next question',
   'standings.title': 'Standings',

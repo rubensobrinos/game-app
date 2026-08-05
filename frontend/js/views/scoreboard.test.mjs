@@ -8,8 +8,11 @@ import assert from 'node:assert/strict';
 
 function stubDom() {
   globalThis.HTMLElement ??= class HTMLElement {};
-  const maak = () => {
+  const maak = (tag = 'div') => {
     const el = {
+      // B3: het revealscherm kiest tussen een <img> en een <canvas> voor de
+      // vlag, dus de stub moet die twee uit elkaar kunnen houden.
+      tagName: String(tag).toUpperCase(),
       className: '',
       textContent: '',
       hidden: false,
@@ -40,6 +43,11 @@ function stubDom() {
       // hele drain-pad stil over — de reden dat de balk nooit in een test
       // opdook, ook toen hij in het echt stilstond.
       get firstElementChild() { return el.children[0] ?? null; },
+      // B3: de revealkaart tekent een gegenereerde vlag op een canvas.
+      getContext: () => new Proxy({}, { get: () => () => {}, set: () => true }),
+      src: '',
+      alt: '',
+      removeAttribute: (k) => el._attrs.delete(k),
     };
     Object.setPrototypeOf(el, HTMLElement.prototype);
     return el;
@@ -261,4 +269,166 @@ test('punt 40: zonder serverconfig valt de balk terug op de serverdefaults, niet
   view.update(standings, { round: rondeMetUitslag('r1'), pacing: 'auto', phase: 'ROUND_RESULT' });
   // room-lifecycle.mjs: resultSeconds 5 + scoreboardSeconds 4
   assert.equal(vind(root, 'reveal-next-bar').firstElementChild.style.animation, 'reveal-drain 9s linear forwards');
+});
+
+// ══ B3: kleur, vlag en je eigen antwoord op het revealscherm ══════════════
+//
+// Drie besluiten van de producteigenaar (5 aug), plus punt 42 (de lege
+// onderhelft). De kaart was altijd lime — ook bij "Geen antwoord +0".
+
+function rondeFlagsMc({ correct = 'at', gekozen = null, self = 'correct' } = {}) {
+  return {
+    roundId: 'r1',
+    gameType: 'flags_mc',
+    question: { targetIso2: correct, optionIso2s: [correct, 'pe', 'ro', 'md'] },
+    selectedOptionId: gekozen,
+    selectedChoice: null,
+    selectedSide: null,
+    selectedCardIndex: null,
+    progress: { eligiblePlayerCount: 4 },
+    result: {
+      correctOptionId: correct, correctChoice: null, correctSide: null, correctCardIndex: null,
+      selfCorrect: self === 'correct',
+      selfNoAnswer: self === 'noanswer',
+      roundPoints: self === 'correct' ? 800 : 0,
+      distribution: [],
+    },
+  };
+}
+
+async function toon(ronde, naam) {
+  const { createScoreboardView } = await import(`./scoreboard.mjs?${naam}`);
+  const root = document.createElement('div');
+  const view = createScoreboardView({ root, t, tCount });
+  view.update(standings, { round: ronde, lang: 'nl', pacing: 'auto', phase: 'ROUND_RESULT' });
+  return root;
+}
+
+test('B3: goed is lime, fout is magenta, geen antwoord is gedempt', async () => {
+  stubDom();
+  const goed = await toon(rondeFlagsMc({ self: 'correct' }), 'b3a');
+  assert.equal(vind(goed, 'reveal-card').dataset.state, 'correct');
+
+  stubDom();
+  const fout = await toon(rondeFlagsMc({ self: 'wrong', gekozen: 'ro' }), 'b3b');
+  assert.equal(vind(fout, 'reveal-card').dataset.state, 'wrong');
+
+  stubDom();
+  const geen = await toon(rondeFlagsMc({ self: 'noanswer' }), 'b3c');
+  // Bewust NIET magenta: je hebt niets fout gedaan, je was er niet bij.
+  assert.equal(vind(geen, 'reveal-card').dataset.state, 'noanswer');
+});
+
+test('B3: de vlag van het juiste antwoord staat op de kaart', async () => {
+  stubDom();
+  const root = await toon(rondeFlagsMc({ correct: 'at' }), 'b3d');
+  const vlag = vind(root, 'reveal-card-flag');
+  assert.equal(vlag.tagName, 'IMG');
+  assert.equal(vlag.hidden, false);
+  assert.match(vlag.src, /at\.png$/);
+  // De landnaam blijft ernaast staan — vlag én land, niet vlag óf land.
+  assert.equal(vind(root, 'reveal-card-answer').textContent, 'Oostenrijk');
+});
+
+test('B3: een gegenereerde vlag wordt getekend, niet als afbeelding geladen', async () => {
+  stubDom();
+  // real_or_fake_flag met een nepvlag: er is geen bestaand asset om te laden.
+  const root = await toon({
+    roundId: 'r1',
+    gameType: 'real_or_fake_flag',
+    question: { kind: 'fake', spec: { pattern: 'hstripes', palette: ['#f00', '#0f0', '#00f'] } },
+    selectedChoice: 'real',
+    progress: { eligiblePlayerCount: 2 },
+    result: {
+      correctOptionId: null, correctChoice: 'fake', correctSide: null, correctCardIndex: null,
+      selfCorrect: false, selfNoAnswer: false, roundPoints: 0, distribution: [],
+    },
+  }, 'b3e');
+
+  const doek = vind(root, 'reveal-card-flag-canvas');
+  assert.equal(doek.hidden, false, 'de getekende vlag is zichtbaar');
+  const img = vind(root, 'reveal-card-flag');
+  assert.equal(img.tagName, 'IMG');
+  assert.equal(img.hidden, true, 'geen <img> die een niet-bestaand asset probeert te laden');
+});
+
+test('B3: bij odd_one_out toont de kaart de vlag die het juiste antwoord was', async () => {
+  stubDom();
+  const root = await toon({
+    roundId: 'r1',
+    gameType: 'odd_one_out',
+    question: {
+      cards: [
+        { cardIndex: 0, iso2: 'fr' },
+        { cardIndex: 1, iso2: 'de' },
+        { cardIndex: 2, iso2: 'br' }, // de vreemde eend
+        { cardIndex: 3, iso2: 'it' },
+      ],
+    },
+    selectedCardIndex: 0,
+    progress: { eligiblePlayerCount: 3 },
+    result: {
+      correctOptionId: null, correctChoice: null, correctSide: null, correctCardIndex: 2,
+      selfCorrect: false, selfNoAnswer: false, roundPoints: 0, distribution: [],
+      resultDetails: null,
+    },
+  }, 'b3f');
+
+  // Niet de eerste kaart en niet de gekozen kaart: die van het juiste antwoord.
+  assert.match(vind(root, 'reveal-card-flag').src, /br\.png$/);
+  assert.equal(vind(root, 'reveal-card-answer').textContent, 'Brazilië');
+});
+
+test('B3: je eigen antwoord verschijnt alleen als je ernaast zat', async () => {
+  stubDom();
+  const fout = await toon(rondeFlagsMc({ correct: 'md', gekozen: 'ro', self: 'wrong' }), 'b3g');
+  const mijn = vind(fout, 'reveal-mine');
+  assert.equal(mijn.hidden, false);
+  // De leuke bijna-goed: Moldavië en Roemenië verwarren.
+  assert.equal(mijn.textContent, 'reveal.yourAnswer');
+  assert.equal(vind(fout, 'reveal-card-answer').textContent, 'Moldavië');
+
+  stubDom();
+  const goed = await toon(rondeFlagsMc({ gekozen: 'at', self: 'correct' }), 'b3h');
+  assert.equal(vind(goed, 'reveal-mine').hidden, true, 'bij goed staat het antwoord al groot bovenaan');
+
+  stubDom();
+  const geen = await toon(rondeFlagsMc({ self: 'noanswer' }), 'b3i');
+  assert.equal(vind(geen, 'reveal-mine').hidden, true, 'geen antwoord = niets te tonen');
+});
+
+test('B3: hoger/lager noemt de metric erbij (overgenomen uit de dode gameplay-variant)', async () => {
+  stubDom();
+  const root = await toon({
+    roundId: 'r1',
+    gameType: 'higher_lower',
+    question: { metric: 'population', sides: [{ side: 0, iso2: 'fr' }, { side: 1, iso2: 'de' }] },
+    selectedSide: 0,
+    progress: { eligiblePlayerCount: 2 },
+    result: {
+      correctOptionId: null, correctChoice: null, correctSide: 1, correctCardIndex: null,
+      selfCorrect: false, selfNoAnswer: false, roundPoints: 0, distribution: [],
+    },
+  }, 'b3j');
+
+  assert.equal(vind(root, 'reveal-card-answer').textContent, 'game.higherLowerResult');
+  assert.match(vind(root, 'reveal-card-flag').src, /de\.png$/, 'de vlag van de winnende kant');
+});
+
+test('B3: zonder bruikbare vlagbron blijft het beeld leeg in plaats van verkeerd', async () => {
+  stubDom();
+  const root = await toon({
+    roundId: 'r1',
+    gameType: 'flags_mc',
+    question: {}, // geen targetIso2
+    selectedOptionId: null,
+    progress: null,
+    result: {
+      correctOptionId: null, correctChoice: null, correctSide: null, correctCardIndex: null,
+      selfCorrect: false, selfNoAnswer: true, roundPoints: 0, distribution: [],
+    },
+  }, 'b3k');
+
+  assert.equal(vind(root, 'reveal-card').hidden, true, 'geen antwoordtekst → geen kaart');
+  assert.equal(vind(root, 'reveal-card-flag').hidden, true);
 });

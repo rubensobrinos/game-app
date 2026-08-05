@@ -164,6 +164,8 @@ export const nl = Object.freeze({
   'reveal.youCorrect': 'Jij zat goed',
   'reveal.youWrong': 'Jij zat ernaast',
   'reveal.youNone': 'Geen antwoord',
+  // B3: alleen zichtbaar als je ernaast zat — zie scoreboard.mjs.
+  'reveal.yourAnswer': 'Jij: {answer}',
   'standings.nextAuto': 'Volgende vraag komt eraan…',
   'standings.nextHost': 'De host start de volgende vraag',
   'standings.title': 'Tussenstand',

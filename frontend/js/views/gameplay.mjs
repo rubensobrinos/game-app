@@ -5,11 +5,20 @@
 // secondsRemaining herberekend per render-tick.
 //
 // 14-S09-S10: dit bestand was ooit flags_mc-only. De "shell" (kop, timer,
-// status, voortgang, uitslagstempel, sociale headline) is gedeeld over alle
-// drie de spelvormen; alleen de vraagopbouw en de correcte-antwoord-tekst
-// takken af op `model.gameType`. `options`/`.gameplay-option` wordt voor alle
-// drie hergebruikt (vier landknoppen / Echt-Nep / de twee zijden van een
-// duel) — geen los `duel`-blok, minder nieuwe structuur.
+// status, voortgang) is gedeeld over alle drie de spelvormen; alleen de
+// vraagopbouw takt af op `model.gameType`. `options`/`.gameplay-option` wordt
+// voor alle drie hergebruikt (vier landknoppen / Echt-Nep / de twee zijden
+// van een duel) — geen los `duel`-blok, minder nieuwe structuur.
+//
+// B3 (5 aug 2026): DIT SCHERM TOONT GEEN UITSLAG MEER. Sinds besluit 40
+// routeert `view-switcher.mjs` `ROUND_RESULT`/`SCOREBOARD` naar
+// `scoreboard.mjs`, en gameplay is alleen nog gemount tijdens `COUNTDOWN` en
+// `ROUND_ACTIVE` — momenten waarop `model.result` per definitie `null` is.
+// Het uitslagblok dat hier stond (correcte-antwoord-stempel, eigen resultaat,
+// streakreactie, puntentelling, sociale headline) was daarmee onbereikbaar
+// geworden: een tweede, afwijkende implementatie van wat scherm 5 al doet.
+// Verwijderd, met het bruikbare deel (de metric-regel bij hoger/lager)
+// overgenomen in `scoreboard.mjs`'s `correctAnswerTextFor()`.
 //
 // Gebruik (bedrading door app.mjs / de viewswitcher, UI0):
 //   const view = createGameplayView({ root, t, onAnswer });
@@ -22,8 +31,6 @@
 
 import { countryName, flagAssetPath } from './country-names.mjs';
 import { displayState, optionsLocked } from './round-model.mjs';
-import { headlineRevealed } from './reveal-model.mjs';
-import { socialHeadlineFor } from './social-headline.mjs';
 import { renderFlagSpec } from './flag-renderer.mjs';
 import { createTimerBar } from '../timer-bar.mjs';
 
@@ -34,19 +41,6 @@ function selectedValueFor(model) {
   if (model.gameType === 'odd_one_out') return model.selectedCardIndex;
   return model.selectedOptionId;
 }
-
-/** Het bevestigde juiste antwoord (pas ná round:ended), ongeacht gameType. */
-function correctValueFor(model) {
-  if (model.result === null) return null;
-  if (model.gameType === 'real_or_fake_flag') return model.result.correctChoice;
-  if (model.gameType === 'higher_lower') return model.result.correctSide;
-  if (model.gameType === 'odd_one_out') return model.result.correctCardIndex;
-  return model.result.correctOptionId;
-}
-
-// 11-verzoek (BOUWSPRINT doel 4): eigen keuze, geen voorschrift in
-// GAME-RULES.md — een streak van 1 of 2 is geen "reactie" waard.
-const STREAK_REACTION_THRESHOLD = 3;
 
 export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   root.textContent = '';
@@ -128,24 +122,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   const status = el('p', 'gameplay-status');
   status.setAttribute('aria-live', 'polite');
   const progress = el('p', 'gameplay-progress');
-  const result = el('div', 'gameplay-result');
-  result.setAttribute('aria-live', 'polite');
-  result.setAttribute('aria-atomic', 'true');
-
-  // S13/S14: sociale headline, hooguit één, pas ná een korte vertraging
-  // (reveal-model.mjs) — een tik op de uitslag toont 'm meteen (overslaanbaar,
-  // zelfde patroon als podium.mjs's 3→2→1-opbouw).
-  const headline = el('p', 'gameplay-headline');
-  headline.setAttribute('aria-live', 'polite');
-  headline.hidden = true;
-  result.addEventListener('click', () => {
-    if (revealedRoundId !== null) {
-      skippedReveal = true;
-      renderHeadline();
-    }
-  });
-
-  root.append(screenTitle, countdown, header, timerHost, questionPrompt, flag, flagCanvas, flagFallback, options, status, progress, result, headline);
+  root.append(screenTitle, countdown, header, timerHost, questionPrompt, flag, flagCanvas, flagFallback, options, status, progress);
 
   let renderedRoundId = null;
   let optionButtons = new Map(); // value (iso2 | 'real'/'fake' | 0/1) -> button
@@ -153,13 +130,6 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   // dezelfde waarde opnieuw pulseert bij elke render-tick (ticker draait
   // vaker dan het cijfer wisselt).
   let tickedCountdownValue = null;
-  // Reveal-pacing (S13): lokale Date.now(), geen servertijd nodig — dit
-  // bepaalt alleen hoe lang dít scherm wacht vóór het de headline toont, geen
-  // cross-client-gesynchroniseerd moment zoals de rondetimer.
-  let revealedRoundId = null;
-  let revealedAt = null;
-  let skippedReveal = false;
-  let lastRoundModel = null;
 
   /** Bouwt de vraag opnieuw op — takt af op `model.gameType`. */
   function buildQuestion(model) {
@@ -284,34 +254,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     }
   }
 
-  /** Tekst + eventuele markering voor de correcte-antwoord-stempel, per gameType. */
-  function correctAnswerStampText(model) {
-    if (model.gameType === 'real_or_fake_flag') {
-      return t(model.result.correctChoice === 'real' ? 'game.wasReal' : 'game.wasFake');
-    }
-    if (model.gameType === 'higher_lower') {
-      const side = model.question.sides.find((s) => s.side === model.result.correctSide);
-      const name = side ? countryName(side.iso2, lang) : '';
-      const metricLabel = t(`game.metric.${model.question.metric}`);
-      return t('game.higherLowerResult')
-        .replace('{country}', name)
-        .replace('{metric}', metricLabel === `game.metric.${model.question.metric}` ? model.question.metric : metricLabel);
-    }
-    if (model.gameType === 'odd_one_out') {
-      const kaart = model.question.cards.find((c) => c.cardIndex === model.result.correctCardIndex);
-      // Een gegenereerde vlag heeft geen land om te noemen; dan is "de nepvlag"
-      // het eerlijke antwoord.
-      const naam = kaart === undefined
-        ? ''
-        : kaart.spec !== undefined && kaart.spec !== null
-          ? t('game.oddOneOutFakeAnswer')
-          : countryName(kaart.iso2, lang);
-      return `${t('game.correctAnswer')}: ${naam}`;
-    }
-    return `${t('game.correctAnswer')}: ${countryName(model.result.correctOptionId, lang)}`;
-  }
-
-  function update(model, { secondsLeft = null, phase = null, countdownSecondsLeft = null, streak = 0 } = {}) {
+  function update(model, { secondsLeft = null, phase = null, countdownSecondsLeft = null } = {}) {
     // Reken het getal uit de resterende tijd (`secondsRemaining()` rondt al af
     // op hele seconden) — geen vaste `3`/`2`/`1`-reeks aannemen, want de
     // serverduur kan afwijken (zie 04-S07-countdown.md's HANDOFF-punt over
@@ -349,14 +292,9 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
       options.textContent = '';
       status.textContent = '';
       progress.textContent = '';
-      result.textContent = '';
       renderedRoundId = null;
-      headline.hidden = true;
-      revealedRoundId = null;
       return;
     }
-
-    lastRoundModel = model;
 
     questionPrompt.hidden = false;
 
@@ -379,7 +317,6 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     if (model.roundId !== renderedRoundId) {
       renderedRoundId = model.roundId;
       buildQuestion(model);
-      result.textContent = '';
     }
 
     // Vergrendeling + eigen selectie zichtbaar (géén goed/fout-kleur vóór ended)
@@ -447,184 +384,9 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
       timer.update({ secondsLeft: null, totalSeconds: null });
       progress.textContent = '';
     }
-
-    // Uitslag — uitsluitend uit round:ended. Drie gelijkwaardige staten via
-    // één stempelcomponent (09-CONTENT-AND-MICROCOPY.md §9: JUIST/ONJUIST/
-    // GEEN ANTWOORD) — hoofdletters komen van CSS (`.gameplay-own`,
-    // text-transform), niet van de vertaalwaarde zelf.
-    if (model.result !== null && result.childElementCount === 0) {
-      // M2/E09: de volledige tekst gaat direct + synchroon de DOM/aria-live-
-      // regio in (accessibility-eis: nooit een timer die de accessibility
-      // tree ophoudt) — `gameplay-reveal-enter` hieronder is uitsluitend een
-      // visuele fade, geen vertraagde tekstinvoeging.
-      const correct = el('p', 'gameplay-correct gameplay-reveal-enter');
-      correct.textContent = correctAnswerStampText(model);
-      const resultClass = model.result.selfNoAnswer ? 'is-noanswer' : model.result.selfCorrect ? 'is-correct' : 'is-wrong';
-      const resultKey = model.result.selfNoAnswer
-        ? 'game.resultNoAnswer'
-        : model.result.selfCorrect
-          ? 'game.resultCorrect'
-          : 'game.resultIncorrect';
-      const own = el('p', `gameplay-own ${resultClass} gameplay-reveal-enter`);
-      own.textContent = t(resultKey);
-      result.append(correct, own);
-      // 11-verzoek (BOUWSPRINT doel 4): naast (niet i.p.v.) het stempel
-      // hierboven, alleen vanaf STREAK_REACTION_THRESHOLD op een rij — een
-      // streak van 1 of 2 is geen "reactie" waard (GAME-RULES.md geeft geen
-      // eigen drempel, eigen keuze). `streak` is al `0` van de aanroeper als
-      // reactiezinnen uitstaan of dit geen `selfCorrect`-ronde is (session-
-      // shell.mjs's `applyRoundResult` reset 'm dan al) — hier dus geen
-      // aparte `selfCorrect`-check nodig, `streak >= drempel` volstaat.
-      if (streak >= STREAK_REACTION_THRESHOLD) {
-        // Nooit een telbare vorm nodig: de drempel is al 3, dus dit pad
-        // toont nooit "1" — geen `tCount`/enkelvoudsvorm hoeft hierheen.
-        const streakReaction = el('p', 'gameplay-streak gameplay-reveal-enter');
-        streakReaction.textContent = t('headline.streak').replace('{n}', String(streak));
-        result.append(streakReaction);
-      }
-      if (model.result.roundPoints !== null) {
-        // M2/E10: twee losse nodes — de `aria-hidden`-span animeert
-        // visueel, de `sr-only`-span krijgt meteen de definitieve waarde.
-        // Eén tekstnode die 0,1,2… doorloopt is onbetrouwbaar voor
-        // assistive technology (leest mogelijk elke tussenwaarde).
-        const score = el('p', 'gameplay-score gameplay-reveal-enter');
-        score.append(`${t('game.roundPoints')}: `);
-        const scoreAnimated = el('span', 'gameplay-score-animated');
-        scoreAnimated.setAttribute('aria-hidden', 'true');
-        scoreAnimated.textContent = '0';
-        const scoreSrOnly = el('span', 'sr-only');
-        scoreSrOnly.textContent = String(model.result.roundPoints);
-        score.append(scoreAnimated, scoreSrOnly);
-        result.append(score);
-        // BOUWSPRINT/reveal-choreografie: `score` deelt `.gameplay-reveal-
-        // enter` met `correct`/`own` (opacity 0 tijdens `--motion-emphasis`,
-        // zie components.css) — zonder deze vertraging liep de telling
-        // onzichtbaar al (deels) af vóórdat het element zelf zichtbaar werd.
-        // Reduced motion: geen wachttijd, `animateScoreCount` toont dan toch
-        // meteen de eindwaarde.
-        const reduceMotionForReveal =
-          typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        setTimeout(
-          () => animateScoreCount(scoreAnimated, model.result.roundPoints),
-          reduceMotionForReveal ? 0 : REVEAL_TEXT_DELAY_MS,
-        );
-      }
-      // M2/E09: correcte optie krijgt eerst accent (deze klasse, direct) —
-      // het tekstblok hierboven verschijnt daarna (animation-delay in CSS),
-      // een vaste, korte opbouwvolgorde i.p.v. alles ineens.
-      const correctValue = correctValueFor(model);
-      const correctBtn = optionButtons.get(correctValue);
-      if (correctBtn) correctBtn.classList.add('is-correct');
-      // M2/E09: foute eigen keuze — kleur is nooit de enige informatiedrager
-      // (11 K). `.is-wrong` (niet-kleur ✕-icoon, components.css) plus een
-      // sr-only-label direct op de knop, náást de al bestaande
-      // aria-live-tekst in `.gameplay-own`.
-      if (selectedValue !== null && selectedValue !== correctValue) {
-        const wrongBtn = optionButtons.get(selectedValue);
-        if (wrongBtn) {
-          wrongBtn.classList.add('is-wrong');
-          const ownAnswerLabel = el('span', 'sr-only');
-          ownAnswerLabel.textContent = t('game.ownAnswer');
-          wrongBtn.appendChild(ownAnswerLabel);
-        }
-      }
-    }
-
-    // S13: eerste keer dat dít ronderesultaat verschijnt — reveal-klok
-    // starten. Ná dezelfde-ronde-ticks (elke 250ms, session-shell.mjs's
-    // ticker) blijft dit ongewijzigd, geen herstart per tick.
-    if (model.result !== null && revealedRoundId !== model.roundId) {
-      revealedRoundId = model.roundId;
-      revealedAt = Date.now();
-      skippedReveal = false;
-    }
-    renderHeadline();
-  }
-
-  // S14: hooguit één sociale headline, alleen ná de reveal-vertraging (of een
-  // tik om te skippen). Puur uit rondelokale data (distribution/eligible-
-  // PlayerCount) — comeback vuurt hier bewust nooit (movement leeg, zie
-  // reveal-model.mjs voor waarom), die hoort bij scoreboard.mjs. Werkt
-  // ongewijzigd voor alle drie de spelvormen: `distribution` is altijd een
-  // telling per antwoordwaarde, ongeacht wat die waarde betekent.
-  function renderHeadline() {
-    if (lastRoundModel === null || lastRoundModel.result === null || revealedRoundId !== lastRoundModel.roundId) {
-      headline.hidden = true;
-      return;
-    }
-    const elapsedMs = revealedAt === null ? null : Date.now() - revealedAt;
-    if (!headlineRevealed(elapsedMs, skippedReveal)) {
-      headline.hidden = true;
-      return;
-    }
-    const found = socialHeadlineFor({
-      distribution: lastRoundModel.result.distribution,
-      correctOptionId: correctValueFor(lastRoundModel),
-      eligiblePlayerCount: lastRoundModel.progress?.eligiblePlayerCount ?? null,
-      movement: new Map(),
-      participants: new Map(),
-      selfCorrect: lastRoundModel.result.selfCorrect,
-    });
-    if (found === null) {
-      headline.hidden = true;
-      return;
-    }
-    headline.hidden = false;
-    headline.textContent = textForHeadline(found);
-  }
-
-  function textForHeadline(found) {
-    if (found.type === 'self-sole-correct') {
-      return t('headline.selfSoleCorrect');
-    }
-    if (found.type === 'everyone-correct') {
-      return t('headline.everyoneCorrect');
-    }
-    if (found.type === 'everyone-wrong') {
-      return t('headline.everyoneWrong');
-    }
-    if (found.type === 'misleading-answer') {
-      // Alleen zinvol voor flags_mc: het misleidende antwoord is daar een
-      // land. Voor de andere twee spelvormen levert `socialHeadlineFor` dit
-      // type sowieso niet op zinvolle wijze op (optionId is dan 'real'/'fake'
-      // of 0/1) — geen aparte tekst hiervoor nodig zolang dat pad niet vuurt.
-      return t('headline.misleadingAnswer').replace('{country}', countryName(found.optionId, lang));
-    }
-    return '';
   }
 
   return { update };
-}
-
-// M2/E10: score kort oplopend naar de eindwaarde — puur de aria-hidden-span
-// (gameplay.mjs's DOM-structuur houdt de sr-only-span apart en direct
-// definitief). Reduced motion expliciet gecheckt: dit is JS-gedreven
-// (requestAnimationFrame), M0's CSS-blanket-regel raakt dit niet.
-const SCORE_COUNT_DURATION_MS = 500;
-// BOUWSPRINT/reveal-choreografie: komt overeen met --motion-emphasis
-// (components.css se `.gameplay-reveal-enter`) — de vertraging vóór het
-// resultaatblok zichtbaar wordt. Geen `getComputedStyle`-koppeling: dat zou
-// een synchrone stijlberekening op elke reveal forceren voor iets dat toch
-// al als vaste waarde in beide bestanden staat (zelfde patroon als M8's
-// SCORE_COUNT_DURATION_MS hierboven, ook geen live CSS-read).
-const REVEAL_TEXT_DELAY_MS = 400;
-
-function animateScoreCount(node, target) {
-  const reduceMotion =
-    typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduceMotion || target <= 0) {
-    node.textContent = String(target);
-    return;
-  }
-  const startTime = performance.now();
-  function tick(now) {
-    const progress = Math.min(1, (now - startTime) / SCORE_COUNT_DURATION_MS);
-    node.textContent = String(Math.round(target * progress));
-    if (progress < 1) {
-      requestAnimationFrame(tick);
-    }
-  }
-  requestAnimationFrame(tick);
 }
 
 function el(tag, className) {
