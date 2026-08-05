@@ -310,6 +310,22 @@ Minimale structuur:
 }
 ```
 
+### `scoreboard` — rang bij een gelijke stand
+
+`scoreboard.top[]` draagt per rij `{ playerId, effectiveName, score, rank }` en
+`scoreboard.self` draagt `position`. Beide waarden komen uit dezelfde functie
+(`shared/rules/ranking.mjs`) als de `position` in `game:finished`.
+
+**Competitierangschikking**: gelijke spelers delen hun nummer en daarna wordt
+doorgeteld — vier spelers met een gelijke tweede plaats geven `1, 2, 2, 4`. De
+rijvolgorde binnen een gedeelde plaats is deterministisch (`playerId`
+oplopend) maar bevat **geen ranginformatie**: een client mag nooit `index + 1`
+gebruiken, alleen `rank`/`position`. Gelijk is: score, dan aantal goed, dan
+totale responstijd (`GAME-RULES.md` §Gelijke eindscore).
+
+`top` bevat alle spelers tot de limiet, ook wie nog niets scoorde — zodat
+iedereen zijn eigen rij kan zien.
+
 `self.eligibleFromRound` is een **integer ≥ 1**: het 1-based `roundNumber`
 vanaf wanneer de speler speelgerechtigd is (relevant voor late joiners).
 Servervalidatie via `PLAYER_NOT_ELIGIBLE` blijft leidend; dit veld is alleen
@@ -416,6 +432,8 @@ Een snapshot bevat nooit het correcte antwoord van een actieve ronde.
 | `game:finish` | host | `{}` | niet reeds FINISHED |
 | `game:rematch` | host | `{}` | fase FINISHED |
 | `player:rename` | player | `{ displayName }` | alleen lobby, maximaal eenmaal |
+| `player:recolor` | player | `{ color }` | alleen lobby, kleur uit het vaste palet |
+| `game:update-config` | host | subset van de wijzigbare configvelden | alleen LOBBY, exact één speelbare gameType |
 | `player:leave` | player | `{}` | actieve sessie |
 | `round:answer` | player | zie hieronder | ronde actief, speelgerechtigd, niet eerder geantwoord |
 | `share:opened` | host/player | `{ method: "qr" \| "link" \| "native" \| "code" }` | analytics, mag falen zonder UX-effect |
@@ -423,6 +441,95 @@ Een snapshot bevat nooit het correcte antwoord van een actieve ronde.
 `share:opened.method` is gelijkgetrokken met de vier herkomsten uit
 `POST /games/join`'s `joinSource` (`DECISIONS.md`, punt 18): `qr`, `link`,
 `native` en `code` (handmatige codeweergave).
+
+### `player:rename` en `player:recolor`
+
+Beide alleen in fase `LOBBY`, beide door de speler zelf voor zichzelf — een
+host wijzigt (nog) niet de naam of kleur van een ander.
+
+| | `player:rename` | `player:recolor` |
+| --- | --- | --- |
+| Payload | `{ displayName: string }` | `{ color: string }` |
+| Fase | LOBBY | LOBBY |
+| Rol | player | player |
+| Herhaalbaar | **nee** — maximaal eenmaal per speler per room | ja |
+| Validatie | naamnormalisatie zoals bij join (grafemen tellen, gestript, geen lege naam) | `color` moet in het vaste palet van acht zitten: `orange`, `magenta`, `cyan`, `green`, `yellow`, `purple`, `lime`, `red` |
+| Foutcodes | `GAME_NOT_FOUND`, `INVALID_PHASE` (ook bij een **tweede** hernoeming), `NOT_PLAYER`, `INVALID_ANSWER_FORMAT` (na normalisatie bleef er niets bruikbaars over) | `GAME_NOT_FOUND`, `INVALID_PHASE`, `NOT_PLAYER`, `INVALID_ANSWER_FORMAT` |
+| Broadcast | `room:player-changed` met `delta: { type: "rename", playerId, effectiveName }` | `room:player-changed` met `delta: { type: "recolor", playerId, color }` |
+| In de snapshot | `participants[].effectiveName`, en `self.effectiveName` | `participants[].color`, en `self.color` |
+
+Idempotentie loopt via de gewone `actionId`-cache van de envelope: dezelfde
+`actionId` levert dezelfde ack zonder de wijziging tweemaal toe te passen.
+
+### `game:update-config`
+
+De hostinstellingen in de lobby (scherm 2). **De serverstand is de waarheid**:
+de client stuurt een patch en tekent daarna wat er in `room:config-changed`
+terugkomt — nooit wat hij zelf net verstuurde.
+
+**Regels**
+
+1. **Alleen in fase `LOBBY`.** Daarbuiten `INVALID_PHASE`. Een reeds gestarte
+   match houdt de instellingen die bij zijn start zijn gepind (besluit 21 voor
+   `contentVersion`/`rendererVersion`; `Match.gameType` ligt vast op het
+   Match-document).
+2. **Alleen de host.** Anders `NOT_HOST`.
+3. **Alleen deze velden zijn wijzigbaar** — de rest van `GameConfiguration` is
+   create-only:
+
+   | Veld | Waarden |
+   | --- | --- |
+   | `totalRounds` | positief geheel getal |
+   | `difficulty` | string; dezelfde waarden die create accepteert |
+   | `language` | `nl` \| `en` \| `es` |
+   | `pacing` | `auto` \| `host` |
+   | `speedBonus` | boolean |
+   | `allowLateJoin` | boolean |
+   | `gameTypes` | array met **exact één** speelbare gameType |
+
+   `questionSeconds` en `hostParticipates` zijn expliciet **niet** wijzigbaar
+   (te laat na join). Een onbekende sleutel is een vormfout, net als een lege
+   patch: de transportlaag maakt daar zijn `MALFORMED_PAYLOAD`-code van,
+   `updateConfig` zelf antwoordt `INVALID_REQUEST`.
+4. **`gameTypes` bevat exact één waarde**, en die waarde moet speelbaar zijn
+   volgens `shared/content/game-catalog.mjs` (de hele keten kan hem aan:
+   vraagselectie, contentbron, spelscherm, uitslagscherm, mock). Twee waarden,
+   een duplicaat of een lege lijst zijn een vormfout — géén stille reductie tot
+   de eerste waarde. Besluit 32 (één gameType per match) blijft daarmee
+   afdwingbaar in plaats van alleen bedoeld.
+5. **De patch is atomisch.** De samengevoegde configuratie wordt als geheel
+   opnieuw gekeurd met dezelfde validatie als bij `POST /api/v1/games`; faalt
+   die, dan wijzigt er niets.
+6. **Iedereen krijgt de canonieke volledige config**, niet de patch:
+   `room:config-changed` met `{ config: { ...alle velden } }`.
+7. **Reconnect toont hetzelfde.** `room.config` in de snapshot is dezelfde
+   volledige configuratie; een herverbindende client hoeft geen
+   `room:config-changed` gemist te hebben.
+
+**Verzoek**
+
+```json
+{ "actionId": "act_7", "payload": { "difficulty": "hard", "totalRounds": 15 } }
+```
+
+**Broadcast**
+
+```json
+{
+  "event": "room:config-changed",
+  "payload": {
+    "config": {
+      "gameTypes": ["flags_mc"],
+      "totalRounds": 15,
+      "difficulty": "hard",
+      "language": "nl",
+      "pacing": "auto",
+      "speedBonus": true,
+      "allowLateJoin": true
+    }
+  }
+}
+```
 
 ### `round:answer`
 
@@ -495,6 +602,7 @@ deadline en bonus.
 | `room:state` | één sessie | volledige snapshot |
 | `room:player-changed` | room | count + join/leave/rename/kick-delta |
 | `room:lock-changed` | room | `locked` |
+| `room:config-changed` | room | de volledige, canonieke `config` |
 | `game:started` | room | `matchId`, `totalRounds`, `countdownEndsAt` |
 | `game:paused` | room | volledige `pausedState` (zie hieronder) |
 | `game:resumed` | room | nieuwe countdown/tijden |

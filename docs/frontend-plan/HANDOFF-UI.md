@@ -17,7 +17,7 @@ Statuslegenda: 🔵 open — 🟡 in behandeling — ✅ opgelost — ⏸️ gep
 | UI-12 | PR | 🟡 informatief, klein verzoek | `PROTOCOL.md` specificeert `round:ended`'s persoonlijke velden nergens — client las ze verkeerd, nu client-side gefixt |
 | UI-13 | — | ✅ ingetrokken | ~~`COUNTDOWN_MS` wijkt af van `03` §6~~ — `GAME-RULES.md` bevestigt al 3s, de mock is een zelf-gedocumenteerde testversnelling. Geen open vraag. |
 | UI-14 | producteigenaar | 🔵 open, voorstel al gebouwd | Dubbele tab: `BroadcastChannel`-gebaseerde detectie toegevoegd (geen nieuwe dependency) — bevestig of dit de gewenste aanpak is |
-| UI-15 | INT-A | 🔵 open | Tie-regel is al **bevestigd** (`GR2-standings.md`/`GAME-RULES.md`), maar `scoreboard:updated` en `game:finished` passen 'm inconsistent toe op de server, en client + mock lopen achter — zie herziene toelichting |
+| UI-15 | INT-A | ✅ gesloten 5 aug 2026 | Opgelost in PLAN-CONVERGENTIE §A3: één rangschikker (`shared/rules/ranking.mjs`) voor `scoreboard:updated`, snapshot én `game:finished`; client en mock nemen de meegestuurde rang over. Zie afsluiting onderaan |
 | UI-16 | INT-A | 🔵 open | S14: twee (niet drie) headline-typen echt niet bouwbaar — "streak" bleek een misverstand, zie herziene toelichting |
 | UI-17 | client/flow (eigenaar) | 🔵 open | Teams zijn al volledig gespecificeerd (`GAME-RULES.md` §Teams — fase 1.5) maar niet in `HostConfig`; tijd-per-ronde heeft een bevestigde default+range (`15s, 10–30s`) zonder instelveld — zie herziene toelichting |
 | UI-18 | INT-A / PR | 🔵 open | Geen server-side timeout ná `host_disconnected` — een hostloze room blijft voor onbepaalde tijd gepauzeerd, geen uitslagbehoud-event mogelijk (thema 5, T5-10) |
@@ -649,7 +649,28 @@ beide (eigen `joinedAt`-tiebreak, altijd sequentieel, altijd via `top`/
 signaal over dit verschil, en de client (`standings-model.mjs`) negeert elk
 binnenkomend rangveld sowieso en berekent zelf `index + 1`.
 
-**Verzoek aan INT-A:** bevestig of `scoreboard:updated` bewust een
+**AFGESLOTEN — 5 aug 2026 (PLAN-CONVERGENTIE §A3).** Het was een gemiste
+aansluiting, geen bewuste vereenvoudiging. Wat er is gebeurd:
+
+- `getScoreboard()` én de snapshot gebruiken nu dezelfde `buildRankedTop()`,
+  die op `rankPlayers()` leunt — precies zoals `finishMatch()` al deed. Het
+  veld heet in de tussenstand nog steeds `rank` en in de eindstand `position`
+  (PROTOCOL.md), maar de wáárde komt uit één functie.
+- Die functie is verhuisd naar `shared/rules/ranking.mjs`, zodat de
+  browserkant hem óók kan importeren. `transport-mock.mjs` gebruikt hem nu en
+  stuurt `rank` mee; de `joinedAt`-tiebreak is weg.
+- `standings-model.mjs` neemt `rank`/`position` over in plaats van `index + 1`,
+  en overschrijft de eigen positie niet meer. `scoreboard.mjs` toont
+  `entry.position`; het podium zet twee gedeelde winnaars allebei op goud.
+- Contracttest bij een échte tie vergelijkt scoreboard, snapshot en eindstand.
+- Bijvangst: spelers die nog niets scoorden stonden niet in de tussenstand (de
+  sorted set kent alleen scorende spelers) terwijl het podium ze wel toonde.
+  Nu staat iedereen erin en kan elke speler zijn eigen rij zien.
+
+Het oorspronkelijke verzoek hieronder blijft staan als vindplaats van de
+analyse (principe 8: niet verwijderen zonder reden).
+
+**Verzoek aan INT-A (beantwoord, zie hierboven):** bevestig of `scoreboard:updated` bewust een
 vereenvoudigde tussenstand geeft (sequentieel, geen ties) terwijl alleen de
 eindstand de volledige competitierangschikking toont, of dat dit een gemiste
 aansluiting is die `getScoreboard()` ook `rankPlayers()` zou moeten gebruiken.

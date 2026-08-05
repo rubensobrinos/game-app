@@ -1,5 +1,14 @@
 # Prompt — GR2: Standings
 
+> **Verhuisd + bevestigd (5 aug 2026, PLAN-CONVERGENTIE §A3).** De
+> implementatie staat niet meer in `server/rules/standings.js` maar in
+> `shared/rules/ranking.mjs` — ESM, zodat ook de browserkant (de mocktransport)
+> dezelfde functie gebruikt in plaats van een eigen sortering. De
+> competitierangschikking is door de producteigenaar bevestigd als spelregel;
+> `scoreboard:updated`, de reconnect-snapshot en `game:finished` dragen sindsdien
+> allemaal dezelfde waarde.
+
+
 Onderdeel van [`docs/game-rules-plan/README.md`](../README.md), fase GR2.
 
 **Bijgewerkt na [`REVIEW-GR2-GR3.md`](REVIEW-GR2-GR3.md).** Verwerkt bevindingen

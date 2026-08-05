@@ -68,6 +68,30 @@ autoritatieve fase voor een lopende game staat in `Match.phase`; updates gebeure
 Enums worden in implementatie en protocolschema gedeeld; vrije strings zijn niet
 toegestaan.
 
+### `gameTypes` bevat exact één waarde
+
+Het voorbeeld hierboven toont het VELDTYPE (een lijst — de vorm waar mixed
+games ooit in passen), niet een geldige roomconfiguratie. Sinds 5 aug 2026
+(besluit 32, PLAN-CONVERGENTIE §A1) geldt:
+
+- een room-configuratie bevat **exact één** gameType;
+- die waarde moet **speelbaar** zijn volgens `shared/content/game-catalog.mjs`
+  — dat is een ketenuitspraak (vraagselectie, contentbron, spelscherm,
+  uitslagscherm én mock kunnen hem aan), geen wens;
+- afgedwongen in `resolveGameConfiguration()`, de trechter waar zowel
+  `createRoom()` als `game:update-config` langskomt, plus in de
+  protocolvalidatie van `game:update-config`.
+
+`Match.gameType` (enkelvoud) is de gepinde waarde voor een lopende match en
+verandert niet meer als de room-config daarna wijzigt.
+
+### Wijzigbaar ná creatie
+
+Alleen `totalRounds`, `difficulty`, `language`, `pacing`, `speedBonus`,
+`allowLateJoin` en `gameTypes` — via `game:update-config`, alleen in `LOBBY`,
+alleen door de host. `questionSeconds` en `hostParticipates` zijn bewust
+create-only. De volledige regels staan in `PROTOCOL.md` §`game:update-config`.
+
 ## Session
 
 Een sessie is een tijdelijke autorisatiecontext, geen account.
@@ -214,10 +238,17 @@ room:{roomId}:players                     → hash playerId → Player
 room:{roomId}:match:{matchId}             → hash/JSON Match
 room:{roomId}:match:{matchId}:round:{id}  → hash/JSON Round
 room:{roomId}:match:{matchId}:answers:{id}→ hash playerId → Answer
-room:{roomId}:match:{matchId}:scoreboard  → sorted set score → playerId
+room:{roomId}:match:{matchId}:scoreboard  → sorted set score → playerId (zie noot)
 room:{roomId}:revoked-sessions            → set sessionId
 room:{roomId}:action-cache                → hash actionId → ack/result
 ```
+
+**Noot bij de scoreboard-sorted-set (5 aug 2026, PLAN-CONVERGENTIE §A3):** deze
+index blijft de snelle score-lookup, maar bepaalt géén rangnummers meer. De
+positie in `scoreboard:updated`, in de snapshot én in `game:finished` komt uit
+`shared/rules/ranking.mjs` over de volledige spelerslijst — één rangschikker,
+zodat een gelijke stand overal hetzelfde nummer krijgt en spelers zonder score
+niet uit de tussenstand verdwijnen.
 
 ## TTL
 
