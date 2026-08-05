@@ -22,7 +22,7 @@
 // bestaat er geen goed/fout, alleen een verzendstatus.
 
 /** @typedef {'idle' | 'sending' | 'accepted' | 'rejected'} AnswerStatus */
-/** @typedef {'flags_mc' | 'real_or_fake_flag' | 'higher_lower'} GameType */
+/** @typedef {'flags_mc' | 'capitals_mc' | 'real_or_fake_flag' | 'higher_lower' | 'odd_one_out'} GameType */
 
 export function initialRoundModel() {
   return Object.freeze({

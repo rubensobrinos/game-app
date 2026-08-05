@@ -2013,16 +2013,19 @@ test('§A0: startRound met een gameType die de contentbron niet kan bouwen geeft
   const harness = makeHarness();
   const { context, store, clock } = harness;
 
-  // `capitals_mc` is een geldige Golf-1-gameType maar staat niet in
+  // `country_shape_mc` is een geldige Golf-1-gameType maar staat niet in
   // FILLED_GAME_TYPES — precies de situatie die op 4 aug via de carrousel voor
-  // `real_or_fake_flag` ontstond. Sinds §A1 komt zo'n config niet meer door
-  // `resolveGameConfiguration`, dus die trechter wordt hier bewust omzeild:
-  // dit is de tweede verdedigingslinie, voor een room die er tóch staat (oude
-  // Redis-state, handmatige ingreep, een toekomstige schrijver die de trechter
-  // mist).
+  // `real_or_fake_flag` ontstond (en tot 6 aug 2026 ook voor `capitals_mc`
+  // gold, besluit 49 — zie docs/openstaand/hoger-lager-en-hoofdsteden.md;
+  // die twee zijn nu gevuld, `country_shape_mc` nog niet, zie
+  // docs/openstaand/raad-het-land.md). Sinds §A1 komt zo'n config niet meer
+  // door `resolveGameConfiguration`, dus die trechter wordt hier bewust
+  // omzeild: dit is de tweede verdedigingslinie, voor een room die er tóch
+  // staat (oude Redis-state, handmatige ingreep, een toekomstige schrijver
+  // die de trechter mist).
   const { roomId } = await seedRoom(harness, { extraPlayers: 1 });
   const seeded = await store.loadRoom(roomId);
-  await store.saveRoom({ ...seeded, config: { ...seeded.config, gameTypes: ['capitals_mc'] } });
+  await store.saveRoom({ ...seeded, config: { ...seeded.config, gameTypes: ['country_shape_mc'] } });
 
   const started = await startMatch(context, { roomId });
   assert.equal(started.ok, true, JSON.stringify(started));
@@ -2035,7 +2038,7 @@ test('§A0: startRound met een gameType die de contentbron niet kan bouwen geeft
 
   assert.equal(result.ok, false);
   assert.equal(result.code, 'CONTENT_UNAVAILABLE');
-  assert.equal(result.contentFailure.gameType, 'capitals_mc');
+  assert.equal(result.contentFailure.gameType, 'country_shape_mc');
   assert.equal(typeof result.contentFailure.reason, 'string');
   assert.ok(result.contentFailure.reason.length > 0, 'de reden hoort in de log te belanden, niet verloren te gaan');
 

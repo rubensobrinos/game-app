@@ -77,20 +77,72 @@ test('CONTENT_VERSION komt ongewijzigd uit shared/content door', () => {
   assert.equal(makeSource().contentVersion, 'stub-content-1');
 });
 
-test('de drie doelbeeld-games zijn gevuld; de rest geeft poolSize 0 en werpt zichtbaar', () => {
+test('vijf gameTypes zijn gevuld; een onbekende gameType werpt zichtbaar', () => {
   const source = makeSource();
   assert.ok(source.poolSize('flags_mc') >= 16);
   // Stap 6 (5 aug 2026): `real_or_fake_flag` erbij — de CT-3-blokkade was
   // verlopen. Besluit C-2: `odd_one_out` erbij als derde doelbeeld-game.
   assert.ok(source.poolSize('real_or_fake_flag') >= 16);
   assert.ok(source.poolSize('odd_one_out') >= 16);
-  // `capitals_mc` en `higher_lower` staan niet in doelbeeld v2 (besluit C-2)
-  // en blijven daarom leeg: een spelscherm ervoor zou dood hout zijn.
-  for (const gameType of ['capitals_mc', 'higher_lower']) {
-    assert.equal(source.poolSize(gameType), 0);
-    assert.throws(() => source.buildQuestion({ gameType }), /deze contentbron vult alleen/);
-  }
+  // Besluit 49 (6 aug 2026, docs/openstaand/hoger-lager-en-hoofdsteden.md):
+  // `capitals_mc` en `higher_lower` zijn nu ook gevuld. Nog niet speelbaar
+  // (dat is `PLAYABLE_GAME_TYPES`, shared/content/game-catalog.mjs — een
+  // losse, bewust ongewijzigde knop), maar deze bron kan de vraag al bouwen.
+  assert.ok(source.poolSize('capitals_mc') >= 16);
+  assert.ok(source.poolSize('higher_lower') >= 16);
   assert.throws(() => source.poolSize('typing_flags'), /onbekende gameType/);
+});
+
+test('capitals_mc bouwt een vraag met dezelfde vorm als flags_mc en past in het Round-document', () => {
+  const source = makeSource();
+  const question = source.buildQuestion({ gameType: 'capitals_mc' });
+
+  assert.match(question.questionKey, /^capitals:[a-z]{2}$/);
+  assert.equal(typeof question.publicQuestionPayload.targetIso2, 'string');
+  assert.ok(Array.isArray(question.publicQuestionPayload.optionIso2s));
+  assert.equal(question.publicQuestionPayload.optionIso2s.length, 4);
+  assert.equal(typeof question.correctAnswer.optionId, 'string');
+  assert.ok(question.validOptionIds.includes(question.correctAnswer.optionId));
+
+  const round = {
+    id: 'round_1',
+    matchId: 'match_1',
+    gameType: 'capitals_mc',
+    questionKey: question.questionKey,
+    publicQuestionPayload: question.publicQuestionPayload,
+    correctAnswer: question.correctAnswer,
+    validOptionIds: question.validOptionIds,
+    startsAt: 1_754_136_000_000,
+    endsAt: 1_754_136_015_000,
+    status: 'ACTIVE',
+  };
+  assertRoundShape(round);
+});
+
+test('higher_lower bouwt een duel met twee kanten en past in het Round-document', () => {
+  const source = makeSource();
+  const question = source.buildQuestion({ gameType: 'higher_lower' });
+
+  assert.match(question.questionKey, /^higher_lower:(population|area|gdp):[a-z]{2}-[a-z]{2}$/);
+  assert.ok(['population', 'area', 'gdp'].includes(question.publicQuestionPayload.metric));
+  assert.equal(question.publicQuestionPayload.sides.length, 2);
+  assert.ok([0, 1].includes(question.correctAnswer.side));
+  assert.equal(question.validOptionIds, undefined, 'higher_lower kent geen validOptionIds, alleen resultDetails');
+  assert.ok(Array.isArray(question.resultDetails.values));
+
+  const round = {
+    id: 'round_1',
+    matchId: 'match_1',
+    gameType: 'higher_lower',
+    questionKey: question.questionKey,
+    publicQuestionPayload: question.publicQuestionPayload,
+    correctAnswer: question.correctAnswer,
+    resultDetails: question.resultDetails,
+    startsAt: 1_754_136_000_000,
+    endsAt: 1_754_136_015_000,
+    status: 'ACTIVE',
+  };
+  assertRoundShape(round);
 });
 
 test('real_or_fake_flag levert beide vraagsoorten: een echte vlag en een gegenereerde', () => {

@@ -153,7 +153,16 @@ export const nl = Object.freeze({
   'game.higherLowerResult': '{country} had de meeste {metric}',
   // Eén per bekende `metric`-waarde (`question-selection.js`) — een
   // onbekende metric toont de rauwe waarde i.p.v. te crashen (zie gameplay.mjs).
+  // `area`/`gdp` ontbraken hier (higher_lower's `metricMode: 'mixed'` kan alle
+  // drie kiezen) — gedicht bij het aanzetten van hoger/lager, besluit 49.
   'game.metric.population': 'inwoners',
+  'game.metric.area': 'oppervlakte',
+  'game.metric.gdp': 'bbp',
+  // Besluit 49 (docs/openstaand/hoger-lager-en-hoofdsteden.md): hoofdsteden,
+  // met de omgekeerde vraag die de producteigenaar expliciet vroeg naast de
+  // gewone — zie country-names.mjs's `capitalsQuestionDirection`.
+  'game.capitalsPrompt': 'Wat is de hoofdstad van {country}?',
+  'game.capitalsReversePrompt': '{capital} hoort bij welk land?',
   // S14: sociale headline, hooguit één per ronde (gameplay.mjs) / stand
   // (scoreboard.mjs) — zie social-headline.mjs voor de selectielogica.
   'headline.selfSoleCorrect': 'Jij was de enige met het juiste antwoord! ⭐',

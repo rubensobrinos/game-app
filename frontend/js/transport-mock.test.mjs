@@ -1,6 +1,12 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createMockTransport, MOCK_PLAYER_COLORS } from './transport-mock.mjs';
+import {
+  createMockTransport,
+  MOCK_PLAYER_COLORS,
+  buildQuestionSequence,
+  correctValueOf,
+  optionValuesOf,
+} from './transport-mock.mjs';
 // besluit 42: de mock speelt de server na, dus hij moet exact hetzelfde gesloten
 // palet in dezelfde volgorde kennen — anders bewijst een mockdoorloop het
 // verkeerde.
@@ -1028,4 +1034,55 @@ test('restoreState met een andere contentVersion dan de huidige wordt geweigerd,
       },
     }),
   );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Besluit 49 (docs/openstaand/hoger-lager-en-hoofdsteden.md) — mockpariteit
+// voor `higher_lower`/`capitals_mc` (schakel 5 van shared/content/
+// game-catalog.mjs's ketenuitspraak). `createMockTransport()`'s publieke pad
+// (createGame -> connect -> game:start) kan deze twee gameTypes nog niet
+// kiezen — `resolveGameType` valt terug op `flags_mc` zolang
+// `PLAYABLE_GAME_TYPES` ze niet bevat, en die knop hoort niet bij deze taak.
+// Vandaar de rechtstreekse tests op de geëxporteerde bouwstenen: het bewijs
+// dat de mock ze KAN bouwen, los van of de lobby ze al mag KIEZEN.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('buildQuestionSequence("higher_lower") levert vijf geldige duels op, vast (niet willekeurig)', () => {
+  const eerste = buildQuestionSequence('higher_lower');
+  const tweede = buildQuestionSequence('higher_lower');
+  assert.deepEqual(eerste, tweede, 'geen willekeur — een doorloop moet herhaalbaar zijn, zoals odd_one_out/flags_mc');
+  assert.equal(eerste.length, 5);
+
+  for (const vraag of eerste) {
+    assert.ok(['population', 'area', 'gdp'].includes(vraag.payload.metric));
+    assert.equal(vraag.payload.sides.length, 2);
+    assert.deepEqual(vraag.payload.sides.map((s) => s.side), [0, 1]);
+    for (const kant of vraag.payload.sides) {
+      assert.match(kant.iso2, /^[A-Z]{2}$/, 'iso2 in de payload is uppercase, zelfde conventie als flags_mc');
+    }
+    assert.ok([0, 1].includes(vraag.correct.side));
+    // Besluit 20: het juiste antwoord blijft uit de publieke payload.
+    assert.equal('side' in vraag.payload, false);
+  }
+
+  // Alle drie de metrics komen voor over vijf rondes (i % 3), niet toevallig
+  // steeds dezelfde — zie de moduledoc bij de higher_lower-tak.
+  assert.deepEqual([...new Set(eerste.map((v) => v.payload.metric))].sort(), ['area', 'gdp', 'population']);
+});
+
+test('buildQuestionSequence("capitals_mc") levert dezelfde payloadvorm als flags_mc op', () => {
+  const vragen = buildQuestionSequence('capitals_mc');
+  assert.equal(vragen.length, 5);
+  for (const vraag of vragen) {
+    assert.equal(typeof vraag.payload.targetIso2, 'string');
+    assert.equal(vraag.payload.optionIso2s.length, 4);
+    assert.ok(vraag.payload.optionIso2s.includes(vraag.payload.targetIso2));
+    assert.equal(vraag.correct.optionId, vraag.payload.targetIso2);
+  }
+});
+
+test('optionValuesOf/correctValueOf kennen de "side"-vorm van higher_lower', () => {
+  const [vraag] = buildQuestionSequence('higher_lower');
+  assert.deepEqual(optionValuesOf(vraag), ['0', '1']);
+  assert.equal(correctValueOf(vraag), String(vraag.correct.side));
 });

@@ -248,6 +248,46 @@ test('§A5: higher_lower rendert een duel met twee kanten en geeft de kant door'
   assert.deepEqual(antwoorden, [1]);
 });
 
+test('besluit 49: capitals_mc toont geen vlag, en de knoptekst volgt de berekende richting (ask-country)', async () => {
+  const antwoorden = [];
+  const { root, view } = await maakView(antwoorden);
+  const { capitalsQuestionDirection, countryName } = await import('./country-names.mjs');
+
+  // pe + deze optieset hasht op 'ask-country': "Lima hoort bij welk land?",
+  // de knoppen tonen landnamen (zie de moduledoc van capitalsQuestionDirection).
+  const question = { targetIso2: 'pe', optionIso2s: ['pe', 'at', 'lv', 'lb'] };
+  assert.equal(capitalsQuestionDirection(question.targetIso2, question.optionIso2s), 'ask-country');
+
+  view.update(actiefModel({ gameType: 'capitals_mc', question }), { phase: 'ROUND_ACTIVE', secondsLeft: 12 });
+
+  assert.equal(vind(root, 'gameplay-flag').hidden, true, 'hoofdsteden toont geen vlag, tekst i.p.v. plaatje');
+  // Deze test-`t()` vertaalt niet (geeft de sleutel terug); de omgekeerde
+  // richting gebruikt een andere sleutel dan de gewone — dat verschil bewijst
+  // dat de vertakking daadwerkelijk plaatsvond.
+  assert.equal(vind(root, 'gameplay-question').textContent, 'game.capitalsReversePrompt');
+
+  const opties = vindAlle(root, 'gameplay-option');
+  assert.deepEqual(opties.map((o) => o.textContent), question.optionIso2s.map((iso2) => countryName(iso2, 'nl')));
+
+  opties[2]._listeners.get('click')?.();
+  assert.deepEqual(antwoorden, ['lv'], 'de knop geeft de iso2 door, niet de getoonde naam');
+});
+
+test('besluit 49: capitals_mc — de gewone richting (ask-capital) toont hoofdsteden als opties', async () => {
+  const antwoorden = [];
+  const { root, view } = await maakView(antwoorden);
+  const { capitalsQuestionDirection, capitalName } = await import('./country-names.mjs');
+
+  const question = { targetIso2: 'fr', optionIso2s: ['fr', 'de', 'es', 'it'] };
+  assert.equal(capitalsQuestionDirection(question.targetIso2, question.optionIso2s), 'ask-capital');
+
+  view.update(actiefModel({ gameType: 'capitals_mc', question }), { phase: 'ROUND_ACTIVE', secondsLeft: 12 });
+
+  assert.equal(vind(root, 'gameplay-question').textContent, 'game.capitalsPrompt');
+  const opties = vindAlle(root, 'gameplay-option');
+  assert.deepEqual(opties.map((o) => o.textContent), question.optionIso2s.map((iso2) => capitalName(iso2, 'nl')));
+});
+
 test('§A5: een lege ronde laat niets van de vorige staan', async () => {
   const { root, view } = await maakView();
   view.update(actiefModel({ progress: { answeredCount: 3, eligiblePlayerCount: 5 } }), { phase: 'ROUND_ACTIVE' });

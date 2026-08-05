@@ -415,6 +415,51 @@ test('B3: hoger/lager noemt de metric erbij (overgenomen uit de dode gameplay-va
   assert.match(vind(root, 'reveal-card-flag').src, /de\.png$/, 'de vlag van de winnende kant');
 });
 
+test('besluit 49: capitals_mc toont de hoofdstad als goede antwoord bij de gewone richting (ask-capital)', async () => {
+  stubDom();
+  // fr + deze optieset hasht op 'ask-capital' (country-names.test.mjs bewijst
+  // de functie zelf) — het juiste antwoord is dan de hoofdstad, niet het land.
+  const root = await toon({
+    roundId: 'r1',
+    gameType: 'capitals_mc',
+    question: { targetIso2: 'fr', optionIso2s: ['fr', 'de', 'es', 'it'] },
+    selectedOptionId: 'de',
+    selectedChoice: null,
+    selectedSide: null,
+    selectedCardIndex: null,
+    progress: { eligiblePlayerCount: 4 },
+    result: {
+      correctOptionId: 'fr', correctChoice: null, correctSide: null, correctCardIndex: null,
+      selfCorrect: false, selfNoAnswer: false, roundPoints: 0, distribution: [],
+    },
+  }, 'capmc-a');
+
+  assert.equal(vind(root, 'reveal-card-answer').textContent, 'Parijs', 'de hoofdstad van Frankrijk, niet "Frankrijk"');
+  assert.equal(vind(root, 'reveal-mine').textContent, 'reveal.yourAnswer', 'sleutel, want t() vertaalt niet in deze test');
+});
+
+test('besluit 49: capitals_mc toont het land als goede antwoord bij de omgekeerde richting (ask-country)', async () => {
+  stubDom();
+  // pe + deze optieset hasht op 'ask-country' — het juiste antwoord is dan
+  // het land ("Lima hoort bij welk land?" -> "Peru"), niet de hoofdstad.
+  const root = await toon({
+    roundId: 'r1',
+    gameType: 'capitals_mc',
+    question: { targetIso2: 'pe', optionIso2s: ['pe', 'at', 'lv', 'lb'] },
+    selectedOptionId: 'lv',
+    selectedChoice: null,
+    selectedSide: null,
+    selectedCardIndex: null,
+    progress: { eligiblePlayerCount: 4 },
+    result: {
+      correctOptionId: 'pe', correctChoice: null, correctSide: null, correctCardIndex: null,
+      selfCorrect: false, selfNoAnswer: false, roundPoints: 0, distribution: [],
+    },
+  }, 'capmc-b');
+
+  assert.equal(vind(root, 'reveal-card-answer').textContent, 'Peru', 'het land, niet "Lima"');
+});
+
 test('B3: zonder bruikbare vlagbron blijft het beeld leeg in plaats van verkeerd', async () => {
   stubDom();
   const root = await toon({

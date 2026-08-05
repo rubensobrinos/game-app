@@ -70,12 +70,21 @@ export { CONTENT_DIFFICULTIES, CONTENT_VERSION, mapRoomDifficulty };
  * `question-selection.js` als enige eis stelt. Hij wordt hieronder ook
  * daadwerkelijk doorgegeven; zonder die injectie werpt de vraagselectie.
  *
- `odd_one_out` erbij op 5 aug 2026 (besluit C-2: we bouwen de vier games uit
- * doelbeeld v2 uit). `capitals_mc` en `higher_lower` blijven hier bewust
- * buiten: ze staan niet in het doelbeeld, dus een spelscherm ervoor bouwen zou
- * dood hout zijn.
+ * `odd_one_out` erbij op 5 aug 2026 (besluit C-2: we bouwen de vier games uit
+ * doelbeeld v2 uit).
+ *
+ * `capitals_mc` en `higher_lower` erbij op 6 aug 2026 (besluit 49,
+ * docs/openstaand/hoger-lager-en-hoofdsteden.md, "Volgorde van bouwen" stap
+ * 1/2). `question-selection.js`/`validators.js`/`round.js` konden ze al —
+ * alleen hier stonden ze nog niet gevuld. `PLAYABLE_GAME_TYPES`
+ * (shared/content/game-catalog.mjs) is BEWUST ongewijzigd gelaten: dat is een
+ * losse, ketenbrede knop die de eigenaar van dat bestand omzet zodra ook het
+ * spelscherm/mockpariteit-bewijs compleet is (zie de moduledoc daar) — deze
+ * regel maakt de gameTypes alleen BOUWBAAR, niet automatisch KIESBAAR.
  */
-const FILLED_GAME_TYPES = Object.freeze(['flags_mc', 'real_or_fake_flag', 'odd_one_out']);
+const FILLED_GAME_TYPES = Object.freeze([
+  'flags_mc', 'real_or_fake_flag', 'odd_one_out', 'capitals_mc', 'higher_lower',
+]);
 
 /**
  * SLOT OP DE DEUR (5 aug 2026, PLAN-CONVERGENTIE §A0). `game-catalog.mjs` zegt

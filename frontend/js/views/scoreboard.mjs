@@ -14,7 +14,7 @@
 // S15, al gedeeld met deze headline via dezelfde `movement`-Map).
 
 import { socialHeadlineFor, pickHeadlineVariantKey } from './social-headline.mjs';
-import { countryName, flagAssetPath } from './country-names.mjs';
+import { countryName, capitalName, capitalsQuestionDirection, flagAssetPath } from './country-names.mjs';
 import { renderFlagSpec } from './flag-renderer.mjs';
 
 // 11-verzoek (BOUWSPRINT doel 4): een streak van 1 of 2 is geen "reactie"
@@ -201,6 +201,18 @@ export function createScoreboardView({ root, t, tCount }) {
         ? t('game.oddOneOutFakeAnswer')
         : countryName(kaart.iso2, lang);
     }
+    if (round.gameType === 'capitals_mc') {
+      // Besluit 49: de vraagRICHTING bepaalt wat "het juiste antwoord" is —
+      // bij de gewone vraag ("hoofdstad van X?") is dat de hoofdstad, bij de
+      // omgekeerde ("Y hoort bij welk land?", al beantwoord met een landcode)
+      // is dat het land. `correctOptionId` is in beide gevallen dezelfde
+      // landcode; alleen welke naam we ervan tonen verschilt.
+      if (round.question === null || result.correctOptionId === null) return null;
+      const direction = capitalsQuestionDirection(round.question.targetIso2, round.question.optionIso2s);
+      return direction === 'ask-capital'
+        ? capitalName(result.correctOptionId, lang)
+        : countryName(result.correctOptionId, lang);
+    }
     return result.correctOptionId !== null ? countryName(result.correctOptionId, lang) : null;
   }
 
@@ -256,6 +268,13 @@ export function createScoreboardView({ root, t, tCount }) {
       return kaart.spec !== undefined && kaart.spec !== null
         ? t('game.oddOneOutFakeAnswer')
         : countryName(kaart.iso2, lang);
+    }
+    if (round.gameType === 'capitals_mc') {
+      if (typeof round.selectedOptionId !== 'string' || round.question === null) return null;
+      const direction = capitalsQuestionDirection(round.question.targetIso2, round.question.optionIso2s);
+      return direction === 'ask-capital'
+        ? capitalName(round.selectedOptionId, lang)
+        : countryName(round.selectedOptionId, lang);
     }
     return typeof round.selectedOptionId === 'string' ? countryName(round.selectedOptionId, lang) : null;
   }

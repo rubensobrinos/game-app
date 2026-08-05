@@ -29,7 +29,7 @@
 // `round:answer`-vorm daarbij hoort. De aanroeper past daarna het model aan
 // (selectOption/selectChoice/selectSide) en roept update opnieuw.
 
-import { countryName, flagAssetPath } from './country-names.mjs';
+import { countryName, capitalName, capitalsQuestionDirection, flagAssetPath } from './country-names.mjs';
 import { displayState, optionsLocked } from './round-model.mjs';
 import { renderFlagSpec } from './flag-renderer.mjs';
 import { createTimerBar } from '../timer-bar.mjs';
@@ -240,6 +240,32 @@ export function createGameplayView({ root, t, tCount = null, onAnswer, lang = 'n
         btn.setAttribute('aria-pressed', 'false');
         btn.addEventListener('click', () => onAnswer(kaart.cardIndex));
         optionButtons.set(kaart.cardIndex, btn);
+        options.appendChild(btn);
+      }
+      return;
+    }
+
+    if (model.gameType === 'capitals_mc') {
+      // Besluit 49: tekst i.p.v. een vlag, dicht bij flags_mc — geen `flag`
+      // hier (blijft `hidden` uit de reset bovenaan `buildQuestion`). Zelfde
+      // payloadvorm als flags_mc (`targetIso2`+`optionIso2s`); de richting
+      // (gewone vraag "hoofdstad van X?" of de omgekeerde "Y hoort bij welk
+      // land?") volgt uit `capitalsQuestionDirection` — zie die functie voor
+      // waarom dat geen apart protocolveld is.
+      const { targetIso2, optionIso2s } = model.question;
+      const direction = capitalsQuestionDirection(targetIso2, optionIso2s);
+      questionPrompt.textContent =
+        direction === 'ask-capital'
+          ? t('game.capitalsPrompt').replace('{country}', countryName(targetIso2, lang))
+          : t('game.capitalsReversePrompt').replace('{capital}', capitalName(targetIso2, lang));
+      for (const iso2 of optionIso2s) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'gameplay-option';
+        btn.textContent = direction === 'ask-capital' ? capitalName(iso2, lang) : countryName(iso2, lang);
+        btn.setAttribute('aria-pressed', 'false');
+        btn.addEventListener('click', () => onAnswer(iso2));
+        optionButtons.set(iso2, btn);
         options.appendChild(btn);
       }
       return;

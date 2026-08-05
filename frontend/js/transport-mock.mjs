@@ -42,6 +42,9 @@ const DEFAULT_GAME_TYPE = 'flags_mc';
 const MAX_PLAYERS = 100;
 const QUESTION_COUNT = 5;
 const NAME_MAX_GRAPHEMES = 20;
+// Besluit 49 (docs/openstaand/hoger-lager-en-hoofdsteden.md): zelfde drie
+// metrics als de echte server (question-selection.js's VALID_METRICS).
+const HIGHER_LOWER_METRICS = ['population', 'area', 'gdp'];
 
 // `joinSource` enum uit PROTOCOL.md, §`POST /api/v1/games/join`.
 const JOIN_SOURCES = new Set(['qr', 'shared_link', 'code', 'unknown']);
@@ -642,9 +645,15 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
         throw new ProtocolError('INVALID_ANSWER_FORMAT', 'real_or_fake_flag expects { choice: "real" | "fake" }.');
       }
       gegeven = antwoord.choice;
+    } else if (target.gameType === 'higher_lower') {
+      if (antwoord.side !== 0 && antwoord.side !== 1) {
+        throw new ProtocolError('INVALID_ANSWER_FORMAT', 'higher_lower expects { side: 0 | 1 }.');
+      }
+      gegeven = String(antwoord.side);
     } else {
+      // flags_mc EN capitals_mc: allebei { optionId }, zie buildQuestionSequence.
       if (typeof antwoord.optionId !== 'string') {
-        throw new ProtocolError('INVALID_ANSWER_FORMAT', 'flags_mc expects { optionId }.');
+        throw new ProtocolError('INVALID_ANSWER_FORMAT', 'flags_mc/capitals_mc expect { optionId }.');
       }
       gegeven = antwoord.optionId;
     }
@@ -1227,8 +1236,17 @@ function resolveGameType(config) {
  * het juiste antwoord verlaat de server nooit vóór het einde van de ronde.
  * De reeks is bewust vast en kort (geen willekeur behalve de optievolgorde):
  * een handmatige doorloop moet snel en herhaalbaar zijn.
+ *
+ * Geëxporteerd (samen met `correctValueOf`/`optionValuesOf` hieronder) zodat
+ * `higher_lower`/`capitals_mc` — schakel 5, "mockpariteit", van
+ * shared/content/game-catalog.mjs's ketenuitspraak — rechtstreeks getest
+ * kunnen worden. `createMockTransport()`'s publieke pad kan ze niet bereiken
+ * zolang `PLAYABLE_GAME_TYPES` ze niet bevat (`resolveGameType` hierboven);
+ * dat is precies het "bouwbaar, nog niet kiesbaar"-onderscheid uit besluit 49
+ * (docs/openstaand/hoger-lager-en-hoofdsteden.md) en geen reden om het bewijs
+ * dat de mock ze wél kan bouwen ongetest te laten.
  */
-function buildQuestionSequence(gameType = DEFAULT_GAME_TYPE) {
+export function buildQuestionSequence(gameType = DEFAULT_GAME_TYPE) {
   const pool = getCountryPool();
   const count = Math.min(QUESTION_COUNT, pool.length);
   const questions = [];
@@ -1258,6 +1276,27 @@ function buildQuestionSequence(gameType = DEFAULT_GAME_TYPE) {
       }
     }
 
+    if (gameType === 'higher_lower') {
+      // Besluit 49: vast, niet willekeurig — zelfde reden als odd_one_out
+      // hierboven (herhaalbare doorloop). Metric wisselt per ronde-index i.p.v.
+      // willekeurig `mixed` te kiezen, zodat een doorloop alle drie de metrics
+      // raakt in plaats van toevallig steeds dezelfde.
+      const metric = HIGHER_LOWER_METRICS[i % HIGHER_LOWER_METRICS.length];
+      const second = pool[(i + 1) % pool.length];
+      const correctSide = target[metric] >= second[metric] ? 0 : 1;
+      questions.push({
+        payload: {
+          metric,
+          sides: [
+            { side: 0, iso2: target.iso2.toUpperCase() },
+            { side: 1, iso2: second.iso2.toUpperCase() },
+          ],
+        },
+        correct: { side: correctSide },
+      });
+      continue;
+    }
+
     if (gameType === 'real_or_fake_flag') {
       // Om en om echt/nep, zodat een doorloop beide takken van het spelscherm
       // raakt (echte vlagafbeelding vs. gegenereerde spec op canvas).
@@ -1277,6 +1316,12 @@ function buildQuestionSequence(gameType = DEFAULT_GAME_TYPE) {
       continue;
     }
 
+    // flags_mc EN capitals_mc (besluit 49): dezelfde payloadvorm
+    // (`targetIso2`+`optionIso2s`, `correct.optionId`) — de echte server bouwt
+    // `capitals_mc` ook zo (question-selection.js's `selectCapitalsMcQuestion`).
+    // De richting ("hoofdstad van X?" vs. "Y hoort bij welk land?") is een
+    // renderkeuze op deze payload, geen aparte contentvorm — zie
+    // `capitalsQuestionDirection` in frontend/js/views/country-names.mjs.
     const distractors = [];
     for (let offset = 1; distractors.length < 3 && offset < pool.length; offset += 1) {
       const candidate = pool[(i + offset) % pool.length];
@@ -1356,15 +1401,19 @@ function validateJoinRequest(request) {
 }
 
 /** De waarde die dit antwoord juist maakt, ongeacht gameType. */
-function correctValueOf(question) {
+export function correctValueOf(question) {
   if (question.correct.cardIndex !== undefined) return String(question.correct.cardIndex);
+  if (question.correct.side !== undefined) return String(question.correct.side);
   return question.correct.optionId ?? question.correct.choice;
 }
 
 /** De mogelijke antwoordwaarden van deze vraag, in weergavevolgorde. */
-function optionValuesOf(question) {
+export function optionValuesOf(question) {
   if (Array.isArray(question.payload.cards)) {
     return question.payload.cards.map((kaart) => String(kaart.cardIndex));
+  }
+  if (Array.isArray(question.payload.sides)) {
+    return question.payload.sides.map((kant) => String(kant.side));
   }
   return question.payload.optionIso2s ?? ['real', 'fake'];
 }
