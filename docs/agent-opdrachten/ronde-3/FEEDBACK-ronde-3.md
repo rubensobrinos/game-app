@@ -86,6 +86,39 @@ plaats van naar de joinflow. Als de QR-code een andere route gebruikt is de QR
 zelf niet stuk — maar de link kopiëren en plakken is wat mensen dóén, en dat
 werkt nu niet.
 
+### Wat agent 2 gemeten heeft (fase 3, 6 aug)
+
+**Niet reproduceerbaar met de huidige code.** `route-resolver.mjs` herkent
+`/game/{code}` en `/host/{code}` correct, en `app.mjs`'s fallback zonder
+lokale sessie (`mountJoin(root, { type: 'code', code: route.code })`) mount
+wél degelijk de joinflow, niet home.
+
+Getest, telkens met een **verse browsercontext** (geen localStorage, dus
+gegarandeerd "zonder lokale sessie"):
+
+1. Rechtstreeks tegen `node server/index.mjs` (poort 3992): een echte room
+   aangemaakt via `POST /api/v1/games`, code in de URL geplakt
+   (`/game/{code}`) — landt in de Lobby, "Je bent binnen". Ook getest met een
+   niet-bestaande code: landt op het joinscherm met "Deze game bestaat niet
+   (meer)", niet op home. `/host/{code}` idem.
+2. Door de **echte** Caddy-reverse-proxy heen (`aseso-game-reverse-proxy-1`,
+   poort 80, dezelfde stack als `docker-compose.yml`): zelfde uitkomst, met
+   de productie-CSP-headers erbij (zie F4 — dát blokkeerde wél iets, de
+   routing niet).
+
+Beide keren: joinflow, geen home. Ik heb geen enkel scenario gevonden waarin
+de huidige code naar home valt. Mogelijke verklaringen die ik niet vanaf hier
+kan toetsen: een browser met een verouderde cache van vóór de SPA-fallback
+(landde 2 aug, dit ticket is van 5 aug — dus eigenlijk al te laat voor die
+verklaring, tenzij een CDN een oude `index.html` langer vasthield dan
+`Cache-Control: no-cache` toestaat), of het bekende iOS Safari-gedrag waarbij
+de adresbalk bij scrollen inklapt tot alleen het domein en een tik daarop dán
+de root-URL kopieert in plaats van het volledige pad. Geen van beide is een
+code-bug in `route-resolver.mjs`/`app.mjs` — als het tweede het is, ligt de
+echte oplossing bij een expliciete "kopieer link"-knop naast het adresbalk-
+kopiëren, niet bij deze twee bestanden. **Geen wijziging aangebracht**; meld
+dit aan de lead in plaats van te gokken.
+
 ## F4 — fonts en de eerste klik
 
 Twee kleine dingen, mogelijk hetzelfde:
@@ -96,3 +129,27 @@ Twee kleine dingen, mogelijk hetzelfde:
 - Het eerste klikje op "Start direct een game" deed pas bij de tweede poging
   iets. Dat kan een trage eerste interactie zijn — bijvoorbeeld omdat er nog
   op een lettertype gewacht wordt.
+
+### Wat agent 2 gedaan en gemeten heeft (fase 3, 6 aug)
+
+**Fonts zelf gehost** (`frontend/vendor/fonts/`, licenties erbij) — geen
+`fonts.googleapis.com`/`fonts.gstatic.com`-verzoek meer, geverifieerd met het
+netwerktabblad (Playwright: nul externe requests). Terzijde bevestigd waarom
+dit vóór de pilot moet: door de échte Caddy-proxy heen blokkeerde de
+production-CSP (`style-src 'self' 'unsafe-inline'`) de Google Fonts-
+stylesheet gewoon (console: CSP-violation) — de fonts vielen dus al terug op
+de systeemfont, onopgemerkt tot deze meting.
+
+**Eerste klik**: 20 verse pageloads, direct bij verschijnen van de knop
+getikt (geen wachttijd), met én zonder 4G-throttle (CDP
+`Network.emulateNetworkConditions`, 4 Mbps/1 Mbps/100 ms) — 0/20 keer deed de
+eerste tik niets. De layout-shift tussen fallback-font en de geladen webfont
+is met zelf hosten 0px zonder throttle, ~4px met throttle (was met Google
+Fonts een extra DNS/TLS-round trip naar een derde partij, dus een langer
+venster waarin zoiets kán). Ik kan niet met zekerheid zeggen dát dit de
+oorzaak was — ik heb de oude (Google Fonts-)situatie niet nog eens apart
+gemeten, want de enige plek om dat eerlijk te vergelijken is de gedeelde
+Docker-stack, en die opnieuw bouwen op het huidige (gedeelde, door agent 1
+live bewerkte) werkkopie-commit leek me riskanter dan de meting waard. Als
+het na deze fix ooit weer gemeld wordt, is de fonts-verklaring dus niet meer
+geldig en moet er opnieuw gemeten worden.
