@@ -354,3 +354,22 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
     Zoals altijd: pas in `PLAYABLE_GAME_TYPES` als álle vijf de schakels
     bestaan — vraagselectie, contentbron, spelscherm, uitslag én mock.
 
+50. **Het uitslagscherm houdt twee momenten, maar allebei vullen ze het scherm**
+    (producteigenaar, 6 aug 2026). NOG NIET GEBOUWD.
+
+    | Moment | Nu | Wordt |
+    | --- | --- | --- |
+    | 1 — de uitslag (`ROUND_RESULT`) | alles bovenaan geplakt, onderste helft leeg | inhoud verticaal gecentreerd, vult het scherm |
+    | 2 — de stand (`SCOREBOARD`) | schuift eronder, uitslagkaart blijft groot | uitslagkaart krimpt tot één regel bovenaan, de stand krijgt de ruimte |
+
+    De twee momenten blijven omdat het echte spelfases zijn: `scoreboardFrequency`
+    laat de host de tussenstand uitzetten of om de zoveel rondes tonen. Alles
+    tegelijk tonen maakt die instelling betekenisloos en haalt het onderscheid
+    weg tussen "dit was het antwoord" en "en dit is de stand".
+
+    Wat vervalt is de lege onderhelft. Die wordt bovendien duurder naarmate
+    besluit 44 (50–100 reactiezinnen) en besluit 41 (spelersidentiteit) landen:
+    op moment 2 wil je juist ruimte voor wíé het goed had.
+
+    Uitvoering: CSS plus de bestaande beat-logica in `scoreboard.mjs`. Lead.
+
