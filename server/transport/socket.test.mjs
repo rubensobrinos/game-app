@@ -118,10 +118,13 @@ function makeCapturingLogger() {
   };
 }
 
-async function makeHarness(t, { config = {}, seed = 7, wrapStore = (store) => store } = {}) {
-  const clock = makeClock();
-  const rawStore = createInMemoryStore();
-  const store = wrapStore(rawStore);
+async function makeHarness(t, { config = {}, seed = 7, wrapStore = (store) => store, store: sharedStore = null, clock: sharedClock = null } = {}) {
+  // `store`/`clock` meegeven simuleert een SERVERHERSTART: een tweede
+  // socketserver op dezelfde persistente state, met een volledig leeg
+  // runtimegeheugen (§A2).
+  const clock = sharedClock ?? makeClock();
+  const rawStore = sharedStore ?? createInMemoryStore();
+  const store = sharedStore ?? wrapStore(rawStore);
   const context = createContext({
     store,
     now: clock.now,
@@ -853,4 +856,105 @@ test('een verloren fase-race wordt gelogd als phase_race_lost, niet als een gene
   assert.equal(host.eventsNamed('error').length, 0);
   const wire = JSON.stringify(host.received);
   assert.ok(!wire.includes('PHASE_RACE_LOST'), 'de interne code verlaat de server nooit');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §A2 (5 aug 2026) — aftellen alleen vóór de eerste ronde
+//
+// De eerste versie van deze regel las `runtime.round`, dat `runEndRound()`
+// vlak vóór de volgende COUNTDOWN op null zet. De directe start werd daardoor
+// nooit genomen: dode code, en de suite bleef groen omdat niemand dit gedrag
+// testte. Deze drie tests dekken de drie paden die de fix moet halen.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Speelt ronde `n` uit: iedereen antwoordt niet, de ronde loopt af op zijn timer. */
+async function playRoundToScoreboard(harness, host) {
+  const started = await host.waitFor('round:started');
+  harness.clock.value = started.payload.endsAt;
+  await harness.scheduler.fireAll();            // ROUND_ACTIVE -> ROUND_RESULT
+  await host.waitFor('round:ended');
+  harness.clock.advance(5_000);
+  await harness.scheduler.fireAll();            // ROUND_RESULT -> SCOREBOARD
+  return started.payload;
+}
+
+test('§A2: de opening van een match telt echt af — zonder timer geen ronde 1', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness, { roomConfig: { totalRounds: 3 } });
+  const host = await harness.connect(authFor(room));
+
+  await host.emitWithAck('game:start', { actionId: 'act_start', payload: {} });
+  const started = await host.waitFor('game:started');
+  assert.ok(started.payload.countdownEndsAt > harness.clock.now(), 'game:started belooft een aftelling');
+
+  await settle();
+  assert.equal(
+    host.eventsNamed('round:started').length,
+    0,
+    'ronde 1 mag pas beginnen als de aftelling is afgelopen',
+  );
+
+  harness.clock.advance(3_000);
+  await harness.scheduler.fireAll();
+  const round1 = await host.waitFor('round:started');
+  assert.equal(round1.payload.roundNumber, 1);
+});
+
+test('§A2: ronde 1 -> ronde 2 start direct, zonder tweede stille aftelling', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness, { roomConfig: { totalRounds: 3 } });
+  const host = await harness.connect(authFor(room));
+
+  await host.emitWithAck('game:start', { actionId: 'act_start', payload: {} });
+  await host.waitFor('game:started');
+  harness.clock.advance(3_000);
+  await harness.scheduler.fireAll();
+
+  const round1 = await playRoundToScoreboard(harness, host);
+  assert.equal(round1.roundNumber, 1);
+  await host.waitFor('scoreboard:updated');
+
+  // SCOREBOARD -> COUNTDOWN. Vroeger stond hier een timer klaar en bleef het
+  // scherm drie seconden stil; nu opent de ronde in dezelfde beweging.
+  const pendingBefore = harness.scheduler.pending;
+  harness.clock.advance(5_000);
+  await harness.scheduler.fireAll();
+
+  const round2 = await host.waitFor('round:started', (e) => e.payload.roundNumber === 2);
+  assert.equal(round2.payload.roundNumber, 2, 'ronde 2 komt zonder extra aftelling');
+  assert.ok(pendingBefore > 0, 'de scoreboard-timer stond wel degelijk gepland');
+});
+
+test('§A2: na een serverherstart (leeg runtimegeheugen) blijft de beslissing kloppen', async (t) => {
+  // Host-tempo, zodat de volgende ronde door een HOSTACTIE begint. Na een
+  // herstart draait er namelijk geen enkele timer meer (dat gat is A7,
+  // ARCHITECTURE §10) — maar de knop van de host komt wél binnen, en die mag
+  // niet op een leeg runtimegeheugen leunen.
+  const first = await makeHarness(t);
+  const room = await seedRoom(first, { roomConfig: { totalRounds: 3, pacing: 'host' } });
+  const host = await first.connect(authFor(room));
+
+  await host.emitWithAck('game:start', { actionId: 'act_start', payload: {} });
+  await host.waitFor('game:started');
+  first.clock.advance(3_000);
+  await first.scheduler.fireAll();
+  const round1 = await playRoundToScoreboard(first, host);
+  assert.equal(round1.roundNumber, 1);
+  await host.waitFor('scoreboard:updated');
+
+  // Tweede server op DEZELFDE store en klok: alles wat alleen in het geheugen
+  // van het eerste proces stond, is weg — precies de bron waar de oude
+  // `runtime.round`-lezing haar antwoord vandaan haalde.
+  const restarted = await makeHarness(t, { store: first.store, clock: first.clock });
+  const hostAgain = await restarted.connect(authFor(room));
+
+  const ack = await hostAgain.emitWithAck('game:next', { actionId: 'act_next_na_herstart', payload: {} });
+  assert.equal(ack.ok, true, JSON.stringify(ack));
+
+  // De match is al onderweg (`match.roundIds` is niet leeg in de store), dus
+  // ronde 2 opent direct — geen tweede aftelling, en geen ronde die blijft
+  // hangen omdat het geheugen leeg was.
+  const round2 = await hostAgain.waitFor('round:started', (e) => e.payload.roundNumber === 2);
+  assert.equal(round2.payload.roundNumber, 2);
+  assert.equal(round2.payload.matchId, (await restarted.store.loadRoom(room.roomId)).currentMatchId);
 });

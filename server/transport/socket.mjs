@@ -512,6 +512,29 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
     return snapshot.ok ? snapshot.value.room.playerCount : 0;
   }
 
+  /**
+   * Staat deze room vóór de eerste ronde van de huidige match? (§A2)
+   *
+   * Uit PERSISTENTE state, bewust niet uit `runtimeFor(roomId)`: runtime is
+   * leeg na een serverherstart en wordt tussen twee rondes door leeggemaakt,
+   * dus elk antwoord dat daarop leunt is fout zodra het ertoe doet.
+   *
+   * Bij twijfel `true` — dan telt de server af. Een overbodige aftelling van
+   * drie seconden is hinderlijk; een overgeslagen aftelling betekent dat de
+   * groep de vraag mist.
+   */
+  async function isBeforeFirstRound(roomId) {
+    try {
+      const room = await context.store.loadRoom(roomId);
+      if (room === null || room.currentMatchId === null) return true;
+      const match = await context.store.loadMatch(roomId, room.currentMatchId);
+      if (match === null || !Array.isArray(match.roundIds)) return true;
+      return match.roundIds.length === 0;
+    } catch {
+      return true;
+    }
+  }
+
   /** playerId → sessionId, nodig om `session:kicked` aan één sessie te richten. */
   async function sessionIdOfPlayer(roomId, playerId) {
     const players = await context.store.listPlayers(roomId);
@@ -528,20 +551,30 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
    * deze functie bepaalt alleen welk serverevent erbij hoort en wanneer de
    * volgende, timergedreven overgang gepland moet worden.
    */
-  async function onPhaseEntered(roomId, phase, phaseEndsAt) {
+  async function onPhaseEntered(roomId, phase, phaseEndsAt, { reason = 'flow' } = {}) {
     if (phase === PHASE.COUNTDOWN) {
       // Feedbackronde 3 (4 aug): tússen rondes geen 3 seconden stilte — de
       // aftelbalk op scherm 5 belooft "volgende vraag" en de client hoort
       // tijdens COUNTDOWN niets (er bestaat geen tussenronde-event), dus die
-      // hing zichtbaar. De ALLEREERSTE ronde van een match houdt de 3-2-1
-      // (runtime.round is dan nog leeg; wordt bij game:start/rematch
-      // teruggezet), daarna start de volgende ronde direct.
-      const runtime = runtimeFor(roomId);
-      if (runtime.round !== null && runtime.round !== undefined) {
-        await runStartRound(roomId);
+      // hing zichtbaar.
+      //
+      // §A2 (5 aug): de eerste versie hiervan las `runtime.round`, maar
+      // `runEndRound()` zet dat veld op null vóórdat de volgende COUNTDOWN
+      // begint. Het was dus bij élke COUNTDOWN leeg en de directe start werd
+      // nooit genomen — dode code, groen in de suite. De vraag "is dit de
+      // opening van de match?" wordt nu beantwoord uit PERSISTENTE state
+      // (`match.roundIds`), die een serverherstart en een lege runtime
+      // overleeft.
+      //
+      // Twee gevallen houden hun echte 3-2-1:
+      //   - de opening van een match (nog geen ronde gespeeld);
+      //   - hervatten na een pauze — de groep moet weer bij het scherm zitten.
+      const opensMatch = await isBeforeFirstRound(roomId);
+      if (opensMatch || reason === 'resume') {
+        scheduleAt(roomId, phaseEndsAt, () => runStartRound(roomId));
         return;
       }
-      scheduleAt(roomId, phaseEndsAt, () => runStartRound(roomId));
+      await runStartRound(roomId);
       return;
     }
     if (phase === PHASE.SCOREBOARD) {
@@ -938,7 +971,9 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
               roomId,
               payload: { phase: value.phase, countdownEndsAt: value.phaseEndsAt ?? context.now() },
             });
-            await onPhaseEntered(roomId, value.phase, value.phaseEndsAt);
+            // §A2: hervatten krijgt altijd een echte aftelling terug, ook
+            // midden in een match — de groep zat net niet bij het scherm.
+            await onPhaseEntered(roomId, value.phase, value.phaseEndsAt, { reason: 'resume' });
           },
         };
       }

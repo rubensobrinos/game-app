@@ -305,8 +305,14 @@ async function sessionIdOfConnectedPlayer(harness, playerId) {
  * in-process ketentest hem ook uit de poort haalt.
  */
 async function openRoundOverTheWire(harness, roomId, clients, { roundNumber, matchId }) {
-  harness.clock.advance(COUNTDOWN_MS);
-  await harness.scheduler.fireAll();
+  // §A2 (5 aug 2026): alleen de ÓPENING van een match telt nog echt af. Bij
+  // ronde 2 en verder start de server direct vanuit COUNTDOWN, dus daar valt
+  // niets te laten afgaan — en zou een extra `fireAll()` de zojuist geplande
+  // rondesluiting afvuren (de ronde eindigde dan vóór het eerste antwoord).
+  if (roundNumber === 1) {
+    harness.clock.advance(COUNTDOWN_MS);
+    await harness.scheduler.fireAll();
+  }
 
   // Op `matchId` én `roundNumber` filteren, niet alleen op het rondenummer: na
   // een rematch begint de telling opnieuw bij 1 en zou een client anders het
