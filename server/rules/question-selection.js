@@ -93,6 +93,39 @@ function buildHigherLowerCandidatePairs(pool, difficulty, metric) {
   return pairs;
 }
 
+/**
+ * Balanceert real/fake wanneer de aanroeper ÉÉN vraag tegelijk bouwt.
+ *
+ * `buildRealOrFakeAssignment` verdeelt half-om-half over een hele matchplan.
+ * De compositielaag bouwt echter per ronde (totalRounds: 1) omdat ze de
+ * uitsluitingslijst per ronde bijwerkt — en dan valt die verdeling terug op een
+ * muntworp per vraag. Over tien rondes kan dat negen keer nep opleveren; een
+ * speler merkt dat onmiddellijk ("het was de hele avond nep").
+ *
+ * Daarom wordt bij een plan van één vraag de balans afgeleid uit wat er al
+ * gebruikt is: een gegenereerde vlag heeft een `rof:fx_`-sleutel, een echte
+ * `rof:{iso2}`. Staat de teller gelijk, dan beslist het toeval.
+ *
+ * De uitsluitingslijst kan ook de vórige match bevatten (rematch); die was op
+ * dezelfde manier gebalanceerd, dus dat verschuift hooguit de eerste ronde.
+ *
+ * @param {Set<string>} excludedKeys
+ * @param {() => number} random
+ * @returns {boolean} true = een echte vlag
+ */
+function nextRealOrFakeIsReal(excludedKeys, random) {
+  let echt = 0;
+  let nep = 0;
+  for (const key of excludedKeys) {
+    if (!key.startsWith('rof:')) continue;
+    if (key.startsWith('rof:fx_')) nep += 1;
+    else echt += 1;
+  }
+  if (echt > nep) return false;
+  if (nep > echt) return true;
+  return nextRandom(random) < 0.5;
+}
+
 /** @returns {boolean[]} lengte `count`, hooguit 1 verschil real/fake, geshuffled. */
 function buildRealOrFakeAssignment(count, random) {
   const half = Math.floor(count / 2);
@@ -296,9 +329,16 @@ function selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode
       case 'capitals_mc':
         question = selectCapitalsMcQuestion(pool, difficulty, combinedExcluded, random);
         break;
-      case 'real_or_fake_flag':
-        question = selectRealOrFakeFlagQuestion(pool, difficulty, isRealAssignment[i], combinedExcluded, random, generateFlagSpec);
+      case 'real_or_fake_flag': {
+        // Plan van één vraag (de compositie bouwt per ronde): balans afleiden
+        // uit de al gebruikte sleutels in plaats van uit een verdeling over
+        // een plan dat hier maar één element lang is.
+        const isReal = totalRounds === 1
+          ? nextRealOrFakeIsReal(combinedExcluded, random)
+          : isRealAssignment[i];
+        question = selectRealOrFakeFlagQuestion(pool, difficulty, isReal, combinedExcluded, random, generateFlagSpec);
         break;
+      }
       case 'higher_lower': {
         const metric =
           metricMode === 'mixed' ? VALID_METRICS[pickUniqueIndices(random, VALID_METRICS.length, 1)[0]] : metricMode;

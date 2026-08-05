@@ -35,9 +35,10 @@
 import { CONTENT_VERSION, getCountryPool } from '../../shared/content/index.mjs';
 import { isPlayableGameType } from '../../shared/content/game-catalog.mjs';
 import { rankPlayers as rankByRules } from '../../shared/rules/ranking.mjs';
+import { generateFlagSpec } from '../../shared/content/flag-spec.mjs';
 
 const RENDERER_VERSION = 'flag-renderer-1'; // zelfde placeholder-waarde als PROTOCOL.md's voorbeelden.
-const GAME_TYPE = 'flags_mc';
+const DEFAULT_GAME_TYPE = 'flags_mc';
 const MAX_PLAYERS = 100;
 const QUESTION_COUNT = 5;
 const NAME_MAX_GRAPHEMES = 20;
@@ -407,7 +408,8 @@ export function createMockTransport() {
       players: new Map(),
       sessions: new Map(),
       listeners: new Map(),
-      questions: buildQuestionSequence(),
+      gameType: resolveGameType(safeRoomConfig),
+      questions: buildQuestionSequence(resolveGameType(safeRoomConfig)),
       roundIndex: -1,
       currentRound: null,
       pendingTimers: new Set(),
@@ -498,10 +500,10 @@ export function createMockTransport() {
       roundId: target.currentRound.roundId,
       roundNumber: target.currentRound.roundNumber,
       totalRounds: target.currentRound.totalRounds,
-      gameType: GAME_TYPE,
+      gameType: target.gameType,
       contentVersion: CONTENT_VERSION,
       rendererVersion: RENDERER_VERSION,
-      question,
+      question: question.payload,
       startsAt,
       endsAt,
     });
@@ -527,14 +529,29 @@ export function createMockTransport() {
     if (player.answeredCurrentRound) {
       throw new ProtocolError('ALREADY_ANSWERED', 'Player already answered this round.');
     }
-    if (payload.answer === null || typeof payload.answer !== 'object' || typeof payload.answer.optionId !== 'string') {
-      throw new ProtocolError('INVALID_ANSWER_FORMAT', 'flags_mc expects { optionId }.');
+    // De antwoordvorm hangt van de gameType af (PROTOCOL.md §round:answer):
+    // meerkeuze stuurt { optionId }, echt-of-nep stuurt { choice }.
+    const antwoord = payload.answer;
+    if (antwoord === null || typeof antwoord !== 'object') {
+      throw new ProtocolError('INVALID_ANSWER_FORMAT', 'answer must be an object.');
+    }
+    let gegeven;
+    if (target.gameType === 'real_or_fake_flag') {
+      if (antwoord.choice !== 'real' && antwoord.choice !== 'fake') {
+        throw new ProtocolError('INVALID_ANSWER_FORMAT', 'real_or_fake_flag expects { choice: "real" | "fake" }.');
+      }
+      gegeven = antwoord.choice;
+    } else {
+      if (typeof antwoord.optionId !== 'string') {
+        throw new ProtocolError('INVALID_ANSWER_FORMAT', 'flags_mc expects { optionId }.');
+      }
+      gegeven = antwoord.optionId;
     }
 
     player.answeredCurrentRound = true;
-    target.currentRound.answers.set(playerId, payload.answer.optionId);
+    target.currentRound.answers.set(playerId, gegeven);
 
-    const isCorrect = payload.answer.optionId === target.currentRound.question.targetIso2;
+    const isCorrect = gegeven === correctValueOf(target.currentRound.question);
     if (isCorrect) {
       player.score += 100;
       player.correctCount += 1;
@@ -555,12 +572,12 @@ export function createMockTransport() {
       return;
     }
     const { question, answers, roundId } = target.currentRound;
-    const correctAnswer = { optionId: question.targetIso2 };
-    const distribution = buildDistribution(question.optionIso2s, answers);
+    const correctAnswer = question.correct;
+    const distribution = buildDistribution(optionValuesOf(question), answers);
 
     target.phase = 'ROUND_RESULT';
     broadcastPersonalized(target, 'round:ended', (playerId) => {
-      const ownCorrect = playerId !== null && answers.get(playerId) === correctAnswer.optionId;
+      const ownCorrect = playerId !== null && answers.get(playerId) === correctValueOf(question);
       return {
         roundId,
         correctAnswer,
@@ -752,6 +769,12 @@ export function createMockTransport() {
       }
     }
     Object.assign(target.config ?? (target.config = {}), safe);
+    if ('gameTypes' in safe) {
+      // Alleen in LOBBY bereikbaar (zie de fasecontrole hierboven), dus de
+      // reeks opnieuw opbouwen kan nooit een lopende ronde omgooien.
+      target.gameType = resolveGameType(target.config);
+      target.questions = buildQuestionSequence(target.gameType);
+    }
     if ('totalRounds' in safe) {
       target.totalRounds = safe.totalRounds;
     }
@@ -882,10 +905,10 @@ function buildSnapshot(room, sessionToken, sessionArg) {
             roundId: room.currentRound.roundId,
             roundNumber: room.currentRound.roundNumber,
             totalRounds: room.currentRound.totalRounds,
-            gameType: GAME_TYPE,
+            gameType: room.gameType,
             contentVersion: CONTENT_VERSION,
             rendererVersion: RENDERER_VERSION,
-            question: room.currentRound.question,
+            question: room.currentRound.question.payload,
             startsAt: room.currentRound.startsAt,
             endsAt: room.currentRound.endsAt,
           },
@@ -898,13 +921,49 @@ function buildSnapshot(room, sessionToken, sessionArg) {
 
 // ---- Vraagreeks -------------------------------------------------------------
 
-function buildQuestionSequence() {
+/** De gameType van deze room: uit de config, met de quick-start default. */
+function resolveGameType(config) {
+  const gameTypes = config?.gameTypes;
+  const gekozen = Array.isArray(gameTypes) ? gameTypes[0] : null;
+  return isPlayableGameType(gekozen) ? gekozen : DEFAULT_GAME_TYPE;
+}
+
+/**
+ * De vaste vraagreeks van deze mock, per gameType.
+ *
+ * Elke vraag is `{ payload, correct }`: `payload` gaat naar de client
+ * (`round:started`, snapshot), `correct` blijft binnen de mock — besluit 20,
+ * het juiste antwoord verlaat de server nooit vóór het einde van de ronde.
+ * De reeks is bewust vast en kort (geen willekeur behalve de optievolgorde):
+ * een handmatige doorloop moet snel en herhaalbaar zijn.
+ */
+function buildQuestionSequence(gameType = DEFAULT_GAME_TYPE) {
   const pool = getCountryPool();
   const count = Math.min(QUESTION_COUNT, pool.length);
   const questions = [];
 
   for (let i = 0; i < count; i += 1) {
     const target = pool[i];
+
+    if (gameType === 'real_or_fake_flag') {
+      // Om en om echt/nep, zodat een doorloop beide takken van het spelscherm
+      // raakt (echte vlagafbeelding vs. gegenereerde spec op canvas).
+      if (i % 2 === 0) {
+        questions.push({
+          payload: { kind: 'real', iso2: target.iso2.toUpperCase() },
+          correct: { choice: 'real' },
+        });
+      } else {
+        const seed = `fx_mock${String(i).padStart(2, '0')}`;
+        const { rendererVersion, ...spec } = generateFlagSpec(seed);
+        questions.push({
+          payload: { kind: 'generated', seed, rendererVersion, spec },
+          correct: { choice: 'fake' },
+        });
+      }
+      continue;
+    }
+
     const distractors = [];
     for (let offset = 1; distractors.length < 3 && offset < pool.length; offset += 1) {
       const candidate = pool[(i + offset) % pool.length];
@@ -913,7 +972,10 @@ function buildQuestionSequence() {
       }
     }
     const optionIso2s = shuffle([target, ...distractors].map((entry) => entry.iso2.toUpperCase()));
-    questions.push({ targetIso2: target.iso2.toUpperCase(), optionIso2s });
+    questions.push({
+      payload: { targetIso2: target.iso2.toUpperCase(), optionIso2s },
+      correct: { optionId: target.iso2.toUpperCase() },
+    });
   }
 
   return questions;
@@ -958,12 +1020,22 @@ function validateJoinRequest(request) {
   }
 }
 
-function buildDistribution(optionIso2s, answers) {
-  const counts = new Map(optionIso2s.map((iso2) => [iso2, 0]));
-  for (const optionId of answers.values()) {
-    counts.set(optionId, (counts.get(optionId) ?? 0) + 1);
+/** De waarde die dit antwoord juist maakt, ongeacht gameType. */
+function correctValueOf(question) {
+  return question.correct.optionId ?? question.correct.choice;
+}
+
+/** De mogelijke antwoordwaarden van deze vraag, in weergavevolgorde. */
+function optionValuesOf(question) {
+  return question.payload.optionIso2s ?? ['real', 'fake'];
+}
+
+function buildDistribution(optionValues, answers) {
+  const counts = new Map(optionValues.map((waarde) => [waarde, 0]));
+  for (const gegeven of answers.values()) {
+    counts.set(gegeven, (counts.get(gegeven) ?? 0) + 1);
   }
-  return optionIso2s.map((optionId) => ({ optionId, count: counts.get(optionId) ?? 0 }));
+  return optionValues.map((optionId) => ({ optionId, count: counts.get(optionId) ?? 0 }));
 }
 
 // ---- Spelers / scorebord ------------------------------------------------

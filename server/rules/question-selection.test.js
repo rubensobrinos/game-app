@@ -353,3 +353,52 @@ describe('immutability en volledig determinisme #24-26', () => {
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stap 6 (5 aug 2026): real/fake blijft in balans wanneer de compositie PER
+// RONDE bouwt (totalRounds: 1). Zonder deze regel was elke vraag een losse
+// muntworp en kon een hele avond nep zijn.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('real_or_fake_flag — balans bij bouwen per ronde', () => {
+  test('twaalf losse vragen leveren een nette wisseling echt/nep op', () => {
+    const gebruikt = [];
+    const soorten = [];
+
+    for (let ronde = 0; ronde < 12; ronde += 1) {
+      const [vraag] = buildMatchQuestionPlan({
+        pool: POOL,
+        gameType: 'real_or_fake_flag',
+        totalRounds: 1,
+        difficulty: 'easy',
+        metricMode: 'mixed',
+        previousMatchQuestionKeys: gebruikt,
+        random: Math.random,
+        generateFlagSpec: (seed) => ({ pattern: 'hstripes', palette: ['#000', '#fff', '#f00'], seed, rendererVersion: 'r1' }),
+      });
+      gebruikt.push(vraag.questionKey);
+      soorten.push(vraag.publicQuestionPayload.kind);
+    }
+
+    const echt = soorten.filter((soort) => soort === 'real').length;
+    const nep = soorten.length - echt;
+    assert.ok(
+      Math.abs(echt - nep) <= 1,
+      `verwacht hooguit één verschil tussen echt (${echt}) en nep (${nep}); reeks: ${soorten.join(',')}`,
+    );
+  });
+
+  test('een plan van meerdere rondes in één keer blijft de bestaande verdeling gebruiken', () => {
+    const plan = buildMatchQuestionPlan({
+      pool: POOL,
+      gameType: 'real_or_fake_flag',
+      totalRounds: 10,
+      difficulty: 'easy',
+      metricMode: 'mixed',
+      random: Math.random,
+      generateFlagSpec: (seed) => ({ pattern: 'hstripes', palette: ['#000', '#fff', '#f00'], seed, rendererVersion: 'r1' }),
+    });
+    const echt = plan.filter((vraag) => vraag.publicQuestionPayload.kind === 'real').length;
+    assert.equal(echt, 5, 'tien rondes: vijf echt, vijf nep');
+  });
+});

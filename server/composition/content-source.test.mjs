@@ -77,14 +77,47 @@ test('CONTENT_VERSION komt ongewijzigd uit shared/content door', () => {
   assert.equal(makeSource().contentVersion, 'stub-content-1');
 });
 
-test('alleen flags_mc is gevuld; de andere Golf 1-vormen geven poolSize 0', () => {
+test('flags_mc en real_or_fake_flag zijn gevuld; de rest geeft poolSize 0 en werpt zichtbaar', () => {
   const source = makeSource();
   assert.ok(source.poolSize('flags_mc') >= 16);
-  for (const gameType of ['capitals_mc', 'real_or_fake_flag', 'higher_lower', 'odd_one_out']) {
+  // Stap 6 (5 aug 2026): `real_or_fake_flag` is erbij gekomen — de
+  // CT-3-blokkade was verlopen (generateFlagSpec bestaat en wordt doorgegeven).
+  assert.ok(source.poolSize('real_or_fake_flag') >= 16);
+  for (const gameType of ['capitals_mc', 'higher_lower', 'odd_one_out']) {
     assert.equal(source.poolSize(gameType), 0);
-    assert.throws(() => source.buildQuestion({ gameType }), /alleen \["flags_mc"\]/);
+    assert.throws(() => source.buildQuestion({ gameType }), /deze contentbron vult alleen/);
   }
   assert.throws(() => source.poolSize('typing_flags'), /onbekende gameType/);
+});
+
+test('real_or_fake_flag levert beide vraagsoorten: een echte vlag en een gegenereerde', () => {
+  const source = makeSource();
+  const gezien = new Set();
+  const sleutels = new Set();
+
+  // Ruim genoeg trekkingen om beide takken te raken; de verdeling zelf is
+  // eigendom van question-selection.js (ongeveer half om half per match).
+  for (let poging = 0; poging < 40; poging += 1) {
+    const vraag = source.buildQuestion({ gameType: 'real_or_fake_flag', exclude: sleutels });
+    sleutels.add(vraag.questionKey);
+    gezien.add(vraag.publicQuestionPayload.kind);
+
+    assert.ok(vraag.questionKey.startsWith('rof:'));
+    if (vraag.publicQuestionPayload.kind === 'real') {
+      assert.equal(typeof vraag.publicQuestionPayload.iso2, 'string');
+      assert.deepEqual(vraag.correctAnswer, { choice: 'real' });
+    } else {
+      assert.equal(vraag.publicQuestionPayload.kind, 'generated');
+      assert.equal(typeof vraag.publicQuestionPayload.seed, 'string');
+      assert.equal(typeof vraag.publicQuestionPayload.rendererVersion, 'string');
+      assert.ok(vraag.publicQuestionPayload.spec !== null && typeof vraag.publicQuestionPayload.spec === 'object');
+      assert.deepEqual(vraag.correctAnswer, { choice: 'fake' });
+    }
+    // Besluit 20: het antwoord zit nooit in de publieke payload.
+    assert.equal('choice' in vraag.publicQuestionPayload, false);
+  }
+
+  assert.deepEqual([...gezien].sort(), ['generated', 'real'], 'beide vraagsoorten moeten voorkomen');
 });
 
 test('buildQuestion levert questionKey, publicQuestionPayload en een GESCHEIDEN correctAnswer', () => {

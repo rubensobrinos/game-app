@@ -68,6 +68,19 @@ export function createScoreboardView({ root, t, tCount }) {
 
   root.append(revealCard, revealSelf, title, list, selfLine, headline, nextFooter);
 
+  /**
+   * De sleutel waarop de antwoordverdeling het juiste antwoord bijhoudt,
+   * ongeacht gameType (stap 6): meerkeuze telt per iso2, echt-of-nep per
+   * keuze, hoger/lager per kant. Zonder dit bleef "N van M zaten goed" bij
+   * Echt of nep stilletjes weg — `correctOptionId` is daar altijd null.
+   */
+  function correctDistributionKeyFor(round) {
+    const result = round.result;
+    if (round.gameType === 'real_or_fake_flag') return result.correctChoice;
+    if (round.gameType === 'higher_lower') return result.correctSide;
+    return result.correctOptionId;
+  }
+
   /** Correcte-antwoordtekst per gameType — zelfde bronvelden als gameplay.mjs. */
   function correctAnswerTextFor(round, lang) {
     const result = round.result;
@@ -115,8 +128,9 @@ export function createScoreboardView({ root, t, tCount }) {
       // "9 van 14 zaten goed" — alleen als beide getallen er echt zijn:
       // het aantal goede antwoorden uit de distributie, het totaal uit de
       // laatste round:progress (eligiblePlayerCount). Niets verzinnen.
-      const correctCount = Array.isArray(result.distribution)
-        ? (result.distribution.find((d) => d.optionId === result.correctOptionId)?.count ?? null)
+      const correctKey = correctDistributionKeyFor(round);
+      const correctCount = Array.isArray(result.distribution) && correctKey !== null
+        ? (result.distribution.find((d) => d.optionId === correctKey)?.count ?? null)
         : null;
       const total = round.progress?.eligiblePlayerCount ?? null;
       if (typeof correctCount === 'number' && typeof total === 'number' && total > 0) {
@@ -242,7 +256,7 @@ export function createScoreboardView({ root, t, tCount }) {
     // hooguit één per ronde (social-headline.mjs kiest).
     const found = socialHeadlineFor({
       distribution: result?.distribution ?? [],
-      correctOptionId: result?.correctOptionId ?? null,
+      correctOptionId: result === null ? null : correctDistributionKeyFor(round),
       eligiblePlayerCount: round?.progress?.eligiblePlayerCount ?? null,
       movement: beatOne ? new Map() : movement, // stale beweging nooit in beat 1
       participants,

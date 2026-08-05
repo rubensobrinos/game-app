@@ -305,10 +305,15 @@ async function playRound(env, roundNumber, scenario = null) {
 
   // De verdeling telt precies de geaccepteerde antwoorden en kent alle vier de
   // opties (server/rules/answer-distribution.js, besluit 14).
-  assert.deepEqual(Object.keys(ended.value.distribution).sort(), [...roundDoc.validOptionIds].sort());
-  const distributionTotal = Object.values(ended.value.distribution).reduce((sum, count) => sum + count, 0);
+  // Geordende array (stap 6, 5 aug 2026): één entry per optie, in optievolgorde.
+  assert.deepEqual(
+    ended.value.distribution.map((entry) => entry.optionId).sort(),
+    [...roundDoc.validOptionIds].sort(),
+  );
+  const distributionTotal = ended.value.distribution.reduce((sum, entry) => sum + entry.count, 0);
   assert.equal(distributionTotal, ended.value.answeredCount);
-  assert.ok(ended.value.distribution[correctOptionId] >= 2, 'host en speler 2 antwoordden goed');
+  const correcteTelling = ended.value.distribution.find((entry) => entry.optionId === correctOptionId).count;
+  assert.ok(correcteTelling >= 2, 'host en speler 2 antwoordden goed');
 
   // Tussenstand.
   const scoreboard = await getScoreboard(context, { roomId });

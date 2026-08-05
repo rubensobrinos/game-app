@@ -38,6 +38,7 @@ import {
   getCountryPool,
   mapRoomDifficulty,
 } from '../../shared/content/index.mjs';
+import { generateFlagSpec } from '../../shared/content/flag-spec.mjs';
 import { PLAYABLE_GAME_TYPES } from '../../shared/content/game-catalog.mjs';
 import { buildMatchQuestionPlan } from '../rules/question-selection.js';
 import { GOLF_1_GAME_TYPES } from '../data/types/game-types.js';
@@ -60,8 +61,21 @@ import { GOLF_1_GAME_TYPES } from '../data/types/game-types.js';
  */
 export { CONTENT_DIFFICULTIES, CONTENT_VERSION, mapRoomDifficulty };
 
-/** De enige gevulde gameType (besluit 32 + 35; CT-3 voor real_or_fake_flag). */
-const FILLED_GAME_TYPES = Object.freeze(['flags_mc']);
+/**
+ * De gameTypes waarvoor deze bron een vraag kan bouwen.
+ *
+ * `real_or_fake_flag` erbij op 5 aug 2026 (PLAN-CONVERGENTIE stap 6): de
+ * CT-3-blokkade was verlopen — `generateFlagSpec(seed)` bestaat sinds CT in
+ * `shared/content/flag-spec.mjs` en is deterministisch per seed, wat
+ * `question-selection.js` als enige eis stelt. Hij wordt hieronder ook
+ * daadwerkelijk doorgegeven; zonder die injectie werpt de vraagselectie.
+ *
+ * `capitals_mc` en `odd_one_out` kunnen hier technisch bij, maar hebben nog
+ * geen spelscherm — ze horen pas in `PLAYABLE_GAME_TYPES` (game-catalog.mjs)
+ * als de hele keten er is, en tot die tijd voegt het niets toe om ze hier
+ * open te zetten.
+ */
+const FILLED_GAME_TYPES = Object.freeze(['flags_mc', 'real_or_fake_flag']);
 
 /**
  * SLOT OP DE DEUR (5 aug 2026, PLAN-CONVERGENTIE §A0). `game-catalog.mjs` zegt
@@ -134,6 +148,11 @@ export function createContentSource({
     }
     return FILLED_GAME_TYPES.includes(gameType) ? pool.length : 0;
   }
+  // Noot bij `real_or_fake_flag`: het getal hierboven telt de échte vlaggen op
+  // deze moeilijkheidsgraad. De gegenereerde (nep)vlaggen zijn per seed
+  // onbeperkt, dus dit is een ondergrens — precies wat een aanroeper wil
+  // weten ("kan deze bron deze vorm leveren, en hoeveel unieke echte vragen
+  // zitten erin"), geen exacte telling van het vraagunivers.
 
   /**
    * Bouwt één vraag en respecteert `exclude` (de questionKeys die deze match —
@@ -171,6 +190,10 @@ export function createContentSource({
       metricMode: 'mixed',
       previousMatchQuestionKeys: excluded,
       random,
+      // Verplicht voor `real_or_fake_flag` (question-selection.js werpt
+      // zonder): de seed-deterministische generator uit shared/content. Altijd
+      // meegeven, ook voor andere types — de vraagselectie negeert 'm daar.
+      generateFlagSpec,
     });
 
     // ADDITIEF T.O.V. content-interface-request.md — `validOptionIds` staat

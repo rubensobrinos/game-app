@@ -1123,11 +1123,23 @@ export async function endRound(context, { roomId } = {}) {
     });
   }
 
-  const distribution = computeAnswerDistribution(
+  // De regelslaag levert een OBJECT (`{ at: 9, pe: 5 }`); over de lijn gaat een
+  // geordende ARRAY. Stap 6 (5 aug 2026) bracht dit verschil aan het licht: de
+  // client (`scoreboard.mjs`, `social-headline.mjs`) leest
+  // `distribution.find((d) => d.optionId === ...)` en kreeg tegen de échte
+  // server altijd `undefined` — "N van M zaten goed" verscheen daardoor nooit
+  // buiten de mock, zonder één foutmelding. PROTOCOL.md §round:ended legt de
+  // arrayvorm nu vast (open vraag 11 gesloten).
+  //
+  // De volgorde is die van de antwoordopties zelf: `answer-distribution.js`
+  // bouwt zijn object in optievolgorde op, en `Object.entries` behoudt die
+  // (bij `higher_lower`/`odd_one_out` zijn de sleutels '0','1',… — numeriek
+  // oplopend, dus ook daar de weergavevolgorde).
+  const distribution = Object.entries(computeAnswerDistribution(
     round.gameType,
     accepted.map((entry) => ({ answer: entry.answer })),
     { validOptionIds: round.validOptionIds },
-  );
+  )).map(([optionId, count]) => ({ optionId, count }));
 
   await context.store.saveRound(roomId, { ...round, status: ROUND_STATUS_ENDED });
 

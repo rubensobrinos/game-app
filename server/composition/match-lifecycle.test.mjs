@@ -883,10 +883,19 @@ test('de round:ended-payload draagt de verdeling uit de rules-laag (besluit 14)'
   const ended = await endRound(context, { roomId });
   assert.equal(ended.ok, true);
 
-  assert.deepEqual(Object.keys(ended.value.distribution).sort(), [...doc.validOptionIds].sort());
-  assert.equal(ended.value.distribution[doc.correctAnswer.optionId], 1);
-  assert.equal(ended.value.distribution[wrong], 1);
-  assert.equal(Object.values(ended.value.distribution).reduce((a, b) => a + b, 0), 2);
+  // Stap 6 (5 aug 2026): de verdeling gaat als GEORDENDE ARRAY over de lijn,
+  // niet als object — de client leest `distribution.find(d => d.optionId ===
+  // ...)`. PROTOCOL.md §round:ended legt die vorm nu vast.
+  assert.ok(Array.isArray(ended.value.distribution));
+  assert.deepEqual(
+    ended.value.distribution.map((entry) => entry.optionId),
+    [...doc.validOptionIds],
+    'de volgorde is die van de antwoordopties, zodat de balkjes op hun plek staan',
+  );
+  const telling = (optionId) => ended.value.distribution.find((entry) => entry.optionId === optionId).count;
+  assert.equal(telling(doc.correctAnswer.optionId), 1);
+  assert.equal(telling(wrong), 1);
+  assert.equal(ended.value.distribution.reduce((som, entry) => som + entry.count, 0), 2);
   assert.equal(ended.value.answeredCount, 2);
   assert.equal(ended.value.eligiblePlayerCount, 3);
 

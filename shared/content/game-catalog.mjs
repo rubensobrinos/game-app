@@ -49,7 +49,7 @@ export const GAME_CATALOG = Object.freeze([
  *
  * @type {ReadonlyArray<string>}
  */
-export const PLAYABLE_GAME_TYPES = Object.freeze(['flags_mc']);
+export const PLAYABLE_GAME_TYPES = Object.freeze(['flags_mc', 'real_or_fake_flag']);
 
 const PLAYABLE = new Set(PLAYABLE_GAME_TYPES);
 

@@ -649,6 +649,31 @@ punt 10):
 Clients houden een generieke fallback voor onbekende `reason`-waarden, zodat
 een latere vijfde reden geen harde clientfout veroorzaakt.
 
+### `round:ended` — `distribution`
+
+De antwoordverdeling is een **geordende array**, één entry per mogelijk
+antwoord, in de volgorde waarin de opties op het scherm staan:
+
+```json
+"distribution": [
+  { "optionId": "at", "count": 9 },
+  { "optionId": "pe", "count": 5 },
+  { "optionId": "lv", "count": 0 },
+  { "optionId": "lb", "count": 0 }
+]
+```
+
+`optionId` is de antwoordwaarde van de betreffende gameType: een iso2 bij
+`flags_mc`/`capitals_mc`, `"real"`/`"fake"` bij `real_or_fake_flag`, de kant
+(`"0"`/`"1"`) bij `higher_lower`, de kaartindex bij `odd_one_out`. De som van
+`count` is `answeredCount`.
+
+*Vastgelegd op 5 aug 2026 (open vraag 11 gesloten). De server stuurde tot dan
+een object (`{ "at": 9 }`) terwijl de client een array las: "N van M zaten
+goed" en de sociale headlines verschenen daardoor buiten de mock nooit, zonder
+één foutmelding. Een array omdat de weergavevolgorde onderdeel van het
+contract is en objectsleutelvolgorde dat niet kan dragen.*
+
 ### `session:revoked`
 
 Uitsluitend voor expliciete server-/beheerintrekking van een sessietoken

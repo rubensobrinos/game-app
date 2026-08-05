@@ -587,9 +587,15 @@ test('Keten over echt HTTP en echte WebSockets: room -> preview -> twee joins ->
   assert.equal(hostEnded.correctAnswer.optionId, correct1);
   assert.equal(hostEnded.answeredCount, 3);
   assert.equal(hostEnded.eligiblePlayerCount, 3);
-  assert.deepEqual(Object.keys(hostEnded.distribution).sort(), [...round1.roundDoc.validOptionIds].sort());
-  assert.equal(hostEnded.distribution[correct1], 2);
-  assert.equal(hostEnded.distribution[wrong1], 1);
+  // Geordende array over de wire (stap 6, 5 aug 2026) — de client leest
+  // `distribution.find(d => d.optionId === ...)`.
+  assert.deepEqual(
+    hostEnded.distribution.map((entry) => entry.optionId).sort(),
+    [...round1.roundDoc.validOptionIds].sort(),
+  );
+  const wireTelling = (optionId) => hostEnded.distribution.find((entry) => entry.optionId === optionId).count;
+  assert.equal(wireTelling(correct1), 2);
+  assert.equal(wireTelling(wrong1), 1);
 
   // `room_with_personal_fields`: één logisch event, per ontvanger eigen velden.
   assert.equal(ended1[0].eventId, ended1[1].eventId, 'één eventId voor de hele room');
