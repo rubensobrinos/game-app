@@ -237,3 +237,36 @@ test('C-2: odd_one_out rendert vier kaarten en geeft de kaartindex door', async 
   kaarten[3]._listeners.get('click')?.();
   assert.deepEqual(antwoorden, [3], 'de kaartindex gaat door, niet de rijvolgorde of de iso2');
 });
+
+test('punt 11: een odd_one_out-kaart met een vlagspec wordt getekend, niet als afbeelding geladen', async () => {
+  const antwoorden = [];
+  const { root, view } = await maakView(antwoorden);
+  view.update(
+    actiefModel({
+      gameType: 'odd_one_out',
+      question: {
+        cards: [
+          { cardIndex: 0, iso2: 'fr' },
+          { cardIndex: 1, iso2: 'de' },
+          { cardIndex: 2, spec: { pattern: 'hstripes', palette: ['#000', '#fff', '#f00'] }, seed: 'fx_1' },
+          { cardIndex: 3, iso2: 'es' },
+        ],
+      },
+    }),
+    { phase: 'ROUND_ACTIVE', secondsLeft: 12 },
+  );
+
+  const kaarten = vindAlle(root, 'gameplay-option-card');
+  assert.equal(kaarten.length, 4);
+
+  // Geen landnamen onder de kaarten: de echte kaarten zouden er dan één hebben
+  // en de gegenereerde niet — dat wijst het antwoord aan.
+  for (const kaart of kaarten) {
+    assert.equal(kaart.textContent, '', 'een kaart toont alleen de vlag');
+    assert.match(kaart.getAttribute('aria-label') ?? '', /oddOneOutCard/);
+  }
+
+  // De nepvlag hangt aan een canvas, de echte aan een <img>.
+  const soorten = kaarten.map((kaart) => kaart.children[0].tagName);
+  assert.deepEqual(soorten, ['IMG', 'IMG', 'CANVAS', 'IMG']);
+});

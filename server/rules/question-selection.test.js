@@ -168,11 +168,15 @@ describe('outputcontract per spelvorm #7-12', () => {
     }
   });
 
-  test('#11 odd_one_out: publicQuestionPayload zonder continent, resultDetails met beide', () => {
-    const [q] = buildMatchQuestionPlan(baseParams({ gameType: 'odd_one_out' }));
+  test('#11 odd_one_out (continentlogica): payload zonder continent, resultDetails met beide', () => {
+    // Punt 11 (5 aug 2026) gaf deze game meer afwijklogica's; zónder
+    // `generateFlagSpec` blijft alleen de continentvariant over, en dat is
+    // precies wat deze test wil vastleggen.
+    const [q] = buildMatchQuestionPlan(baseParams({ gameType: 'odd_one_out', generateFlagSpec: undefined }));
     for (const card of q.publicQuestionPayload.cards) {
       assert.ok(!('continent' in card));
     }
+    assert.strictEqual(q.resultDetails.logic, 'continent');
     assert.strictEqual(typeof q.resultDetails.majorityContinent, 'string');
     assert.strictEqual(typeof q.resultDetails.minorityContinent, 'string');
     assert.notStrictEqual(q.resultDetails.majorityContinent, q.resultDetails.minorityContinent);
@@ -400,5 +404,84 @@ describe('real_or_fake_flag — balans bij bouwen per ronde', () => {
     });
     const echt = plan.filter((vraag) => vraag.publicQuestionPayload.kind === 'real').length;
     assert.equal(echt, 5, 'tien rondes: vijf echt, vijf nep');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Punt 11 (producteigenaar, 5 aug 2026): "Welke hoort er niet bij" kent meer
+// dan één afwijklogica. Deze tests dekken de twee die erbij zijn gekomen —
+// een nepvlag tussen echte, en een echte tussen neppe.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('odd_one_out — afwijklogica (punt 11)', () => {
+  /** Draait genoeg rondes om alle logicavormen langs te laten komen. */
+  function logicasOverRondes(rondes) {
+    const gezien = new Map();
+    const gebruikt = [];
+    for (let i = 0; i < rondes; i += 1) {
+      const [vraag] = buildMatchQuestionPlan(baseParams({
+        gameType: 'odd_one_out',
+        previousMatchQuestionKeys: gebruikt,
+        random: Math.random,
+      }));
+      gebruikt.push(vraag.questionKey);
+      gezien.set(vraag.resultDetails.logic, (gezien.get(vraag.resultDetails.logic) ?? 0) + 1);
+    }
+    return gezien;
+  }
+
+  test('alle drie de logicavormen komen voor over genoeg rondes', () => {
+    const gezien = logicasOverRondes(40);
+    for (const logic of ['continent', 'fake_among_real', 'real_among_fake']) {
+      assert.ok(gezien.get(logic) > 0, `logica "${logic}" kwam niet voor: ${[...gezien.keys()].join(',')}`);
+    }
+  });
+
+  test('elke vraag heeft vier kaarten en precies één afwijkende', () => {
+    const gebruikt = [];
+    for (let i = 0; i < 30; i += 1) {
+      const [vraag] = buildMatchQuestionPlan(baseParams({
+        gameType: 'odd_one_out',
+        previousMatchQuestionKeys: gebruikt,
+        random: Math.random,
+      }));
+      gebruikt.push(vraag.questionKey);
+
+      const kaarten = vraag.publicQuestionPayload.cards;
+      assert.strictEqual(kaarten.length, 4);
+      assert.deepStrictEqual(kaarten.map((k) => k.cardIndex), [0, 1, 2, 3]);
+
+      const juist = vraag.correctAnswer.cardIndex;
+      assert.ok(juist >= 0 && juist <= 3);
+
+      if (vraag.resultDetails.logic === 'fake_among_real') {
+        // Drie echte vlaggen (iso2) + één gegenereerde (spec).
+        const nep = kaarten.filter((k) => k.spec !== undefined);
+        assert.strictEqual(nep.length, 1);
+        assert.strictEqual(nep[0].cardIndex, juist, 'de nepvlag is het juiste antwoord');
+      } else if (vraag.resultDetails.logic === 'real_among_fake') {
+        const echt = kaarten.filter((k) => k.spec === undefined);
+        assert.strictEqual(echt.length, 1);
+        assert.strictEqual(echt[0].cardIndex, juist, 'de echte vlag is het juiste antwoord');
+        // Drie verschillende nepvlaggen, geen drie keer dezelfde.
+        const seeds = new Set(kaarten.filter((k) => k.spec !== undefined).map((k) => k.seed));
+        assert.strictEqual(seeds.size, 3);
+      }
+    }
+  });
+
+  test('de payload verklapt de logica niet — die zit alleen in resultDetails', () => {
+    const gebruikt = [];
+    for (let i = 0; i < 20; i += 1) {
+      const [vraag] = buildMatchQuestionPlan(baseParams({
+        gameType: 'odd_one_out',
+        previousMatchQuestionKeys: gebruikt,
+        random: Math.random,
+      }));
+      gebruikt.push(vraag.questionKey);
+      assert.ok(!('logic' in vraag.publicQuestionPayload));
+      assert.ok(!('correctAnswer' in vraag.publicQuestionPayload));
+      assert.strictEqual(typeof vraag.resultDetails.logic, 'string');
+    }
   });
 });

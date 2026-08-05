@@ -259,20 +259,42 @@ test('Verticaal odd_one_out: vier kaarten, één antwoord per kaartindex, uitleg
   const kaarten = gestart.value.question.cards;
   assert.equal(kaarten.length, 4);
   assert.deepEqual(kaarten.map((kaart) => kaart.cardIndex), [0, 1, 2, 3]);
-  for (const kaart of kaarten) {
-    assert.equal(typeof kaart.iso2, 'string');
-  }
   assert.equal('correctAnswer' in gestart.value, false);
-  assert.equal(
-    JSON.stringify(gestart.value).includes('majorityContinent'),
-    false,
-    'de afwijklogica mag niet vóór het antwoord zichtbaar zijn — dat verklapt het antwoord',
-  );
+  for (const verklapper of ['majorityContinent', 'minorityContinent', '"logic"']) {
+    assert.equal(
+      JSON.stringify(gestart.value).includes(verklapper),
+      false,
+      `de afwijklogica (${verklapper}) mag niet vóór het antwoord zichtbaar zijn — dat verklapt het antwoord`,
+    );
+  }
 
   const rondeDoc = await context.store.loadRound(room.roomId, gestart.value.matchId, gestart.value.roundId);
-  assert.equal(typeof rondeDoc.resultDetails.majorityContinent, 'string');
-  assert.equal(typeof rondeDoc.resultDetails.minorityContinent, 'string');
-  assert.notEqual(rondeDoc.resultDetails.majorityContinent, rondeDoc.resultDetails.minorityContinent);
+  // Punt 11 (5 aug 2026): deze game kent meer dan één afwijklogica. Elke
+  // variant moet genoeg meesturen om de uitlegregel te kunnen tonen.
+  const logic = rondeDoc.resultDetails.logic;
+  assert.ok(
+    ['continent', 'fake_among_real', 'real_among_fake'].includes(logic),
+    `onbekende afwijklogica: ${logic}`,
+  );
+  if (logic === 'continent') {
+    assert.equal(typeof rondeDoc.resultDetails.majorityContinent, 'string');
+    assert.equal(typeof rondeDoc.resultDetails.minorityContinent, 'string');
+    assert.notEqual(rondeDoc.resultDetails.majorityContinent, rondeDoc.resultDetails.minorityContinent);
+    for (const kaart of kaarten) {
+      assert.equal(typeof kaart.iso2, 'string', 'bij continentlogica zijn alle vier de vlaggen echt');
+    }
+  } else {
+    const nep = kaarten.filter((kaart) => kaart.spec !== undefined);
+    assert.equal(nep.length, logic === 'fake_among_real' ? 1 : 3);
+    // De client moet elke kaart kunnen tekenen: een echte via iso2, een
+    // gegenereerde via spec. Nooit allebei leeg.
+    for (const kaart of kaarten) {
+      assert.ok(
+        typeof kaart.iso2 === 'string' || (kaart.spec !== null && typeof kaart.spec === 'object'),
+        'elke kaart draagt óf een land óf een vlagspec',
+      );
+    }
+  }
 
   // Antwoorden gaat per kaartindex, niet per iso2.
   clock.advance(1000);

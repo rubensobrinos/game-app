@@ -93,6 +93,24 @@ export function createScoreboardView({ root, t, tCount }) {
     return result.correctOptionId;
   }
 
+  /**
+   * De uitlegregel van "Welke hoort er niet bij" (punt 11: de afwijklogica
+   * wordt ná het antwoord kort getoond). Elke logica heeft zijn eigen zin;
+   * ontbreekt `resultDetails`, dan tonen we niets in plaats van iets te
+   * verzinnen.
+   */
+  function uitlegVoor(details) {
+    if (details === null || typeof details !== 'object') return null;
+    if (details.logic === 'fake_among_real') return t('game.oddOneOutWhyFake');
+    if (details.logic === 'real_among_fake') return t('game.oddOneOutWhyReal');
+    if (typeof details.majorityContinent !== 'string' || typeof details.minorityContinent !== 'string') {
+      return null;
+    }
+    return t('game.oddOneOutWhy')
+      .replace('{majority}', t(`continent.${details.majorityContinent}`))
+      .replace('{minority}', t(`continent.${details.minorityContinent}`));
+  }
+
   /** Correcte-antwoordtekst per gameType — zelfde bronvelden als gameplay.mjs. */
   function correctAnswerTextFor(round, lang) {
     const result = round.result;
@@ -105,7 +123,11 @@ export function createScoreboardView({ root, t, tCount }) {
     }
     if (round.gameType === 'odd_one_out') {
       const kaart = round.question?.cards?.find((c) => c.cardIndex === result.correctCardIndex);
-      return kaart ? countryName(kaart.iso2, lang) : null;
+      if (kaart === undefined) return null;
+      // Een gegenereerde vlag heeft geen land; dan noemt de kaart wát het was.
+      return kaart.spec !== undefined && kaart.spec !== null
+        ? t('game.oddOneOutFakeAnswer')
+        : countryName(kaart.iso2, lang);
     }
     return result.correctOptionId !== null ? countryName(result.correctOptionId, lang) : null;
   }
@@ -151,17 +173,9 @@ export function createScoreboardView({ root, t, tCount }) {
       // De uitlegregel: alleen tonen als de server de continenten meestuurde
       // (`resultDetails`). Niets verzinnen als ze ontbreken.
       const details = result.resultDetails ?? null;
-      const heeftUitleg =
-        round.gameType === 'odd_one_out' &&
-        details !== null &&
-        typeof details.majorityContinent === 'string' &&
-        typeof details.minorityContinent === 'string';
-      revealWhy.hidden = !heeftUitleg;
-      revealWhy.textContent = heeftUitleg
-        ? t('game.oddOneOutWhy')
-          .replace('{majority}', t(`continent.${details.majorityContinent}`))
-          .replace('{minority}', t(`continent.${details.minorityContinent}`))
-        : '';
+      const uitleg = round.gameType === 'odd_one_out' ? uitlegVoor(details) : null;
+      revealWhy.hidden = uitleg === null;
+      revealWhy.textContent = uitleg ?? '';
 
       const total = round.progress?.eligiblePlayerCount ?? null;
       if (typeof correctCount === 'number' && typeof total === 'number' && total > 0) {

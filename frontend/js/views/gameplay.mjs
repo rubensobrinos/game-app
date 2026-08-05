@@ -233,14 +233,33 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'gameplay-option gameplay-option-card';
-        const kaartVlag = document.createElement('img');
-        kaartVlag.className = 'gameplay-option-card-flag';
-        kaartVlag.src = flagAssetPath(kaart.iso2);
-        kaartVlag.alt = '';
-        kaartVlag.setAttribute('aria-hidden', 'true');
-        const kaartNaam = document.createElement('span');
-        kaartNaam.textContent = countryName(kaart.iso2, lang);
-        btn.append(kaartVlag, kaartNaam);
+
+        // GEEN LANDNAAM ONDER DE KAART. Sinds punt 11 (5 aug 2026) kan een
+        // kaart ook een GEGENEREERDE vlag zijn, en die heeft geen land. Zou de
+        // echte kaart dan wél een naam krijgen en de nep niet, dan wijst het
+        // ontbreken van de naam het antwoord aan. Vier vlaggen, verder niets —
+        // dat is ook precies wat punt 11 beschrijft.
+        if (kaart.spec !== undefined && kaart.spec !== null) {
+          const doek = document.createElement('canvas');
+          doek.className = 'gameplay-option-card-flag';
+          doek.setAttribute('aria-hidden', 'true');
+          renderFlagSpec(doek, kaart.spec);
+          btn.appendChild(doek);
+        } else {
+          const kaartVlag = document.createElement('img');
+          kaartVlag.className = 'gameplay-option-card-flag';
+          kaartVlag.src = flagAssetPath(kaart.iso2);
+          kaartVlag.alt = '';
+          kaartVlag.setAttribute('aria-hidden', 'true');
+          btn.appendChild(kaartVlag);
+        }
+
+        // Voor een screenreader een neutrale positieaanduiding: de naam van
+        // het land zou hetzelfde weggeven als hierboven beschreven.
+        btn.setAttribute(
+          'aria-label',
+          t('game.oddOneOutCard').replace('{n}', String(kaart.cardIndex + 1)).replace('{m}', String(model.question.cards.length)),
+        );
         btn.setAttribute('aria-pressed', 'false');
         btn.addEventListener('click', () => onAnswer(kaart.cardIndex));
         optionButtons.set(kaart.cardIndex, btn);
@@ -280,7 +299,13 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     }
     if (model.gameType === 'odd_one_out') {
       const kaart = model.question.cards.find((c) => c.cardIndex === model.result.correctCardIndex);
-      const naam = kaart ? countryName(kaart.iso2, lang) : '';
+      // Een gegenereerde vlag heeft geen land om te noemen; dan is "de nepvlag"
+      // het eerlijke antwoord.
+      const naam = kaart === undefined
+        ? ''
+        : kaart.spec !== undefined && kaart.spec !== null
+          ? t('game.oddOneOutFakeAnswer')
+          : countryName(kaart.iso2, lang);
       return `${t('game.correctAnswer')}: ${naam}`;
     }
     return `${t('game.correctAnswer')}: ${countryName(model.result.correctOptionId, lang)}`;

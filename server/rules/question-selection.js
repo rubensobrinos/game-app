@@ -261,6 +261,78 @@ function selectHigherLowerQuestion(pool, difficulty, metric, excludedKeys, rando
   };
 }
 
+/**
+ * De afwijklogica's van "Welke hoort er niet bij" (punt 11, producteigenaar
+ * 5 aug 2026 — DOELBEELD-v2 §6.5).
+ *
+ * `continent` bestond al. `fake_among_real` en `real_among_fake` zijn erbij
+ * gekomen omdat het materiaal er al lag: `generateFlagSpec(seed)` levert
+ * dezelfde deterministische nepvlaggen als Echt of nep.
+ *
+ * NOG NIET GEBOUWD: "ander kleurpatroon" voor ÉCHTE vlaggen (de pool draagt
+ * geen pattern/palette per land) en "andere vorm of symboliek" (nieuwe
+ * contentannotatie per vlag). Zie §6.5 — die twee zijn een orde duurder en
+ * wachten tot deze drie te weinig variatie blijken te geven.
+ */
+const ODD_ONE_OUT_LOGICS = Object.freeze(['continent', 'fake_among_real', 'real_among_fake']);
+
+/**
+ * Eén nepvlag tussen drie echte, of andersom. De uitlegregel kan daarna
+ * letterlijk zeggen wat er anders was — precies wat punt 11 eist ("na het
+ * antwoord moet kort worden uitgelegd waarom").
+ *
+ * De vier kaarten dragen dezelfde vorm als bij de continentlogica, plus een
+ * optionele `spec`: een kaart mét spec is een gegenereerde vlag, een kaart
+ * zonder is een echte. De client hoeft de logica niet te kennen.
+ */
+function selectOddOneOutFlagAuthenticity(pool, difficulty, oddIsFake, excludedKeys, random, generateFlagSpec) {
+  const difficultyPool = buildCandidatePool(pool, difficulty, false);
+  if (difficultyPool.length < (oddIsFake ? 3 : 1)) {
+    throw new RangeError(`Not enough countries for an odd_one_out authenticity round at difficulty "${difficulty}"`);
+  }
+
+  for (let attempt = 0; attempt < MAX_COLLISION_ATTEMPTS; attempt++) {
+    const seed = generateSeed(random);
+    const questionKey = `odd_one_out:${oddIsFake ? 'fake' : 'real'}:${seed}`;
+    if (excludedKeys.has(questionKey)) {
+      continue;
+    }
+
+    // De echte landen: drie als het buitenbeentje nep is, anders één.
+    const echteAantal = oddIsFake ? 3 : 1;
+    const echte = pickUniqueIndices(random, difficultyPool.length, echteAantal).map((i) => difficultyPool[i]);
+    const { rendererVersion, ...spec } = generateFlagSpec(seed);
+
+    // Bij `real_among_fake` zijn er drie nepvlaggen nodig; ze moeten van
+    // elkaar verschillen, dus elk een eigen seed.
+    const nepSpecs = oddIsFake
+      ? [{ seed, spec }]
+      : [0, 1, 2].map((offset) => {
+        const eigenSeed = `${seed}_${offset}`;
+        const { rendererVersion: _weg, ...eigenSpec } = generateFlagSpec(eigenSeed);
+        return { seed: eigenSeed, spec: eigenSpec };
+      });
+
+    const kaarten = shuffle(
+      [
+        ...echte.map((entry) => ({ iso2: entry.iso2 })),
+        ...nepSpecs.map((nep) => ({ seed: nep.seed, spec: nep.spec })),
+      ],
+      random,
+    ).map((kaart, index) => ({ cardIndex: index, ...kaart }));
+
+    const oddIndex = kaarten.findIndex((kaart) => (oddIsFake ? kaart.spec !== undefined : kaart.spec === undefined));
+    return {
+      gameType: 'odd_one_out',
+      questionKey,
+      publicQuestionPayload: { cards: kaarten },
+      correctAnswer: { cardIndex: oddIndex },
+      resultDetails: { logic: oddIsFake ? 'fake_among_real' : 'real_among_fake' },
+    };
+  }
+  throw new RangeError('Could not generate a unique seed for an odd_one_out authenticity round');
+}
+
 function selectOddOneOutQuestion(pool, difficulty, excludedKeys, random) {
   const difficultyPool = buildCandidatePool(pool, difficulty, false);
   const byContinent = new Map();
@@ -298,7 +370,7 @@ function selectOddOneOutQuestion(pool, difficulty, excludedKeys, random) {
         cards: cards.map((c, i) => ({ cardIndex: i, iso2: c.iso2 })),
       },
       correctAnswer: { cardIndex },
-      resultDetails: { majorityContinent, minorityContinent: minorityPick.continent },
+      resultDetails: { logic: 'continent', majorityContinent, minorityContinent: minorityPick.continent },
     };
   }
   throw new RangeError('Could not find a non-repeating odd_one_out combination within the attempt limit');
@@ -345,9 +417,20 @@ function selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode
         question = selectHigherLowerQuestion(pool, difficulty, metric, combinedExcluded, random);
         break;
       }
-      case 'odd_one_out':
-        question = selectOddOneOutQuestion(pool, difficulty, combinedExcluded, random);
+      case 'odd_one_out': {
+        // Punt 11: afwisselende afwijklogica. Zonder `generateFlagSpec` blijft
+        // alleen de continentvariant over — dan draait deze game precies zoals
+        // vóór 5 aug, in plaats van te werpen.
+        const logic = typeof generateFlagSpec === 'function'
+          ? ODD_ONE_OUT_LOGICS[pickUniqueIndices(random, ODD_ONE_OUT_LOGICS.length, 1)[0]]
+          : 'continent';
+        question = logic === 'continent'
+          ? selectOddOneOutQuestion(pool, difficulty, combinedExcluded, random)
+          : selectOddOneOutFlagAuthenticity(
+            pool, difficulty, logic === 'fake_among_real', combinedExcluded, random, generateFlagSpec,
+          );
         break;
+      }
       default:
         throw new RangeError(`Unknown gameType: ${gameType}`);
     }

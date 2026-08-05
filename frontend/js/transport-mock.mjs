@@ -963,7 +963,11 @@ function buildQuestionSequence(gameType = DEFAULT_GAME_TYPE) {
         questions.push({
           payload: { cards: kaarten.map((entry, index) => ({ cardIndex: index, iso2: entry.iso2.toUpperCase() })) },
           correct: { cardIndex: oddIndex },
-          resultDetails: { majorityContinent: target.continent, minorityContinent: buitenbeentje.continent },
+          resultDetails: {
+            logic: 'continent',
+            majorityContinent: target.continent,
+            minorityContinent: buitenbeentje.continent,
+          },
         });
         continue;
       }
