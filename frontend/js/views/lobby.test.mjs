@@ -266,3 +266,58 @@ test('§A5: de niveauknoppen volgen de serverconfig, niet de laatste tik', async
   view.update({ ...BASIS_MODEL, config: { ...BASIS_MODEL.config, difficulty: 'easy' } });
   assert.deepEqual(actief(), ['easy']);
 });
+
+// ── C2/C3 (punten 19/20/21 en 23) ────────────────────────────────────────
+
+test('§C2: het kleurvlakje opent het palet, kiezen sluit het weer', async () => {
+  const { root } = await maakLobby();
+  const vlakje = vind(root, 'lobby-self-swatch');
+  const palet = vind(root, 'lobby-self-colors');
+  assert.notEqual(vlakje, null, 'het kleurvlakje hoort een knop te zijn');
+
+  // Dicht bij binnenkomst: acht blokjes onder je naam kostten ~96px voor een
+  // keuze die je één keer maakt.
+  assert.equal(palet.hidden, true);
+  assert.equal(vlakje.getAttribute('aria-expanded'), 'false');
+
+  klik(vlakje);
+  assert.equal(palet.hidden, false);
+  assert.equal(vlakje.getAttribute('aria-expanded'), 'true');
+
+  // Een kleur kiezen sluit het paneel; de stand zelf komt van de server.
+  klik(vindAlle(root, 'lobby-self-color')[2]);
+  assert.equal(palet.hidden, true);
+  assert.equal(vlakje.getAttribute('aria-expanded'), 'false');
+});
+
+test('§C2: het palet toont precies de kleuren die de server kent', async () => {
+  const { root } = await maakLobby();
+  // 36 kleuren is protocolwerk (gesloten enum): wat hier staat moet exact het
+  // serverpalet zijn, anders weigert de server de keuze.
+  const { SERVER_KLEUREN } = await import('../player-chip.mjs');
+  assert.equal(vindAlle(root, 'lobby-self-color').length, Object.keys(SERVER_KLEUREN).length);
+});
+
+test('§C3: horizontaal vegen over de gamekaart draait de carrousel, een tik niet', async () => {
+  const { root } = await maakLobby();
+  const kaart = vind(root, 'lobby-gamecard');
+  const titel = vind(root, 'lobby-gamecard-title');
+  const begin = titel.textContent;
+
+  const veeg = (van, naar) => {
+    kaart._listeners.get('pointerdown')?.({ clientX: van });
+    kaart._listeners.get('pointerup')?.({ clientX: naar });
+  };
+
+  // Korte beweging = een tik op de kaart, geen veeg: er mag niets draaien.
+  veeg(300, 285);
+  assert.equal(titel.textContent, begin, 'onder de drempel blijft de kaart staan');
+
+  // Naar links vegen brengt de volgende game in beeld.
+  veeg(300, 200);
+  assert.notEqual(titel.textContent, begin);
+
+  // En terug naar rechts weer de vorige.
+  veeg(200, 300);
+  assert.equal(titel.textContent, begin);
+});

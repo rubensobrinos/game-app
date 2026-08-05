@@ -1179,16 +1179,12 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 
 /* ══ PAKKET C — home & lobby (agent C) ══ */
 
-/* C0 (punten 9/10): met de titel en de tellerregel op `sr-only` (lobby.mjs)
-   begon de spelerslijst nog altijd 32px onder de codebalk — `.screen`'s
-   `padding: 2rem` is er voor schermen die met een kop openen, en de lobby
-   opent nu met de lijst zelf. Alleen deze `padding-top` wijzigt, en alleen
-   voor de lobby: de andere sessieschermen houden hun kop en hun lucht.
-/* Weggehaald door de lead (5 aug): C0 zette hier `padding-top:
-   var(--chrome-gap)` — geschreven vóórdat A1 landde met `.screen.screen-top
-   { padding-top: 0 }` plús 16px `margin-bottom` op `#app-header`. Die twee
-   telden op, waardoor de lobby op y=76 begon en elk ander sessiescherm op 60.
-   Gemeld door agent A, en het klopte. */
+/* C0 (punten 9/10) zette hier `padding-top: var(--chrome-gap)` zodat de
+   spelerslijst direct onder de codebalk begon. Weggehaald door de lead
+   (5 aug): A1 landde daarna met `.screen.screen-top { padding-top: 0 }` plús
+   16px `margin-bottom` op `#app-header`, en die twee telden op — de lobby
+   begon op y=76 en elk ander sessiescherm op 60. De titel en de tellerregel
+   zelf zijn `sr-only` en dat blijft zo (lobby.mjs). */
 
 /* ── C1: home binnen één viewport (punten 1 t/m 5) ──────────────────────────
    Nulmeting met `tools/meet-viewport.mjs` op 390×650: 883px pagina, 233px te
@@ -1268,6 +1264,122 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
      zevende, lege codecel in plaats van als de actie erachter. */
   color: var(--rounda-lime);
   border-color: rgba(216, 255, 62, 0.35);
+}
+
+/* ── C2/C3: de lobby (punten 11, 19, 20, 21, 23, 24, 31 + R2-5) ────────────
+   Meting vooraf (390×650, host, één speler): pagina 1303px. Het JIJ-blok
+   kostte 205px waarvan 96 aan acht altijd-zichtbare kleurblokjes, en tussen
+   elk blok stond 20px `gap` én 14px `margin-top` — 34px, drie keer.
+
+   De warm-up blijft opengeklapt (besluit producteigenaar). De eis is dus niet
+   "alles op één scherm" maar: alles wat je nódig hebt staat boven de vouw —
+   codebalk, spelerslijst, JIJ-blok, hostinstellingen, startknop. De warm-up
+   is tijdverdrijf en mag eronder vallen. */
+
+/* Eén ritme in plaats van gap + losse marges die bij elkaar optelden. */
+.lobby-main-column {
+  gap: 14px;
+}
+
+.lobby-main-column > .lobby-self,
+.lobby-main-column > .lobby-settings,
+.lobby-main-column > .lobby-rounda {
+  margin-top: 0;
+}
+
+/* Hetzelfde ritme binnen de instellingen: 8px zoals de spelerslijst, en de
+   labels hebben hun eigen bovenmarge niet meer nodig. De knoppen zelf blijven
+   op hun maat — dat zijn tikdoelen, geen lucht (punten 26/28/29/30). */
+.lobby-settings,
+.lobby-settings-body,
+.lobby-settings-morebody {
+  gap: 8px;
+}
+
+.lobby-settings-label {
+  margin-top: 0;
+}
+
+/* Punten 19/20/21 (R2-6): het kleurvlakje is nu een knop — even hoog als een
+   tikdoel hoort, met een rand zodat het als bediening leest en niet als
+   decoratie. Het palet eronder verschijnt pas na een tik (lobby.mjs). */
+.lobby-self-swatch {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(244, 244, 246, 0.28);
+  cursor: pointer;
+}
+
+/* Zonder kleur van de server: leeg vlak dat nog steeds als knop leest. */
+.lobby-self-swatch.is-leeg {
+  border-style: dashed;
+}
+
+.lobby-self-swatch[aria-expanded='true'] {
+  border-color: #f4f4f6;
+  box-shadow: 0 0 0 2px var(--rounda-ink);
+}
+
+/* Het opengeklapte palet is een paneel bij de rij, niet een tweede blok in de
+   kolom: één rij van acht past op 390px (8 × 34 + 7 × 6 = 314). */
+.lobby-self-colors {
+  gap: 6px;
+  flex-wrap: nowrap;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--rounda-row);
+  border: 1px solid var(--rounda-row-border);
+}
+
+.lobby-self-colors .lobby-self-color {
+  flex: 1;
+  min-width: 0;
+}
+
+/* R2-5: "Meer instellingen" was een knop midden in de kolom. Het is een
+   bescheiden ingang naar wat je meestal niet nodig hebt, dus: een stille
+   regel onderin. Het tikgebied blijft 44px hoog (de regel is klein, het
+   doel niet). */
+.lobby-settings-more {
+  align-self: flex-start;
+  width: auto;
+  padding: 0;
+  background: none;
+  border: none;
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Punt 24: de pijlen blijven, maar als secundaire bediening — smaller dan de
+   44px-blokken die ze waren. Ze houden hun volle hoogte, dus het tikdoel
+   blijft ruim. */
+.lobby-gamearrow {
+  width: 34px;
+  height: 56px;
+  font-size: 15px;
+  color: #8e8e9c;
+}
+
+/* Punt 23: horizontaal vegen over de kaart draait de carrousel (lobby.mjs).
+   `pan-y` laat de pagina verticaal scrollen, maar geeft de horizontale
+   beweging aan de kaart — zonder dit vecht de browser-scroll met de veeg. */
+.lobby-gamecard {
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+/* Punt 31: "Start Rounda" plakte tegen de onderrand. Iets omhoog, zodat er
+   lucht onder de knop staat — hij blijft zweven (producteigenaar: "goud"). */
+.lobby-start {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
 }
 
 /* ══ LEAD — losse punten (regie) ══════════════════════════════════════════ */
