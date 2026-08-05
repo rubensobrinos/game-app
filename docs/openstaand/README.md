@@ -29,12 +29,14 @@ Peildatum: 6 aug 2026.
 | [Spelersidentiteit stap 4–6](spelersidentiteit.md) | klaar om te starten |
 | [Raad het land](raad-het-land.md) | klaar om te starten |
 | [Typed answers](typed-answers.md) | wacht op het scorebesluit |
-| De donut-gamekeuze (besluit 45) | nog niet uitgewerkt |
+| [De donut-gamekeuze](donut-gamekeuze.md) | klaar om te starten |
 
 ## Refactor — de rem op parallel werken
 
 Acht opdrachten, één bestand per opdracht, volgorde en status in
 [refactor/README.md](refactor/README.md).
+
+| [Verlopen room vs. onbekende code](verlopen-vs-onbekend.md) | klaar om te starten |
 
 ## Aanzetten
 
@@ -51,7 +53,7 @@ Acht opdrachten, één bestand per opdracht, volgorde en status in
 | Uitslagscherm: twee momenten houden of alles tegelijk? | Twee houden, de eerste het scherm laten vullen |
 | Levert intypen meer punten op dan kiezen? | Ja, 150 in plaats van 100 |
 | Spelersidentiteit: hoeveel landen? | 60, niet 230 |
-| Verlopen room vs. onbekende code: apart melden? | Ja, maar het vraagt een tombstone |
+
 
 ## Bewust zo gelaten
 
