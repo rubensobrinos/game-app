@@ -1160,6 +1160,12 @@ export async function endRound(context, { roomId } = {}) {
     // Pas hier verlaat het juiste antwoord de server (besluit 20 /
     // GAME-RULES.md: "nooit vóór round:ended").
     correctAnswer: round.correctAnswer,
+    // De uitlegregel van "Welke hoort er niet bij" (doelbeeld v2 §1: de
+    // afwijklogica wordt ná het antwoord kort getoond) heeft de continenten
+    // nodig die op het Round-document staan. Ze verklappen niets vóór dit
+    // moment — `round:started` draagt ze niet, en de snapshot van een actieve
+    // ronde evenmin.
+    ...(round.resultDetails === undefined ? {} : { resultDetails: round.resultDetails }),
     distribution,
     answeredCount: accepted.length,
     eligiblePlayerCount: results.filter((entry) => entry.eligible).length,

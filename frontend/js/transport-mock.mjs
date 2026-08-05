@@ -536,7 +536,12 @@ export function createMockTransport() {
       throw new ProtocolError('INVALID_ANSWER_FORMAT', 'answer must be an object.');
     }
     let gegeven;
-    if (target.gameType === 'real_or_fake_flag') {
+    if (target.gameType === 'odd_one_out') {
+      if (!Number.isInteger(antwoord.cardIndex)) {
+        throw new ProtocolError('INVALID_ANSWER_FORMAT', 'odd_one_out expects { cardIndex }.');
+      }
+      gegeven = String(antwoord.cardIndex);
+    } else if (target.gameType === 'real_or_fake_flag') {
       if (antwoord.choice !== 'real' && antwoord.choice !== 'fake') {
         throw new ProtocolError('INVALID_ANSWER_FORMAT', 'real_or_fake_flag expects { choice: "real" | "fake" }.');
       }
@@ -581,6 +586,7 @@ export function createMockTransport() {
       return {
         roundId,
         correctAnswer,
+        ...(question.resultDetails === undefined ? {} : { resultDetails: question.resultDetails }),
         distribution,
         ownCorrect,
         ownPoints: ownCorrect ? 100 : 0,
@@ -945,6 +951,24 @@ function buildQuestionSequence(gameType = DEFAULT_GAME_TYPE) {
   for (let i = 0; i < count; i += 1) {
     const target = pool[i];
 
+    if (gameType === 'odd_one_out') {
+      // Drie uit hetzelfde continent + één buitenbeentje, zoals de server
+      // (`question-selection.js`). Vast, niet willekeurig: een doorloop moet
+      // herhaalbaar zijn.
+      const zelfdeContinent = pool.filter((entry) => entry.continent === target.continent && entry.iso2 !== target.iso2);
+      const buitenbeentje = pool.find((entry) => entry.continent !== target.continent);
+      if (zelfdeContinent.length >= 2 && buitenbeentje !== undefined) {
+        const kaarten = [target, zelfdeContinent[0], zelfdeContinent[1], buitenbeentje];
+        const oddIndex = 3;
+        questions.push({
+          payload: { cards: kaarten.map((entry, index) => ({ cardIndex: index, iso2: entry.iso2.toUpperCase() })) },
+          correct: { cardIndex: oddIndex },
+          resultDetails: { majorityContinent: target.continent, minorityContinent: buitenbeentje.continent },
+        });
+        continue;
+      }
+    }
+
     if (gameType === 'real_or_fake_flag') {
       // Om en om echt/nep, zodat een doorloop beide takken van het spelscherm
       // raakt (echte vlagafbeelding vs. gegenereerde spec op canvas).
@@ -1022,11 +1046,15 @@ function validateJoinRequest(request) {
 
 /** De waarde die dit antwoord juist maakt, ongeacht gameType. */
 function correctValueOf(question) {
+  if (question.correct.cardIndex !== undefined) return String(question.correct.cardIndex);
   return question.correct.optionId ?? question.correct.choice;
 }
 
 /** De mogelijke antwoordwaarden van deze vraag, in weergavevolgorde. */
 function optionValuesOf(question) {
+  if (Array.isArray(question.payload.cards)) {
+    return question.payload.cards.map((kaart) => String(kaart.cardIndex));
+  }
   return question.payload.optionIso2s ?? ['real', 'fake'];
 }
 

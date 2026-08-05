@@ -1,7 +1,7 @@
-// tests/integration/real-or-fake-vertical.test.mjs
+// tests/integration/games-vertical.test.mjs
 //
-// STAP 6 uit docs/PLAN-CONVERGENTIE.md — de verticale oplevering van de tweede
-// game. Niet "de contentbron kan het" en niet "het spelscherm kan het", maar de
+// STAP 6 + BESLUIT C-2 uit docs/PLAN-CONVERGENTIE.md — de verticale oplevering
+// van elke game na de eerste. Niet "de contentbron kan het" en niet "het spelscherm kan het", maar de
 // hele keten in één doorloop:
 //
 //   lobbykeuze -> configuratie -> snapshot -> vraag -> antwoord -> reveal
@@ -224,4 +224,83 @@ test('Een lopende match houdt zijn gameType, ook als de room-config daarna wijzi
 
   const match = await context.store.loadMatch(room.roomId, gestart.value.matchId);
   assert.equal(match.gameType, GAME_TYPE);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Besluit C-2 (5 aug 2026): "Welke hoort er niet bij" is de derde game uit
+// doelbeeld v2. Zelfde eis als bij Echt of nep — de hele keten, niet alleen
+// de vraagselectie.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('Verticaal odd_one_out: vier kaarten, één antwoord per kaartindex, uitlegregel in de reveal', async () => {
+  const clock = makeClock();
+  const context = makeContext({
+    now: clock.now,
+    config: { contentVersion: CONTENT_VERSION, rendererVersion: RENDERER_VERSION },
+  });
+
+  const room = (await createRoom(context, {
+    hostParticipates: true, displayName: 'Host', config: { totalRounds: 2 },
+  })).value;
+  const speler = (await joinRoom(context, {
+    gameCode: room.gameCode, joinSource: 'code', displayName: 'Speler',
+  })).value;
+
+  const gewijzigd = await updateConfig(context, { roomId: room.roomId, patch: { gameTypes: ['odd_one_out'] } });
+  assert.equal(gewijzigd.ok, true, JSON.stringify(gewijzigd));
+
+  await startMatch(context, { roomId: room.roomId });
+  clock.advance(3000);
+  const gestart = await startRound(context, { roomId: room.roomId });
+  assert.equal(gestart.ok, true, JSON.stringify(gestart));
+  assert.equal(gestart.value.gameType, 'odd_one_out');
+
+  // De vraag: vier kaarten met een eigen index, geen antwoord erin.
+  const kaarten = gestart.value.question.cards;
+  assert.equal(kaarten.length, 4);
+  assert.deepEqual(kaarten.map((kaart) => kaart.cardIndex), [0, 1, 2, 3]);
+  for (const kaart of kaarten) {
+    assert.equal(typeof kaart.iso2, 'string');
+  }
+  assert.equal('correctAnswer' in gestart.value, false);
+  assert.equal(
+    JSON.stringify(gestart.value).includes('majorityContinent'),
+    false,
+    'de afwijklogica mag niet vóór het antwoord zichtbaar zijn — dat verklapt het antwoord',
+  );
+
+  const rondeDoc = await context.store.loadRound(room.roomId, gestart.value.matchId, gestart.value.roundId);
+  assert.equal(typeof rondeDoc.resultDetails.majorityContinent, 'string');
+  assert.equal(typeof rondeDoc.resultDetails.minorityContinent, 'string');
+  assert.notEqual(rondeDoc.resultDetails.majorityContinent, rondeDoc.resultDetails.minorityContinent);
+
+  // Antwoorden gaat per kaartindex, niet per iso2.
+  clock.advance(1000);
+  const vormfout = await submitAnswer(context, {
+    roomId: room.roomId, playerId: speler.playerId, roundId: gestart.value.roundId,
+    answer: { optionId: kaarten[0].iso2 }, actionId: 'odd_vorm',
+  });
+  assert.equal(vormfout.ok, false, 'een meerkeuze-antwoord hoort hier vormfout te zijn');
+
+  const goed = await submitAnswer(context, {
+    roomId: room.roomId, playerId: speler.playerId, roundId: gestart.value.roundId,
+    answer: { cardIndex: rondeDoc.correctAnswer.cardIndex }, actionId: 'odd_goed',
+  });
+  assert.equal(goed.ok, true, JSON.stringify(goed));
+
+  clock.set(gestart.value.endsAt);
+  const geeindigd = await endRound(context, { roomId: room.roomId });
+  assert.equal(geeindigd.ok, true, JSON.stringify(geeindigd));
+
+  // De uitlegregel van doelbeeld v2 §1 heeft deze twee velden nodig — ze gaan
+  // pas nú over de lijn, samen met het juiste antwoord.
+  assert.deepEqual(geeindigd.value.resultDetails, rondeDoc.resultDetails);
+  assert.equal(geeindigd.value.correctAnswer.cardIndex, rondeDoc.correctAnswer.cardIndex);
+  assert.equal(
+    geeindigd.value.distribution.length,
+    4,
+    'de verdeling telt per kaart, zodat scherm 5 "N van M zaten goed" kan tonen',
+  );
+  const eigen = geeindigd.value.results.find((entry) => entry.playerId === speler.playerId);
+  assert.equal(eigen.correct, true);
 });

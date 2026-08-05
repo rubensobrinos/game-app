@@ -77,13 +77,16 @@ test('CONTENT_VERSION komt ongewijzigd uit shared/content door', () => {
   assert.equal(makeSource().contentVersion, 'stub-content-1');
 });
 
-test('flags_mc en real_or_fake_flag zijn gevuld; de rest geeft poolSize 0 en werpt zichtbaar', () => {
+test('de drie doelbeeld-games zijn gevuld; de rest geeft poolSize 0 en werpt zichtbaar', () => {
   const source = makeSource();
   assert.ok(source.poolSize('flags_mc') >= 16);
-  // Stap 6 (5 aug 2026): `real_or_fake_flag` is erbij gekomen — de
-  // CT-3-blokkade was verlopen (generateFlagSpec bestaat en wordt doorgegeven).
+  // Stap 6 (5 aug 2026): `real_or_fake_flag` erbij — de CT-3-blokkade was
+  // verlopen. Besluit C-2: `odd_one_out` erbij als derde doelbeeld-game.
   assert.ok(source.poolSize('real_or_fake_flag') >= 16);
-  for (const gameType of ['capitals_mc', 'higher_lower', 'odd_one_out']) {
+  assert.ok(source.poolSize('odd_one_out') >= 16);
+  // `capitals_mc` en `higher_lower` staan niet in doelbeeld v2 (besluit C-2)
+  // en blijven daarom leeg: een spelscherm ervoor zou dood hout zijn.
+  for (const gameType of ['capitals_mc', 'higher_lower']) {
     assert.equal(source.poolSize(gameType), 0);
     assert.throws(() => source.buildQuestion({ gameType }), /deze contentbron vult alleen/);
   }

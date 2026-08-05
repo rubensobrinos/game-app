@@ -70,12 +70,12 @@ export { CONTENT_DIFFICULTIES, CONTENT_VERSION, mapRoomDifficulty };
  * `question-selection.js` als enige eis stelt. Hij wordt hieronder ook
  * daadwerkelijk doorgegeven; zonder die injectie werpt de vraagselectie.
  *
- * `capitals_mc` en `odd_one_out` kunnen hier technisch bij, maar hebben nog
- * geen spelscherm — ze horen pas in `PLAYABLE_GAME_TYPES` (game-catalog.mjs)
- * als de hele keten er is, en tot die tijd voegt het niets toe om ze hier
- * open te zetten.
+ `odd_one_out` erbij op 5 aug 2026 (besluit C-2: we bouwen de vier games uit
+ * doelbeeld v2 uit). `capitals_mc` en `higher_lower` blijven hier bewust
+ * buiten: ze staan niet in het doelbeeld, dus een spelscherm ervoor bouwen zou
+ * dood hout zijn.
  */
-const FILLED_GAME_TYPES = Object.freeze(['flags_mc', 'real_or_fake_flag']);
+const FILLED_GAME_TYPES = Object.freeze(['flags_mc', 'real_or_fake_flag', 'odd_one_out']);
 
 /**
  * SLOT OP DE DEUR (5 aug 2026, PLAN-CONVERGENTIE §A0). `game-catalog.mjs` zegt
