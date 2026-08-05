@@ -333,3 +333,24 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
     Vereist dat de server onthoudt dát een roomcode bestaan heeft nadat de room
     is opgeruimd. Zonder zo'n spoor is het verschil niet vast te stellen.
 
+49. **Hoger/lager en Hoofdsteden gaan alsnog aan** (producteigenaar,
+    6 aug 2026). NOG NIET GEBOUWD.
+
+    Verruimt besluit C-2 (het portfolio is de vier games uit doelbeeld v2):
+    deze twee waren al gebouwd in de regellaag maar stonden nergens aan. Ze
+    worden speelbaar gemaakt.
+
+    | Game | Wat er nog moet gebeuren |
+    | --- | --- |
+    | Hoger/lager | alleen de contentbron; spelscherm en uitslag bestaan al — paar uur |
+    | Hoofdsteden | contentbron én een spelscherm — halve dag |
+
+    **Omgekeerde hoofdstedenvraag** (producteigenaar): naast "wat is de
+    hoofdstad van Peru?" ook "Lima hoort bij welk land?". Die tweede is
+    sterker: je moet de kaart in je hoofd hebben in plaats van een naam te
+    herkennen. De pool heeft de hoofdsteden al in drie talen
+    (`countries.data.mjs`), dus dit is dezelfde data andersom gelezen.
+
+    Zoals altijd: pas in `PLAYABLE_GAME_TYPES` als álle vijf de schakels
+    bestaan — vraagselectie, contentbron, spelscherm, uitslag én mock.
+

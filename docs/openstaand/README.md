@@ -19,6 +19,7 @@ Peildatum: 6 aug 2026.
 | [Antwoord automatisch tonen](antwoord-automatisch-tonen.md) | klaar om te starten |
 | [Continentfilter](continentfilter.md) | klaar om te starten |
 | Reactiezinnen naar 50–100 per taal (besluit 44) | nog niet uitgewerkt |
+| [Hoger/lager en Hoofdsteden aanzetten](hoger-lager-en-hoofdsteden.md) | klaar om te starten |
 
 ## Groot — weken
 
@@ -41,10 +42,9 @@ Peildatum: 6 aug 2026.
 
 | Vraag | Advies regie |
 | --- | --- |
-| De lege onderhelft van het uitslagscherm vullen? | Laten tot er spelersidentiteit is |
+| Uitslagscherm: twee momenten houden of alles tegelijk? | Twee houden, de eerste het scherm laten vullen |
 | Levert intypen meer punten op dan kiezen? | Ja, 150 in plaats van 100 |
 | Spelersidentiteit: hoeveel landen? | 60, niet 230 |
-| `capitals_mc` en `higher_lower`: weggooien of tonen? | Weggooien |
 | Verlopen room vs. onbekende code: apart melden? | Ja, maar het vraagt een tombstone |
 
 ## Bewust zo gelaten
