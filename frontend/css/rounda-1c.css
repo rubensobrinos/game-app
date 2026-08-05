@@ -1251,6 +1251,7 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
      zevende, lege codecel in plaats van als de actie erachter. */
   color: var(--rounda-lime);
   border-color: rgba(216, 255, 62, 0.35);
+}
 
 /* ══ LEAD — losse punten (regie) ══════════════════════════════════════════ */
 
