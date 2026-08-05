@@ -1135,3 +1135,36 @@ body:has(.lobby-screen) .session-hostbar { display: none; }
 .screen-top:has(.lobby-screen) {
   padding-top: var(--chrome-gap, 16px);
 }
+
+/* ══ LEAD — losse punten (regie) ══════════════════════════════════════════ */
+
+/* #55 — Revanche is de primaire actie; de andere drie stonden even breed en
+   even hoog daaronder, waardoor het eindscherm vier gelijkwaardige knoppen
+   toonde in plaats van één keuze met alternatieven. Nieuw spel en Deel
+   uitslag delen nu één rij en zijn lager; Afsluiten blijft een stille regel.
+   De hero-pil van Revanche blijft ongemoeid (die deelt zijn regel met home en
+   lobby — daar zit pakket C in). */
+.podium-action {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+}
+.podium-rematch,
+.podium-close,
+.podium-wait,
+.podium-action > .lobby-rounda {
+  grid-column: 1 / -1;
+}
+.podium-new-game,
+.podium-share {
+  min-height: 44px;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+
+/* #54 — de eindstand was luchtiger dan de uitslag rechtvaardigt: bij één
+   speler vulde een enkele rij plus de eigen-regel bijna een half scherm. */
+.podium-steps { gap: 6px; }
+.podium-step { padding: 10px 14px; }
+.podium-self { margin-top: 8px; }
+.podium-action { margin-top: 14px; }

@@ -39,8 +39,8 @@ vrijwel alleen uit rode knoppen die je game beëindigen.
 | 49 | "Game beëindigen" en "Verwijder" niet dominant | **safety** | IMG_0294/0295: twee rode knoppen als hoofdinhoud |
 | 50 | Destructief gescheiden + bevestiging | **safety** | er is nu geen bevestigingsstap |
 | 51 | Het menu bedekt de vraag niet onnodig | UX | IMG_0295: het paneel ligt over de vraag |
-| 54 | Eindstand compacter | layout | IMG_0298: één speler = een half scherm |
-| 55 | Revanche primair; Nieuw spel / Deel uitslag / Afsluiten secundair | hiërarchie | ze zijn nu alle vier even breed |
+| 54 | Eindstand compacter | ✅ **door de lead gedaan** | CSS-only, in het LEAD-blok onderaan `rounda-1c.css`. Kijk of het klopt als je bij D2 bent; verbeter gerust, maar bouw het niet opnieuw |
+| 55 | Revanche primair, rest secundair | ✅ **door de lead gedaan** | idem: Nieuw spel + Deel uitslag delen één rij en zijn lager |
 | 56 | Codebalk/menu niet dominanter dan de uitslag | layout | A haalt de balk weg bij FINISHED; jij vult de vrijgekomen ruimte |
 
 ## Stoppunten

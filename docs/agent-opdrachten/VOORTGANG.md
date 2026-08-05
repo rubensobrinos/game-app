@@ -3,7 +3,12 @@
 Eén plek waar te zien is hoe ver we zijn. **Bijgehouden door de lead**, na elke
 review. Agents schrijven hier niet in; zij leveren op via hun stoppunt.
 
-**Stand: 5 aug 2026.** C0 ✅ gemerged (101 px), B1 ✅ opgeleverd, A1 draait.
+**Stand: 5 aug 2026.** A1 ✅ en C0 ✅ gemerged, B1 opgeleverd. Vier agents draaien
+nu parallel (A2 · B2 · C1 · D1). De lead pakt losse punten er zelf tussendoor
+bij — een deletie van één regel hoort niet in een briefing.
+
+Gemeten op `main` @390×650: home 883 px · lobby 1319 px · spel 810 px
+(baseline was 879 / 1438 / 912; de chrome ging van 74-78 naar 44 px).
 
 **Deploy gebeurt pas ná alle rondes** (producteigenaar, 5 aug) — de build
 kopieert de werkboom, dus mid-sprint deployen is precies wat STATUS afraadt.
@@ -36,15 +41,15 @@ bewezen (B1 draaide er tests op).
 
 | # | Punt | Pakket | Status |
 | -: | --- | :-: | :-: |
-| 7 | Hamburger → drie puntjes | A | 🔄 |
-| 8 | Menuknoppen kleiner | A | 🔄 |
+| 7 | Hamburger → drie puntjes | A | ✅ |
+| 8 | Menuknoppen kleiner | A | ✅ |
 
 ## Lobby
 
 | # | Punt | Pakket | Status |
 | -: | --- | :-: | :-: |
-| 9 | Titel "Lobby" weg | C | 🔄 C0 |
-| 10 | "1 speler" weg als eigen regel | C | 🔄 C0 |
+| 9 | Titel "Lobby" weg | C | ✅ |
+| 10 | "1 speler" weg als eigen regel | C | ✅ |
 | 11 | Lege zwarte ruimtes weg | C | ⬜ besluit genomen: warm-up blijft open |
 | 12 | Spelersweergave is goed | — | 🚫 |
 
@@ -52,11 +57,11 @@ bewezen (B1 draaide er tests op).
 
 | # | Punt | Pakket | Status |
 | -: | --- | :-: | :-: |
-| 13 | Code dominant (~70%) | A | 🔄 |
-| 14 | Code + QR + delen + opties in één blok | A | 🔄 |
-| 15 | DEEL → deelicoon | A | 🔄 |
-| 16 | Herkenbaar QR-icoon | A | 🔄 |
-| 17 | Drie puntjes ín het codeblok | A | 🔄 |
+| 13 | Code dominant (~70%) | A | ✅ |
+| 14 | Code + QR + delen + opties in één blok | A | ✅ |
+| 15 | DEEL → deelicoon | A | ✅ |
+| 16 | Herkenbaar QR-icoon | A | ✅ |
+| 17 | Drie puntjes ín het codeblok | A | ✅ |
 | 18 | Codebalk compact tijdens spel | A | 🟡 deels |
 
 ## Spelersidentiteit
@@ -109,7 +114,7 @@ bewezen (B1 draaide er tests op).
 | # | Punt | Pakket | Status |
 | -: | --- | :-: | :-: |
 | 44 | Pauzeren werkt en is bereikbaar | D | ⬜ |
-| 45 | Pauzeknop zweeft niet los | A | 🔄 |
+| 45 | Pauzeknop zweeft niet los | A | ✅ |
 | 46 | Hostacties op één plek | A plek / D inhoud | 🔄 |
 | 47 | Hostinstellingen niet zomaar weg | D | ⬜ |
 | 48 | Menu sluit aan op verwachting | D | ⬜ |
@@ -123,8 +128,8 @@ bewezen (B1 draaide er tests op).
 
 | # | Punt | Pakket | Status |
 | -: | --- | :-: | :-: |
-| 54 | Eindstand compacter | D | ⬜ |
-| 55 | Revanche primair, rest secundair | D | ⬜ |
+| 54 | Eindstand compacter | **lead** | ✅ |
+| 55 | Revanche primair, rest secundair | **lead** | ✅ |
 | 56 | Codebalk/menu niet dominant | A + D | 🔄 |
 
 ## Overkoepelend
@@ -138,7 +143,7 @@ bewezen (B1 draaide er tests op).
 
 | # | Punt | Pakket | Status |
 | -: | --- | :-: | :-: |
-| A-x1 | Sticky header zonder achtergrond — content scrolt er zichtbaar doorheen | A | 🔄 |
+| A-x1 | Sticky header zonder achtergrond | A | ✅ |
 | A-x2 | Codebalk mag weg bij FINISHED | A | 🔄 |
 
 ---
