@@ -58,6 +58,7 @@ import { resolveDuplicateAction } from '../protocol/idempotency.mjs';
 import { resolveRecipientRule } from '../protocol/server-events-recipients.mjs';
 import { throttleRoundProgress } from '../protocol/throttle-round-progress.mjs';
 import { assertNoActiveRoundAnswerLeak, validateSnapshotShape } from '../protocol/snapshot-shape.mjs';
+import { NOOP_METRICS } from './metrics.mjs';
 
 import { createId, verifySessionToken } from '../composition/context.mjs';
 import {
@@ -251,6 +252,9 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
 
   const logger = config.logger ?? NOOP_LOGGER;
   const scheduler = config.scheduler ?? DEFAULT_SCHEDULER;
+  // Stap 9: het register is optioneel; zonder metrics krijgt deze laag de
+  // NOOP-variant, zodat er nergens een `if (metrics)` op het hete pad staat.
+  const metrics = config.metrics ?? NOOP_METRICS;
 
   const io = new SocketIOServer(httpServer, {
     path: config.path ?? '/socket.io',
@@ -766,11 +770,24 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
     next();
   });
 
+  // Gauges worden PAS bij het scrapen afgelezen, uit de echte adapterstate
+  // (INT4b): handmatig op- en aftellen bij join, leave, kick en disconnect is
+  // foutgevoelig — één gemiste callback laat de waarde permanent verkeerd staan.
+  metrics.setGauge('rounda_active_sockets', () => io.sockets.sockets.size);
+  metrics.setGauge('rounda_active_rooms', () => {
+    const kamers = new Set();
+    for (const socket of io.sockets.sockets.values()) {
+      if (typeof socket.data?.roomId === 'string') kamers.add(socket.data.roomId);
+    }
+    return kamers.size;
+  });
+
   io.on('connection', (socket) => {
     const { roomId, sessionId } = socket.data;
     socket.join(roomChannel(roomId));
     socket.join(sessionChannel(sessionId));
     logSafe('info', 'socket verbonden', { roomId, sessionId });
+    metrics.increment('rounda_socket_connections_total');
 
     socket.onAny((eventName, ...args) => {
       const ack = typeof args[args.length - 1] === 'function' ? args.pop() : null;
@@ -785,8 +802,14 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
       });
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
       logSafe('info', 'socket verbroken', { roomId, sessionId });
+      // `reason` komt uit Socket.IO's eigen, kleine verzameling
+      // ('transport close', 'ping timeout', ...) — geen vrije tekst en geen
+      // gebruikersinvoer. Spaties eruit zodat het een nette labelwaarde is.
+      metrics.increment('rounda_socket_disconnects_total', {
+        reason: typeof reason === 'string' ? reason.replace(/\s+/g, '_') : 'unknown',
+      });
     });
   });
 
@@ -827,6 +850,22 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
   async function handleClientEvent(socket, eventName, raw, ack) {
     const { roomId, sessionId, roles } = socket.data;
     const body = isPlainObject(raw) ? raw : {};
+    // Alleen bekende eventnamen als label: een client kan een willekeurige
+    // string sturen, en die zou anders een eigen tijdreeks openen.
+    const metricEvent = ALL_CLIENT_EVENT_NAMES.includes(eventName) ? eventName : 'unknown';
+    const startedAt = Date.now();
+    let afgerond = false;
+    const meet = (outcome, code = null) => {
+      if (afgerond) return;
+      afgerond = true;
+      metrics.observe('rounda_event_duration_seconds', { event: metricEvent }, (Date.now() - startedAt) / 1000);
+      if (metricEvent === 'round:answer') {
+        metrics.increment('rounda_answers_total', { outcome });
+      }
+      if (outcome !== 'accepted') {
+        metrics.increment('rounda_event_errors_total', { event: metricEvent, code: code ?? 'unknown' });
+      }
+    };
 
     /**
      * Eén afwijzing = één logregel. Vroeger logde alleen het pad ná de
@@ -836,6 +875,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
      * twee lopen uiteen zodra een interne code publiek wordt vertaald.
      */
     const reject = (rejectedActionId, code) => {
+      meet('rejected', toPublicErrorCode(code));
       logSafe('warn', 'clientevent geweigerd', {
         roomId,
         sessionId,
@@ -890,6 +930,10 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
     const store = ackCacheFor(roomId);
     const duplicate = resolveDuplicateAction(store, actionId, eventName);
     if (duplicate.replay) {
+      // Een replay is geen nieuw antwoord: hij telt als `replay`, niet als
+      // geaccepteerd — anders lijkt het alsof er meer geantwoord is dan er
+      // gespeeld is.
+      meet('replay');
       ack?.(duplicate.ack);
       return;
     }
@@ -904,6 +948,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
       return;
     }
 
+    meet('accepted');
     const ackEnvelope = respondSuccess(socket, actionId, outcome.value ?? {}, ack);
     if (ackEnvelope !== null) {
       // Pas ná geslaagde uitvoering opslaan: een mislukking mag nooit als

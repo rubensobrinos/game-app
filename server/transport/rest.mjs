@@ -60,6 +60,7 @@ import { createRoom, joinRoom, previewInvite } from '../composition/room-lifecyc
 import { buildSnapshot } from '../composition/match-lifecycle.mjs';
 import { assertPlayerShape } from '../data/types/player.js';
 import { OUTCOME, classifyOutcome, createSafeLogger, errorLabel } from './safe-logger.mjs';
+import { NOOP_METRICS } from './metrics.mjs';
 
 /** @typedef {import('../composition/context.mjs').Context} Context */
 /** @typedef {import('../protocol/error-codes.mjs').ErrorCode} ErrorCode */
@@ -302,10 +303,10 @@ async function snapshotFor(context, roomId, sessionId) {
  * wat ze deden — alleen zonder broadcast.
  *
  * @param {import('fastify').FastifyInstance} fastify
- * @param {{ context: Context, getSockets?: () => (object | null) }} options
+ * @param {{ context: Context, getSockets?: () => (object | null), metrics?: object }} options
  */
 export default async function restRoutes(fastify, options) {
-  const { context, getSockets = () => null } = options;
+  const { context, getSockets = () => null, metrics = NOOP_METRICS } = options;
   if (context === undefined || context === null) {
     throw new TypeError('restRoutes: `options.context` is verplicht (zie server/composition/context.mjs).');
   }
@@ -539,6 +540,12 @@ export default async function restRoutes(fastify, options) {
     }
 
     const joined = await joinRoom(context, validated.value);
+    if (joined.ok) {
+      // `joinSource` is een gesloten enum uit PROTOCOL.md (qr | shared_link |
+      // code | unknown) — daarom veilig als label. Beantwoordt de pilotvraag
+      // "hoe kwamen mensen binnen: QR, link of code?".
+      metrics.increment('rounda_joins_total', { method: validated.value.joinSource ?? 'unknown' });
+    }
     if (!joined.ok) {
       return sendError(request, reply, joined.code);
     }

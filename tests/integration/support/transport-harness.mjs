@@ -167,6 +167,7 @@ export async function startTransportServer(t, {
   redisUrl = process.env.REDIS_URL ?? null,
   acquireLock = true,
   cleanupRedis = true,
+  metricsSecret = null,
 } = {}) {
   const clock = makeClock(startAt);
   const scheduler = makeManualScheduler();
@@ -191,6 +192,9 @@ export async function startTransportServer(t, {
     TOKEN_PEPPER: PEPPER,
     NODE_ENV: 'test',
     ...(storeUrl === null ? {} : { REDIS_URL: storeUrl }),
+    // Stap 9: zonder secret bestaat `/metrics` niet — precies wat de
+    // afschermingstest moet kunnen aantonen.
+    ...(metricsSecret === null ? {} : { METRICS_SECRET: metricsSecret }),
   });
 
   // Bij Redis wordt er GEEN store meegegeven: `buildServer` bouwt hem dan zelf
@@ -211,7 +215,7 @@ export async function startTransportServer(t, {
 
   const attached = await attachSocketsIfAvailable(fastify.server, {
     context: fastify.appContext,
-    config: { ...config, scheduler },
+    config: { ...config, scheduler, metrics: fastify.appMetrics },
   });
   assert.notEqual(attached, null, 'server/transport/socket.mjs hoort aangehaakt te worden');
 

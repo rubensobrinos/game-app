@@ -29,12 +29,13 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 import Fastify from 'fastify';
 
 import { createContext } from './composition/context.mjs';
 import { recoverActiveRooms } from './composition/match-lifecycle.mjs';
+import { NOOP_METRICS, createMetrics } from './transport/metrics.mjs';
 import restRoutes, { REST_PREFIX } from './transport/rest.mjs';
 import {
   createSafeLogger,
@@ -212,7 +213,34 @@ export function readConfigFromEnvironment(env = process.env, warn = () => {}) {
     // contentmodule (besluit 29), niet uit env — een verkeerde versie in env
     // zou een verzonnen waarde in echte Match-documenten pinnen.
     contentVersion: CONTENT_VERSION,
+    // Stap 9 (INT4b): zonder eigen secret bestáát `/metrics` niet — dan geeft
+    // het pad 404. Zo kan er nooit per ongeluk een onbeveiligd endpoint
+    // ontstaan door een vergeten configuratieregel. Bewust NIET het
+    // sessiepepper of een spelertoken hergebruiken.
+    metricsSecret: readMetricsSecret(env, warn),
   };
+}
+
+/**
+ * Het secret waarmee `/metrics` beveiligd is. Leeg/afwezig betekent: het
+ * endpoint wordt niet geregistreerd (INT4b: "geen onbeveiligd endpoint").
+ *
+ * Minimale lengte omdat een kort secret in een publiek bereikbare service geen
+ * secret is; te kort telt als niet-geconfigureerd, mét waarschuwing, zodat de
+ * fout zichtbaar is in plaats van stil te leiden tot een open endpoint.
+ *
+ * @param {NodeJS.ProcessEnv} env
+ * @param {(line: string) => void} warn
+ * @returns {string | null}
+ */
+export function readMetricsSecret(env, warn) {
+  const raw = (env.METRICS_SECRET ?? '').trim();
+  if (raw.length === 0) return null;
+  if (raw.length < 16) {
+    warn('METRICS_SECRET is korter dan 16 tekens en wordt genegeerd; /metrics blijft uit.');
+    return null;
+  }
+  return raw;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -602,6 +630,10 @@ export async function buildServer(options = {}) {
 
   /** Alleen een door ONS gebouwd handle wordt door ons gesloten. */
   const ownsStore = storeHandle === undefined && store === undefined;
+  // Eén register per proces. Zonder geconfigureerd secret bestaat `/metrics`
+  // niet en heeft meten geen afnemer — dan blijft het de NOOP-variant, zodat
+  // er ook geen tellerwerk op het hete antwoordpad staat.
+  const metrics = config.metricsSecret ? createMetrics() : NOOP_METRICS;
   const handle = storeHandle
     ?? (store === undefined ? await createStoreHandle(config, storeOptions) : createMemoryStoreHandle(store));
 
@@ -644,6 +676,9 @@ export async function buildServer(options = {}) {
   fastify.decorate('appContext', context);
   fastify.decorate('appConfig', config);
   fastify.decorate('appStore', handle);
+  // Zodat een testharnas dezelfde teller kan doorgeven aan de socketlaag die
+  // hij zelf aanhaakt — in productie doet `buildServer` dat verderop zelf.
+  fastify.decorate('appMetrics', metrics);
 
   // ── De brug tussen REST en de socketlaag ───────────────────────────────────
   //
@@ -686,7 +721,38 @@ export async function buildServer(options = {}) {
     });
   });
 
-  await fastify.register(restRoutes, { context, prefix: REST_PREFIX, getSockets });
+  // ── /metrics (stap 9, INT4b) ────────────────────────────────────────────
+  //
+  // Bestaat ALLEEN met een geconfigureerd secret; zonder secret is er geen
+  // route en geeft het pad de gewone 404. Authenticatie met een eigen bearer,
+  // constant-time vergeleken — een naïeve `===` lekt via de vergelijkingstijd
+  // hoeveel tekens er kloppen.
+  //
+  // De reverse proxy hoort publiek verkeer naar dit pad daarnaast te blokkeren;
+  // deze server vertrouwt daar niet op.
+  {
+    const verwacht = config.metricsSecret ? Buffer.from(`Bearer ${config.metricsSecret}`) : null;
+    fastify.get('/metrics', async (request, reply) => {
+      // Zonder secret bestaat dit endpoint niet. Bewust een expliciete 404 en
+      // geen ontbrekende route: de statische fallback serveert onbekende paden
+      // met 200, dus "niet registreren" zou hier juist géén 404 opleveren.
+      if (verwacht === null) {
+        return reply.code(404).send({ ok: false });
+      }
+      const aangeboden = Buffer.from(String(request.headers.authorization ?? ''));
+      const gelijk =
+        aangeboden.length === verwacht.length && timingSafeEqual(aangeboden, verwacht);
+      if (!gelijk) {
+        return reply.code(401).send({ ok: false });
+      }
+      return reply
+        .code(200)
+        .header('content-type', 'text/plain; version=0.0.4; charset=utf-8')
+        .send(metrics.render());
+    });
+  }
+
+  await fastify.register(restRoutes, { context, prefix: REST_PREFIX, getSockets, metrics });
 
   registerStaticRoutes(fastify);
 
@@ -733,6 +799,7 @@ export async function buildServer(options = {}) {
   // niet-herstelde room is hinderlijk, een server die niet opkomt is erger.
   try {
     const recovered = await recoverActiveRooms(context);
+    metrics.increment('rounda_recovery_attempts_total', { outcome: recovered.ok ? 'ok' : 'failed' });
     if (!recovered.ok) {
       logServer('error', 'herstel na serverstart mislukt', { store: handle.kind });
     } else if (recovered.value.recovered > 0) {
@@ -756,7 +823,7 @@ export async function buildServer(options = {}) {
     // achttien `logSafe()`-aanroepen die nergens uitkwamen.
     socketsRef.current = await attachSocketsIfAvailable(fastify.server, {
       context,
-      config: { ...config, logger: fastify.log },
+      config: { ...config, logger: fastify.log, metrics },
     });
     logServer('info', 'socketlaag aangehaakt', { store: handle.kind });
   }
