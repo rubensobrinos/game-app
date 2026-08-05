@@ -33,8 +33,8 @@ viewport**, zonder dat het gedrongen wordt.
 | 3 | Knop "Meedoen met code" weg | vereenvoudiging | volgt uit #2 |
 | 4 | Subtekst "GEEN ACCOUNT · JIJ LEIDT" weg | tekst | `home.quickStartSub` — sleutel laten staan, alleen niet meer tonen |
 | 5 | Logo ~20% groter | visueel | |
-| 9 | Titel "Lobby" weg | vereenvoudiging | |
-| 10 | Losse regel "1 SPELER" weg of compacter | vereenvoudiging | `.lobby-count` is al een mono-label; het punt is de eigen regel |
+| 9 | Titel "Lobby" weg | **harde eis, doe dit eerst** | |
+| 10 | Losse regel "1 SPELER" weg of compacter | **harde eis, doe dit eerst** | |
 | 11 | Grote zwarte vlakken weg, lobby compacter | **wacht op besluit** | De grootste "lege zwarte ruimte" is de minigamekaart: `clamp(260px, 38vh, 360px)` = ~335 px, meer dan de helft van het scherm, en donker zolang niemand tikt (`rounda-1c.css:423`). Dit haal je niet met marges. Zie `../VERKENNING.md §1.2` — de producteigenaar beslist of de warm-up ingeklapt start. **Begin met de rest van C2 en pak dit als het besluit er is.** |
 | 19 | Niet standaard acht losse kleurknoppen | ontwerp | |
 | 20 | Klik op het kleurvlak opent een palet (~36 kleuren) | **feature + serverwerk** | de server kent er **acht** (gesloten enum). 36 kleuren betekent protocolwerk. **Bouw de interactie (kleurvlak → palet), niet 36 kleuren.** Lever bij stoppunt 2 een inschatting voor de uitbreiding; de lead beslist |
@@ -46,6 +46,23 @@ viewport**, zonder dat het gedrongen wordt.
 | 32 | Startknop bedekt niets | bug | **B lost de overlap op**; jij zorgt dat je layout ruimte laat (`padding-bottom`) |
 
 ## Stoppunten
+
+### C0 — twee regels weg (doe dit vóór al het andere)
+
+Gemeten op de screenshot van de producteigenaar: de titel **"Lobby"** en de
+regel **"1 SPELER"** kosten samen **~108 px** — een zesde van het bruikbare
+scherm, voor twee woorden die niets toevoegen. Je staat in de lobby; dat weet
+je. En het aantal spelers staat al in de lijst eronder.
+
+- [ ] Titel weg (#9). Screenreaders houden een `sr-only`-kop, zichtbaar niets.
+- [ ] De tellerregel verdwijnt als eigen regel (#10) — het aantal mag mee in de
+      spelersrij of als klein label ernaast, niet op een eigen regel met marge
+      erboven én eronder.
+- [ ] Meet na: van de onderkant van de codebalk tot de eerste spelersrij mag
+      **≤ 24 px** zitten.
+
+Dit is losstaand en kost minuten. Lever het apart op, vóór C1 — de
+producteigenaar wil dit als eerste terugzien.
 
 ### C1 — home (klein, snel af)
 - [ ] Punten 1–5. Home past volledig binnen 390×844 **inclusief de footer**
