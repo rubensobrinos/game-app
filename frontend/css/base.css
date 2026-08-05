@@ -98,11 +98,29 @@
      components.css: vorm is een eigenschap van de rol, niet van de plek. */
   --r-pill: 999px;
 
-  /* Hoogte van #app-header (0.75rem padding-top + 2.75rem knop). De header
-     staat in de normale flow (sticky), dus een scherm dat 100dvh hoog is
-     duwt de pagina exact deze hoogte te ver door. `.screen` trekt 'm er
-     daarom weer af — zie de opmerking daar. */
-  --header-h: 3.5rem;
+  /* ── Ruimtebudget mobiel (agent-opdrachten/README §1) ───────────────────
+     Waarom als token en niet per component: op 390 × 844 is er ~650 px
+     bruikbaar en vielen vier antwoordpillen buiten beeld. "Ziet er compacter
+     uit" is niet toetsbaar, deze vijf getallen wel. Ze vormen één contract:
+     pakket A bezit ze, B/C/D lezen ze. Wie meer ruimte nodig heeft vraagt het
+     aan bij A in plaats van er stilzwijgend overheen te gaan — anders lekt
+     het budget weer weg over vier stylesheets tegelijk.
+
+     Rekensom die eraan hangt: 44 + 16 (chrome) + 200 (beeld) + 4 × 56 + 3 × 11
+     = 517 px, ruim binnen de 650. */
+  --chrome-h: 44px;    /* de codebalk incl. álles wat erin staat */
+  --chrome-gap: 16px;  /* ruimte tussen de chrome en de eerste inhoud */
+  --media-max-h: 200px; /* vlag, contour, elk vraagbeeld */
+  --answer-h: 56px;    /* één antwoordpil */
+  --answer-gap: 11px;
+
+  /* Wat #app-header uit de flow opeet: de balk zelf plus de ruimte eronder.
+     De header staat in de normale flow (sticky), dus een scherm dat 100dvh
+     hoog is duwt de pagina exact deze hoogte te ver door. `.screen` trekt 'm
+     er daarom weer af — zie de opmerking daar. Afgeleid en niet los
+     opgeschreven, zodat hij niet uit de pas kan lopen met de twee tokens
+     hierboven (dat gebeurde eerder: 3.5rem terwijl de balk 56 px was). */
+  --header-h: calc(var(--chrome-h) + var(--chrome-gap));
 
   /* ── Motion (06 §3) ────────────────────────────────────────────────────
      Eigendom van thema 2 (designsysteem), consument is thema 3
@@ -396,34 +414,69 @@ button {
   outline: none;
 }
 
-/* ── Appheader (hamburgermenu) — zichtbaar op élk scherm, buiten #app-root ── */
+/* ── Appheader = de chrome — zichtbaar op élk scherm, buiten #app-root ─────
+   A1: dit ís de ene rij. Code, QR, delen, hostacties en het voorkeurenmenu
+   zijn allemaal directe flex-items van deze balk; er bestaat geen tweede rij
+   meer onder het scherm.
+
+   `height` en niet `min-height`: de balk mag niet meegroeien met wat er
+   toevallig in staat, want dán is het budget geen budget meer. Alles wat
+   hoger zou worden (de deel-toast, het voorkeurenpaneel, het ⋯-paneel van de
+   host) staat daarom absoluut gepositioneerd óver de pagina heen.
+
+   A-x1 — de bug: deze balk was sticky zonder achtergrond, dus de pagina
+   scrolde er zichtbaar dóórheen (de lime strook boven de code op IMG_0291 en
+   de codebalk die door "Hard" leek te snijden op IMG_0292 zijn hetzelfde
+   symptoom). Sticky blijft sticky — de producteigenaar wil de code altijd in
+   beeld — dus de fix is de achtergrond, niet het sticky-gedrag. */
 #app-header {
   position: sticky;
   top: 0;
   z-index: 60;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  padding: 0.75rem 1rem 0;
+  gap: 4px;
+  height: var(--chrome-h);
+  padding: 0 12px;
   max-width: 480px;
-  margin: 0 auto;
+  margin: 0 auto var(--chrome-gap);
+  background: var(--color-bg-canvas);
+}
+
+/* De achtergrond hierboven stopt bij `max-width: 480px`; op een breder scherm
+   zou de pagina er langs de zijkanten alsnog doorheen scrollen. Deze laag
+   loopt door tot de volledige viewportbreedte en ligt (z-index: -1, binnen de
+   stapelcontext die #app-header zelf al maakt) achter de knoppen maar vóór de
+   pagina. */
+#app-header::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  background: var(--color-bg-canvas);
 }
 
 /* S05/D-018/D-019 (room-header.mjs): permanente code + QR-knop, alleen
-   gemount zolang een sessie loopt. `display: contents` op de slot zelf zodat
-   `.room-header` rechtstreeks een flex-item van `#app-header` wordt;
-   `margin-right: auto` duwt 'm naar links, ongeacht of hij er wel/niet is —
-   het hamburgermenu (`#app-header`'s `justify-content: flex-end`) blijft zo
-   altijd rechts, zonder een aparte regel voor de "geen sessie"-situatie. */
-.room-header-slot {
+   gemount zolang een sessie loopt. `display: contents` op zowel de slot als
+   de balk zelf: code, QR-knop en deelknop worden zo rechtstreeks flex-items
+   van de chrome, zodat er één rij met één gap is in plaats van een doos in
+   een doos met twee keer marge. */
+.room-header-slot,
+.room-header {
   display: contents;
 }
 
-.room-header {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-right: auto;
+/* Idem voor de hostknoppen (session-shell.mjs mount hier zijn hostBarRoot):
+   pauze en ⋯ hoorden bij de chrome, niet op een eigen rij onder het scherm —
+   dat was de tweede rij die ~72 px kostte (#45, #46). `.session-hostbar`
+   blijft wél een eigen flex-item: dat is de positioneringsanker voor zijn
+   ⋯-paneel. */
+.session-hostbar-slot {
+  display: contents;
 }
 
 .room-header-code {
@@ -549,15 +602,27 @@ button {
 
 /* T5-7: vanaf tabletbreedte een vast side panel i.p.v. een zwevende
    dropdown (`07` §3) — geen aparte hover-state nodig (`07` §12: blijft een
-   touchapparaat), gewoon altijd zichtbaar in de header. De hamburgerknop
-   heeft dan niets meer om te togglen en verdwijnt; `setOpen()`/Escape/
-   klik-buiten in app-menu.mjs blijven functioneel ongewijzigd (ze zetten nog
-   steeds `hidden`/`aria-expanded`), maar hebben op dit breekpunt geen
-   zichtbaar effect meer — geen aparte tablet-tak nodig in de JS. */
+   touchapparaat), gewoon altijd zichtbaar in de header. De ⋯-knop heeft dan
+   niets meer om te togglen en verdwijnt; `setOpen()`/Escape/klik-buiten in
+   app-menu.mjs blijven functioneel ongewijzigd (ze zetten nog steeds
+   `hidden`/`aria-expanded`), maar hebben op dit breekpunt geen zichtbaar
+   effect meer — geen aparte tablet-tak nodig in de JS.
+
+   A1: het ruimtebudget is een telefoonbudget. Op tabletbreedte staat dat
+   uitgeklapte paneel ín de balk, dus daar mag de chrome wél meegroeien —
+   anders zou het paneel uit een 44 px hoge balk gesneden worden. */
 @media (min-width: 768px) {
-  .app-hamburger {
-    display: none;
+  #app-header {
+    height: auto;
+    min-height: var(--chrome-h);
+    flex-wrap: wrap;
+    padding: 8px 12px;
   }
+
+  /* Het verbergen van de ⋯-knop zelf staat in `rounda-1c.css`' chrome-sectie:
+     dáár krijgt hij zijn `display: flex` mee (met `#app-header` ervoor, om de
+     knopfamilieregels te verslaan), en die zou deze regel anders overrulen.
+     Eén eigenaar per eigenschap — niet twee bestanden die elkaar bevechten. */
 
   .app-menu {
     position: static;
@@ -649,6 +714,13 @@ button {
 .screen.screen-top {
   justify-content: flex-start;
   min-height: 0;
+  /* A1: de ruimte onder de chrome staat nu één keer in `--chrome-gap`
+     (`#app-header`'s margin-bottom). Bleef deze 2rem staan, dan begon de
+     eerste inhoud van elk sessiescherm op 44 + 16 + 32 = 92 px in plaats van
+     op 60 — het budget zou dan wel in de tokens staan maar nergens gelden.
+     Alleen `.screen-top` (lobby, spel, tussenstand, podium): home en join
+     bouwen op vanuit het midden en houden hun lucht. */
+  padding-top: 0;
 }
 
 .app-logo {
@@ -1133,30 +1205,24 @@ button {
 }
 
 /* ── UI5: Hostbalk (views/hostbar.mjs) ────────────────────────────────────
-   Zichtbaar boven de fase-view, onder de reconnect-statusbalk — zelfde plek
-   als de eerdere pauze-only-knop. */
-/* Hostbediening is gereedschap naast het scherm, geen inhoud ervan. Stond
-   eerder als drie volle-breedte knoppen bovenaan — die trokken alle aandacht
-   vóór de speler had gezien op welk scherm hij was. Nu een compacte strip:
-   eigen omkadering, kleinere knoppen op inhoudsbreedte, gedempte kleur. */
+   Hostbediening is gereedschap naast het scherm, geen inhoud ervan.
+
+   A1 (#45, #46): de balk staat niet meer als eigen strip bóven de fase-view
+   maar als groep ín de chromerij. Daarmee vervallen zijn omkadering, marge en
+   padding — die maakten van twee knoppen een rij van ~72 px. Wat blijft is
+   `position: relative`, want het ⋯-paneel hangt eraan. */
 .session-hostbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.6rem;
-  margin: 0.75rem 1.5rem 0;
-  max-width: 480px;
-  background: var(--color-surface-1);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--r-sm);
+  gap: 4px;
+  position: relative;
 }
 
-@media (min-width: 512px) {
-  .session-hostbar {
-    margin-left: auto;
-    margin-right: auto;
-  }
+/* `bar.hidden = true` (hostbar.mjs, elke niet-host) verloor het van de
+   `display: flex` hierboven: een niet-host hield zo een lege, omrande strook
+   over. Nu de balk in de chromerij staat zou dat een gat naast de code zijn. */
+.session-hostbar[hidden] {
+  display: none;
 }
 
 /* `.btn-secondary`/`.btn-destructive` zijn volle breedte (components.css) —

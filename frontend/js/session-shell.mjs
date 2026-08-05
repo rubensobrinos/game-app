@@ -184,6 +184,13 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   // handmatig volgende ronde bij hostgestuurde pacing). Vervangt de eerdere
   // minimale pauze-only-knop die er stond vooruitlopend op dit werk.
   const hostBarRoot = document.createElement('div');
+  // A1 (#45/#46): de hostknoppen stonden op een eigen rij ín het scherm — die
+  // rij kostte ~72 px vóór de vraag begon en liet de pauzeknop los boven de
+  // inhoud zweven. De mount blijft hier (deze `createHostBar`-aanroep en
+  // `sendHostAction` zijn ongewijzigd); alleen de plek in de DOM verhuist naar
+  // de chromerij, zie `restoreHostBarPosition()`. `display: contents` op deze
+  // wrapper zodat `.session-hostbar` zelf een flex-item van de chrome wordt.
+  hostBarRoot.className = 'session-hostbar-slot';
   const hostBar = createHostBar({
     root: hostBarRoot,
     t,
@@ -227,7 +234,8 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     }
   });
 
-  root.append(banner, reconnectRoundaRoot, answerSavedNote, duplicateTabNotice, reconnectFallbackButton, hostBarRoot, phaseContainer, pauseOverlay);
+  root.append(banner, reconnectRoundaRoot, answerSavedNote, duplicateTabNotice, reconnectFallbackButton, phaseContainer, pauseOverlay);
+  restoreHostBarPosition();
 
   let matchPhase = initialMatchPhaseState();
   let reconnect = initialReconnectState();
@@ -511,10 +519,21 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     }
   }
 
-  // hostBarRoot's vaste plek is vóór `phaseContainer`, ná `answerSavedNote`
-  // (zie de `root.append(...)` verderop) — hier expliciet terugzetten zodra
-  // de pauze-overlay niet (meer) actief is voor deze speler.
+  // hostBarRoot's vaste plek is sinds A1 ín de appheader, direct achter de
+  // codebalk — één chromerij i.p.v. een tweede rij erboven het scherm. Hier
+  // expliciet terugzetten zodra de pauze-overlay niet (meer) actief is voor
+  // deze speler (die overlay verplaatst de node zelf, zie renderPauseOverlay).
+  //
+  // Zonder appheader (een test of een pagina zonder `#app-header`) valt de
+  // balk terug op de oude plek vóór `phaseContainer` — anders zou de host daar
+  // helemaal geen bediening meer hebben.
   function restoreHostBarPosition() {
+    if (headerRoot != null) {
+      if (hostBarRoot.previousSibling !== roomHeaderRoot) {
+        headerRoot.insertBefore(hostBarRoot, roomHeaderRoot.nextSibling);
+      }
+      return;
+    }
     if (hostBarRoot.nextSibling !== phaseContainer) {
       root.insertBefore(hostBarRoot, phaseContainer);
     }
@@ -741,6 +760,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     // D-018: code/QR verdwijnen pas als de sessie eindigt — dit IS dat moment.
     roomHeader.destroy();
     roomHeaderRoot.remove();
+    hostBarRoot.remove(); // staat sinds A1 in de appheader, niet in `root`
     root.textContent = '';
     const screen = document.createElement('div');
     screen.className = 'screen session-terminated';
@@ -998,6 +1018,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       // is voorbij voor déze client, dus ook de headercode verdwijnt.
       roomHeader.destroy();
       roomHeaderRoot.remove();
+      hostBarRoot.remove(); // idem: buiten `root`, dus expliciet opruimen
     },
   };
 }
