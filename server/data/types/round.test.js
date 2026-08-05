@@ -213,3 +213,45 @@ describe('toActiveRoundSnapshot — allowlist, geen lekkage van geheime/interne 
     assert.strictEqual(snapshot.rendererVersion, MATCHING_MATCH.rendererVersion);
   });
 });
+
+// docs/openstaand/raad-het-land.md, stap 2/3: `country_shape_mc` erbij — zelfde
+// vorm als flags_mc/capitals_mc (optionId + verplichte validOptionIds). Los
+// blok, niet in de bestaande #1-36-nummering geplakt: dat zou elders in dit
+// bestand werkende agents onnodig in de weg zitten.
+const ROUND_COUNTRY_SHAPE_MC = Object.freeze({
+  ...BASE_ROUND,
+  gameType: 'country_shape_mc',
+  correctAnswer: { optionId: 'fr' },
+  validOptionIds: ['fr', 'de', 'es', 'it'],
+});
+
+describe('country_shape_mc — zelfde vorm als flags_mc/capitals_mc', () => {
+  test('assertRoundShape slaagt met optionId + validOptionIds', () => {
+    assert.doesNotThrow(() => assertRoundShape(ROUND_COUNTRY_SHAPE_MC));
+  });
+  test('assertCorrectAnswerShape: optionId slaagt, choice/cardIndex/side falen', () => {
+    assert.doesNotThrow(() => assertCorrectAnswerShape('country_shape_mc', { optionId: 'fr' }));
+    assert.throws(() => assertCorrectAnswerShape('country_shape_mc', { choice: 'real' }));
+    assert.throws(() => assertCorrectAnswerShape('country_shape_mc', { cardIndex: 0 }));
+  });
+  test('zonder validOptionIds -> RangeError (verplicht, net als flags_mc/capitals_mc)', () => {
+    const { validOptionIds: _omitted, ...withoutIt } = ROUND_COUNTRY_SHAPE_MC;
+    assert.throws(() => assertRoundShape(withoutIt), RangeError);
+  });
+  test('validOptionIds zonder 4 unieke elementen -> RangeError', () => {
+    assert.throws(
+      () => assertRoundShape({ ...ROUND_COUNTRY_SHAPE_MC, validOptionIds: ['fr', 'fr', 'de', 'it'] }),
+      RangeError,
+    );
+  });
+  test('MET resultDetails -> RangeError (moet afwezig zijn, net als flags_mc)', () => {
+    assert.throws(() => assertRoundShape({ ...ROUND_COUNTRY_SHAPE_MC, resultDetails: {} }), RangeError);
+  });
+  test('toActiveRoundSnapshot: geen validOptionIds/correctAnswer/questionKey in de actieve-rondesnapshot', () => {
+    const snapshot = toActiveRoundSnapshot(ROUND_COUNTRY_SHAPE_MC, MATCHING_MATCH);
+    assert.strictEqual('validOptionIds' in snapshot, false);
+    assert.strictEqual('correctAnswer' in snapshot, false);
+    assert.strictEqual('questionKey' in snapshot, false);
+    assert.strictEqual(snapshot.gameType, 'country_shape_mc');
+  });
+});

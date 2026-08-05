@@ -29,7 +29,9 @@ const { GOLF_1_GAME_TYPES } = require('./game-types');
 
 // gameTypes die validOptionIds verplicht hebben (GR4: optionIso2s in de
 // payload, plus deze losse lijst apart voor validateAnswer()'s roundContext).
-const GAME_TYPES_REQUIRING_VALID_OPTION_IDS = Object.freeze(['flags_mc', 'capitals_mc']);
+// `country_shape_mc` erbij (docs/openstaand/raad-het-land.md, stap 3): zelfde
+// vorm als flags_mc — vier optie-iso2's, één contour als vraag.
+const GAME_TYPES_REQUIRING_VALID_OPTION_IDS = Object.freeze(['flags_mc', 'capitals_mc', 'country_shape_mc']);
 
 // gameTypes die resultDetails verplicht hebben (GR4: waarden/continenten die
 // de ronde-uitslag nodig heeft maar die het antwoord zouden verklappen).
@@ -75,6 +77,7 @@ function assertCorrectAnswerShape(gameType, correctAnswer) {
   switch (gameType) {
     case 'flags_mc':
     case 'capitals_mc':
+    case 'country_shape_mc':
       assertNonEmptyString(correctAnswer.optionId, 'correctAnswer.optionId');
       return;
     case 'real_or_fake_flag':

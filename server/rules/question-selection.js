@@ -15,7 +15,7 @@
 // lijst. De enige uitzondering is odd_one_out's botsingscontrole tegen
 // al-gebruikte sleutels binnen de match, begrensd tot 50 pogingen.
 
-const VALID_GAME_TYPES = ['flags_mc', 'capitals_mc', 'real_or_fake_flag', 'higher_lower', 'odd_one_out'];
+const VALID_GAME_TYPES = ['flags_mc', 'capitals_mc', 'real_or_fake_flag', 'higher_lower', 'odd_one_out', 'country_shape_mc'];
 const VALID_DIFFICULTIES = ['easy', 'medium', 'hard', 'extreme'];
 const VALID_METRICS = ['population', 'area', 'gdp'];
 const KEY_PREFIXES = {
@@ -24,6 +24,7 @@ const KEY_PREFIXES = {
   real_or_fake_flag: 'rof:',
   higher_lower: 'higher_lower:',
   odd_one_out: 'odd_one_out:',
+  country_shape_mc: 'shape:',
 };
 const MAX_COLLISION_ATTEMPTS = 50;
 
@@ -190,6 +191,56 @@ function selectCapitalsMcQuestion(pool, difficulty, excludedKeys, random) {
   return {
     gameType: 'capitals_mc',
     questionKey: `capitals:${target.iso2}`,
+    publicQuestionPayload: { targetIso2: target.iso2, optionIso2s },
+    correctAnswer: { optionId: target.iso2 },
+    validOptionIds: optionIso2s,
+  };
+}
+
+/**
+ * "Raad het land" (docs/openstaand/raad-het-land.md, stap 3). Structureel
+ * identiek aan flags_mc: target + drie afleiders met dezelfde continent-
+ * voorkeur, vier optie-iso2's. Het enige verschil is de RENDERING (een
+ * contour i.p.v. een vlag, client-only — shared/content/shapes.data.mjs) en
+ * dus de vraag welk land geschikt is als TARGET: niet elk pool-land heeft een
+ * contour (225 van 230, zie shapes-index.mjs). Afleiders hoeven zelf geen
+ * contour te hebben — alleen de doelcontour wordt getekend, de opties zijn
+ * namen.
+ *
+ * `hasShape(iso2)` is bewust een geïnjecteerde functie, geen import van
+ * shapes-index.mjs hier: dit bestand raadpleegt principieel geen data/shared
+ * content zelf (zie de moduledoc bovenaan) — zelfde patroon als
+ * `generateFlagSpec` voor real_or_fake_flag/odd_one_out.
+ */
+function selectCountryShapeQuestion(pool, difficulty, excludedKeys, random, hasShape) {
+  const difficultyPool = buildCandidatePool(pool, difficulty, false);
+  const shapedPool = difficultyPool.filter((e) => hasShape(e.iso2));
+  const targetCandidates = shapedPool.filter((e) => !excludedKeys.has(`shape:${e.iso2}`));
+  if (targetCandidates.length === 0) {
+    throw new RangeError(`No available country_shape_mc target (with a shape) for difficulty "${difficulty}"`);
+  }
+  const target = targetCandidates[pickUniqueIndices(random, targetCandidates.length, 1)[0]];
+
+  // Afleiders zijn gewone opties (namen), geen eigen contour nodig — de volle
+  // difficultyPool is dus het juiste afleider-universum, niet shapedPool.
+  const sameContinent = difficultyPool.filter((e) => e.iso2 !== target.iso2 && e.continent === target.continent);
+  const rest = difficultyPool.filter((e) => e.iso2 !== target.iso2 && e.continent !== target.continent);
+
+  let distractors;
+  if (sameContinent.length >= 3) {
+    distractors = pickUniqueIndices(random, sameContinent.length, 3).map((i) => sameContinent[i]);
+  } else {
+    const remainingNeeded = 3 - sameContinent.length;
+    if (rest.length < remainingNeeded) {
+      throw new RangeError(`Not enough distinct countries to build country_shape_mc distractors for difficulty "${difficulty}"`);
+    }
+    distractors = [...sameContinent, ...pickUniqueIndices(random, rest.length, remainingNeeded).map((i) => rest[i])];
+  }
+
+  const optionIso2s = shuffle([target, ...distractors], random).map((e) => e.iso2);
+  return {
+    gameType: 'country_shape_mc',
+    questionKey: `shape:${target.iso2}`,
     publicQuestionPayload: { targetIso2: target.iso2, optionIso2s },
     correctAnswer: { optionId: target.iso2 },
     validOptionIds: optionIso2s,
@@ -386,7 +437,7 @@ function assertValidPool(pool) {
   }
 }
 
-function selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode, excludedKeys, random, generateFlagSpec) {
+function selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode, excludedKeys, random, generateFlagSpec, hasShape) {
   const used = new Set();
   const results = [];
   const isRealAssignment = gameType === 'real_or_fake_flag' ? buildRealOrFakeAssignment(totalRounds, random) : null;
@@ -431,6 +482,9 @@ function selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode
           );
         break;
       }
+      case 'country_shape_mc':
+        question = selectCountryShapeQuestion(pool, difficulty, combinedExcluded, random, hasShape);
+        break;
       default:
         throw new RangeError(`Unknown gameType: ${gameType}`);
     }
@@ -446,11 +500,12 @@ function selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode
  *   difficulty: string, metricMode: string,
  *   previousMatchQuestionKeys: string[], random: () => number,
  *   generateFlagSpec?: (seed: string) => object,
+ *   hasShape?: (iso2: string) => boolean,
  * }} params
  * @returns {SelectedQuestion[]}
  */
 function buildMatchQuestionPlan(params) {
-  const { pool, gameType, totalRounds, difficulty, metricMode, previousMatchQuestionKeys, random, generateFlagSpec } =
+  const { pool, gameType, totalRounds, difficulty, metricMode, previousMatchQuestionKeys, random, generateFlagSpec, hasShape } =
     params;
 
   if (!VALID_GAME_TYPES.includes(gameType)) {
@@ -468,18 +523,25 @@ function buildMatchQuestionPlan(params) {
   if (gameType === 'real_or_fake_flag' && typeof generateFlagSpec !== 'function') {
     throw new RangeError('generateFlagSpec is required when gameType is "real_or_fake_flag"');
   }
+  // shared/content/shapes-index.mjs' SHAPE_ISO2S zegt welke landen een contour
+  // hebben (225 van 230, docs/openstaand/raad-het-land.md) — dit bestand
+  // importeert dat zelf niet (moduledoc: geen data/shared content hier), dus
+  // de aanroeper injecteert 'm, zelfde patroon als generateFlagSpec.
+  if (gameType === 'country_shape_mc' && typeof hasShape !== 'function') {
+    throw new RangeError('hasShape is required when gameType is "country_shape_mc"');
+  }
   assertValidPool(pool);
 
   const prefix = KEY_PREFIXES[gameType];
   const previousExcluded = new Set((previousMatchQuestionKeys || []).filter((key) => key.startsWith(prefix)));
 
   try {
-    return selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode, previousExcluded, random, generateFlagSpec);
+    return selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode, previousExcluded, random, generateFlagSpec, hasShape);
   } catch (err) {
     if (!(err instanceof RangeError) || previousExcluded.size === 0) {
       throw err;
     }
-    return selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode, new Set(), random, generateFlagSpec);
+    return selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode, new Set(), random, generateFlagSpec, hasShape);
   }
 }
 

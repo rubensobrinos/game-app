@@ -55,6 +55,10 @@ const mockGenerateFlagSpec = (seed) => ({
   rendererVersion: 'flag-renderer-test-1',
 });
 
+// Elk POOL-land "heeft een contour" tenzij een test iets anders opgeeft —
+// zelfde soort default als mockGenerateFlagSpec hierboven.
+const mockHasShape = () => true;
+
 function baseParams(overrides) {
   return {
     pool: POOL,
@@ -65,6 +69,7 @@ function baseParams(overrides) {
     previousMatchQuestionKeys: [],
     random: counterRandom(0),
     generateFlagSpec: mockGenerateFlagSpec,
+    hasShape: mockHasShape,
     ...overrides,
   };
 }
@@ -483,5 +488,81 @@ describe('odd_one_out — afwijklogica (punt 11)', () => {
       assert.ok(!('correctAnswer' in vraag.publicQuestionPayload));
       assert.strictEqual(typeof vraag.resultDetails.logic, 'string');
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// docs/openstaand/raad-het-land.md, stap 3 — "Raad het land". Structureel
+// gelijk aan flags_mc (zelfde continentvoorkeur, vier optie-iso2's), met één
+// eigen regel: niet elk pool-land heeft een contour, dus `hasShape` bepaalt
+// wie TARGET mag zijn. Afleiders hoeven geen contour te hebben.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('country_shape_mc — "Raad het land" (stap 3)', () => {
+  test('resultaat heeft dezelfde vorm als flags_mc: shape:-prefix, 4 unieke opties, target erbij', () => {
+    const [q] = buildMatchQuestionPlan(baseParams({ gameType: 'country_shape_mc' }));
+    assert.strictEqual(q.gameType, 'country_shape_mc');
+    assert.match(q.questionKey, /^shape:/);
+    const { targetIso2, optionIso2s } = q.publicQuestionPayload;
+    assert.strictEqual(optionIso2s.length, 4);
+    assert.strictEqual(new Set(optionIso2s).size, 4);
+    assert.ok(optionIso2s.includes(targetIso2));
+    assert.deepEqual(q.correctAnswer, { optionId: targetIso2 });
+    assert.deepEqual(q.validOptionIds, optionIso2s);
+  });
+
+  test('hasShape ontbreekt of is geen functie -> RangeError (net als generateFlagSpec bij real_or_fake_flag)', () => {
+    assert.throws(
+      () => buildMatchQuestionPlan(baseParams({ gameType: 'country_shape_mc', hasShape: undefined })),
+      RangeError,
+    );
+    assert.throws(
+      () => buildMatchQuestionPlan(baseParams({ gameType: 'country_shape_mc', hasShape: 'nope' })),
+      RangeError,
+    );
+  });
+
+  test('alleen landen waarvoor hasShape true geeft, komen als TARGET voor', () => {
+    // fr/de/es hebben in deze test geen contour; nl/jp/cn/br (easy) wel.
+    const zonderContour = new Set(['fr', 'de', 'es']);
+    const hasShape = (iso2) => !zonderContour.has(iso2);
+
+    const gezienAlsTarget = new Set();
+    for (let i = 0; i < 40; i += 1) {
+      const [q] = buildMatchQuestionPlan(
+        baseParams({ gameType: 'country_shape_mc', hasShape, random: counterRandom(i) }),
+      );
+      gezienAlsTarget.add(q.publicQuestionPayload.targetIso2);
+    }
+    assert.ok(gezienAlsTarget.size > 0, 'er moet minstens één target zijn voorgekomen');
+    for (const iso2 of gezienAlsTarget) {
+      assert.ok(!zonderContour.has(iso2), `"${iso2}" heeft geen contour en had nooit target mogen zijn`);
+    }
+  });
+
+  test('een land zonder contour mag wél als afleider meedoen', () => {
+    // Alleen nl heeft een contour: elke vraag moet nl als target kiezen, en
+    // de drie afleiders komen noodgedwongen uit landen zonder contour.
+    const hasShape = (iso2) => iso2 === 'nl';
+    const [q] = buildMatchQuestionPlan(baseParams({ gameType: 'country_shape_mc', hasShape }));
+    assert.strictEqual(q.publicQuestionPayload.targetIso2, 'nl');
+    const distractors = q.publicQuestionPayload.optionIso2s.filter((iso2) => iso2 !== 'nl');
+    assert.strictEqual(distractors.length, 3);
+    assert.ok(distractors.every((iso2) => !hasShape(iso2)), 'afleiders zonder contour moeten toegestaan zijn');
+  });
+
+  test('geen enkel land met contour op deze moeilijkheid -> RangeError', () => {
+    assert.throws(
+      () => buildMatchQuestionPlan(baseParams({ gameType: 'country_shape_mc', hasShape: () => false })),
+      RangeError,
+    );
+  });
+
+  test('rematch-exclusie werkt via de shape:-prefix, net als flags:', () => {
+    const [eerste] = buildMatchQuestionPlan(baseParams({ gameType: 'country_shape_mc' }));
+    const plan = buildMatchQuestionPlan(
+      baseParams({ gameType: 'country_shape_mc', previousMatchQuestionKeys: [eerste.questionKey] }),
+    );
+    assert.ok(plan.every((q) => q.questionKey !== eerste.questionKey));
   });
 });
