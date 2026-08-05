@@ -201,26 +201,6 @@ document totdat de betreffende fundamentele specificatie is bijgewerkt.
     Volledige uitwerking en de afweging: `DOELBEELD-v2-schermen-en-games.md`
     §6.6.
 
-43. **Het voorkeurenmenu is op elke breedte een dropdown** (producteigenaar,
-    5 aug 2026). GEBOUWD.
-
-    T5-7 maakte vanaf 768 px een vast side panel van het voorkeurenpaneel: het
-    stond permanent open ín de header en de ⋯-knop verdween. Op een breed
-    scherm was TAAL / THEMA / REACTIEZINNEN daardoor het eerste wat je op de
-    homepagina zag — drie blokken hoog, bóven het logo.
-
-    - Oordeel producteigenaar: "een slechte binnenkomer". Het zijn instellingen
-      die je één keer per apparaat zet, geen inhoud.
-    - **Waarom het zo lang onzichtbaar bleef:** het ruimtebudget van de
-      mobiele UX-ronde is een telefoonbudget en alle metingen stonden op
-      390 px. Daar gold de regel nooit. Les: een breekpunt dat we niet meten,
-      bestaat voor ons niet.
-    - Technisch stond er `display: flex !important` op `.app-menu`, wat het
-      `hidden`-attribuut versloeg dat `app-menu.mjs` correct bleef zetten. De
-      JS was dus nooit het probleem.
-    - Vervangt de tabletvariant uit T5-7; besluit UI-20 (het paneel zelf
-      blijft bestaan) is ongewijzigd.
-
 42. **Het spelerskleurenpalet gaat van acht naar zestien** (producteigenaar,
     5 aug 2026 — punt 20). GEBOUWD.
 
@@ -291,3 +271,23 @@ Dit akkoord heft technische prerequisites niet op: tests worden pas geactiveerd
 wanneer hun server, UI, Compose-stack of aangewezen testomgeving bestaat. Publieke
 routes, productiegegevens en secrets blijven afzonderlijk afgeschermd; het akkoord
 is geen toestemming om tests destructief tegen productie uit te voeren.
+
+44. **Het voorkeurenmenu is op elke breedte een dropdown** (producteigenaar,
+    5 aug 2026). GEBOUWD.
+
+    T5-7 maakte vanaf 768 px een vast side panel van het voorkeurenpaneel: het
+    stond permanent open ín de header en de ⋯-knop verdween. Op een breed
+    scherm was TAAL / THEMA / REACTIEZINNEN daardoor het eerste wat je op de
+    homepagina zag — drie blokken hoog, bóven het logo.
+
+    - Oordeel producteigenaar: "een slechte binnenkomer". Het zijn instellingen
+      die je één keer per apparaat zet, geen inhoud.
+    - **Waarom het zo lang onzichtbaar bleef:** het ruimtebudget van de
+      mobiele UX-ronde is een telefoonbudget en alle metingen stonden op
+      390 px. Daar gold de regel nooit. Les: een breekpunt dat we niet meten,
+      bestaat voor ons niet.
+    - Technisch stond er `display: flex !important` op `.app-menu`, wat het
+      `hidden`-attribuut versloeg dat `app-menu.mjs` correct bleef zetten. De
+      JS was dus nooit het probleem.
+    - Vervangt de tabletvariant uit T5-7; besluit UI-20 (het paneel zelf
+      blijft bestaan) is ongewijzigd.
