@@ -5,19 +5,29 @@ hier niet meer terug — anders wordt elk statusoverzicht ruis.
 
 Peildatum: 6 aug 2026.
 
-## Bouwen
+## Klein — uren
 
-| Wat | Omvang | Uitwerking |
-| --- | --- | --- |
-| Antwoord automatisch tonen | 1,5 dag | [antwoord-automatisch-tonen.md](antwoord-automatisch-tonen.md) |
-| Continentfilter | 1 dag | [continentfilter.md](continentfilter.md) |
-| Host wijzigt naam/kleur van een ander | halve dag | [host-wijzigt-naam-en-kleur.md](host-wijzigt-naam-en-kleur.md) |
-| Solo: antwoordvolgorde na reload | 1 uur | [solo-antwoordvolgorde.md](solo-antwoordvolgorde.md) |
-| Spelersidentiteit (*Bulgaarse Koe*) | 5–8 dagen | [spelersidentiteit.md](spelersidentiteit.md) |
-| Raad het land (vierde game) | 4 dagen | [raad-het-land.md](raad-het-land.md) |
-| Typed answers (Kiezen/Mix/Typen) | 6–7 dagen | [typed-answers.md](typed-answers.md) |
-| Reactiezinnen: 50–100 per taal | redactie | besluit 44 |
-| De donut-gamekeuze | onbekend | besluit 45 |
+| Wat | Status |
+| --- | --- |
+| [Host wijzigt naam/kleur van een ander](host-wijzigt-naam-en-kleur.md) | klaar om te starten |
+| [Solo: antwoordvolgorde na reload](solo-antwoordvolgorde.md) | klaar om te starten |
+
+## Middel — dagen
+
+| Wat | Status |
+| --- | --- |
+| [Antwoord automatisch tonen](antwoord-automatisch-tonen.md) | klaar om te starten |
+| [Continentfilter](continentfilter.md) | klaar om te starten |
+| Reactiezinnen naar 50–100 per taal (besluit 44) | nog niet uitgewerkt |
+
+## Groot — weken
+
+| Wat | Status |
+| --- | --- |
+| [Spelersidentiteit (*Bulgaarse Koe*)](spelersidentiteit.md) | klaar om te starten |
+| [Raad het land](raad-het-land.md) | klaar om te starten |
+| [Typed answers](typed-answers.md) | wacht op het scorebesluit |
+| De donut-gamekeuze (besluit 45) | nog niet uitgewerkt |
 
 ## Aanzetten
 
