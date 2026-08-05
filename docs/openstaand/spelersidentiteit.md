@@ -107,6 +107,10 @@ een taal per week groeien zonder release-risico. Zonder terugval moet alles in
 
 ## Volgorde van bouwen
 
+**Stap 1 en 2 zijn samen één opdracht** en leveren al iets op dat werkt: echte
+namen in plaats van "Speler 7", plus de taalregels die de rest mogelijk maken.
+Stap 3 en verder komen later.
+
 | Stap | Wat | Duur |
 | --- | --- | --- |
 | 1 | `nameWordLists` daadwerkelijk meegeven in `server/index.mjs`; twintig woorden per taal. Levert meteen echte namen op | uur |

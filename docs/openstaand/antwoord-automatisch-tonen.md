@@ -1,12 +1,12 @@
-# Agent 1 — fase 4: "Antwoord automatisch tonen", opnieuw
+# "Antwoord automatisch tonen"
 
-De eerste poging is **teruggedraaid** (`git revert` van merge `b55a44e`). Niet
-omdat er slecht werk in zat — het configveld, de protocolroute, de fixtures en
-de lobbytoggle waren goed — maar omdat de kern omgekeerd was. Dit document
-zegt precies wat de bedoeling is, zodat dat niet nog eens gebeurt.
+Er is hier al één keer aan gebouwd; dat werk is **teruggedraaid** (`git revert`
+van merge `b55a44e`, 5 aug 2026). Niet omdat het slecht was — het configveld,
+de protocolroute, de fixtures en de lobbytoggle waren goed — maar omdat de kern
+omgekeerd was. Dit document zegt precies wat de bedoeling is.
 
-Lees dit hele bestand vóór je begint. De vorige briefing was op dit punt
-dubbelzinnig; dat was de fout van de lead, niet van de agent.
+Lees het helemaal vóór je begint. De vorige opdracht was op dit punt
+dubbelzinnig, en dat was de fout van de lead, niet van de bouwer.
 
 ## Wat er de vorige keer gebeurde
 
