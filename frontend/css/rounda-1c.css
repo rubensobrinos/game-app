@@ -798,23 +798,59 @@ body:has(.home-screen) .app-footer { display: block; }
   color: #5c5c6b;
 }
 
-/* #8/#18: tijdens het spel en de uitslag hoort de codebalk klein te zijn
-   (mockup 4/5: minimale statusbar) — de vraag en de antwoorden zijn de ster,
-   niet het codepaneel. D-018 blijft gerespecteerd: code + mini-QR blijven
-   permanent zichtbaar, alleen compact. :has() = zelfde support-lijn als de
-   rest van deze laag.
+/* ════ A2 — de chrome per fase ═══════════════════════════════════════════
+   A1 maakte de balk in élke fase 44 px hoog; dat deel van #18 is daarmee al
+   binnen budget. Wat A2 doet is de andere helft: #35 — "vraag en antwoorden
+   primair, code en host secundair". Hoogte is niet hetzelfde als gewicht. Een
+   balk van 44 px met een felle lime code en vier lime iconen erin trekt nog
+   steeds de blik weg van een vraag die in gedempt grijs staat.
 
-   A1: de fasegebonden regels die hier stonden (kaartpadding kleiner, hostpil
-   kleiner) scheelden samen ~25 px van de ~155 die eraf moest, en ze golden
-   alleen tijdens het spel. Ze zijn vervangen door één balk die in élke fase
-   44 px is — zie de chrome-sectie boven in dit bestand. Wat hier blijft is
-   het enige dat écht fasegebonden is: de code zakt van 28 naar 20 px zodra de
-   vraag in beeld staat, want dán is de code secundair (#35). De fijnafstemming
-   per fase (reveal, eindstand, FINISHED) is A2. */
-body:has(.gameplay-flag) .room-header-code-value,
-body:has(.scoreboard-list) .room-header-code-value {
+   De haak is `body[data-rounda-fase]` (session-shell.mjs, mountView). Dit
+   verving `body:has(.gameplay-flag)` en `body:has(.scoreboard-list)`: die
+   gokten de fase uit een klasse die van het spéltype afhangt, en zouden dus
+   stilzwijgend stoppen met werken bij het eerste speltype zonder vlag. Nu is
+   er één bron en die weet het zeker. */
+
+/* Spel + reveal/eindstand. De code blijft leesbaar en voorleesbaar (D-018
+   eist zichtbaar, niet opvallend), maar hij is niet langer het felste ding op
+   het scherm: kleiner én in de gedempte tekstkleur, zodat lime alleen nog
+   betekenis draagt in de inhoud (timer, goed antwoord). `--color-text-muted`
+   en geen vaste hex, zodat het lichte thema meekomt. */
+body[data-rounda-fase='gameplay'] .room-header-code-value,
+body[data-rounda-fase='scoreboard'] .room-header-code-value {
   font-size: 20px;
   line-height: 1;
+  color: var(--color-text-muted);
+}
+body[data-rounda-fase='gameplay'] #app-header .room-header-qr,
+body[data-rounda-fase='gameplay'] #app-header .room-header-share,
+body[data-rounda-fase='gameplay'] #app-header .session-hostbar-icon,
+body[data-rounda-fase='gameplay'] #app-header .app-menu-trigger,
+body[data-rounda-fase='scoreboard'] #app-header .room-header-qr,
+body[data-rounda-fase='scoreboard'] #app-header .room-header-share,
+body[data-rounda-fase='scoreboard'] #app-header .session-hostbar-icon,
+body[data-rounda-fase='scoreboard'] #app-header .app-menu-trigger {
+  color: var(--color-text-muted);
+}
+
+/* A-x2 / #56 — het eindscherm. Dit is een bewuste, enige uitzondering op
+   D-018 ("code en QR blijven het hele potje zichtbaar"): een afgelópen potje
+   is geen potje meer. Er valt niets meer te joinen, de code opent geen deur
+   meer, en op het podium concurreerde hij met de uitslag — precies wat #56
+   aanwijst. Meedoen aan een vólgend potje loopt via Opnieuw/Nieuw spel, en
+   de uitslag delen kan met de eigen deelknop van het podium (`.podium-share`,
+   podium.mjs) — er verdwijnt dus geen enkele functie, alleen een balk.
+   De chromerij zelf blijft staan met het voorkeurenmenu erin; die hoort op
+   élk scherm bereikbaar te zijn. Levert het podium 44 px extra hoogte op. */
+body[data-rounda-fase='podium'] .room-header-slot {
+  display: none;
+}
+
+/* Zonder code is er niets meer dat de rij naar rechts duwt (die `flex: 1` zat
+   op de codewaarde), en dan blijft de host-⋯ als enige tegen de linkerrand
+   plakken terwijl het voorkeurenmenu rechts staat. Twee knoppen, één hoek. */
+body[data-rounda-fase='podium'] .session-hostbar {
+  margin-left: auto;
 }
 
 
@@ -823,8 +859,9 @@ body:has(.scoreboard-list) .room-header-code-value {
 /* #8+#9: "Game beëindigen" en "Room vergrendelen" domineren de lobby niet
    meer — de hostbalk verdwijnt daar helemaal (start/kick zitten al in de
    lobby zelf). Tijdens het spel blijft de balk (Pauzeer enz.) bestaan;
-   beëindigen verhuist op termijn naar een geavanceerd-menu. */
-body:has(.lobby-screen) .session-hostbar { display: none; }
+   beëindigen verhuist op termijn naar een geavanceerd-menu.
+   A2: op dezelfde fasehaak als de rest, niet meer op `:has(.lobby-screen)`. */
+body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 
 /* #14: het blok-formaat UITNODIGEN vervalt; delen = icoon in de codebalk */
 .lobby-share { display: none; }

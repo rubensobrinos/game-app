@@ -761,6 +761,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     roomHeader.destroy();
     roomHeaderRoot.remove();
     hostBarRoot.remove(); // staat sinds A1 in de appheader, niet in `root`
+    delete document.body.dataset.roundaFase; // A2: geen sessie, geen fase
     root.textContent = '';
     const screen = document.createElement('div');
     screen.className = 'screen session-terminated';
@@ -808,6 +809,16 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     // deze lijst (T5-7 liet 'm bewust ongewijzigd, "large/podium" was toen
     // nog niveau 0) — nu wel, zelfde databron als scoreboard.
     root.classList.toggle('app-root-wide', viewName === 'lobby' || viewName === 'scoreboard' || viewName === 'podium');
+
+    // A2: de chrome moet zich per fase anders gedragen (#18 compact tijdens
+    // het spel, #35 secundair naast de vraag, #56/A-x2 weg op het eindscherm).
+    // Tot nu toe raadde de CSS de fase met `body:has(.gameplay-flag)` en
+    // `body:has(.scoreboard-list)` — een gok op een klasse die van het
+    // speltype afhangt en die dus stilzwijgend stopt met werken zodra er een
+    // ronde zonder vlag bestaat. Dit is de enige plek die de fase écht weet,
+    // dus staat het hier. Op `body` en niet op `#app-root`, want `#app-header`
+    // staat buiten `#app-root`. Wordt bij `destroy()`/`terminate()` gewist.
+    document.body.dataset.roundaFase = viewName;
 
     if (viewName === 'lobby') {
       mountedView = createLobbyView({
@@ -1019,6 +1030,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       roomHeader.destroy();
       roomHeaderRoot.remove();
       hostBarRoot.remove(); // idem: buiten `root`, dus expliciet opruimen
+      delete document.body.dataset.roundaFase;
     },
   };
 }
