@@ -45,10 +45,26 @@ export function createHostBar({ root, t, onAction }) {
   const morePanel = el('div', 'session-hostbar-panel');
   morePanel.hidden = true;
 
+  // Punt 53: de rijen ín het paneel houden hun eigen open/dicht-stand. Werd
+  // die niet meegereset bij het sluiten van het paneel, dan stond een rij bij
+  // heropenen nog op "Verwijder" — het menu zag er dan per keer anders uit
+  // zonder dat er iets veranderd was.
+  const rijResetters = [];
+  function sluitPaneel() {
+    moreButton.setAttribute('aria-expanded', 'false');
+    morePanel.hidden = true;
+    for (const reset of rijResetters) {
+      reset();
+    }
+  }
+
   moreButton.addEventListener('click', () => {
-    const expanded = moreButton.getAttribute('aria-expanded') === 'true';
-    moreButton.setAttribute('aria-expanded', String(!expanded));
-    morePanel.hidden = expanded;
+    if (moreButton.getAttribute('aria-expanded') === 'true') {
+      sluitPaneel();
+      return;
+    }
+    moreButton.setAttribute('aria-expanded', 'true');
+    morePanel.hidden = false;
   });
 
 
@@ -73,6 +89,8 @@ export function createHostBar({ root, t, onAction }) {
   root.appendChild(bar);
 
   let pauseAction = null;
+  /** Laatst gerenderde fase — zie punt 53 in `update()`. */
+  let gerenderdeFase = null;
 
   pauseButton.addEventListener('click', () => {
     if (pauseAction !== null) {
@@ -84,9 +102,27 @@ export function createHostBar({ root, t, onAction }) {
    * @param {{ isHost: boolean, availableActions: string[], participants: Map<string,string>, phase: string }} model
    */
   function update({ isHost, availableActions, participants, phase }) {
-    bar.hidden = !isHost;
-    if (!isHost) {
+    // Punt 53, oorzaak b: in de LOBBY verbergt `rounda-1c.css` de hele balk
+    // (feedbackronde 4 aug #8+#9 — start en verwijderen zitten dáár al in het
+    // scherm zelf), terwijl deze module hem gewoon opbouwde. Twee bronnen die
+    // iets anders zeggen over hetzelfde element: JS bouwde een ⋯-knop met
+    // alleen "Beëindigen" erin die niemand ooit zag, en op elk ander scherm
+    // stond er iets anders. Nu beslist één regel het, hier.
+    bar.hidden = !isHost || phase === 'LOBBY';
+    if (bar.hidden) {
+      sluitPaneel();
       return;
+    }
+
+    // Punt 53, oorzaak a: de paneelinhoud verschilt per fase (LOBBY alleen
+    // Beëindigen, spel Beëindigen + spelers, eindstand alleen spelers). Wát
+    // erin hoort is menu-inhoud en dus niet van dit stoppunt — maar de inhoud
+    // mag nooit ONDER de vinger van de host omwisselen. Bij elke faseovergang
+    // gaat het paneel daarom dicht; heropenen toont dan expliciet de nieuwe
+    // stand in plaats van stilletjes een andere knop op dezelfde plek.
+    if (phase !== gerenderdeFase) {
+      gerenderdeFase = phase;
+      sluitPaneel();
     }
 
     pauseAction = availableActions.includes('resume') ? 'resume' : availableActions.includes('pause') ? 'pause' : null;
@@ -113,10 +149,10 @@ export function createHostBar({ root, t, onAction }) {
     moreButton.hidden = !hasMore;
     moreButton.setAttribute('aria-label', t('hostbar.more'));
     if (!hasMore) {
-      morePanel.hidden = true;
-      moreButton.setAttribute('aria-expanded', 'false');
+      sluitPaneel();
     }
 
+    rijResetters.length = 0;
     playersList.textContent = '';
     for (const [playerId, name] of participants) {
       // Feedbackronde 2 (punt 5/14): geen kale verwijderknop naast elke naam
@@ -136,16 +172,32 @@ export function createHostBar({ root, t, onAction }) {
       kickButton.className = 'btn-destructive session-hostbar-kick';
       kickButton.textContent = t('hostbar.kick');
       kickButton.hidden = true;
+
+      // Punt 52: de ⋯-toggle bleef staan zodra Verwijder verscheen — een
+      // omkaderde 44×44-knop met alléén puntjes erin, pal naast de knop die
+      // hij net onthuld had (IMG_0294). Hij heeft daar niets meer te melden:
+      // de enige actie die erachter zat staat er nu naast. Toggle en actie
+      // wisselen elkaar dus af in plaats van naast elkaar te staan.
+      //
+      // De weg terug loopt via het annuleren van de bevestiging — zónder dat
+      // zou een rij die je per ongeluk opent alleen nog een destructieve knop
+      // tonen en geen uitweg meer hebben.
+      const zetRijOpen = (open) => {
+        rowMenuButton.setAttribute('aria-expanded', String(open));
+        rowMenuButton.hidden = open;
+        kickButton.hidden = !open;
+      };
       kickButton.addEventListener('click', () => {
         if (window.confirm(`${t('hostbar.kickConfirmPrefix')} ${name}`)) {
           onAction('kick', { playerId });
+          return;
         }
+        zetRijOpen(false);
       });
       rowMenuButton.addEventListener('click', () => {
-        const open = rowMenuButton.getAttribute('aria-expanded') === 'true';
-        rowMenuButton.setAttribute('aria-expanded', String(!open));
-        kickButton.hidden = open;
+        zetRijOpen(rowMenuButton.getAttribute('aria-expanded') !== 'true');
       });
+      rijResetters.push(() => zetRijOpen(false));
       item.append(label, rowMenuButton, kickButton);
       playersList.appendChild(item);
     }
