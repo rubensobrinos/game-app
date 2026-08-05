@@ -44,29 +44,34 @@ export function createRoomHeader({ root, t, gameCode, joinUrl, onShareAction }) 
   qrButton.setAttribute('aria-expanded', 'false');
   // Feedbackronde 2 (punt 3): een herkenbare mini-QR — 5×5 met de drie
   // vierkante finder-hoeken die iedereen van echte QR's kent.
+  // A1 (punt 16): het 5×5-blokjespatroon las op 20 px als ruis. Wat een QR
+  // herkenbaar maakt zijn de drie zoekvierkanten in de hoeken; die zijn hier
+  // vier lege <i>'s die rounda-1c.css positioneert (drie ringen + één
+  // datablokje). Geen betekenis in de volgorde — puur vorm, vandaar aria-hidden
+  // op de hele glyph en het label op de knop.
   const qrGlyph = el('span', 'room-header-qr-glyph');
   qrGlyph.setAttribute('aria-hidden', 'true');
-  const QR_PATROON = [
-    1, 1, 0, 1, 1,
-    1, 0, 0, 0, 1,
-    0, 0, 1, 0, 0,
-    1, 0, 0, 1, 0,
-    1, 1, 0, 0, 1,
-  ];
-  for (const aan of QR_PATROON) {
-    const cel = el('i', aan ? 'is-aan' : '');
-    qrGlyph.appendChild(cel);
+  for (let i = 0; i < 4; i += 1) {
+    qrGlyph.appendChild(document.createElement('i'));
   }
   qrButton.appendChild(qrGlyph);
 
   // Feedback 4 aug (punt 14): delen hoort hier als klein pictogram — niet
   // als groot "UITNODIGEN"-blok onderin de lobby dat de startknop wegduwt.
-  // Feedbackronde 2 (punt 4): het schuine pijltje was onduidelijk — een
-  // klein woord is ondubbelzinnig.
+  // Feedbackronde 2 (punt 4) maakte er het woord DEEL van omdat het schuine
+  // pijltje onduidelijk was. A1 (punt 15) draait dat terug naar een symbool,
+  // maar niet naar dat pijltje: dit is het deelsymbool zelf (drie knopen, twee
+  // verbindingen, opgebouwd in rounda-1c.css). Reden is ruimte — het woord
+  // kostte ~55 px in een rij van 366 px waar ook de code in moet.
   const shareButton = document.createElement('button');
   shareButton.type = 'button';
   shareButton.className = 'btn-icon room-header-share';
-  shareButton.textContent = 'DEEL';
+  const shareGlyph = el('span', 'room-header-share-glyph');
+  shareGlyph.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 3; i += 1) {
+    shareGlyph.appendChild(document.createElement('i'));
+  }
+  shareButton.appendChild(shareGlyph);
   const shareToast = el('span', 'room-header-share-toast');
   shareToast.hidden = true;
   shareToast.setAttribute('role', 'status');

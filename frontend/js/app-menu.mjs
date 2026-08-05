@@ -1,4 +1,4 @@
-// app-menu.mjs — UI1. Het hamburgermenu in de appheader, zichtbaar op élk
+// app-menu.mjs — UI1. Het voorkeurenmenu in de appheader, zichtbaar op élk
 // scherm (gemount in `#app-header`, buiten `#app-root` — dat laatste wordt
 // bij elke routewissel leeggemaakt, de header niet). Drie losse keuzes:
 //
@@ -15,25 +15,30 @@
 //     in app.mjs ongewijzigd kan blijven — geen nieuwe verplichte parameter.
 //
 // Gebruik: createAppMenu({ root, t, initialLang, initialTheme, onLangChange,
-// onThemeChange, storage? }) bouwt de hamburgerknop + het paneel; `refresh()`
+// onThemeChange, storage? }) bouwt de ⋯-knop + het paneel; `refresh()`
 // ververst de labels/actieve-status ná een taalwissel (dezelfde aanroeper-
 // ververst-conventie als de schermmodules).
+//
+// A1 (punt 7): dit was een hamburger. Een hamburger belooft hoofdnavigatie —
+// "waar kan ik heen?" — en daarachter zaten drie voorkeuren. Drie puntjes
+// beloven precies wat er is: opties bij wat je nu ziet. Alleen de aanleiding
+// verandert; het paneel eronder is ongewijzigd.
 
 import { loadReactionsEnabled, saveReactionsEnabled } from './preferences.mjs';
 
 export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange, onThemeChange, storage = window.localStorage }) {
   root.textContent = '';
 
-  const hamburger = document.createElement('button');
-  hamburger.type = 'button';
-  hamburger.className = 'btn-icon app-hamburger';
-  hamburger.textContent = '☰';
+  const menuKnop = document.createElement('button');
+  menuKnop.type = 'button';
+  menuKnop.className = 'btn-icon app-menu-trigger';
+  menuKnop.textContent = '⋯';
   // Het paneel is een menu dat de knop open-/dichtklapt; zonder deze drie
   // attributen kondigt een screenreader alleen "knop" aan, zonder dat er iets
   // open is gegaan. `aria-expanded` wordt bij elke wissel bijgewerkt.
-  hamburger.setAttribute('aria-haspopup', 'true');
-  hamburger.setAttribute('aria-expanded', 'false');
-  hamburger.setAttribute('aria-controls', PANEL_ID);
+  menuKnop.setAttribute('aria-haspopup', 'true');
+  menuKnop.setAttribute('aria-expanded', 'false');
+  menuKnop.setAttribute('aria-controls', PANEL_ID);
 
   const panel = el('div', 'app-menu');
   panel.id = PANEL_ID;
@@ -112,9 +117,9 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
   reactionsSection.append(reactionsLabel, reactionsGroup);
 
   panel.append(langSection, themeSection, reactionsSection);
-  root.append(hamburger, panel);
+  root.append(menuKnop, panel);
 
-  hamburger.setAttribute('aria-label', t('menu.open'));
+  menuKnop.setAttribute('aria-label', t('menu.open'));
 
   /**
    * Eén plek die openen/sluiten regelt, zodat `aria-expanded` niet uit de pas
@@ -127,13 +132,13 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
    */
   function setOpen(open, { returnFocus = false } = {}) {
     panel.hidden = !open;
-    hamburger.setAttribute('aria-expanded', String(open));
+    menuKnop.setAttribute('aria-expanded', String(open));
     if (!open && returnFocus) {
-      hamburger.focus();
+      menuKnop.focus();
     }
   }
 
-  hamburger.addEventListener('click', () => {
+  menuKnop.addEventListener('click', () => {
     setOpen(panel.hidden);
   });
 
@@ -158,7 +163,7 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
   let reactionsEnabled = loadReactionsEnabled(storage) ?? true;
 
   function refresh() {
-    hamburger.setAttribute('aria-label', t('menu.open'));
+    menuKnop.setAttribute('aria-label', t('menu.open'));
     langLabel.textContent = t('menu.language');
     themeLabel.textContent = t('menu.theme');
     // `.active` is puur visueel; `aria-pressed` is wat een screenreader hoort.
