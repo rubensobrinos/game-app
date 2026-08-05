@@ -298,3 +298,38 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
     - Dit is een visueel concept, geen laadstructuur: welke games speelbaar
       zijn blijft `shared/content/game-catalog.mjs`.
 
+46. **Intypen levert meer punten op dan kiezen** (producteigenaar, 6 aug 2026).
+    VASTGELEGD, NOG NIET GEBOUWD.
+
+    Basisscore bij de intyp-modus wordt 150 in plaats van 100; de
+    snelheidsbonus blijft ongewijzigd. Reden: op een telefoon kost intikken
+    seconden, en zonder correctie straft de snelheidsbonus je duimen in plaats
+    van je kennis. In **Mix** staan beide vormen in één partij, dus de scores
+    moeten vergelijkbaar blijven.
+
+    Overwogen en niet gekozen: één schaal met een maximum van 100 die naar 10
+    zakt als je laat bent (producteigenaar). Te mager aan de onderkant.
+
+47. **Spelersidentiteit begint met zestig landen** (producteigenaar,
+    6 aug 2026).
+
+    Niet alle 230. De landbijvoeglijke naamwoorden (*Griekse*, *Bulgaarse*,
+    *Peruaanse*) zijn per land onregelmatig en per taal anders; ze zijn niet af
+    te leiden uit de landnaam. Zestig landen is één dag schrijven per taal, 230
+    is weken. De lijst kan later groeien zolang de terugval op de "uit"-vorm
+    werkt (besluit 41).
+
+    Het speelse woord zelf (*Gans*) en een eventueel kleurwoord (*Grijze*) zijn
+    gewone woordenlijsten van dertig stuks — die gelden voor álle landen en
+    kosten vrijwel niets.
+
+48. **Verlopen room en onbekende code worden apart gemeld** (producteigenaar,
+    6 aug 2026). VASTGELEGD, NOG NIET GEBOUWD.
+
+    Nu heten een verlopen room, een verkeerd getypte code en een verbroken
+    verbinding alle drie "Deze game bestaat niet (meer)". De producteigenaar
+    vraagt om de professionele keuze: het onderscheid echt maken.
+
+    Vereist dat de server onthoudt dát een roomcode bestaan heeft nadat de room
+    is opgeruimd. Zonder zo'n spoor is het verschil niet vast te stellen.
+
