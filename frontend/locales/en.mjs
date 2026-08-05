@@ -26,6 +26,7 @@ export const en = Object.freeze({
   'home.codeLabel': 'Enter the game code',
   'home.codePlaceholder': '123456',
   'home.codeSubmit': 'Join with code',
+  'home.codeGo': 'Go',
   'home.soloStart': 'Play on your own',
   'home.codeInvalid': 'Enter a 6-digit code',
   'home.hostSetupLink': 'Adjust game',

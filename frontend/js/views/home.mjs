@@ -41,7 +41,12 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   // "Potje maken…" — de sublabel blijft ongemoeid staan.
   const quickStartLabel = el('span', 'home-quick-start-label');
   quickStartLabel.dataset.buttonLoadingLabel = '';
+  // C1 (punt 4): de sublabel "GEEN ACCOUNT · JIJ LEIDT" is weg. Hij herhaalde
+  // wat de knop al belooft en kostte een tweede regel in de hoogste knop van
+  // het scherm. Element én sleutel blijven staan (`home.quickStartSub`):
+  // verborgen is terug te draaien, verwijderd is nieuw werk.
   const quickStartSub = el('span', 'home-quick-start-sub');
+  quickStartSub.hidden = true;
   quickStartButton.append(quickStartLabel, quickStartSub);
   const quickStartError = el('p', 'home-quick-start-error field-error');
   // M6/E02: `setButtonLoading` (thema 2, T2-2) is de gedeelde laadstaat-
@@ -79,11 +84,20 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
     codeCellInputs.push(cell);
     codeCells.appendChild(cell);
   }
-  codeSection.append(codeLabelText, codeCells);
   const codeError = el('p', 'home-code-error field-error');
+  // C1 (punten 2 en 3): de volle-breedte knop "Meedoen met code" ónder de
+  // cellen is vervangen door een compacte Go náást de cellen. Dat scheelt een
+  // eigen regel plus zijn marge, en het is dezelfde beweging als bij elke
+  // codeinvoer: cijfers intypen, dan meteen door. De knop is dezelfde knop —
+  // klik, Enter-in-een-cel en foutafhandeling blijven ongewijzigd; alleen zijn
+  // plek en zijn label wijzigen. `home.codeSubmit` blijft het toegankelijke
+  // label, want "Go" alleen zegt buiten deze rij niets.
   const codeSubmitButton = document.createElement('button');
   codeSubmitButton.type = 'button';
-  codeSubmitButton.className = 'home-code-submit btn-secondary';
+  codeSubmitButton.className = 'home-code-submit home-code-go btn-secondary';
+  const codeRow = el('div', 'home-code-row');
+  codeRow.append(codeCells, codeSubmitButton);
+  codeSection.append(codeLabelText, codeRow);
 
   // S01 inhoudshiërarchie punt 6 ("aanpaslink"): tertiair, na het codeveld —
   // nooit even dominant als de primaire quick-start-knop.
@@ -108,7 +122,10 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   // Feedbackronde 2 (4 aug, punt 1+2): "Spel aanpassen" is hier weg — je
   // stelt een spel pas in als er een lobby ís (scherm 2). De hostSetup-flow
   // blijft in de code bestaan maar heeft geen ingang meer.
-  const quickStartGroup = [logo, title, promise, quickStartButton, quickStartStatus, quickStartError, divider, codeSection, codeError, codeSubmitButton, soloButton];
+  // `codeSubmitButton` staat hier niet meer in: hij hangt sinds C1 ín
+  // `codeSection` (de Go-rij), en `screen.append(...)` zou hem daaruit
+  // wegtrekken. Verbergen gebeurt nu via `codeSection`, één niveau hoger.
+  const quickStartGroup = [logo, title, promise, quickStartButton, quickStartStatus, quickStartError, divider, codeSection, codeError, soloButton];
   screen.append(...quickStartGroup);
 
   // S02: los scherm, hergebruikt dezelfde HostSetupState-instantie (geen
@@ -273,8 +290,8 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
     setButtonLoading(quickStartButton, { loading: state.status === 'creating', label: state.status === 'creating' ? t('home.creating') : null });
     divider.hidden = state.status === 'creating';
     codeSection.hidden = state.status === 'creating';
-    codeSubmitButton.hidden = state.status === 'creating';
-    codeSubmitButton.textContent = t('home.codeSubmit');
+    codeSubmitButton.textContent = t('home.codeGo');
+    codeSubmitButton.setAttribute('aria-label', t('home.codeSubmit'));
     soloButton.textContent = t('home.soloStart');
     // Na de groepslus: zonder `onSolo` bestaat er geen solomodus en mag de
     // knop nooit zichtbaar worden, ook niet in quick-start-weergave.

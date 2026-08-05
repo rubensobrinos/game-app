@@ -1167,13 +1167,90 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
    `padding: 2rem` is er voor schermen die met een kop openen, en de lobby
    opent nu met de lijst zelf. Alleen deze `padding-top` wijzigt, en alleen
    voor de lobby: de andere sessieschermen houden hun kop en hun lucht.
-   `--chrome-gap` is het ruimtetoken van pakket A; de fallback geldt zolang
-   dat token nog niet in `:root` staat. */
 /* Weggehaald door de lead (5 aug): C0 zette hier `padding-top:
    var(--chrome-gap)` — geschreven vóórdat A1 landde met `.screen.screen-top
    { padding-top: 0 }` plús 16px `margin-bottom` op `#app-header`. Die twee
    telden op, waardoor de lobby op y=76 begon en elk ander sessiescherm op 60.
    Gemeld door agent A, en het klopte. */
+
+/* ── C1: home binnen één viewport (punten 1 t/m 5) ──────────────────────────
+   Nulmeting met `tools/meet-viewport.mjs` op 390×650: 883px pagina, 233px te
+   veel, met "Meedoen met code" (y=662) en "Alleen spelen" (y=736) onder de
+   vouw. Het scherm was niet te lang door één uitschieter maar door een reeks
+   marges van 14 tot 22px bovenop een gap van 16px — daarom staat hier één
+   ritme (`--home-gap`) in plaats van zeven losse waarden. */
+.home-screen {
+  --home-gap: 12px;
+  gap: var(--home-gap);
+  /* De chrome levert zijn eigen ruimte eronder (`--chrome-gap`); de 2rem uit
+     `.screen` kwam daar nog eens bovenop. */
+  padding-top: 0;
+  padding-bottom: 16px;
+}
+
+/* Punt 5: het rad groeit (96 → 115px) — als enige element op dit scherm. Wat
+   het kost, komt uit de marges eromheen, niet uit de andere blokken. */
+.home-screen .app-logo {
+  width: 115px;
+  height: 115px;
+  margin: 0;
+}
+
+/* Eén ritme: de blokken hebben geen eigen ondermarge meer nodig, de `gap`
+   van de kolom doet het werk. Zonder dit telt elke marge er nog bovenop. */
+.home-screen .home-title,
+.home-screen .home-promise,
+.home-screen .home-divider,
+.home-screen .home-solo-link {
+  margin: 0;
+}
+
+/* De hero-pil blijft de hero (60px hoog, ruim boven de tikdoeleis), maar
+   22px padding boven én onder was op 650px scherm luxe die de Spaanse
+   tagline — die over drie regels loopt — niet meer overliet. */
+.home-screen .home-quick-start {
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+
+/* De twee foutalinea's (`.home-quick-start-error`, `.home-code-error`) staan
+   er altijd, meestal leeg. Nul pixels hoog, maar wél een flex-item: samen
+   kostten ze twee keer de `gap`. Leeg is dus geen item meer; zodra er een
+   fout in staat telt hij weer volledig mee. */
+.home-screen .field-error:empty {
+  display: none;
+}
+
+/* Punt 2: de zes cellen en Go op één rij. `align-items: end` houdt de knop
+   gelijk met de onderkant van de cellen, ook als het label erboven wegvalt. */
+.home-code-row {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.home-code-row .home-code-cells {
+  flex: 1;
+  min-width: 0;
+}
+
+.home-code-go {
+  flex: none;
+  width: 64px;
+  /* Even hoog als een cel (12px padding + 23px regel), en daarmee vanzelf
+     boven de 44px-tikdoeleis. */
+  align-self: stretch;
+  min-height: 47px;
+  margin-top: 0;
+  padding: 0;
+  border-radius: 10px;
+  font: 700 13px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  /* Lime tekst, verder dezelfde stille pil: zonder dit leest de knop als een
+     zevende, lege codecel in plaats van als de actie erachter. */
+  color: var(--rounda-lime);
+  border-color: rgba(216, 255, 62, 0.35);
 
 /* ══ LEAD — losse punten (regie) ══════════════════════════════════════════ */
 
