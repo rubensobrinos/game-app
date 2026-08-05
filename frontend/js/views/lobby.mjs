@@ -80,12 +80,29 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   renameSave.className = 'btn-secondary lobby-self-save';
   renameSave.hidden = true;
   const renameError = el('p', 'lobby-self-error field-error');
-  const selfSwatch = el('span', 'lobby-self-swatch');
-  selfSwatch.setAttribute('aria-hidden', 'true');
+  // C2 (punten 19/20/21, R2-6): het kleurvlakje ís de knop. De acht kleuren
+  // stonden altijd uitgeklapt onder je naam — twee rijen, ~96px, voor een
+  // keuze die je één keer maakt. Nu zit de kleur naast de naam in dezelfde
+  // rij en verschijnt het palet pas na een tik erop.
+  //
+  // Bewust de interactie en niet een groter palet: de server kent precies
+  // acht kleuren (gesloten enum, `client-events-dispatch.mjs`), dus 36 is
+  // protocolwerk. Als dat er komt, groeit alléén `SERVER_KLEUREN` — de
+  // opening, het sluiten en de toegankelijkheid staan hier al.
+  const selfSwatch = document.createElement('button');
+  selfSwatch.type = 'button';
+  selfSwatch.className = 'lobby-self-swatch';
+  selfSwatch.setAttribute('aria-expanded', 'false');
+  let colorsOpen = false;
+  selfSwatch.addEventListener('click', () => {
+    colorsOpen = !colorsOpen;
+    renderSelfSection();
+  });
   selfRow.append(selfSwatch, selfName, renameButton, renameInput, renameSave);
   // Feedback punt 13: kleurkiezer — acht tikbare stippen, serverpalet.
   const colorRow = el('div', 'lobby-self-colors');
   colorRow.setAttribute('role', 'group');
+  colorRow.hidden = true;
   const colorButtons = new Map();
   for (const [colorName, hex] of Object.entries(SERVER_KLEUREN)) {
     const dot = document.createElement('button');
@@ -93,6 +110,10 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     dot.className = 'lobby-self-color';
     dot.style.backgroundColor = hex;
     dot.addEventListener('click', async () => {
+      // Meteen dicht: gekozen is gekozen, en het palet mag de rest van de
+      // lobby niet blijven wegduwen. De stand komt van de server terug.
+      colorsOpen = false;
+      renderSelfSection();
       try {
         await onRecolor?.(colorName);
       } catch {
@@ -202,6 +223,26 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   }
   gamePrev.addEventListener('click', () => turnGame(-1));
   gameNext.addEventListener('click', () => turnGame(1));
+
+  // Punt 23: met de duim over de kaart vegen draait dezelfde carrousel als de
+  // pijlen. Pointer-events en geen `scroll-snap`-strip: de kaart toont bewust
+  // één game — de serverstand is de waarheid (§A5) — en een strip zou vier
+  // kaarten tonen waarvan er drie niet gekozen zijn. `touch-action: pan-y`
+  // (CSS) laat verticaal scrollen ongemoeid.
+  const VEEG_DREMPEL = 40; // px; hieronder is het een tik, geen veeg
+  let veegStartX = null;
+  gameCard.addEventListener('pointerdown', (event) => {
+    veegStartX = typeof event?.clientX === 'number' ? event.clientX : null;
+  });
+  gameCard.addEventListener('pointerup', (event) => {
+    if (veegStartX === null) return;
+    const verschil = (typeof event?.clientX === 'number' ? event.clientX : veegStartX) - veegStartX;
+    veegStartX = null;
+    if (Math.abs(verschil) < VEEG_DREMPEL) return;
+    // Naar links vegen brengt de vólgende kaart in beeld, zoals elke carrousel.
+    turnGame(verschil < 0 ? 1 : -1);
+  });
+  gameCard.addEventListener('pointercancel', () => { veegStartX = null; });
 
   // ANTWOORDEN: Kiezen actief; Mix/Typen disabled (40D)
   const answersLabel = settingsLabel('lobby-settings-answers-label');
@@ -383,6 +424,10 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     }
     selfLead.textContent = t('lobby.selfNameLead');
     colorRow.setAttribute('aria-label', t('lobby.colorLabel'));
+    // Het vlakje draagt zijn eigen label: zonder tekst erin is "kleur kiezen"
+    // het enige wat een screenreader hier kan aankondigen.
+    selfSwatch.setAttribute('aria-label', t('lobby.colorLabel'));
+    selfSwatch.setAttribute('aria-expanded', String(colorsOpen));
     for (const [colorName, dot] of colorButtons) {
       dot.setAttribute('aria-label', `${t('lobby.colorLabel')}: ${colorName}`);
     }
@@ -395,7 +440,7 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     // wacht niet op zichzelf: geen klaar-knop en geen wachtpil (die start).
     selfLead.hidden = isReady;
     selfRow.hidden = isReady;
-    colorRow.hidden = isReady;
+    colorRow.hidden = isReady || !colorsOpen;
     readyButton.hidden = isHost || isReady;
     readyPill.hidden = isHost || !isReady;
     renameButton.hidden = isReady || renameUsed || !renameInput.hidden;
@@ -642,7 +687,9 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     selfName.textContent = model.selfName ?? '';
     const selfHex = model.selfColor && model.selfColor in SERVER_KLEUREN ? SERVER_KLEUREN[model.selfColor] : null;
     selfSwatch.style.backgroundColor = selfHex ?? 'transparent';
-    selfSwatch.hidden = selfHex === null;
+    // Blijft staan zonder kleur: het vlakje is sinds C2 de enige ingang naar
+    // het palet, dus wegstoppen zou juist de mensen zonder kleur buitensluiten.
+    selfSwatch.classList.toggle('is-leeg', selfHex === null);
     for (const [colorName, dot] of colorButtons) {
       dot.classList.toggle('is-active', colorName === model.selfColor);
     }
