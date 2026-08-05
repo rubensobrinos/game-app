@@ -479,6 +479,126 @@ test('game:resume outside of PAUSED is rejected with INVALID_PHASE', async () =>
 });
 
 // ---------------------------------------------------------------------------
+// Fase 4 (autoReveal, besluit 51, docs/openstaand/antwoord-automatisch-tonen.md)
+//
+// `withFakeTimers()` faket alleen `setTimeout` (zie boven) — `Date.now()`
+// blijft echte kloktijd, wat voor elke andere test hier genoeg is (die tikt
+// alleen om een gepláánde overgang te forceren). `game:reveal`/`submitAnswer`
+// vergelijken zelf tegen `Date.now()` (net als de echte server tegen
+// `context.now()`), dus DIE twee toetsen hebben ook `Date` als fake-API
+// nodig — anders "verstrijkt" de deadline in de test nooit, hoeveel er ook
+// getikt wordt.
+// ---------------------------------------------------------------------------
+
+function withFakeTimersAndDate(fn) {
+  return async () => {
+    mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+    try {
+      await fn();
+    } finally {
+      mock.timers.reset();
+    }
+  };
+}
+
+/**
+ * Host+player room met autoReveal:false, gestart en getikt tot ronde 1 actief
+ * is. `events` verzamelt alles wat de hostsessie binnenkrijgt — moet vóór
+ * `connect()` bestaan, want de mock geeft `onEvent` niet terug op de
+ * connectie (alleen `send`/`close`), dus achteraf toekennen vangt niets.
+ */
+async function createRoomInRound1WithAutoRevealOff() {
+  const transport = createMockTransport();
+  const created = await transport.createGame({ config: { autoReveal: false }, hostParticipates: true, displayName: 'Host' });
+  const events = [];
+  const hostConn = transport.connect(created.sessionToken, { onEvent: (envelope) => events.push(envelope) });
+  await hostConn.send('game:start', 'act_start', {});
+  mock.timers.tick(COUNTDOWN_TICK_MS);
+  const started = events.find((e) => e.event === 'round:started');
+  return { transport, created, hostConn, events, roundId: started.payload.roundId };
+}
+
+test(
+  'autoReveal false: round:ended blijft uit ná de normale ronde-duur, ondanks het verstrijken van de virtuele tijd',
+  withFakeTimers(async () => {
+    const { transport, created, events } = await createRoomInRound1WithAutoRevealOff();
+
+    // Ver voorbij wat normaal het einde van de ronde zou zijn.
+    mock.timers.tick(ROUND_ACTIVE_TICK_MS + ROUND_RESULT_TICK_MS + SCOREBOARD_TICK_MS);
+    const state = await transport.fetchState(created.gameCode, created.sessionToken);
+    assert.equal(state.room.phase, 'ROUND_ACTIVE', 'de ronde blijft actief tot de host onthult');
+    assert.equal(events.some((e) => e.event === 'round:ended'), false, 'het antwoord mag de mock nog niet verlaten');
+  }),
+);
+
+test(
+  'game:reveal vóór de deadline geeft INVALID_PHASE — te vroeg tikken onthult niet vervroegd',
+  withFakeTimers(async () => {
+    const { hostConn } = await createRoomInRound1WithAutoRevealOff();
+    // Bewust geen klok verzet: de deadline is nog niet voorbij.
+    await assert.rejects(() => hostConn.send('game:reveal', 'act_te_vroeg', {}), (err) => err.code === 'INVALID_PHASE');
+  }),
+);
+
+test(
+  'game:reveal terwijl autoReveal aanstaat (standaard) geeft INVALID_PHASE',
+  withFakeTimersAndDate(async () => {
+    const { transport, created } = await createRoomInRound1();
+    const hostConn = transport.connect(created.sessionToken, { onEvent: () => {} });
+    mock.timers.tick(ROUND_ACTIVE_TICK_MS);
+    await assert.rejects(() => hostConn.send('game:reveal', 'act_onnodig', {}), (err) => err.code === 'INVALID_PHASE');
+  }),
+);
+
+test(
+  'game:reveal ná de deadline onthult het antwoord, en de ronde loopt daarna gewoon door',
+  withFakeTimersAndDate(async () => {
+    const transport = createMockTransport();
+    const created = await transport.createGame({ config: { autoReveal: false }, hostParticipates: true, displayName: 'Host' });
+    const events = [];
+    const hostConn = transport.connect(created.sessionToken, { onEvent: (envelope) => events.push(envelope) });
+    await hostConn.send('game:start', 'act_start', {});
+    mock.timers.tick(COUNTDOWN_TICK_MS);
+
+    mock.timers.tick(ROUND_ACTIVE_TICK_MS);
+    const ack = await hostConn.send('game:reveal', 'act_reveal', {});
+    assert.equal(ack.ok, true);
+
+    const ended = events.find((e) => e.event === 'round:ended');
+    assert.notEqual(ended, undefined, 'pas nu mag het antwoord er staan');
+    assert.ok('correctAnswer' in ended.payload);
+
+    let state = await transport.fetchState(created.gameCode, created.sessionToken);
+    assert.equal(state.room.phase, 'ROUND_RESULT');
+
+    // En daarna gewoon getimed door, zoals altijd (besluit 51: ROUND_RESULT/
+    // SCOREBOARD zijn niet aangepast door autoReveal).
+    mock.timers.tick(ROUND_RESULT_TICK_MS);
+    state = await transport.fetchState(created.gameCode, created.sessionToken);
+    assert.equal(state.room.phase, 'SCOREBOARD');
+  }),
+);
+
+test(
+  'autoReveal false: een antwoord ná de deadline krijgt DEADLINE_PASSED, ook al staat de ronde nog open',
+  withFakeTimersAndDate(async () => {
+    const transport = createMockTransport();
+    const created = await transport.createGame({ config: { autoReveal: false }, hostParticipates: true, displayName: 'Host' });
+    const events = [];
+    const hostConn = transport.connect(created.sessionToken, { onEvent: (envelope) => events.push(envelope) });
+    await hostConn.send('game:start', 'act_start', {});
+    mock.timers.tick(COUNTDOWN_TICK_MS);
+    const started = events.find((e) => e.event === 'round:started');
+
+    mock.timers.tick(ROUND_ACTIVE_TICK_MS);
+    await assert.rejects(
+      () => hostConn.send('round:answer', 'act_te_laat', answerPayloadFor(started.payload)),
+      (err) => err.code === 'DEADLINE_PASSED',
+    );
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // Snapshot / round:started shape
 // ---------------------------------------------------------------------------
 

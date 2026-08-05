@@ -116,6 +116,7 @@ export const nl = Object.freeze({
   'game.received': 'Antwoord ontvangen',
   'game.tooLate': 'Te laat — deze ronde telt niet meer',
   'game.notAccepted': 'Niet gelukt, probeer opnieuw',
+  'game.waitingForReveal': 'Wachten op de host…',
   'game.answered': 'beantwoord',
   'game.inCount': '{n}/{m} binnen',
   'game.correctAnswer': 'Het juiste antwoord',
@@ -267,6 +268,7 @@ export const nl = Object.freeze({
   'hostbar.unlock': 'Room ontgrendelen',
   'hostbar.more': 'Meer opties',
   'hostbar.next': 'Volgende',
+  'hostbar.reveal': 'Toon antwoord',
   'hostbar.finish': 'Game beëindigen',
   'hostbar.finishConfirm': 'Weet je zeker dat je het potje wilt beëindigen?',
   // D3 (besluit producteigenaar 5 aug): het aantal spelers hoort ín de vraag

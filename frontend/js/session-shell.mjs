@@ -570,7 +570,19 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   }
 
   function buildHostContext() {
-    return { phase: matchPhase.phase, pacing, playerCount, locked };
+    return {
+      phase: matchPhase.phase,
+      pacing,
+      autoReveal: roomConfig?.autoReveal,
+      // Fase 4 (autoReveal, besluit 51): puur lokaal — de server stuurt bij
+      // autoReveal:false bewust GEEN fasewissel zodra de tijd om is (dat is
+      // precies de fix), dus dit is het enige signaal dat "Toon antwoord" kan
+      // laten verschijnen. `renderHostBar()` moet daarom ook op de
+      // gameplay-ticker meelopen, niet alleen op serverevents (zie daar).
+      roundExpired: roundModel.endsAt !== null && secondsRemaining(roundModel.startsAt, roundModel.endsAt, offsetMs) === 0,
+      playerCount,
+      locked,
+    };
   }
 
   function renderHostBar() {
@@ -1042,6 +1054,12 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     gameplayTimer = setInterval(() => {
       if (mountedViewName === 'gameplay' && mountedView !== null) {
         mountedView.update(roundModel, gameplayUpdateOptions());
+        // Fase 4 (autoReveal, besluit 51): "Toon antwoord" moet verschijnen
+        // zodra de LOKALE timer 0 bereikt, niet pas bij het eerstvolgende
+        // serverevent — bij autoReveal:false komt dat event immers pas ná de
+        // hosttik. `renderHostBar()` liep hiervoor alleen op discrete
+        // servergebeurtenissen; die dekking blijft bestaan, dit is ernaast.
+        renderHostBar();
       }
     }, GAMEPLAY_TICK_MS);
   }

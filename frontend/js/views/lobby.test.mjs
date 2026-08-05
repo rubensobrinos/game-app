@@ -321,3 +321,34 @@ test('§C3: horizontaal vegen over de gamekaart draait de carrousel, een tik nie
   veeg(200, 300);
   assert.equal(titel.textContent, begin);
 });
+
+// Besluit 51 (fase 4, autoReveal): de toggle was tot 6 aug 2026 een
+// BINNENKORT-rij zonder besturingselement; nu een gewone toggle, zelfde vorm
+// als "Automatisch volgende vraag" (`autoNextToggle`, eerste in DOM-volgorde).
+test('besluit 51: de autoReveal-toggle stuurt autoReveal:false via game:update-config', async () => {
+  const { root, patches } = await maakLobby();
+  const toggles = vindAlle(root, 'lobby-toggle');
+  assert.ok(toggles.length >= 2, 'autoNext en autoReveal moeten allebei een lobby-toggle zijn');
+  const autoRevealToggle = toggles[1];
+
+  klik(autoRevealToggle);
+  assert.deepEqual(patches, [{ autoReveal: false }], 'standaard staat autoReveal aan, dus de eerste tik zet hem uit');
+});
+
+test('besluit 51: de autoReveal-toggle volgt de serverconfig, niet alleen de laatste tik', async () => {
+  const { root, view } = await maakLobby();
+  const autoRevealToggle = vindAlle(root, 'lobby-toggle')[1];
+
+  assert.equal(autoRevealToggle.classList.contains('is-on'), true, 'standaard aan');
+  assert.equal(autoRevealToggle.getAttribute('aria-checked'), 'true');
+
+  view.update({ ...BASIS_MODEL, config: { ...BASIS_MODEL.config, autoReveal: false } });
+  assert.equal(autoRevealToggle.classList.contains('is-on'), false);
+  assert.equal(autoRevealToggle.getAttribute('aria-checked'), 'false');
+});
+
+test('besluit 51: ontbrekend autoReveal in de config (oudere snapshot) leest als aan', async () => {
+  const { root } = await maakLobby();
+  const autoRevealToggle = vindAlle(root, 'lobby-toggle')[1];
+  assert.equal(autoRevealToggle.classList.contains('is-on'), true);
+});

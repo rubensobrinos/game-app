@@ -129,7 +129,12 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
         scheduleTimer(target, remaining, () => startRound(target, 0));
         break;
       case 'ROUND_ACTIVE':
-        scheduleTimer(target, remaining, () => endRound(target, target.roundIndex));
+        // Fase 4 (autoReveal): zelfde voorwaarde als in `startRound` — een
+        // reload mag geen timer aanzetten die de compositie zelf ook niet
+        // zou hebben gepland.
+        if (target.config.autoReveal !== false) {
+          scheduleTimer(target, remaining, () => endRound(target, target.roundIndex));
+        }
         break;
       case 'ROUND_RESULT':
         scheduleTimer(target, remaining, () => showScoreboard(target));
@@ -388,6 +393,10 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
           requireRole(isHost, 'NOT_HOST');
           return ackWith(advanceOnHostCue(room));
 
+        case 'game:reveal':
+          requireRole(isHost, 'NOT_HOST');
+          return ackWith(revealAnswer(room));
+
         case 'game:lock':
           requireRole(isHost, 'NOT_HOST');
           return ackWith(setLocked(room, safePayload.locked === true));
@@ -571,12 +580,26 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
       endsAt,
     });
 
-    scheduleTimer(target, endsAt - Date.now(), () => endRound(target, index));
+    // Fase 4 (autoReveal, besluit 51): staat autoReveal uit, dan plant de
+    // mock — net als de echte server — GEEN automatisch ronde-einde. De ronde
+    // blijft ROUND_ACTIVE voorbij de deadline; `submitAnswer` sluit al af op
+    // `endsAt` (zie daar), en `game:reveal` roept `endRound` rechtstreeks aan.
+    if (target.config.autoReveal !== false) {
+      scheduleTimer(target, endsAt - Date.now(), () => endRound(target, index));
+    }
   }
 
   function submitAnswer(target, playerId, payload) {
     if (target.phase !== 'ROUND_ACTIVE' || target.currentRound === null) {
       throw new ProtocolError('ROUND_NOT_ACTIVE', 'No active round to answer.');
+    }
+    // Fase 4 (autoReveal, besluit 51): zonder deze toets bleef een ronde met
+    // autoReveal uit onbeperkt open voor antwoorden — vóór deze fase viel dat
+    // nooit op, want de timer sloot de ronde toch al af rond `endsAt`. Zelfde
+    // grens als de echte server zijn deadline+grace-toets (besluit 13); deze
+    // mock kent geen aparte grace-periode, dus knipt hard op `endsAt`.
+    if (Date.now() >= target.currentRound.endsAt) {
+      throw new ProtocolError('DEADLINE_PASSED', 'The answer window for this round has closed.');
     }
     if (typeof payload.roundId !== 'string' || payload.roundId !== target.currentRound.roundId) {
       throw new ProtocolError('INVALID_ANSWER_FORMAT', 'roundId does not match the active round.');
@@ -687,6 +710,24 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
     }
     advanceFromScoreboard(target);
     return {};
+  }
+
+  /**
+   * Fase 4 (autoReveal, besluit 51). Zelfde `endRound()`-aanroep die de timer
+   * anders had gedaan, alleen op het moment dat de host kiest — geen aparte
+   * fase-overgang, precies zoals de echte server (`socket.mjs`'s
+   * `case 'game:reveal'`). Twee poorten die `endRound()` zelf niet bewaakt:
+   * autoReveal moet uit staan, en de deadline moet al voorbij zijn.
+   */
+  function revealAnswer(target) {
+    if (target.config.autoReveal !== false) {
+      throw new ProtocolError('INVALID_PHASE', 'game:reveal requires autoReveal:false.');
+    }
+    if (target.phase !== 'ROUND_ACTIVE' || target.currentRound === null || Date.now() < target.currentRound.endsAt) {
+      throw new ProtocolError('INVALID_PHASE', 'game:reveal requires an active round past its deadline.');
+    }
+    endRound(target, target.roundIndex);
+    return { phase: target.phase };
   }
 
   function advanceFromScoreboard(target) {
@@ -834,7 +875,7 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
     if (target.phase !== 'LOBBY') {
       throw new ProtocolError('INVALID_PHASE', 'game:update-config only allowed in LOBBY.');
     }
-    const allowed = ['totalRounds', 'difficulty', 'language', 'pacing', 'speedBonus', 'allowLateJoin', 'gameTypes'];
+    const allowed = ['totalRounds', 'difficulty', 'language', 'pacing', 'autoReveal', 'speedBonus', 'allowLateJoin', 'gameTypes'];
     const safe = {};
     for (const key of allowed) {
       if (patch !== null && typeof patch === 'object' && key in patch) {

@@ -84,6 +84,7 @@ export const es = Object.freeze({
   'game.received': 'Respuesta recibida',
   'game.tooLate': 'Demasiado tarde — esta ronda ya no cuenta',
   'game.notAccepted': 'No se pudo, inténtalo de nuevo',
+  'game.waitingForReveal': 'Esperando al anfitrión…',
   'game.answered': 'respondido',
   'game.inCount': '{n}/{m} listos',
   'game.correctAnswer': 'La respuesta correcta',
@@ -205,6 +206,7 @@ export const es = Object.freeze({
   'hostbar.unlock': 'Desbloquear la sala',
   'hostbar.more': 'Más opciones',
   'hostbar.next': 'Siguiente',
+  'hostbar.reveal': 'Mostrar respuesta',
   'hostbar.finish': 'Finalizar la partida',
   'hostbar.finishConfirm': '¿Seguro que quieres finalizar la partida?',
   // D3: el número de jugadores va en la pregunta — es lo que está en juego.

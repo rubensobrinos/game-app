@@ -86,6 +86,7 @@ export const en = Object.freeze({
   'game.received': 'Answer received',
   'game.tooLate': 'Too late — this round no longer counts',
   'game.notAccepted': 'Not accepted, try again',
+  'game.waitingForReveal': 'Waiting for the host…',
   'game.answered': 'answered',
   'game.inCount': '{n}/{m} in',
   'game.correctAnswer': 'The correct answer',
@@ -207,6 +208,7 @@ export const en = Object.freeze({
   'hostbar.unlock': 'Unlock the room',
   'hostbar.more': 'More options',
   'hostbar.next': 'Next',
+  'hostbar.reveal': 'Show answer',
   'hostbar.finish': 'End the game',
   'hostbar.finishConfirm': 'Are you sure you want to end the game?',
   // D3: the player count belongs in the question — that is what is at stake.
