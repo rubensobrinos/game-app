@@ -34,6 +34,7 @@ import { randomBytes } from 'node:crypto';
 import Fastify from 'fastify';
 
 import { createContext } from './composition/context.mjs';
+import { recoverActiveRooms } from './composition/match-lifecycle.mjs';
 import restRoutes, { REST_PREFIX } from './transport/rest.mjs';
 import {
   createSafeLogger,
@@ -719,6 +720,34 @@ export async function buildServer(options = {}) {
       }
     }
   });
+
+  // C-3 (5 aug 2026, ARCHITECTURE §10): rooms die midden in een potje zaten
+  // toen dit proces omviel, staan nog gewoon in de store — maar hun timers en
+  // verbindingen zijn weg. Zet ze op PAUSED(server_recovery) zodat de host ze
+  // met een verse aftelling kan hervatten, in plaats van naar een bevroren
+  // scherm te kijken.
+  //
+  // Vóór de socketlaag: een client die meteen na de herstart verbindt, moet de
+  // pauze al in zijn snapshot zien in plaats van een fase die niemand meer
+  // vooruit zet. Mislukt het herstel, dan start de server gewoon door — een
+  // niet-herstelde room is hinderlijk, een server die niet opkomt is erger.
+  try {
+    const recovered = await recoverActiveRooms(context);
+    if (!recovered.ok) {
+      logServer('error', 'herstel na serverstart mislukt', { store: handle.kind });
+    } else if (recovered.value.recovered > 0) {
+      // Alleen loggen als er écht iets hersteld is. Een lege store bij elke
+      // start een regel laten schrijven begraaft precies het signaal waar het
+      // hier om gaat: dat er een potje is onderbroken.
+      logServer('warn', 'herstel na serverstart', {
+        scanned: recovered.value.scanned,
+        recovered: recovered.value.recovered,
+        store: handle.kind,
+      });
+    }
+  } catch {
+    logServer('error', 'herstel na serverstart wierp een fout', { store: handle.kind });
+  }
 
   if (attachSockets) {
     await fastify.ready();

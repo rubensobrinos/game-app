@@ -121,8 +121,12 @@ describe('assertImplementsDataStore — contract-sanity-check #1-3', () => {
     delete incomplete.loadRoom;
     assert.throws(() => assertImplementsDataStore(incomplete), TypeError);
   });
-  test('#3 DATA_STORE_METHOD_NAMES bevat 23 methoden (21 t/m DM10 + loadSessionByTokenHash uit DM14/§10 + rotateRoomLocators uit DM16/§9)', () => {
-    assert.strictEqual(DATA_STORE_METHOD_NAMES.length, 23);
+  test('#3 DATA_STORE_METHOD_NAMES bevat 24 methoden (21 t/m DM10 + loadSessionByTokenHash uit DM14/§10 + rotateRoomLocators uit DM16/§9 + listActiveRoomIds uit C-3)', () => {
+    // `listActiveRoomIds` erbij op 5 aug 2026: het herstelpad na een
+    // serverherstart (ARCHITECTURE §10) moet weten wélke rooms het moet
+    // oppakken. De index (`rooms:active`) bestond al; alleen het lezen ervan
+    // ontbrak in de poort.
+    assert.strictEqual(DATA_STORE_METHOD_NAMES.length, 24);
   });
 });
 

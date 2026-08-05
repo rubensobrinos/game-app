@@ -43,6 +43,7 @@
  * @property {(roomId: string, playerId: string) => Promise<import('./types/player').Player|null>} loadPlayer
  * @property {(player: import('./types/player').Player) => Promise<void>} savePlayer
  * @property {(roomId: string) => Promise<import('./types/player').Player[]>} listPlayers
+ * @property {() => Promise<string[]>} listActiveRoomIds
  * @property {(roomId: string, matchId: string) => Promise<import('./types/match').Match|null>} loadMatch
  * @property {(match: import('./types/match').Match) => Promise<void>} saveMatch
  * @property {(roomId: string, matchId: string, roundId: string) => Promise<import('./types/round').Round|null>} loadRound
@@ -156,7 +157,7 @@ const DATA_STORE_METHOD_NAMES = Object.freeze([
   'loadRoom', 'saveRoom', 'loadRoomByCode', 'loadRoomByInviteHash',
   'claimRoomLocatorsAtomically', 'releaseRoomLocators', 'refreshRoomLocators', 'rotateRoomLocators',
   'loadSession', 'saveSession', 'loadSessionByTokenHash',
-  'loadPlayer', 'savePlayer', 'listPlayers',
+  'loadPlayer', 'savePlayer', 'listPlayers', 'listActiveRoomIds',
   'loadMatch', 'saveMatch',
   'loadRound', 'saveRound',
   'loadAnswer',

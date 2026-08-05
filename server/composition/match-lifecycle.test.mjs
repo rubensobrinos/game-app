@@ -37,6 +37,7 @@ import {
   CONTENT_UNAVAILABLE,
   PHASE_RACE_LOST,
   rematch,
+  recoverActiveRooms,
   resolveEligibleFromRound,
   resolveNextPhase,
   startMatch,
@@ -2010,4 +2011,112 @@ test('§A3: bij een gelijke stand geven scoreboard, snapshot en eindstand exact 
   //    tegen — dat was vóór §A3 letterlijk mogelijk.
   const selfId = snapshot.value.self.playerId;
   assert.equal(snapshot.value.self.position, snapshotByPlayer.get(selfId));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C-3 (5 aug 2026) — herstel na een serverherstart (ARCHITECTURE §10).
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('§C-3: recoverActiveRooms zet een lopende match op PAUSED(server_recovery) en laat de scores staan', async () => {
+  const harness = makeHarness();
+  const { context, store, clock } = harness;
+  const { roomId, players } = await seedRoom(harness, { extraPlayers: 1 });
+  const started = await startMatch(context, { roomId });
+
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  const round = await startRound(context, { roomId });
+  const doc = await loadRoundDoc(harness, roomId, started.value.matchId, round.value.roundId);
+
+  // Eén speler antwoordt goed vlak vóór de "herstart".
+  clock.advance(1000);
+  const ack = await submitAnswer(context, {
+    roomId, playerId: players[0].playerId, roundId: doc.id,
+    answer: { optionId: doc.correctAnswer.optionId }, actionId: 'voor_herstart',
+  });
+  assert.equal(ack.ok, true, JSON.stringify(ack));
+  const scoreVoor = (await store.loadPlayer(roomId, players[0].playerId)).score;
+  assert.ok(scoreVoor > 0, 'punten worden bij het antwoord toegekend, niet pas bij het sluiten van de ronde');
+
+  // ── de herstart ──
+  const hersteld = await recoverActiveRooms(context);
+  assert.equal(hersteld.ok, true, JSON.stringify(hersteld));
+  assert.equal(hersteld.value.scanned, 1);
+  assert.equal(hersteld.value.recovered, 1);
+  assert.deepEqual(hersteld.value.outcomes, [{ roomId, outcome: 'paused' }]);
+
+  const match = await store.loadMatch(roomId, started.value.matchId);
+  assert.equal(match.phase, 'PAUSED');
+  assert.equal(match.pausedState.reason, 'server_recovery');
+  assert.equal(match.pausedState.previousPhase, 'ROUND_ACTIVE');
+  assert.equal(match.pausedState.remainingMs, 0, 'we beloven geen resttijd voor een fase die we niet hervatten');
+  assert.equal((await store.loadRoom(roomId)).phase, 'PAUSED');
+
+  // De punten van vóór de herstart staan er nog.
+  assert.equal((await store.loadPlayer(roomId, players[0].playerId)).score, scoreVoor);
+});
+
+test('§C-3: hervatten na een herstelpauze gaat via een nieuwe aftelling, niet terug de oude ronde in', async () => {
+  const harness = makeHarness();
+  const { context, store, clock } = harness;
+  const { roomId } = await seedRoom(harness, { extraPlayers: 1 });
+  const started = await startMatch(context, { roomId });
+
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  const round = await startRound(context, { roomId });
+  await recoverActiveRooms(context);
+
+  // De host drukt op hervatten.
+  clock.advance(30_000);
+  const hervat = await advancePhase(context, { roomId, event: { type: 'HOST_RESUME' } });
+  assert.equal(hervat.ok, true, JSON.stringify(hervat));
+  assert.equal(hervat.value.phase, 'COUNTDOWN', 'een herstelpauze hervat NOOIT de onderbroken ronde');
+
+  const match = await store.loadMatch(roomId, started.value.matchId);
+  assert.equal(match.pausedState, null);
+
+  // En de volgende ronde is een NIEUWE ronde, niet de onderbroken.
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  const volgende = await startRound(context, { roomId });
+  assert.equal(volgende.ok, true, JSON.stringify(volgende));
+  assert.notEqual(volgende.value.roundId, round.value.roundId);
+});
+
+test('§C-3: een gewone hostpauze hervat wél de fase waar hij vandaan kwam', async () => {
+  const harness = makeHarness();
+  const { context, clock } = harness;
+  const { roomId } = await seedRoom(harness, { extraPlayers: 1 });
+  await startMatch(context, { roomId });
+
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  await startRound(context, { roomId });
+
+  clock.advance(1000);
+  const gepauzeerd = await advancePhase(context, { roomId, event: { type: 'HOST_PAUSE' } });
+  assert.equal(gepauzeerd.ok, true, JSON.stringify(gepauzeerd));
+
+  clock.advance(5000);
+  const hervat = await advancePhase(context, { roomId, event: { type: 'HOST_RESUME' } });
+  assert.equal(hervat.value.phase, 'ROUND_ACTIVE', 'alleen de herstelreden stuurt naar COUNTDOWN');
+});
+
+test('§C-3: recoverActiveRooms is idempotent en slaat over wat niet onderweg is', async () => {
+  const harness = makeHarness();
+  const { context, clock } = harness;
+
+  const lobby = await seedRoom(harness, { extraPlayers: 1 });            // nog geen match
+  const lopend = await seedRoom(harness, { extraPlayers: 1 });
+  await startMatch(context, { roomId: lopend.roomId });
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  await startRound(context, { roomId: lopend.roomId });
+
+  const eerste = await recoverActiveRooms(context);
+  const uitkomsten = new Map(eerste.value.outcomes.map((entry) => [entry.roomId, entry.outcome]));
+  assert.equal(uitkomsten.get(lobby.roomId), 'no_match');
+  assert.equal(uitkomsten.get(lopend.roomId), 'paused');
+
+  // Tweede keer (herstart tijdens het herstel): niets verandert nog.
+  const tweede = await recoverActiveRooms(context);
+  const nogmaals = new Map(tweede.value.outcomes.map((entry) => [entry.roomId, entry.outcome]));
+  assert.equal(nogmaals.get(lopend.roomId), 'already_paused');
+  assert.equal(tweede.value.recovered, 0);
 });

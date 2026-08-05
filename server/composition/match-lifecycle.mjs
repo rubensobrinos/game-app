@@ -107,6 +107,14 @@ if (ALL_ERROR_CODES.has(PHASE_RACE_LOST)) {
 }
 
 /**
+ * De pauzereden die het herstelpad zet (ARCHITECTURE §10, besluit 11 kent hem
+ * al als eigen reden). Alles wat op deze waarde reageert staat in dit bestand:
+ * de bestemming bij hervatten (COUNTDOWN, niet de vorige fase) en de
+ * uitkomstlabels van `recoverActiveRooms`.
+ */
+export const SERVER_RECOVERY_REASON = 'server_recovery';
+
+/**
  * INTERNE uitkomst nummer twee (5 aug 2026, PLAN-CONVERGENTIE §A0): de
  * contentbron kon voor deze gameType geen vraag bouwen.
  *
@@ -534,7 +542,17 @@ export function resolveNextPhase(room, match) {
     case PHASES.SCOREBOARD:
       return isLastRound ? PHASES.FINISHED : PHASES.COUNTDOWN;
     case PHASES.PAUSED:
-      return match.pausedState === null ? null : match.pausedState.previousPhase;
+      if (match.pausedState === null) return null;
+      // C-3 (5 aug 2026): een pauze die dóór een serverherstart is ontstaan
+      // hervat NOOIT de fase waar hij vandaan kwam. De ronde die toen liep is
+      // niet voort te zetten — het antwoordvenster is verlopen en de client
+      // heeft geen lopende timer meer. Hervatten gaat via een nieuwe
+      // aftelling, precies de enige bestemming die `RECOVERY_RESUME` in de
+      // state machine toestaat (ARCHITECTURE §10).
+      if (match.pausedState.reason === SERVER_RECOVERY_REASON) {
+        return PHASES.COUNTDOWN;
+      }
+      return match.pausedState.previousPhase;
     default:
       return null;
   }
@@ -1605,3 +1623,100 @@ export async function buildSnapshot(context, { roomId, sessionId = null } = {}) 
 export const INTERNAL_STATE_MACHINE_CODES = Object.freeze(
   Object.values(STATE_MACHINE_ERROR_CODES).filter((code) => !ALL_ERROR_CODES.has(code)),
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Herstel na een serverherstart (C-3, ARCHITECTURE §10)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** De fasen waarin een match "onderweg" is en dus hersteld moet worden. */
+const RECOVERABLE_PHASES = Object.freeze([
+  PHASES.COUNTDOWN,
+  PHASES.ROUND_ACTIVE,
+  PHASES.ROUND_RESULT,
+  PHASES.SCOREBOARD,
+]);
+
+/**
+ * Zet elke onderweg zijnde match op `PAUSED(server_recovery)`.
+ *
+ * WAAROM DIT BESTAAT. Redis houdt room, match, ronde, antwoorden en scores
+ * vast — dat overleeft een herstart. Wat níét overleeft zijn de timers en de
+ * socketverbindingen: die leven in het geheugen van het proces. Zonder dit pad
+ * blijft de state dus correct staan terwijl niemand de avond nog in beweging
+ * zet, en kijkt de groep naar een scherm dat niet meer verandert.
+ *
+ * WAT DIT BEWUST NIET DOET:
+ *
+ * - **Geen verlopen antwoordvenster hervatten.** Een ronde die liep, wordt niet
+ *   voortgezet: het venster is verstreken en de clients hebben geen lopende
+ *   timer meer. `resolveNextPhase` stuurt een `server_recovery`-pauze daarom
+ *   naar COUNTDOWN, niet terug naar de vorige fase.
+ * - **Geen punten weggooien.** Scoren gebeurt bij het aannemen van het
+ *   antwoord (`saveAcceptedAnswerAtomically` schrijft Answer én Player in één
+ *   keer), niet pas bij het sluiten van de ronde. De antwoorden die vóór de
+ *   herstart binnenkwamen tellen dus gewoon mee; alleen de reveal van die ene
+ *   ronde slaan we over.
+ * - **Niet zelf hervatten.** De groep zat op dat moment niet klaar. Hervatten
+ *   is een hostactie (`game:resume`), met een nieuwe aftelling.
+ * - **Geen dubbele timers.** De runtime is na een herstart per definitie leeg,
+ *   en elke geplande overgang loopt langs de compare-and-set van
+ *   `setRoomAndMatchPhaseAtomically` — een tweede winnaar bestaat niet.
+ *
+ * Idempotent: een match die al PAUSED staat wordt niet nog eens gepauzeerd, dus
+ * twee keer aanroepen (of herstarten tijdens het herstel) is veilig.
+ *
+ * @param {import('./context.mjs').Context} context
+ * @returns {Promise<{ ok: true, value: { scanned: number, recovered: number, outcomes: Array<{ roomId: string, outcome: string }> } }>}
+ */
+export async function recoverActiveRooms(context) {
+  let roomIds;
+  try {
+    roomIds = await context.store.listActiveRoomIds();
+  } catch (error) {
+    // De opslag is niet bereikbaar. Dat is een opstartprobleem van een andere
+    // orde; hier niet omheen bouwen, wel zichtbaar teruggeven.
+    return { ok: false, code: CONTENT_UNAVAILABLE, contentFailure: { gameType: null, reason: String(error) } };
+  }
+
+  const outcomes = [];
+  for (const roomId of roomIds) {
+    outcomes.push({ roomId, outcome: await recoverRoom(context, roomId) });
+  }
+  return succeed({
+    scanned: roomIds.length,
+    recovered: outcomes.filter((entry) => entry.outcome === 'paused').length,
+    outcomes,
+  });
+}
+
+/**
+ * @param {import('./context.mjs').Context} context
+ * @param {string} roomId
+ * @returns {Promise<'gone' | 'no_match' | 'not_active' | 'already_paused' | 'paused' | 'failed'>}
+ */
+async function recoverRoom(context, roomId) {
+  const room = await context.store.loadRoom(roomId);
+  // `rooms:active` heeft bewust geen TTL terwijl roomdocumenten die wél hebben:
+  // een verlopen room in de index is normaal, geen fout.
+  if (room === null) return 'gone';
+  if (room.currentMatchId === null) return 'no_match';
+
+  const match = await context.store.loadMatch(roomId, room.currentMatchId);
+  if (match === null) return 'gone';
+  if (match.phase === PHASES.PAUSED) return 'already_paused';
+  if (!RECOVERABLE_PHASES.includes(match.phase)) return 'not_active';
+
+  const applied = await applyTransition(context, {
+    room,
+    match,
+    event: {
+      type: EVENT_TYPES.HOST_PAUSE,
+      reason: SERVER_RECOVERY_REASON,
+      // Expliciet 0: `remainingMs` belooft de client hoeveel er van de vorige
+      // fase over was. Bij een herstelpauze zetten we die belofte niet, want
+      // we hervatten die fase juist niet — er komt een verse aftelling.
+      remainingMs: 0,
+    },
+  });
+  return applied.ok ? 'paused' : 'failed';
+}

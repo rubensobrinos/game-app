@@ -586,11 +586,18 @@ test('een procesherstart midden in een match vindt room, match, spelers en score
   assert.notEqual(room, null, 'de room overleeft de herstart');
   assert.equal(room.code, host.gameCode);
   assert.equal(room.currentMatchId, matchId);
-  assert.equal(room.phase, beforeRoom.phase);
 
   const match = await b.store.loadMatch(host.roomId, matchId);
   assert.notEqual(match, null, 'de match overleeft de herstart');
-  assert.deepEqual(match, beforeMatch, 'de match komt byte-voor-byte terug zoals hij stond');
+  // Sinds C-3 (5 aug 2026) verandert het herstelpad bij het opstarten precies
+  // twee dingen: de fase en `pausedState`. Al het andere hoort byte-voor-byte
+  // terug te komen zoals het stond — dát is wat deze test bewaakt.
+  assert.deepEqual(
+    { ...match, phase: beforeMatch.phase, pausedState: beforeMatch.pausedState },
+    beforeMatch,
+    'buiten fase en pausedState komt de match ongewijzigd terug',
+  );
+  assert.equal(beforeRoom.phase, 'SCOREBOARD', 'de match zat midden in een potje toen server A omviel');
 
   const players = await b.store.listPlayers(host.roomId);
   assert.equal(players.length, 2);
@@ -616,21 +623,28 @@ test('een procesherstart midden in een match vindt room, match, spelers en score
   assert.equal(snapshot.body.self.playerId, host.playerId);
   assert.equal(snapshot.body.self.score ?? snapshot.body.scoreboard.self.score, expectedScore);
 
-  // ── WAT ER NIET GEBEURT ─────────────────────────────────────────────────
+  // ── EN WAT ER SINDS 5 AUG 2026 WÉL GEBEURT (C-3) ────────────────────────
   //
-  // ARCHITECTURE.md §10 wil dat een herstart de room op PAUSED zet met reden
-  // `server_recovery` en hem daarna via RECOVERY_RESUME naar een nieuwe korte
-  // COUNTDOWN brengt. Dat pad BESTAAT NIET: `RECOVERY_RESUME` staat in
-  // server/architecture/state-machine.js en wordt in
-  // server/composition/match-lifecycle.mjs alleen geclassificeerd als
-  // servergedreven event — geen enkele functie roept het aan, en niets leest
-  // `rooms:active` bij het opstarten. Deze assertie legt dat vast als een
-  // BEKENDE LEEMTE in plaats van hem te maskeren: gaat iemand het herstelpad
-  // bouwen, dan valt hij hier om en weet hij meteen dat deze test mee moet.
-  assert.notEqual(room.phase, 'PAUSED', 'er is (nog) geen herstelpad dat de room pauzeert — zie de bevinding');
+  // Hier stond een vastgelegde LEEMTE: ARCHITECTURE.md §10 wil dat een herstart
+  // de room op PAUSED(server_recovery) zet en hem daarna via een nieuwe korte
+  // COUNTDOWN hervat, en dat pad bestond niet. De oude assertie schreef voor
+  // dat wie het bouwt "hier omvalt en weet dat deze test mee moet" — dat is nu
+  // gebeurd. `buildServer` roept bij het opstarten `recoverActiveRooms` aan.
+  assert.equal(room.phase, 'PAUSED', 'server B hoort de onderbroken room te pauzeren');
+  assert.equal(match.pausedState.reason, 'server_recovery');
+  assert.equal(match.pausedState.previousPhase, beforeRoom.phase);
+  assert.equal(match.pausedState.remainingMs, 0, 'geen resttijd beloven voor een fase die niet hervat wordt');
+
+  // De snapshot die een client na de herstart ophaalt, toont diezelfde pauze —
+  // geen fase die niemand meer vooruit zet.
+  const naHerstel = await b.get(`/api/v1/games/${host.gameCode}/state`, { token: host.sessionToken });
+  assert.equal(naHerstel.status, 200, JSON.stringify(naHerstel.body));
+  assert.equal(naHerstel.body.room.phase, 'PAUSED');
+  assert.equal(naHerstel.body.room.pausedState.reason, 'server_recovery');
+
   t.diagnostic(
-    `herstart: room ${host.roomId} komt terug in fase ${room.phase} met de scores intact, `
-    + 'maar zonder PAUSED(server_recovery) + RECOVERY_RESUME — dat pad ontbreekt in de compositielaag.',
+    `herstart: room ${host.roomId} komt terug op PAUSED(server_recovery) met de scores intact — `
+    + 'de host hervat met een nieuwe aftelling.',
   );
 });
 

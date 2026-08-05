@@ -823,6 +823,20 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
     return Object.values(stored).map((raw) => codec.decode('player', raw));
   }
 
+  /**
+   * De room-ids in `rooms:active` (A7/C-3). Dit is de index die `saveRoom`
+   * al bijhoudt; hij bestond alleen nog niet als poortmethode, waardoor het
+   * herstelpad na een serverherstart niet wist wélke rooms het moest oppakken.
+   *
+   * Kan verlopen rooms bevatten: `rooms:active` heeft bewust geen TTL (zie
+   * de TTL-test), terwijl de roomdocumenten die wél hebben. De aanroeper
+   * hoort daarom op een `null` uit `loadRoom` voorbereid te zijn — dat is
+   * geen fout maar een opgeruimde room.
+   */
+  async function listActiveRoomIds() {
+    return client().sMembers(roomsActiveKey());
+  }
+
   // ----------------------------------------------------------------------
   // Match
   // ----------------------------------------------------------------------
@@ -1289,7 +1303,7 @@ export function createRedisDataStore({ connection, ttlSeconds = ROOM_TTL_SECONDS
     loadRoom, saveRoom, loadRoomByCode, loadRoomByInviteHash,
     claimRoomLocatorsAtomically, releaseRoomLocators, refreshRoomLocators, rotateRoomLocators,
     loadSession, saveSession, loadSessionByTokenHash,
-    loadPlayer, savePlayer, listPlayers,
+    loadPlayer, savePlayer, listPlayers, listActiveRoomIds,
     loadMatch, saveMatch,
     loadRound, saveRound,
     loadAnswer,

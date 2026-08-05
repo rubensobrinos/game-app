@@ -245,6 +245,17 @@ function createInMemoryStore() {
     return Array.from(playersInRoom.values()).map(deepCopy);
   }
 
+  /**
+   * De rooms die deze store kent (A7/C-3, herstel na serverherstart). In Redis
+   * is dit de `rooms:active`-set; hier zijn het simpelweg de opgeslagen rooms.
+   *
+   * Bewust GEEN filter op fase: wat "actief" betekent is een uitspraak van de
+   * compositielaag (die kent de fasetabel), niet van de opslag.
+   */
+  async function listActiveRoomIds() {
+    return [...roomsById.keys()];
+  }
+
   async function loadMatch(roomId, matchId) {
     const match = matchesByKey.get(roomId)?.get(matchId);
     return match === undefined ? null : deepCopy(match);
@@ -425,7 +436,7 @@ function createInMemoryStore() {
     loadRoom, saveRoom, loadRoomByCode, loadRoomByInviteHash,
     claimRoomLocatorsAtomically, releaseRoomLocators, refreshRoomLocators, rotateRoomLocators,
     loadSession, saveSession, loadSessionByTokenHash,
-    loadPlayer, savePlayer, listPlayers,
+    loadPlayer, savePlayer, listPlayers, listActiveRoomIds,
     loadMatch, saveMatch,
     loadRound, saveRound,
     loadAnswer,
