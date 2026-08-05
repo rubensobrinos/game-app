@@ -9,6 +9,8 @@ genoteerd zodat hij niet ondergaat in de 58 van ronde 1. Nummering `R2-x`.
 | R2-2 | Codebalk | *"Kijk hoe lelijk nu de codebalk is en hoe mooi die eerst was."* Deel-icoon en QR-pictogram zijn goed, maar de uitlijning en de ruimte ertussen zijn vaag, en de cijfers mogen groter. | lead | ✅ |
 | R2-3 | Lobby | De zwevende startknop is goud. **Niet aankomen.** | — | 🚫 |
 | R2-4 | Lobby | "Antwoord automatisch tonen" werkt nog steeds niet | — | ⏸ = punt 27, nooit gebouwd, wacht op besluit |
+| R2-5 | Lobby | **"Meer instellingen" moet een kleine regel onderin zijn, geen grote knop.** | C | 🔄 |
+| R2-6 | Lobby | Kleurkeuze en spelersnamen moeten nog gefixt worden (= punten 19, 20, 21) | C | 🔄 |
 
 ## R2-2 — waarom de balk uit elkaar viel
 
