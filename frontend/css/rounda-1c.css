@@ -1284,3 +1284,68 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 .podium-step { padding: 10px 14px; }
 .podium-self { margin-top: 8px; }
 .podium-action { margin-top: 14px; }
+
+/* ══ PAKKET D — spel, reveal, eindstand (agent D) ══ */
+
+/* D1 (punten 33/34/35). Gemeten met `tools/meet-viewport.mjs` op 390×650 —
+   de hoogte die een speler in Safari overhoudt.
+
+   VÓÓR: pagina 810 px, het vierde antwoord viel 51 px onder de vouw. De
+   285 px tussen het einde van de vraag (y=160) en de antwoorden (y=447) was
+   geen ontwerpkeuze maar een optelsom van vier posten:
+     - de vlag werd op volle breedte 229 px hoog, terwijl `--media-max-h`
+       200 px zegt;
+     - 26 px eigen marge boven+onder de vlag, bovenop de gap van `.screen`;
+     - 12 px marge boven de timer en 4 px boven de vraag, idem;
+     - zes keer `.screen`'s gap van 16 px (96 px) voor een scherm dat maar
+       zeven blokken heeft.
+   Geen van die posten stond in het budget van README §1; ze kwamen er
+   bovenop. Dit blok haalt ze weg en verandert geen enkel token. */
+
+/* Alleen het spelscherm: `.gameplay-options` bestaat nergens anders. De lobby
+   (C) en de tussenstand houden hun eigen lucht. */
+.screen-top:has(.gameplay-options) {
+  gap: 10px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+
+/* De vlag ís de vraag, dus hij mag zo groot als het budget toestaat — maar
+   niet groter. De HOOGTE is hier de gestuurde maat, niet de breedte: zo staat
+   de post uit het ruimtebudget letterlijk in de CSS en reserveert het vak zijn
+   plek ook vóórdat de afbeelding geladen is. `width: auto` laat de browser de
+   breedte uit de verhouding afleiden — dat werkt voor elke vlagratio (1:2 tot
+   2:3) zonder per land iets te weten, en het kader sluit om de vlag heen in
+   plaats van eromheen te gapen. `max-width` vangt de brede uitzonderingen op;
+   de browser herrekent de hoogte dan mee, dus de verhouding blijft kloppen. */
+.gameplay-flag {
+  width: auto;
+  max-width: 100%;
+  height: var(--media-max-h, 200px);
+  margin: 0 auto;
+}
+
+/* T5-4's fallback staat op exact dezelfde plek; kreeg hij zijn oude 3:2 op
+   volle breedte, dan zou een falende afbeelding het scherm alsnog buiten de
+   vouw duwen — precies de situatie waarin je dat het minst wil. */
+.gameplay-flag-fallback {
+  max-height: var(--media-max-h, 200px);
+  margin: 0 auto;
+}
+
+/* Deze twee marges kwamen bovenop de gap van `.screen`: dubbele lucht op een
+   scherm dat er geen had. */
+.gameplay-timer-host { margin-top: 0; }
+.gameplay-question { margin: 0; }
+
+/* De statusregel is tijdens het antwoorden leeg. De ruimte blijft wél
+   gereserveerd — verscheen "VERZONDEN" pas ná de tik, dan zou het hele
+   scherm onder je duim opschuiven — maar niet meer dan één mono-regel. */
+.gameplay-status {
+  margin: 0;
+  min-height: 14px;
+}
+
+/* Leeg is hier écht leeg: tijdens het antwoorden staat er geen uitslag, en
+   een flex-item van 0 px eet toch een gap op. Zodra `round:ended` het blok
+   vult, komt het gewoon terug. */
+.gameplay-result:empty { display: none; }
