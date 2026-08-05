@@ -1290,6 +1290,15 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   border-color: rgba(216, 255, 62, 0.35);
 }
 
+/* Review fase 2: op licht is lime-op-wit 1,15:1 — de knop is dan letterlijk
+   onleesbaar. Zelfde reparatie als elders in dit bestand (#55731a). De
+   contrastcontrole van fase 2 zag dit niet: die leest `color` en `background`
+   per regel, en hier staat de achtergrond in de knopfamilie erboven. */
+:root[data-theme='light'] .home-code-go {
+  color: #55731a;
+  border-color: rgba(85, 115, 26, 0.35);
+}
+
 /* ── C2/C3: de lobby (punten 11, 19, 20, 21, 23, 24, 31 + R2-5) ────────────
    Meting vooraf (390×650, host, één speler): pagina 1303px. Het JIJ-blok
    kostte 205px waarvan 96 aan acht altijd-zichtbare kleurblokjes, en tussen
