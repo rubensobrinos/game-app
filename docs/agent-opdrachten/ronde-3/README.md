@@ -67,5 +67,6 @@ stoppunt de diff + testuitslag + een afvinklijst inleveren.
 Eén ding is nieuw en geldt voor iedereen: **`server/` mag deze ronde wél**, mits
 je briefing het noemt. In ronde 2 was dat verboden omdat het pure UX-werk was.
 
-Meetgereedschap staat er: `tools/meet-viewport.mjs <url> <home|lobby|spel|tussenstand|podium>`
-(390×650), `tools/meet-boxen.mjs`, `tools/meet-timer.mjs`.
+Meetgereedschap staat er: `node tools/meet.mjs <modus> <scherm>` op 390×650.
+Modus `past` (past het in één viewport), `boxen` (welke doos eet de ruimte op),
+`timer`. Scherm `home|lobby|aftellen|spel|reveal|podium|hostmenu`.

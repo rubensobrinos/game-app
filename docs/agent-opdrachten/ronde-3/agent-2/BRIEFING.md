@@ -44,7 +44,7 @@ agent meldde het en liet het bewust staan.
 
 De regel verschijnt precies waar de gebruiker al kijkt, dus het is geen ramp —
 maar 13 px terugwinnen kan zonder iets weg te halen. Meet met
-`tools/meet-viewport.mjs <url> home`, met en zonder zichtbare fout.
+`node tools/meet.mjs past home`, met en zonder zichtbare fout.
 
 ## Niet doen
 

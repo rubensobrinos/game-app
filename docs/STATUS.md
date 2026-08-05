@@ -103,8 +103,9 @@ Mock zonder server: `/samen?mock=1`.
 bind-mounts vragen `--force-recreate`, geen `restart`; cachebust `?v=1cX`
 ophogen in `frontend/index.html` bij CSS-wijzigingen.
 
-**Meten op een telefoonformaat:** `node tools/meet-viewport.mjs <url> <flow>`
-met flow `home|lobby|spel|tussenstand|podium`; referentie 390×650.
+**Meten op een telefoonformaat:** `node tools/meet.mjs <modus> <scherm>` —
+modus `past|boxen|timer`, scherm `home|lobby|aftellen|spel|reveal|podium|hostmenu`;
+referentie 390×650.
 
 **Deploy:** `cd ~/game-app && docker compose -f docker-compose.yml -f
 compose.tunnel.override.yml --profile tunnel up -d --build --force-recreate
