@@ -267,6 +267,7 @@ export const nl = Object.freeze({
   'hostbar.unlock': 'Room ontgrendelen',
   'hostbar.more': 'Meer opties',
   'hostbar.next': 'Volgende',
+  'hostbar.reveal': 'Toon antwoord',
   'hostbar.finish': 'Game beëindigen',
   'hostbar.finishConfirm': 'Weet je zeker dat je het potje wilt beëindigen?',
   // D3 (besluit producteigenaar 5 aug): het aantal spelers hoort ín de vraag

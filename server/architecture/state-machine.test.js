@@ -141,6 +141,27 @@ const FIXTURES = [
   row('SCOREBOARD + HOST_NEXT (host) → FINISHED (laatste ronde)', 'SCOREBOARD', 'host',
     { type: 'HOST_NEXT', nextPhase: 'FINISHED' }, ok('FINISHED')),
 
+  // Besluit C: HOST_REVEAL is de hostactie bij `autoReveal: false`. Deze module
+  // kent dat configuratieveld niet en accepteert het event daarom bij beide
+  // tempo's; match-lifecycle is de poort die het weigert zodra automatisch
+  // tonen aanstaat. Alle vier de bestemmingen, want de aanroeper kiest.
+  row('ROUND_RESULT + HOST_REVEAL (auto) → SCOREBOARD', 'ROUND_RESULT', 'auto',
+    { type: 'HOST_REVEAL', nextPhase: 'SCOREBOARD' }, ok('SCOREBOARD')),
+  row('ROUND_RESULT + HOST_REVEAL (host) → SCOREBOARD', 'ROUND_RESULT', 'host',
+    { type: 'HOST_REVEAL', nextPhase: 'SCOREBOARD' }, ok('SCOREBOARD')),
+  row('ROUND_RESULT + HOST_REVEAL (auto) → COUNTDOWN (tussenstand overgeslagen)', 'ROUND_RESULT', 'auto',
+    { type: 'HOST_REVEAL', nextPhase: 'COUNTDOWN' }, ok('COUNTDOWN')),
+  row('ROUND_RESULT + HOST_REVEAL (auto) → ROUND_ACTIVE', 'ROUND_RESULT', 'auto',
+    { type: 'HOST_REVEAL', nextPhase: 'ROUND_ACTIVE' }, ok('ROUND_ACTIVE')),
+  row('ROUND_RESULT + HOST_REVEAL (auto) → FINISHED (laatste ronde)', 'ROUND_RESULT', 'auto',
+    { type: 'HOST_REVEAL', nextPhase: 'FINISHED' }, ok('FINISHED')),
+  // HOST_REVEAL hoort bij de uitslag en nergens anders: het onthult het
+  // antwoord van de ronde die net is afgelopen.
+  row('SCOREBOARD + HOST_REVEAL → afgewezen (de reveal is voorbij)', 'SCOREBOARD', 'host',
+    { type: 'HOST_REVEAL', nextPhase: 'COUNTDOWN' }, err('INVALID_PHASE')),
+  row('ROUND_ACTIVE + HOST_REVEAL → afgewezen (de ronde loopt nog)', 'ROUND_ACTIVE', 'auto',
+    { type: 'HOST_REVEAL', nextPhase: 'ROUND_RESULT' }, err('INVALID_PHASE')),
+
   // [3] Pacing-mismatch: verkeerd event voor het ingestelde tempo. Bij
   // ROUND_RESULT hangt dat per bestemming samen (besluit 1): TIMER_ELAPSED mag
   // bij host uitsluitend naar SCOREBOARD, en HOST_NEXT is er helemaal niet

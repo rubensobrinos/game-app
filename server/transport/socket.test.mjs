@@ -878,6 +878,63 @@ async function playRoundToScoreboard(harness, host) {
   return started.payload;
 }
 
+test('besluit C: met autoReveal false blijft het scherm op de uitslag staan tot game:reveal', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness, { roomConfig: { totalRounds: 3, autoReveal: false } });
+  const host = await harness.connect(authFor(room));
+
+  await host.emitWithAck('game:start', { actionId: 'act_start', payload: {} });
+  await host.waitFor('game:started');
+  harness.clock.advance(3_000);
+  await harness.scheduler.fireAll();
+
+  const started = await host.waitFor('round:started');
+  harness.clock.value = started.payload.endsAt;
+  await harness.scheduler.fireAll();            // ROUND_ACTIVE -> ROUND_RESULT
+  await host.waitFor('round:ended');
+
+  // Er staat geen enkele timer klaar: de uitslag wacht op de host, niet op de
+  // klok. Vóór besluit C plande deze tak onvoorwaardelijk een `scheduleAt`.
+  assert.equal(harness.scheduler.pending, 0, 'de uitslagfase plant geen timer');
+  harness.clock.advance(60_000);
+  await harness.scheduler.fireAll();
+  await settle();
+  assert.equal(
+    host.eventsNamed('scoreboard:updated').length, 0,
+    'zonder hostactie gebeurt er niets — het antwoord blijft staan',
+  );
+
+  const ack = await host.emitWithAck('game:reveal', { actionId: 'act_reveal_1', payload: {} });
+  assert.equal(ack.ok, true, JSON.stringify(ack));
+  await host.waitFor('scoreboard:updated');
+
+  // En daarna loopt het gewoon door naar de volgende vraag: géén tweede knop.
+  harness.clock.advance(5_000);
+  await harness.scheduler.fireAll();
+  const round2 = await host.waitFor('round:started', (e) => e.payload.roundNumber === 2);
+  assert.equal(round2.payload.roundNumber, 2);
+});
+
+test('besluit C: met autoReveal aan (de standaard) bestaat game:reveal niet als hostactie', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness, { roomConfig: { totalRounds: 3 } });
+  const host = await harness.connect(authFor(room));
+
+  await host.emitWithAck('game:start', { actionId: 'act_start', payload: {} });
+  await host.waitFor('game:started');
+  harness.clock.advance(3_000);
+  await harness.scheduler.fireAll();
+
+  const started = await host.waitFor('round:started');
+  harness.clock.value = started.payload.endsAt;
+  await harness.scheduler.fireAll();
+  await host.waitFor('round:ended');
+
+  const ack = await host.emitWithAck('game:reveal', { actionId: 'act_reveal_uit', payload: {} });
+  assert.equal(ack.ok, false);
+  assert.equal(ack.payload.code, 'INVALID_PHASE');
+});
+
 test('§A2: de opening van een match telt echt af — zonder timer geen ronde 1', async (t) => {
   const harness = await makeHarness(t);
   const room = await seedRoom(harness, { roomConfig: { totalRounds: 3 } });

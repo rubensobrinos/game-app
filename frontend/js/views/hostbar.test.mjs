@@ -293,6 +293,34 @@ test('D3: terug in de LOBBY (revanche) verdwijnt de hele hostsectie uit het menu
   assert.equal(vind(root, 'session-hostbar-panel').hidden, true);
 });
 
+// ── Besluit C — de onthulknop ──────────────────────────────────────────────
+
+test('besluit C: bij actie "reveal" staat "Toon antwoord" in de chromerij, niet "Volgende"', async () => {
+  stubDom();
+  const { root, acties } = await bouw({
+    phase: 'ROUND_RESULT',
+    availableActions: ['reveal', 'pause', 'lock', 'kick', 'finish'],
+  });
+
+  const reveal = vind(root, 'session-hostbar-reveal');
+  assert.equal(reveal.hidden, false);
+  assert.equal(reveal.textContent, 'hostbar.reveal');
+  assert.equal(vind(root, 'session-hostbar-next').hidden, true, 'nooit twee knoppen tegelijk');
+
+  klik(reveal);
+  assert.deepEqual(acties, [['reveal', null]]);
+});
+
+test('besluit C: zonder de actie blijft de onthulknop verborgen', async () => {
+  stubDom();
+  const { root } = await bouw({
+    phase: 'SCOREBOARD',
+    availableActions: ['next', 'pause', 'lock', 'kick', 'finish'],
+  });
+  assert.equal(vind(root, 'session-hostbar-reveal').hidden, true);
+  assert.equal(vind(root, 'session-hostbar-next').hidden, false);
+});
+
 test('D3: zonder tCount valt de vraag terug op de zin zonder getal', async () => {
   stubDom();
   const { createHostBar } = await import(`./hostbar.mjs?${Math.random()}`);

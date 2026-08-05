@@ -284,7 +284,7 @@ function makeConfig() {
   return {
     preset: 'klassiek', gameTypes: ['flags_mc'], language: 'nl', difficulty: 'gemiddeld',
     totalRounds: 10, questionSeconds: 15, resultSeconds: 5, scoreboardSeconds: 8,
-    scoreboardFrequency: 'elke_ronde', pacing: 'auto', speedBonus: true, deadlineGraceMs: 250,
+    scoreboardFrequency: 'elke_ronde', pacing: 'auto', autoReveal: true, speedBonus: true, deadlineGraceMs: 250,
     mode: 'individual', teamNames: [], metricMode: 'punten', maxPlayers: 20, allowLateJoin: true,
   };
 }

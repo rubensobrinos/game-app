@@ -110,19 +110,19 @@ test('validateShareOpenedPayload: method "qrcode" (onbekende vijfde waarde) -> a
 
 // Rij 23 — resolveEventValidator("game:start") ... ("share:opened"): elk van
 // de 12 levert { ok: true, entry }.
-test('ALL_CLIENT_EVENT_NAMES bevat exact de 14 gedocumenteerde eventnamen', () => {
+test('ALL_CLIENT_EVENT_NAMES bevat exact de 15 gedocumenteerde eventnamen', () => {
   // 14 sinds besluit 40 + feedbackronde 4 aug: +player:recolor,
-  // +game:update-config.
+  // +game:update-config. 15 sinds besluit C, 5 aug: +game:reveal.
   assert.deepEqual(
     [...ALL_CLIENT_EVENT_NAMES].sort(),
     [
       'game:finish', 'game:kick', 'game:lock', 'game:next', 'game:pause',
-      'game:rematch', 'game:resume', 'game:start', 'game:update-config',
+      'game:rematch', 'game:resume', 'game:reveal', 'game:start', 'game:update-config',
       'player:leave', 'player:recolor', 'player:rename', 'round:answer',
       'share:opened',
     ].sort(),
   );
-  assert.equal(ALL_CLIENT_EVENT_NAMES.length, 14);
+  assert.equal(ALL_CLIENT_EVENT_NAMES.length, 15);
 });
 
 for (const eventName of ALL_CLIENT_EVENT_NAMES) {
@@ -158,6 +158,22 @@ test('resolveEventValidator: lege string en willekeurige andere onbekende namen 
 
 test('§A0: SELECTABLE_GAME_TYPES is letterlijk de gedeelde catalogus, geen eigen transcriptie', () => {
   assert.equal(SELECTABLE_GAME_TYPES, PLAYABLE_GAME_TYPES);
+});
+
+// Besluit C — `autoReveal` is bijstelbaar en strikt boolean.
+test('validateGameUpdateConfigPayload: autoReveal true/false -> ok', () => {
+  assert.deepEqual(validateGameUpdateConfigPayload({ autoReveal: false }), { ok: true });
+  assert.deepEqual(validateGameUpdateConfigPayload({ autoReveal: true }), { ok: true });
+});
+
+test('validateGameUpdateConfigPayload: autoReveal met een niet-boolean -> afgewezen', () => {
+  for (const value of ['false', 0, 1, null, {}]) {
+    assert.deepEqual(
+      validateGameUpdateConfigPayload({ autoReveal: value }),
+      { ok: false, code: null },
+      `${JSON.stringify(value)} hoort geweigerd te worden`,
+    );
+  }
 });
 
 test('§A0: een speelbare gameType wordt geaccepteerd', () => {

@@ -1135,6 +1135,94 @@ test('besluit 1: ook met scoreboardFrequency "off" blijft de hostactie bij SCORE
   assert.equal(hostNext.value.roundNumber, 2);
 });
 
+// ─── Besluit C — "Antwoord automatisch tonen" uit ───────────────────────────
+
+/** Speelt tot en met het einde van ronde 1 en levert de uitslag terug. */
+async function speelTotUitslag(harness, roomConfig) {
+  const { context, clock } = harness;
+  const { roomId } = await seedRoom(harness, { extraPlayers: 1, roomConfig });
+  const started = await startMatch(context, { roomId });
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  const round = await startRound(context, { roomId });
+  const doc = await loadRoundDoc(harness, roomId, started.value.matchId, round.value.roundId);
+  clock.set(doc.endsAt);
+  return { roomId, ended: await endRound(context, { roomId }) };
+}
+
+test('besluit C: met autoReveal false wacht de uitslag op de host en is HOST_REVEAL de ene hostactie', async () => {
+  const harness = makeHarness();
+  const { context, clock } = harness;
+  const { roomId, ended } = await speelTotUitslag(harness, { autoReveal: false, totalRounds: 2 });
+
+  assert.equal(ended.value.phase, 'ROUND_RESULT');
+  assert.equal(ended.value.phaseEndsAt, null, 'de uitslag krijgt geen timer: hij wacht op de host');
+
+  // Geen timerovergang: het scherm blijft op de reveal staan.
+  clock.advance(60_000);
+  assert.deepEqual(
+    await advancePhase(context, { roomId, event: { type: 'TIMER_ELAPSED' } }),
+    { ok: false, code: 'INVALID_PHASE' },
+  );
+
+  const reveal = await advancePhase(context, { roomId, event: { type: 'HOST_REVEAL' } });
+  assert.equal(reveal.ok, true, JSON.stringify(reveal));
+  assert.equal(reveal.value.phase, 'SCOREBOARD');
+  assert.equal(typeof reveal.value.phaseEndsAt, 'number', 'daarna loopt het door, zonder tweede knop');
+});
+
+test('besluit C: autoReveal false bij host-tempo geeft de host precies één knop per ronde (besluit 1)', async () => {
+  const harness = makeHarness();
+  const { context, clock } = harness;
+  const { roomId, ended } = await speelTotUitslag(harness, {
+    autoReveal: false, pacing: 'host', totalRounds: 2,
+  });
+  assert.equal(ended.value.phaseEndsAt, null);
+
+  const reveal = await advancePhase(context, { roomId, event: { type: 'HOST_REVEAL' } });
+  assert.equal(reveal.value.phase, 'SCOREBOARD');
+  assert.equal(
+    typeof reveal.value.phaseEndsAt, 'number',
+    'de tussenstand wacht NIET óók nog op de host — het onthullen was de hostactie',
+  );
+
+  // En de tweede knop bestaat dus niet: HOST_NEXT is hier ongeldig.
+  assert.deepEqual(
+    await advancePhase(context, { roomId, event: { type: 'HOST_NEXT' } }),
+    { ok: false, code: 'INVALID_PHASE' },
+  );
+
+  clock.advance(60_000);
+  const door = await advancePhase(context, { roomId, event: { type: 'TIMER_ELAPSED' } });
+  assert.equal(door.ok, true, JSON.stringify(door));
+  assert.equal(door.value.phase, 'COUNTDOWN');
+  assert.equal(door.value.roundNumber, 2);
+});
+
+test('besluit C: met autoReveal true (de standaard) bestaat de onthulknop niet', async () => {
+  const harness = makeHarness();
+  const { context } = harness;
+  const { roomId, ended } = await speelTotUitslag(harness, { totalRounds: 2 });
+
+  assert.equal(typeof ended.value.phaseEndsAt, 'number');
+  assert.deepEqual(
+    await advancePhase(context, { roomId, event: { type: 'HOST_REVEAL' } }),
+    { ok: false, code: 'INVALID_PHASE' },
+    'de reducer laat HOST_REVEAL vanuit ROUND_RESULT toe; de compositie is de poort die autoReveal kent',
+  );
+});
+
+test('besluit C: de onthulactie sluit ook de laatste ronde af (naar FINISHED)', async () => {
+  const harness = makeHarness();
+  const { context } = harness;
+  const { roomId } = await speelTotUitslag(harness, {
+    autoReveal: false, scoreboardFrequency: 'off', totalRounds: 1,
+  });
+
+  const reveal = await advancePhase(context, { roomId, event: { type: 'HOST_REVEAL' } });
+  assert.equal(reveal.ok, true, JSON.stringify(reveal));
+  assert.equal(reveal.value.phase, 'FINISHED');
+});
+
 test('resolveNextPhase kiest alleen een bestemming; transition() blijft de enige poortwachter', async () => {
   const harness = makeHarness();
   const { context, store, clock } = harness;

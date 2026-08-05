@@ -52,6 +52,35 @@ test('7. host pacing in ROUND_ACTIVE (not a waiting phase) has no next', () => {
   assert.ok(!actions.includes('next'));
 });
 
+// Besluit C: automatisch tonen uit → de hostactie VERHUIST naar ROUND_RESULT.
+test('7b. autoReveal false geeft reveal in ROUND_RESULT, en nergens anders', () => {
+  assert.ok(availableHostActions(ctx({ autoReveal: false, phase: 'ROUND_RESULT' })).includes('reveal'));
+  for (const phase of ['LOBBY', 'COUNTDOWN', 'ROUND_ACTIVE', 'SCOREBOARD', 'PAUSED', 'FINISHED']) {
+    assert.ok(
+      !availableHostActions(ctx({ autoReveal: false, phase })).includes('reveal'),
+      `expected no reveal for ${phase}`,
+    );
+  }
+});
+
+test('7c. autoReveal aan (of afwezig) geeft nooit reveal', () => {
+  assert.ok(!availableHostActions(ctx({ autoReveal: true, phase: 'ROUND_RESULT' })).includes('reveal'));
+  assert.ok(!availableHostActions(ctx({ phase: 'ROUND_RESULT' })).includes('reveal'));
+});
+
+test('7d. besluit 1: bij autoReveal false vervalt next, ook bij host-tempo', () => {
+  const actions = availableHostActions(ctx({ autoReveal: false, pacing: 'host', phase: 'SCOREBOARD' }));
+  assert.ok(!actions.includes('next'), 'het onthullen wás de hostactie van deze ronde');
+});
+
+test('7e. hostActionRequest(reveal) levert game:reveal met een lege payload', () => {
+  assert.deepStrictEqual(
+    hostActionRequest('reveal', ctx({ autoReveal: false, phase: 'ROUND_RESULT' })),
+    { event: 'game:reveal', payload: {} },
+  );
+  assert.strictEqual(hostActionRequest('reveal', ctx({ phase: 'ROUND_RESULT' })), null);
+});
+
 test('8. lock/unlock are mutually exclusive based on context.locked', () => {
   const lockedActions = availableHostActions(ctx({ locked: true }));
   const unlockedActions = availableHostActions(ctx({ locked: false }));

@@ -17,6 +17,7 @@ const VALID_CONFIG = Object.freeze({
   scoreboardSeconds: 4,
   scoreboardFrequency: 'every_round',
   pacing: 'auto',
+  autoReveal: true,
   speedBonus: true,
   deadlineGraceMs: 150,
   mode: 'individual',

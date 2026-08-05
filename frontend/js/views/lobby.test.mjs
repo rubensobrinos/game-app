@@ -119,6 +119,7 @@ const BASIS_MODEL = {
     difficulty: 'normal',
     language: 'nl',
     pacing: 'auto',
+    autoReveal: true,
     speedBonus: true,
     allowLateJoin: true,
   },
@@ -320,4 +321,27 @@ test('§C3: horizontaal vegen over de gamekaart draait de carrousel, een tik nie
   // En terug naar rechts weer de vorige.
   veeg(200, 300);
   assert.equal(titel.textContent, begin);
+});
+
+// ── Besluit C — "Antwoord automatisch tonen" is een echte toggle ───────────
+
+test('besluit C: de toggle stuurt een autoReveal-patch en volgt daarna de server', async () => {
+  const { root, view, patches } = await maakLobby();
+  const rijen = vindAlle(root, 'lobby-toggle-row');
+  const rij = rijen.find((r) => vind(r, 'lobby-toggle-label')?.textContent === 'lobby.autoReveal');
+  assert.notEqual(rij, undefined, 'de rij hoort te bestaan');
+  assert.equal(rij.className.includes('is-soon'), false, 'geen BINNENKORT-rij meer');
+
+  const toggle = vind(rij, 'lobby-toggle');
+  assert.notEqual(toggle, null, 'de rij heeft nu wél een besturingselement');
+  assert.equal(toggle.getAttribute('aria-checked'), 'true', 'standaard aan');
+
+  klik(toggle);
+  assert.deepEqual(patches, [{ autoReveal: false }]);
+
+  // De serverstand is de waarheid: pas de update zet de schakelaar om.
+  assert.equal(toggle.getAttribute('aria-checked'), 'true', 'nog niet bevestigd door de server');
+  view.update({ ...BASIS_MODEL, config: { ...BASIS_MODEL.config, autoReveal: false } });
+  assert.equal(toggle.getAttribute('aria-checked'), 'false');
+  assert.equal(toggle.classList.contains('is-on'), false);
 });
