@@ -8,9 +8,11 @@ export const nl = Object.freeze({
   'app.title': 'Rounda',
   'scaffold.ready': 'Frontend-scaffold gereed — schermen volgen in UI1–UI5.',
 
-  // — Hamburgermenu (taal van de app zelf, niet de vraagtaal — die zit in
+  // — Voorkeurenmenu (taal van de app zelf, niet de vraagtaal — die zit in
   // host-setup-state's config.language) + licht/donker-thema —
   'menu.open': 'Menu',
+  // A3: kop boven de hostsectie in datzelfde menu. Alleen een host ziet 'm.
+  'menu.hostActions': 'Hostacties',
   'menu.language': 'Taal',
   'menu.theme': 'Thema',
   'menu.themeDark': 'Donker',

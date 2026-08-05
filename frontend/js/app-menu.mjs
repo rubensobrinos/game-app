@@ -44,6 +44,29 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
   panel.id = PANEL_ID;
   panel.hidden = true;
 
+  // A3 (#7/#8/#46) — de ene ingang. Er stonden twee ⋯-knoppen naast elkaar in
+  // de chrome: deze (voorkeuren) en die van de hostbalk. Twee identieke
+  // glyphs naast elkaar dwingen de gebruiker om te raden welke hij nodig
+  // heeft; dat is precies het probleem dat punt 7 aanwijst.
+  //
+  // Waarom een lege sectie hier en niet een hostmenu ín dit bestand: de
+  // rolvraag. Een speler heeft alleen voorkeuren, een host heeft daarnaast
+  // hostacties. Dit paneel is het enige dat op élk scherm en voor élke rol
+  // bestaat, dus het is de plek. De inhoud van de hostsectie komt van
+  // `views/hostbar.mjs` (eigenaar D): session-shell.mjs hangt daar het
+  // bestaande ⋯-paneel in en zet `hidden` weer aan zodra er niets in zit.
+  // Standaard verborgen — een speler mag nooit een lege groep zien.
+  const hostSection = el('div', 'app-menu-section app-menu-host');
+  hostSection.id = HOST_SLOT_ID;
+  hostSection.hidden = true;
+  // Zelfde behandeling als de drie groepen hieronder: zonder rol + label
+  // hoort een screenreader losse knoppen zonder te weten waar ze bij horen.
+  hostSection.setAttribute('role', 'group');
+  hostSection.setAttribute('aria-labelledby', HOST_LABEL_ID);
+  const hostLabel = el('span', 'app-menu-label');
+  hostLabel.id = HOST_LABEL_ID;
+  hostSection.appendChild(hostLabel);
+
   const langLabel = el('span', 'app-menu-label');
   langLabel.id = LANG_LABEL_ID;
   const langGroup = el('div', 'btn-group');
@@ -116,7 +139,9 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
   const reactionsSection = el('div', 'app-menu-section');
   reactionsSection.append(reactionsLabel, reactionsGroup);
 
-  panel.append(langSection, themeSection, reactionsSection);
+  // Hostacties bovenaan: ze horen bij wat er nú gebeurt en zijn de reden dat
+  // een host het menu opent. Taal en thema zet je één keer per apparaat.
+  panel.append(hostSection, langSection, themeSection, reactionsSection);
   root.append(menuKnop, panel);
 
   menuKnop.setAttribute('aria-label', t('menu.open'));
@@ -164,6 +189,7 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
 
   function refresh() {
     menuKnop.setAttribute('aria-label', t('menu.open'));
+    hostLabel.textContent = t('menu.hostActions');
     langLabel.textContent = t('menu.language');
     themeLabel.textContent = t('menu.theme');
     // `.active` is puur visueel; `aria-pressed` is wat een screenreader hoort.
@@ -203,11 +229,37 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
   };
 }
 
+/**
+ * A3/#46 — de vaste plek voor hostacties, opzoekbaar zonder dat de aanroeper
+ * een verwijzing naar dit menu hoeft te hebben. `session-shell.mjs` mount ná
+ * `app.mjs` en heeft die verwijzing niet; dit voorkomt dat er alsnog een draad
+ * dwars door `app.mjs` gespannen moet worden voor één DOM-plek.
+ *
+ * VOOR PAKKET D (hostmenu-inhoud, D3) — wat je van deze plek mag verwachten:
+ * - Het is een `<div class="app-menu-section app-menu-host">` met bovenin een
+ *   `.app-menu-label` ("Hostacties"). Jouw knoppen komen daaronder.
+ * - Breedte: `min(280px, 100vw - 2rem)`, dus reken op ~248 px binnenwerk.
+ *   Knoppen zijn volle breedte en stapelen; naast elkaar past niet.
+ * - Hij hangt onder de chromerij, rechts uitgelijnd, boven de pauze-overlay
+ *   (z-index 61 tegen 55) — ook tijdens PAUSED dus bereikbaar.
+ * - Sluiten doet het menu zelf: klik buiten, Escape, of een keuze maken.
+ *   Bouw daar geen eigen sluitknop bij.
+ * - Zichtbaarheid regel je NIET hier: de sectie is verborgen zodra jouw
+ *   ⋯-knop `hidden` is (dat is jouw `hasMore`), zodat een speler nooit een
+ *   lege groep ziet. Verander je die logica, dan volgt deze sectie vanzelf.
+ * @returns {HTMLElement | null}
+ */
+export function hostActionSlot() {
+  return document.getElementById(HOST_SLOT_ID);
+}
+
 const LANG_FLAG = { nl: '🇳🇱', en: '🇬🇧', es: '🇪🇸' };
 
 // Vaste id's: het menu bestaat precies één keer per pagina (gemount in
 // #app-header), dus ze kunnen niet botsen.
 const PANEL_ID = 'app-menu-panel';
+const HOST_SLOT_ID = 'app-menu-host';
+const HOST_LABEL_ID = 'app-menu-host-label';
 const LANG_LABEL_ID = 'app-menu-lang-label';
 const THEME_LABEL_ID = 'app-menu-theme-label';
 const REACTIONS_LABEL_ID = 'app-menu-reactions-label';

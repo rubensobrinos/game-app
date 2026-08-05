@@ -64,6 +64,7 @@ import { createGameplayView } from './views/gameplay.mjs';
 import { createScoreboardView } from './views/scoreboard.mjs';
 import { createPodiumView } from './views/podium.mjs';
 import { createHostBar } from './views/hostbar.mjs';
+import { hostActionSlot } from './app-menu.mjs';
 import { createRoundaView } from './views/rounda.mjs';
 
 const GAMEPLAY_TICK_MS = 250;
@@ -550,6 +551,44 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       participants,
       phase: matchPhase.phase,
     });
+    plaatsHostmenu();
+  }
+
+  /**
+   * A3 (#7/#8/#46): het ⋯-paneel van de hostbalk woont in de hostsectie van
+   * het gedeelde voorkeurenmenu — één ⋯ in de chrome in plaats van twee
+   * identieke naast elkaar.
+   *
+   * De zichtbaarheid komt van hostbar.mjs zelf (`menuButton.hidden` is diens
+   * `hasMore`), niet uit een tweede berekening hier: welke acties er zijn is
+   * één beslissing en die hoort op één plek te blijven. Een speler ziet de
+   * sectie dus nooit, en een host ziet 'm niet zolang er niets in staat.
+   */
+  function plaatsHostmenu() {
+    const slot = hostActionSlot();
+    if (slot === null) {
+      return; // geen appheader (test, of een pagina zonder menu) — niets te doen
+    }
+    if (hostBar.menuPanel.parentNode !== slot) {
+      slot.appendChild(hostBar.menuPanel);
+    }
+    const heeftHostmenu = isHost() && !hostBar.menuButton.hidden;
+    hostBar.menuPanel.hidden = !heeftHostmenu;
+    slot.hidden = !heeftHostmenu;
+  }
+
+  /**
+   * Het hostpaneel is het enige stuk van deze sessie dat buiten `root` én
+   * buiten `hostBarRoot` hangt — het zit in het menu, dat élke sessie
+   * overleeft. Blijft het staan, dan houdt de volgende speler een hostsectie
+   * over van een potje dat niet meer bestaat.
+   */
+  function ruimHostmenuOp() {
+    hostBar.menuPanel.remove();
+    const slot = hostActionSlot();
+    if (slot !== null) {
+      slot.hidden = true;
+    }
   }
 
   function handleEvent(envelope) {
@@ -762,6 +801,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     roomHeaderRoot.remove();
     hostBarRoot.remove(); // staat sinds A1 in de appheader, niet in `root`
     delete document.body.dataset.roundaFase; // A2: geen sessie, geen fase
+    ruimHostmenuOp(); // A3: het hostpaneel hangt buiten deze sessie, in het menu
     root.textContent = '';
     const screen = document.createElement('div');
     screen.className = 'screen session-terminated';
@@ -1031,6 +1071,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       roomHeaderRoot.remove();
       hostBarRoot.remove(); // idem: buiten `root`, dus expliciet opruimen
       delete document.body.dataset.roundaFase;
+      ruimHostmenuOp();
     },
   };
 }
