@@ -70,10 +70,22 @@ export function identiteitVoor(playerId) {
 }
 
 /**
- * Serverkleuren (feedbackronde 4 aug, `player:recolor`): het gesloten
- * 8-kleurenpalet van de server, gemapt op de 1c-merkkleuren. Als de server
- * (of een oudere snapshot) geen kleur meegeeft valt de chip terug op de
- * bestaande hash-identiteit — nooit kleurloos.
+ * Serverkleuren (feedbackronde 4 aug, `player:recolor`): het gesloten palet
+ * van de server, gemapt op de 1c-merkkleuren. Als de server (of een oudere
+ * snapshot) geen kleur meegeeft valt de chip terug op de bestaande
+ * hash-identiteit — nooit kleurloos.
+ *
+ * Sleutels én volgorde moeten exact `PLAYER_COLORS` volgen (bewaakt door
+ * `player-chip.test.mjs`): dit is een weergave van een gesloten enum, geen
+ * eigen lijst.
+ *
+ * Zestien sinds besluit 42 (5 aug 2026). De eerste acht zijn ongewijzigd — er
+ * leven rooms met een speler die `purple` heeft. De acht nieuwe zijn dieper:
+ * de heldere acht halen 5,7–16:1 op donker maar 1,05–2,96:1 op licht, de
+ * nieuwe halen ≥3,3:1 op béíde. Dat lichtheidsverschil is meteen ook wat ze
+ * onderscheidbaar houdt van hun heldere buur (blue naast cyan, rose naast
+ * magenta) — de kleinste onderlinge afstand in het palet van zestien is nog
+ * altijd het bestaande paar magenta/red (OKLab 0,097).
  */
 export const SERVER_KLEUREN = Object.freeze({
   orange: '#ff8a3e',
@@ -84,6 +96,14 @@ export const SERVER_KLEUREN = Object.freeze({
   purple: '#b98aff',
   lime: '#d8ff3e',
   red: '#ff4d67',
+  blue: '#1f7ae0',
+  teal: '#0f9285',
+  indigo: '#6a4fe6',
+  violet: '#b34ad6',
+  rose: '#c8377e',
+  moss: '#4f9422',
+  rust: '#b8542a',
+  slate: '#63718c',
 });
 
 /**

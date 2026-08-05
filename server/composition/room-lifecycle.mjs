@@ -894,8 +894,8 @@ export async function renamePlayer(context, { roomId, playerId, displayName } = 
  * Wijzigt de spelerkleur (feedbackronde punt 13). Alleen in LOBBY (mid-game
  * van kleur wisselen zou chips op andermans scorebord live verspringen).
  * De kleurwaarde zelf is al gevalideerd tegen het gesloten `PLAYER_COLORS`-
- * palet in de protocollaag; dubbele kleuren zijn toegestaan (8 kleuren, tot
- * 100 spelers — uniciteit afdwingen kan niet).
+ * palet in de protocollaag; dubbele kleuren zijn toegestaan (zestien kleuren
+ * sinds besluit 42, tot 100 spelers — uniciteit afdwingen kan niet).
  *
  * @param {import('./context.mjs').Context} context
  * @param {{ roomId: string, playerId: string, color: string }} params

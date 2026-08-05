@@ -1,6 +1,10 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createMockTransport } from './transport-mock.mjs';
+import { createMockTransport, MOCK_PLAYER_COLORS } from './transport-mock.mjs';
+// besluit 42: de mock speelt de server na, dus hij moet exact hetzelfde gesloten
+// palet in dezelfde volgorde kennen — anders bewijst een mockdoorloop het
+// verkeerde.
+import { PLAYER_COLORS } from '../../server/protocol/client-events-dispatch.mjs';
 
 // Rondetiming uit transport-mock.mjs, gedupliceerd hier zodat tests exact
 // weten hoeveel virtuele tijd ze via `mock.timers.tick()` moeten laten
@@ -686,3 +690,7 @@ test(
     );
   }),
 );
+
+test('besluit 42: de mock kent exact hetzelfde gesloten kleurenpalet als de server', () => {
+  assert.deepEqual([...MOCK_PLAYER_COLORS], [...PLAYER_COLORS]);
+});

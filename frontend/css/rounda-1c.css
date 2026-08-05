@@ -1325,10 +1325,14 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 }
 
 /* Het opengeklapte palet is een paneel bij de rij, niet een tweede blok in de
-   kolom: één rij van acht past op 390px (8 × 34 + 7 × 6 = 314). */
+   kolom. Sinds besluit 42 zestien kleuren: twee rijen van acht in een raster, zodat
+   de kolombreedte (en dus de vlakgrootte) niet van het aantal afhangt — één
+   rij van zestien zou vlakjes van 15px geven. Alleen zichtbaar zolang het
+   paneel openstaat; dicht blijft de lobby staan waar hij stond. */
 .lobby-self-colors {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 6px;
-  flex-wrap: nowrap;
   padding: 8px;
   border-radius: 12px;
   background: var(--rounda-row);
@@ -1336,7 +1340,9 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 }
 
 .lobby-self-colors .lobby-self-color {
-  flex: 1;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
   min-width: 0;
 }
 
