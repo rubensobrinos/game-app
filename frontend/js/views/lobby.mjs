@@ -160,6 +160,8 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     speelbaar: isPlayableGameType(game.gameType),
   }));
   let gameIndex = 0;
+  /** De laatst van de server ontvangen gameType — zie update(). */
+  let renderedServerGameType = null;
   const gameRow = el('div', 'lobby-gamerow');
   const gamePrev = document.createElement('button');
   gamePrev.type = 'button';
@@ -762,10 +764,16 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
       startButton.disabled = !model.canStart;
       // Scherm 2: de serverconfig is de waarheid voor de instelknoppen.
       const config = model.config ?? {};
+      // De serverstand is de waarheid, maar mag de host niet uit een
+      // BINNENKORT-kaart wegtrekken bij élke update() (die draait ook als er
+      // gewoon iemand binnenkomt). Daarom alleen bijsturen als de SERVER iets
+      // anders zegt dan de vorige keer — dan is er echt een keuze gewijzigd,
+      // hier of op een ander apparaat.
       const serverGameType = Array.isArray(config.gameTypes) ? config.gameTypes[0] : null;
-      if (serverGameType && GAMES[gameIndex].gameType !== serverGameType && GAMES[gameIndex].speelbaar) {
+      if (serverGameType !== null && serverGameType !== renderedServerGameType) {
+        renderedServerGameType = serverGameType;
         const idx = GAMES.findIndex((game) => game.gameType === serverGameType);
-        if (idx >= 0) {
+        if (idx >= 0 && idx !== gameIndex) {
           gameIndex = idx;
           renderGameCard();
         }
