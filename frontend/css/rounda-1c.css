@@ -422,7 +422,12 @@ h1, h2 {
 /* ── Start: merkblok linksboven, lucht in het midden, START onderaan ── */
 .home-screen .app-logo { margin: 14px 0 22px; } /* punt 3: ook wat hoger */
 .home-screen .home-title { text-align: left; margin: 0 0 10px; }
-.home-screen > p, .home-screen .home-tagline { text-align: left; max-width: 26ch; }
+/* `:not(.field-error)`: de twee foutalinea's zijn óók een directe `p` van dit
+   scherm, en kregen daardoor de 26ch van de tagline mee. De Nederlandse en
+   Engelse melding pasten daar net in, de Spaanse ("Introduce un código de 6
+   dígitos", 196px tekst in een doos van 208px) brak naar twee regels en duwde
+   home weer 20px voorbij de vouw. Ze mogen de volle breedte gebruiken. */
+.home-screen > p:not(.field-error), .home-screen .home-tagline { text-align: left; max-width: 26ch; }
 .home-quick-start { margin-top: auto; }
 .home-divider {
   text-align: center;
@@ -1298,6 +1303,17 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   color: #55731a;
   border-color: rgba(85, 115, 26, 0.35);
 }
+
+/* Zelfde review, zelfde patroon: lime tekst zonder lichte tegenhanger. Deze
+   drie staan níét op een donkere kaart maar op het lichte canvas of op de
+   lime knop zelf. Gevonden door de volledigheidscontrole in
+   `contrast-1c.test.mjs`, niet met het oog. */
+:root[data-theme='light'] .reveal-streak { color: #55731a; }            /* 4,97:1 */
+:root[data-theme='light'] .app-menu-prefs-toggle[aria-expanded='true'] { color: #55731a; }
+/* `.lobby-start-sub` staat op de lime startknop; daar helpt donkergroen niet.
+   De hiërarchie met het label erboven komt van formaat en gewicht, niet van
+   een kleur die je niet meer kunt lezen (was 2,71:1, nu 5,16:1). */
+:root[data-theme='light'] .lobby-start-sub { color: #14141f; }
 
 /* ── C2/C3: de lobby (punten 11, 19, 20, 21, 23, 24, 31 + R2-5) ────────────
    Meting vooraf (390×650, host, één speler): pagina 1303px. Het JIJ-blok

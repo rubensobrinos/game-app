@@ -273,3 +273,69 @@ test('WCAG AA — .reveal-card-why (ink met opacity op de lime kaart)', () => {
     `.reveal-card-why: ${fg}@${alpha} (${blended}) op ${bg} = ${ratio.toFixed(2)}:1, AA eist ${AA_NORMAL_TEXT}:1`,
   );
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VOLLEDIGHEIDSCONTROLE (review fase 2, lead)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// De tests hierboven zijn een handmatige lijst paren. Dat vangt wat erin staat
+// en niets daarbuiten — en precies dáár ging het mis: `.home-code-go` (de
+// Go-knop op home) stond op lime tekst zonder lichte tegenhanger en kwam op
+// **1,15:1** uit. Onleesbaar, en geen enkele test die het merkte.
+//
+// Deze controle draait het om. In plaats van te toetsen wat we hebben
+// opgeschreven, leest hij ÉLKE regel in `rounda-1c.css` die lime als
+// tekstkleur zet, en eist per regel een van tweeën:
+//
+//   1. een `:root[data-theme='light']`-tegenhanger voor diezelfde selector
+//      (lime op wit haalt nooit AA — zie base.css: ~1,2:1), óf
+//   2. een expliciete post in `LIME_OP_DONKER` mét reden.
+//
+// Wie een nieuwe lime-regel toevoegt, moet dus één van beide doen. Vergeten
+// kan niet meer.
+const LIME_OP_DONKER = {
+  '.room-qr-code':
+    'staat op de QR-kaart, die met `background: #101015` in beide thema’s donker blijft',
+  '.home-solo-link:hover':
+    'hoverstaat; de rustkleur is grijs en valt onder de grijzenafweging hieronder',
+  '.home-solo-link:focus-visible':
+    'idem — zelfde regel als de hover',
+  '.rounda-flag-score':
+    'staat op de donkere minigamekaart (gemeten 16,51:1 in het lichte thema)',
+};
+
+test('Volledigheid: elke lime tekstregel heeft een lichte tegenhanger of een reden', () => {
+  const zonderCommentaar = oneCCss.replace(/\/\*[\s\S]*?\*\//g, '');
+  const regels = /([^{}]+)\{([^{}]*)\}/g;
+  const limeSelectors = [];
+  const lichteOverrides = new Set();
+  let m;
+  while ((m = regels.exec(zonderCommentaar)) !== null) {
+    const selector = m[1].trim().replace(/\s+/g, ' ');
+    if (selector.startsWith('@')) continue;
+    const kleur = /(?:^|;)\s*color\s*:\s*([^;]+)/.exec(m[2]);
+    if (kleur === null) continue;
+    if (selector.includes("data-theme='light'")) {
+      for (const deel of selector.split(',')) {
+        lichteOverrides.add(deel.replace(/:root\[data-theme='light'\]\s*/, '').trim());
+      }
+      continue;
+    }
+    if (/--rounda-lime|#d8ff3e/i.test(kleur[1])) {
+      for (const deel of selector.split(',')) limeSelectors.push(deel.trim());
+    }
+  }
+
+  assert.ok(limeSelectors.length > 0, 'geen enkele lime tekstregel gevonden — parser stuk?');
+
+  const onbeschermd = limeSelectors.filter(
+    (sel) => !lichteOverrides.has(sel) && LIME_OP_DONKER[sel] === undefined,
+  );
+  assert.deepEqual(
+    onbeschermd,
+    [],
+    `Lime tekst zonder lichte tegenhanger en zonder reden: ${onbeschermd.join(', ')}. `
+    + 'Voeg een `:root[data-theme=\'light\']`-regel toe, of zet de selector in '
+    + 'LIME_OP_DONKER met de reden waarom hij ook op licht op een donker vlak staat.',
+  );
+});
