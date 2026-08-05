@@ -5,6 +5,10 @@ import { createMockTransport, MOCK_PLAYER_COLORS } from './transport-mock.mjs';
 // palet in dezelfde volgorde kennen — anders bewijst een mockdoorloop het
 // verkeerde.
 import { PLAYER_COLORS } from '../../server/protocol/client-events-dispatch.mjs';
+// ronde 3 fase 3 ("solo overleeft reload"): dezelfde bron als transport-mock.mjs
+// zelf gebruikt, zodat een contentversie-mismatch in de tests precies hetzelfde
+// betekent als in de echte restore.
+import { CONTENT_VERSION } from '../../shared/content/index.mjs';
 
 // Rondetiming uit transport-mock.mjs, gedupliceerd hier zodat tests exact
 // weten hoeveel virtuele tijd ze via `mock.timers.tick()` moeten laten
@@ -693,4 +697,157 @@ test(
 
 test('besluit 42: de mock kent exact hetzelfde gesloten kleurenpalet als de server', () => {
   assert.deepEqual([...MOCK_PLAYER_COLORS], [...PLAYER_COLORS]);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ronde 3, fase 3 — "solo overleeft reload": `createMockTransport` kan een
+// eerder opgeslagen snapshot terugkrijgen (`restoreState`) en meldt elke
+// gebeurtenis die een verbonden sessie ziet aan `onStateChange`. Deze tests
+// bewijzen het contract dat `app.mjs`/`client/flow/solo-store.mjs` erop
+// bouwen, niet de opslag zelf (die kent deze module niet — zie de
+// doc-comment bij `createMockTransport`).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Host-only room, gestart en getikt tot ronde 1 actief is, met elke gemelde state bewaard. */
+async function createSoloRoomInRound1() {
+  const states = [];
+  const transport = createMockTransport({ onStateChange: (state) => states.push(state) });
+  const created = await transport.createGame({ config: {}, hostParticipates: true, displayName: 'Solo' });
+  const hostConn = transport.connect(created.sessionToken, { onEvent: () => {} });
+  await Promise.resolve(); // laat de connect()-microtask (eerste room:state) lopen
+  await hostConn.send('game:start', 'act_start', {});
+  mock.timers.tick(COUNTDOWN_TICK_MS);
+  return { transport, created, hostConn, states, latestState: () => states.at(-1) };
+}
+
+test(
+  'onStateChange meldt elke gebeurtenis die een verbonden sessie ziet, met een puur JSON-serialiseerbare snapshot',
+  withFakeTimers(async () => {
+    const { states } = await createSoloRoomInRound1();
+    assert.ok(states.length > 0, 'geen enkele state gemeld tijdens LOBBY -> COUNTDOWN -> ROUND_ACTIVE');
+    const latest = states.at(-1);
+    assert.equal(latest.phase, 'ROUND_ACTIVE');
+    // Geen Maps, geen functies, geen setTimeout-handles: een round-trip door
+    // JSON moet exact hetzelfde opleveren, anders zit er iets in dat
+    // `sessionStorage` niet aankan.
+    assert.deepEqual(JSON.parse(JSON.stringify(latest)), latest);
+  }),
+);
+
+test(
+  'restoreState herbouwt een LOBBY-room: spelers, config en sessietoken komen ongewijzigd terug',
+  withFakeTimers(async () => {
+    const states = [];
+    const transport = createMockTransport({ onStateChange: (state) => states.push(state) });
+    const created = await transport.createGame({
+      config: { pacing: 'host' },
+      hostParticipates: true,
+      displayName: 'Solospeler',
+    });
+    transport.connect(created.sessionToken, { onEvent: () => {} });
+    await Promise.resolve();
+    const savedLobbyState = states.at(-1);
+    assert.equal(savedLobbyState.phase, 'LOBBY');
+
+    const restored = createMockTransport({ restoreState: savedLobbyState });
+    const state = await restored.fetchState(created.gameCode, created.sessionToken);
+    assert.equal(state.room.phase, 'LOBBY');
+    assert.equal(state.room.config.pacing, 'host');
+    assert.equal(state.self.effectiveName, created.effectiveName);
+    assert.equal(state.self.playerId, created.playerId);
+  }),
+);
+
+test(
+  'restoreState mid-ronde plant de resterende tijd, niet een volle rondeduur opnieuw',
+  withFakeTimers(async () => {
+    const { created, latestState } = await createSoloRoomInRound1();
+    const savedRoundState = latestState();
+    assert.equal(savedRoundState.phase, 'ROUND_ACTIVE');
+
+    // Deadline handmatig dichtbij zetten: dit bootst na wat er in het echt
+    // gebeurt als de pagina een tijdje stilligt vóórdat 'm wordt herladen —
+    // zonder in de test zelf op échte tijd te hoeven wachten.
+    const almostDone = { ...savedRoundState, phaseDeadline: Date.now() + 40 };
+
+    const events = [];
+    const restored = createMockTransport({ restoreState: almostDone });
+    restored.connect(created.sessionToken, { onEvent: (envelope) => events.push(envelope) });
+    await Promise.resolve();
+
+    mock.timers.tick(10);
+    assert.ok(
+      !events.some((e) => e.event === 'round:ended'),
+      'de ronde eindigde te vroeg — de volle ROUND_ACTIVE_MS lijkt opnieuw gepland i.p.v. de resterende 40ms',
+    );
+
+    mock.timers.tick(50); // > de resterende 40ms
+    assert.ok(
+      events.some((e) => e.event === 'round:ended'),
+      'de ronde eindigde niet binnen de resterende tijd na herstel',
+    );
+  }),
+);
+
+test(
+  'restoreState met een deadline die al verstreken is, rondt de fase meteen af in plaats van voor altijd te wachten',
+  withFakeTimers(async () => {
+    const { created, latestState } = await createSoloRoomInRound1();
+    const savedRoundState = latestState();
+    const alreadyExpired = { ...savedRoundState, phaseDeadline: Date.now() - 5000 };
+
+    const events = [];
+    const restored = createMockTransport({ restoreState: alreadyExpired });
+    restored.connect(created.sessionToken, { onEvent: (envelope) => events.push(envelope) });
+    await Promise.resolve();
+
+    mock.timers.tick(1); // scheduleTimer klemt een negatieve vertraging af naar 0, niet naar "nooit"
+    assert.ok(events.some((e) => e.event === 'round:ended'));
+  }),
+);
+
+test(
+  'restoreState bouwt de vragenreeks opnieuw op zonder de juiste-antwoordlogica te veranderen (geen questions in de opslag)',
+  withFakeTimers(async () => {
+    const { created, latestState } = await createSoloRoomInRound1();
+    const savedRoundState = latestState();
+    // `questions` zit hier per ontwerp niet in — zie de doc-comment bij
+    // `serializeRoomState`. Dit bevestigt dat aanname ook in de test: er is
+    // geen `questions`-veld om per ongeluk ván te lekken.
+    assert.equal(savedRoundState.questions, undefined);
+    assert.equal(savedRoundState.currentRound.question, undefined);
+
+    const restored = createMockTransport({ restoreState: savedRoundState });
+    const state = await restored.fetchState(created.gameCode, created.sessionToken);
+    const { targetIso2, optionIso2s } = state.currentRound.question;
+    assert.ok(optionIso2s.includes(targetIso2), 'het juiste antwoord moet nog steeds tussen de opties staan');
+
+    const conn = restored.connect(created.sessionToken, { onEvent: () => {} });
+    await Promise.resolve();
+    await conn.send('round:answer', 'act_answer', {
+      roundId: state.currentRound.roundId,
+      answer: { optionId: targetIso2 },
+    });
+
+    const afterAnswer = await restored.fetchState(created.gameCode, created.sessionToken);
+    assert.equal(
+      afterAnswer.self.score,
+      100,
+      'het juiste antwoord van vóór het herstel werd na herstel niet meer als juist herkend',
+    );
+  }),
+);
+
+test('restoreState met een andere contentVersion dan de huidige wordt geweigerd, niet stilzwijgend geaccepteerd', () => {
+  assert.throws(() =>
+    createMockTransport({
+      restoreState: {
+        contentVersion: `${CONTENT_VERSION}-oud`,
+        gameCode: '123456',
+        phase: 'LOBBY',
+        players: [],
+        sessions: [],
+      },
+    }),
+  );
 });

@@ -80,11 +80,24 @@ class ProtocolError extends Error {
  * `createGame` -> `previewInvite` -> `joinGame` -> ... binnen één pagina/
  * proces te doorlopen.
  *
+ * `restoreState`/`onStateChange` (ronde 3 fase 3, "solo overleeft reload"):
+ * bewust GEEN eigen opslag hier — deze module weet niets van `sessionStorage`
+ * en blijft zo bruikbaar in `node:test` zonder DOM. De aanroeper (`app.mjs`)
+ * bepaalt waar een snapshot heen gaat; deze functie levert alleen het
+ * serialiseerbare contract (`serializeRoomState`/`deserializeRoomState`
+ * hieronder) en roept `onStateChange` aan na elke gebeurtenis die een
+ * verbonden sessie ook daadwerkelijk te zien krijgt (`emit`) — dezelfde
+ * momenten waarop er voor een echte speler iets verandert.
+ *
+ * @param {{ restoreState?: object | null, onStateChange?: (state: object) => void }} [options]
  * @returns {import('./transport.mjs').Transport}
  */
-export function createMockTransport() {
+export function createMockTransport({ restoreState, onStateChange } = {}) {
   /** @type {Room | null} */
-  let room = null;
+  let room = restoreState != null ? deserializeRoomState(restoreState) : null;
+  if (room !== null) {
+    rearmTimer(room);
+  }
 
   return {
     createGame,
@@ -95,6 +108,47 @@ export function createMockTransport() {
     fetchServerTime,
     connect,
   };
+
+  /**
+   * Zet, na herstel, precies één timer weer aan: die van de fase waarin de
+   * room stond toen hij werd opgeslagen. `target.phaseDeadline` ligt door het
+   * verstrijken van de tijd tussen opslaan en herstellen soms al in het
+   * verleden (bv. de pagina lag een minuut stil middenin een ronde) —
+   * `scheduleTimer` klemt een negatieve vertraging toch al af naar 0, dus dat
+   * lost de overgang meteen in plaats van nooit op. Zelfde aanpak als
+   * `resumeGame` hierboven na een `game:pause`/`game:resume`, alleen dan voor
+   * een hele paginalaad in plaats van een expliciete hostactie.
+   */
+  function rearmTimer(target) {
+    if (target.phaseDeadline === null) {
+      return;
+    }
+    const remaining = Math.max(0, target.phaseDeadline - Date.now());
+    switch (target.phase) {
+      case 'COUNTDOWN':
+        scheduleTimer(target, remaining, () => startRound(target, 0));
+        break;
+      case 'ROUND_ACTIVE':
+        scheduleTimer(target, remaining, () => endRound(target, target.roundIndex));
+        break;
+      case 'ROUND_RESULT':
+        scheduleTimer(target, remaining, () => showScoreboard(target));
+        break;
+      case 'SCOREBOARD':
+        if (target.pacing === 'auto') {
+          scheduleTimer(target, remaining, () => advanceFromScoreboard(target));
+        }
+        break;
+      default:
+        break; // LOBBY/PAUSED/FINISHED plannen zelf niets.
+    }
+  }
+
+  function persist() {
+    if (room !== null && typeof onStateChange === 'function') {
+      onStateChange(serializeRoomState(room));
+    }
+  }
 
   // ---- REST-achtige functies -------------------------------------------
 
@@ -413,6 +467,13 @@ export function createMockTransport() {
       roundIndex: -1,
       currentRound: null,
       pendingTimers: new Set(),
+      // Wanneer de huidige fase vanzelf overgaat naar de volgende (zie de
+      // scheduleTimer-aanroepen hieronder) — of `null` als de fase op een
+      // expliciete actie wacht (LOBBY, PAUSED, SCOREBOARD met pacing 'host',
+      // FINISHED). Bestaat naast de setTimeout-handle zelf omdat die laatste
+      // een reload niet overleeft, maar dit getal (na herstel opnieuw tegen
+      // `Date.now()` afgezet) wel — zie `deserializeRoomState`/`rearmTimer`.
+      phaseDeadline: null,
     };
   }
 
@@ -458,6 +519,7 @@ export function createMockTransport() {
 
     target.phase = 'COUNTDOWN';
     const countdownEndsAt = Date.now() + COUNTDOWN_MS;
+    target.phaseDeadline = countdownEndsAt;
     broadcast(target, 'game:started', {
       matchId: target.matchId,
       totalRounds: target.questions.length,
@@ -494,6 +556,7 @@ export function createMockTransport() {
       answers: new Map(),
     };
     target.phase = 'ROUND_ACTIVE';
+    target.phaseDeadline = endsAt;
 
     broadcast(target, 'round:started', {
       matchId: target.matchId,
@@ -581,6 +644,7 @@ export function createMockTransport() {
     const distribution = buildDistribution(optionValuesOf(question), answers);
 
     target.phase = 'ROUND_RESULT';
+    target.phaseDeadline = Date.now() + ROUND_RESULT_MS;
     broadcastPersonalized(target, 'round:ended', (playerId) => {
       const ownCorrect = playerId !== null && answers.get(playerId) === correctValueOf(question);
       return {
@@ -609,9 +673,12 @@ export function createMockTransport() {
     }));
 
     if (target.pacing === 'auto') {
+      target.phaseDeadline = Date.now() + SCOREBOARD_AUTO_ADVANCE_MS;
       scheduleTimer(target, SCOREBOARD_AUTO_ADVANCE_MS, () => advanceFromScoreboard(target));
+    } else {
+      // pacing === 'host': wacht op een expliciete `game:next` (zie advanceOnHostCue).
+      target.phaseDeadline = null;
     }
-    // pacing === 'host': wacht op een expliciete `game:next` (zie advanceOnHostCue).
   }
 
   function advanceOnHostCue(target) {
@@ -637,6 +704,7 @@ export function createMockTransport() {
   function finishGame(target) {
     target.phase = 'FINISHED';
     target.currentRound = null;
+    target.phaseDeadline = null;
     const ranked = rankPlayers(target);
     broadcastPersonalized(target, 'game:finished', (playerId) => ({
       podium: ranked.slice(0, 5).map(toScoreboardEntry),
@@ -661,6 +729,7 @@ export function createMockTransport() {
       pausedAt: Date.now(),
     };
     target.phase = 'PAUSED';
+    target.phaseDeadline = null; // de klok staat stil; zie pausedState.remainingMs
     clearTimers(target);
     broadcast(target, 'game:paused', target.pausedState);
     return {};
@@ -686,10 +755,13 @@ export function createMockTransport() {
     if (previousPhase === 'ROUND_ACTIVE' && target.currentRound !== null) {
       const newEndsAt = Date.now() + (remainingMs ?? ROUND_ACTIVE_MS);
       target.currentRound.endsAt = newEndsAt;
+      target.phaseDeadline = newEndsAt;
       scheduleTimer(target, newEndsAt - Date.now(), () => endRound(target, target.roundIndex));
     } else if (previousPhase === 'COUNTDOWN') {
+      target.phaseDeadline = Date.now() + COUNTDOWN_MS;
       scheduleTimer(target, COUNTDOWN_MS, () => startRound(target, 0));
     } else if (previousPhase === 'SCOREBOARD' && target.pacing === 'auto') {
+      target.phaseDeadline = Date.now() + SCOREBOARD_AUTO_ADVANCE_MS;
       scheduleTimer(target, SCOREBOARD_AUTO_ADVANCE_MS, () => advanceFromScoreboard(target));
     }
     return {};
@@ -810,6 +882,7 @@ export function createMockTransport() {
     target.matchSequence += 1;
     target.roundIndex = -1;
     target.currentRound = null;
+    target.phaseDeadline = null;
     for (const player of target.players.values()) {
       player.score = 0;
       player.correctCount = 0;
@@ -858,6 +931,10 @@ export function createMockTransport() {
       serverTime: Date.now(),
       payload,
     });
+    // Elke gebeurtenis die hier binnenkomt is een moment waarop een verbonden
+    // speler ook echt iets nieuws ziet — precies de momenten waarop een
+    // solopartij zijn voortgang niet mag kwijtraken bij een reload.
+    persist();
   }
 
   function scheduleTimer(target, delayMs, callback) {
@@ -874,6 +951,133 @@ export function createMockTransport() {
     }
     target.pendingTimers.clear();
   }
+}
+
+// ---- Persistentie (ronde 3 fase 3, "solo overleeft reload") ----------------
+//
+// `room` is geen platte data: `players`/`sessions` zijn Maps, `listeners` zijn
+// callbackreferenties naar een specifieke paginalaad, `pendingTimers` zijn
+// setTimeout-handles die een reload sowieso niet overleven — geen daarvan
+// gaat door `JSON.stringify` heen. Deze twee functies zijn het smalle
+// contract ertussen: alleen bewaren wat nodig is om dezelfde partij verder te
+// spelen.
+//
+// `questions` zit BEWUST niet in de opgeslagen state: `buildQuestionSequence`
+// hieronder is voor elke gameType deterministisch op de vaste, bevroren
+// contentpool na (`getCountryPool()`) — de enige willekeur is `shuffle()` voor
+// de weergavevolgorde van meerkeuze-opties, en die staat los van `correct`
+// (dat is altijd een ISO2-code of vaste kaartindex, nooit een positie in de
+// getoonde volgorde). Herstel bouwt de reeks dus gewoon opnieuw op i.p.v. 'm
+// te bewaren — dat scheelt met name bij `real_or_fake_flag` een gegenereerde
+// canvas-`spec` per vlag in de opslag, en scheelt bij élk speltype de volledige
+// vragenpool-met-antwoorden die anders al vóór de eerste ronde in
+// `sessionStorage` zou staan.
+function serializeRoomState(room) {
+  return {
+    contentVersion: CONTENT_VERSION,
+    roomId: room.roomId,
+    gameCode: room.gameCode,
+    inviteId: room.inviteId,
+    joinUrl: room.joinUrl,
+    phase: room.phase,
+    locked: room.locked,
+    allowLateJoin: room.allowLateJoin,
+    pacing: room.pacing,
+    config: room.config,
+    matchId: room.matchId,
+    matchSequence: room.matchSequence,
+    pausedState: room.pausedState,
+    gameType: room.gameType,
+    roundIndex: room.roundIndex,
+    phaseDeadline: room.phaseDeadline,
+    currentRound:
+      room.currentRound === null
+        ? null
+        : {
+            roundId: room.currentRound.roundId,
+            roundNumber: room.currentRound.roundNumber,
+            totalRounds: room.currentRound.totalRounds,
+            startsAt: room.currentRound.startsAt,
+            endsAt: room.currentRound.endsAt,
+            answers: [...room.currentRound.answers],
+          },
+    players: [...room.players],
+    // `actionCache` (idempotentie voor retries binnen dezelfde paginalaad,
+    // zie `handleSend`) gaat bewust niet mee: na een reload heeft de client
+    // toch geen enkele openstaande retry meer met een oude `actionId`, en de
+    // cache zou anders bij elke actie ongebonden verder groeien in de opslag.
+    sessions: [...room.sessions].map(([sessionToken, session]) => [
+      sessionToken,
+      { roles: session.roles, playerId: session.playerId },
+    ]),
+  };
+}
+
+/**
+ * Het omgekeerde van `serializeRoomState`. Gooit op elke vorm die niet meer
+ * bruikbaar is (verkeerde contentversie, ontbrekende verplichte velden) —
+ * de aanroeper (`app.mjs`) vangt dat op met dezelfde terugval als "geen
+ * opgeslagen state": terug naar het homescherm, in plaats van halverwege een
+ * onherstelbare room te crashen.
+ */
+function deserializeRoomState(saved) {
+  if (saved === null || typeof saved !== 'object') {
+    throw new Error('Ongeldige opgeslagen solostate: geen object.');
+  }
+  if (saved.contentVersion !== CONTENT_VERSION) {
+    // De contentpool kan tussen twee paginalaadbeurten wijzigen (een deploy
+    // terwijl het tabblad openstond) — een oudere ronde is dan niet meer
+    // betrouwbaar te herbouwen, een nette nieuwe start is beter dan gokken.
+    throw new Error(`Solostate hoort bij contentversie ${String(saved.contentVersion)}, huidige is ${CONTENT_VERSION}.`);
+  }
+  if (typeof saved.gameCode !== 'string' || saved.gameCode.length === 0) {
+    throw new Error('Ongeldige opgeslagen solostate: geen gameCode.');
+  }
+
+  const gameType = isPlayableGameType(saved.gameType) ? saved.gameType : DEFAULT_GAME_TYPE;
+  const questions = buildQuestionSequence(gameType);
+  const roundIndex = typeof saved.roundIndex === 'number' ? saved.roundIndex : -1;
+  const question = questions[roundIndex];
+
+  return {
+    roomId: saved.roomId,
+    gameCode: saved.gameCode,
+    inviteId: saved.inviteId,
+    joinUrl: saved.joinUrl,
+    phase: saved.phase,
+    locked: saved.locked === true,
+    allowLateJoin: saved.allowLateJoin !== false,
+    pacing: saved.pacing === 'host' ? 'host' : 'auto',
+    config: saved.config !== null && typeof saved.config === 'object' ? saved.config : {},
+    matchId: saved.matchId,
+    matchSequence: typeof saved.matchSequence === 'number' ? saved.matchSequence : 1,
+    pausedState: saved.pausedState ?? null,
+    players: new Map(Array.isArray(saved.players) ? saved.players : []),
+    sessions: new Map(
+      (Array.isArray(saved.sessions) ? saved.sessions : []).map(([sessionToken, session]) => [
+        sessionToken,
+        { roles: session.roles, playerId: session.playerId, actionCache: new Map() },
+      ]),
+    ),
+    listeners: new Map(), // wordt opnieuw gevuld zodra de herstelde sessie `connect()` aanroept
+    gameType,
+    questions,
+    roundIndex,
+    currentRound:
+      saved.currentRound === null || saved.currentRound === undefined || question === undefined
+        ? null
+        : {
+            roundId: saved.currentRound.roundId,
+            roundNumber: saved.currentRound.roundNumber,
+            totalRounds: saved.currentRound.totalRounds,
+            question,
+            startsAt: saved.currentRound.startsAt,
+            endsAt: saved.currentRound.endsAt,
+            answers: new Map(Array.isArray(saved.currentRound.answers) ? saved.currentRound.answers : []),
+          },
+    phaseDeadline: typeof saved.phaseDeadline === 'number' ? saved.phaseDeadline : null,
+    pendingTimers: new Set(), // setTimeout-handles overleven geen reload; rearmTimer() bouwt er hooguit één opnieuw op
+  };
 }
 
 // ---- Snapshot-opbouw (State-snapshot, PROTOCOL.md) -------------------------

@@ -33,10 +33,17 @@
 // games en hetzelfde ontwerp, in een kamer met één speler. Er gaat geen enkel
 // verzoek naar de server.
 //
-// Wat solo NIET heeft: overleven van een herlaadbeurt. De mock houdt zijn
-// kamer in het geheugen van deze pagina; wie ververst, begint opnieuw. Dat is
-// een bewuste grens (geen serverstate = geen persistentie), en `render()`
-// hieronder vangt het netjes op in plaats van een dood scherm te tonen.
+// Overleeft solo een herlaadbeurt? (Ronde 3 fase 3, besluit M5 uit
+// PLAN-OPENSTAAND.md.) Sinds 6 aug 2026: ja. De mockroom zelf is nog steeds
+// puur in-memory (geen server, geen netwerk) — wat hier bijkomt is dat elke
+// gebeurtenis die de speler ook echt te zien krijgt (`transport-mock.mjs`'s
+// `onStateChange`) meteen naar `sessionStorage` gaat (`client/flow/
+// solo-store.mjs`), en dat `render()` hieronder bij een `game`/`host`-route
+// zonder actieve solopagina eerst probeert te herstellen vóór hij opgeeft.
+// `sessionStorage` en niet `localStorage`: een solopartij is het geheugen van
+// één tabblad — dat moet een herlaadbeurt overleven (waar dit voor gebouwd
+// is), maar niet voor onbepaalde tijd blijven rondslingeren na het sluiten
+// ervan, en zeker niet meebloeden naar een nieuw tabblad.
 
 import { applyI18n, t, tCount, setLang, getLang } from './i18n.mjs';
 import { loadLang, saveLang, loadTheme, saveTheme } from './preferences.mjs';
@@ -44,6 +51,7 @@ import { createAppMenu } from './app-menu.mjs';
 import { resolveRoute } from '../../client/flow/route-resolver.mjs';
 import { joinSourceFor } from '../../client/flow/share-actions.mjs';
 import { clearSession, loadSession, saveSession } from '../../client/flow/session-store.mjs';
+import { saveSoloState, loadSoloState, clearSoloState } from '../../client/flow/solo-store.mjs';
 import { createTransport } from './transport.mjs';
 import { createMockTransport } from './transport-mock.mjs';
 import { createHomeView } from './views/home.mjs';
@@ -66,6 +74,23 @@ if (mockMode) {
   console.warn('[frontend] MOCKMODUS actief (?mock=1): geen server, alles lokaal gesimuleerd.');
 }
 const storage = window.localStorage;
+/** Alleen voor de mockroomstate van een solopartij, zie de moduledoc hierboven. */
+const soloStorage = window.sessionStorage;
+
+/**
+ * Bouwt de mocktransport voor een solopartij, met persistentie aangehaakt:
+ * elke state die de speler te zien krijgt gaat naar `sessionStorage`, onder
+ * de gamecode uit diezelfde state (dus zonder dat de aanroeper 'm al hoeft te
+ * kennen — handig in `startSolo()`, waar de gamecode pas na `createGame()`
+ * bekend is).
+ * @param {object} [restoreState]
+ */
+function createPersistedSoloTransport(restoreState) {
+  return createMockTransport({
+    restoreState,
+    onStateChange: (state) => saveSoloState(soloStorage, state.gameCode, state),
+  });
+}
 
 let currentScreen = null; // { render()?, destroy()? } van de actief gemounte view
 
@@ -138,12 +163,22 @@ function render() {
   if (route.route === 'game' || route.route === 'host') {
     const session = loadSession(storage, route.code);
     if (session !== null && session.solo === true && !soloMode) {
-      // Een solosessie uit een vórige pagelaad: de mockkamer bestond alleen in
-      // het geheugen van die pagina en is dus weg. Liever meteen terug naar
-      // huis dan een scherm dat op een niet-bestaande kamer wacht.
-      clearSession(storage, route.code);
-      navigate('/');
-      return;
+      // Een solosessie uit een vórige pagelaad: de mockkamer zelf bestond
+      // alleen in het geheugen van díe pagina, maar `sessionStorage` kan de
+      // laatst gemelde state ervan nog hebben (zie createPersistedSoloTransport
+      // hierboven) — probeer daarmee verder te spelen vóór we opgeven.
+      const restoreState = loadSoloState(soloStorage, route.code);
+      const restoredTransport = restoreState === null ? null : tryRestoreSoloTransport(restoreState);
+      if (restoredTransport === null) {
+        // Niets (bruikbaars) gevonden: liever meteen terug naar huis dan een
+        // scherm dat op een niet-bestaande kamer wacht.
+        clearSession(storage, route.code);
+        clearSoloState(soloStorage, route.code);
+        navigate('/');
+        return;
+      }
+      transport = restoredTransport;
+      soloMode = true;
     }
     if (session !== null) {
       currentScreen = createSessionShell({
@@ -171,6 +206,24 @@ function render() {
 }
 
 /**
+ * Probeert een opgeslagen solostate om te zetten in een werkende transport.
+ * Faalt (en levert `null`) bij een corrupte waarde, een verlopen contentversie
+ * na een deploy tussen opslaan en herladen, of iets anders onvoorziens —
+ * `deserializeRoomState` (transport-mock.mjs) gooit in al die gevallen, dit is
+ * de enige plek die dat mag opvangen in plaats van de hele pagina te breken.
+ * @param {object} restoreState
+ * @returns {ReturnType<typeof createMockTransport> | null}
+ */
+function tryRestoreSoloTransport(restoreState) {
+  try {
+    return createPersistedSoloTransport(restoreState);
+  } catch (error) {
+    console.warn('[frontend] solopartij herstellen na herlaadbeurt mislukt', error);
+    return null;
+  }
+}
+
+/**
  * Start een solopartij: dezelfde app, dezelfde schermen, één speler.
  *
  * Bewust geen eigen route (`/solo` is nog de oude singleplayer-app, en een
@@ -178,7 +231,7 @@ function render() {
  * `/host/{code}` net als elke andere, alleen dan tegen de mocktransport.
  */
 async function startSolo() {
-  transport = createMockTransport();
+  transport = createPersistedSoloTransport();
   soloMode = true;
   try {
     const response = await transport.createGame({
