@@ -88,6 +88,7 @@ function makeGameConfiguration(overrides = {}) {
     scoreboardSeconds: 8,
     scoreboardFrequency: 'elke_ronde',
     pacing: 'auto',
+    autoReveal: true,
     speedBonus: true,
     deadlineGraceMs: 250,
     mode: 'individual',

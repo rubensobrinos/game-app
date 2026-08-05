@@ -23,6 +23,7 @@
  *   scoreboardSeconds: number,
  *   scoreboardFrequency: string,
  *   pacing: "auto" | "host",
+ *   autoReveal: boolean,
  *   speedBonus: boolean,
  *   deadlineGraceMs: number,
  *   mode: "individual" | "teams",
@@ -122,7 +123,7 @@ function assertClosedEnum(value, fieldName, allowedValues) {
 
 /**
  * Werpt TypeError/RangeError als value niet aan de GameConfiguration-vorm
- * voldoet. Controleert aanwezigheid + primitief type voor alle 16 velden, plus
+ * voldoet. Controleert aanwezigheid + primitief type voor alle 17 velden, plus
  * gesloten-enum-lidmaatschap voor language/mode/gameTypes/pacing.
  * @param {unknown} value
  */
@@ -150,6 +151,11 @@ function assertGameConfigurationShape(value) {
   assertNumber(value.scoreboardSeconds, 'scoreboardSeconds');
   assertString(value.scoreboardFrequency, 'scoreboardFrequency');
   assertClosedEnum(value.pacing, 'pacing', PACING_VALUES);
+  // `autoReveal` (besluit C, DOELBEELD-v2 §3): staat hij uit, dan wacht de
+  // uitslagfase op de host in plaats van op een timer. Boolean en verplicht —
+  // net als `speedBonus`/`allowLateJoin` — zodat er geen room kan bestaan
+  // waarvan het onthulgedrag onbepaald is.
+  assertBoolean(value.autoReveal, 'autoReveal');
   assertBoolean(value.speedBonus, 'speedBonus');
   assertNumber(value.deadlineGraceMs, 'deadlineGraceMs');
   assertClosedEnum(value.mode, 'mode', ACCEPTED_MODE_VALUES);
