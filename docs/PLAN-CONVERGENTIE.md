@@ -4,8 +4,9 @@
 single lijkt heel anders dan de multiplayer en de multiplayer heeft maar 1
 game" — plus de stabilisatie-analyse van de producteigenaar diezelfde dag.
 
-**Status: analyse + voorstel.** Deel A (stabilisatie) is uitvoerbaar binnen de
-bestaande beslisbevoegdheid; deel B (convergentie) wacht op twee besluiten.
+**Status: uitgevoerd t/m stap 9 (5 aug 2026).** Deel A is geland, stap 6 en de
+besluiten C-1/C-2 ook; wat er nog open staat, staat in deel C. Dit document
+blijft de analyse — `docs/STATUS.md` zegt waar we staan.
 
 **Verificatie:** alle bevindingen hieronder zijn tegen de repo gecontroleerd
 (OVERDRACHT-regel 5), met bestand:regel. Waar de aangeleverde analyse afwijkt
@@ -244,12 +245,50 @@ betrouwbare keten vormen.
 
 ## Besluiten voor de producteigenaar
 
-| # | Besluit | Waarom nu |
+| # | Besluit | Uitkomst |
 | --- | --- | --- |
-| **C-0** | A0 nu: carrousel terug naar alleen "Raad de vlag" (veilig, kost een regel), of direct de hele Echt-of-nep-keten afmaken (stap 6 naar voren)? | Er staat nu onspeelbare code in de werkboom; dit mag niet mee de deploy in |
-| **C-1** | Richting: **solo als modus van de multiplayer-app** (voorstel) of twee apps met een 1c-restyle van solo? | Bepaalt of "singleplayer-restyle 1c" (OVERDRACHT open punt 8) nog werk is |
-| **C-2** | Portfolio: de **vier uit doelbeeld v2** (dan is contour te bouwen en zijn `capitals_mc`/`higher_lower` dood hout), of de **vijf gebouwde** met contour later? | Bepaalt de volgorde binnen stap 10 |
-| **C-3** | A7: recovery bouwen of expliciet accepteren t/m de pilots? | Stond al open als launchblocker 5 |
+| **C-0** | A0-aanpak | ✅ **Genomen 5 aug** — gedeelde catalogus; carrousel kan geen onspeelbare game meer kiezen. De Echt-of-nep-keten is daarna in stap 6 afgemaakt |
+| **C-1** | Richting solo/samen | ✅ **Genomen 5 aug: solo wordt een modus van de multiplayer-app.** Uitgevoerd: "Alleen spelen" op home draait dezelfde schermen op de mocktransport |
+| **C-2** | Gameportfolio | ✅ **Genomen 5 aug: de vier uit doelbeeld v2.** `capitals_mc` en `higher_lower` blijven gebouwd-maar-onzichtbaar; contour wordt gebouwd |
+| **C-3** | Recovery bouwen of accepteren | ⏳ open — zie `BESLUITVERZOEK-recovery-en-metrics.md` |
+| **M-1/M-2** | `/metrics`: afscherming + timing | ⏳ open — idem |
 
-C-1 en C-2 blokkeren de stabilisatieronde niet: stappen 1–9 zijn in beide
-scenario's hetzelfde werk.
+## Stand van deel B na 5 aug
+
+| Game (doelbeeld v2) | gameType | Stand |
+| --- | --- | --- |
+| Raad de vlag | `flags_mc` | ✅ speelbaar |
+| Echt of nep | `real_or_fake_flag` | ✅ speelbaar (stap 6, verticaal bewezen) |
+| Welke hoort er niet bij | `odd_one_out` | ✅ speelbaar (C-2, verticaal bewezen, mét uitlegregel) |
+| **Raad het land** | *bestaat nog niet* | ⏳ zie hieronder |
+
+Solo (C-1) draait als modus; de oude app blijft bereikbaar op `/solo` maar
+wordt nergens meer aangeprezen.
+
+## Wat "Raad het land" nog vraagt
+
+Dit is de enige game die niet op bestaande motoronderdelen meelift, en de enige
+echte contentmigratie in dit plan. Concreet, in deze volgorde:
+
+1. **Contourdata naar `shared/content/`.** `data/geo-countries.js` heeft 257
+   landen met een SVG-path, maar is gesleuteld op **Engelse naam** — er zit
+   geen `iso2` in. De pool in `shared/content/countries.data.mjs` is dat wel.
+   Eerste taak is dus een naam→iso2-koppeling, mét een lijst van wat niet
+   matcht (257 vs 230 is geen toeval: gebiedsdelen, oude namen, spelling).
+   Niet stilzwijgend laten vallen — de niet-gematchte landen horen zichtbaar
+   in de migratie-uitkomst.
+2. **Formaat en gewicht.** ±284 KB aan paden. `shared/content/index.mjs` wordt
+   ook door de server geladen, dus de contouren horen in een eigen module die
+   alleen geladen wordt als de game gekozen is (dynamische import aan de
+   clientkant; de server heeft de paden niet nodig — die kiest alleen een land).
+3. **Nieuwe gameType** `country_shape_mc` in `GOLF_1_GAME_TYPES`,
+   `question-selection.js` (target + drie afleiders, zelfde
+   continent-voorkeur als `flags_mc`), en `assertRoundShape` (`validOptionIds`
+   verplicht, net als de andere meerkeuzevormen).
+4. **Renderer.** `frontend/js/views/flag-renderer.mjs` is al zo'n poort van de
+   solo-renderer; `build-shapes.js`/`hint.js` leveren het patroon voor een
+   `shape-renderer.mjs` ernaast.
+5. **Client + mock + verticale ketentest**, precies zoals bij de vorige twee
+   games — en pas dán in `PLAYABLE_GAME_TYPES`.
+
+Stap 1 en 2 zijn de echte beslissingen; de rest is bekend werk.

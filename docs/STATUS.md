@@ -12,9 +12,9 @@ bij de producteigenaar, 10 blokkeert op C-1/C-2._
 
 | | Stand |
 | --- | --- |
-| Suite | **2948 groen · 0 rood · 0 skip** (175 suites, ~11 s, zonder live Redis) |
+| Suite | **2953 groen · 0 rood · 0 skip** (~177 suites, ~11 s, zonder live Redis) |
 | Live op rounda.io | Werkende multiplayerketen: create/join/QR/rondes/pauze/rematch |
-| Speelbare games | **2** — Raad de vlag en Echt of nep (verticaal bewezen). De motor kan er vijf; zie PLAN-CONVERGENTIE §B2 |
+| Speelbare games | **3 van de 4** — Raad de vlag, Echt of nep, Welke hoort er niet bij (alle drie verticaal bewezen). Raad het land (contour) resteert |
 | Git | schoon; alles gecommit en gepusht (zie onderaan) |
 | Grootste open risico | herstel na serverrestart (ARCHITECTURE §10) — besluit C-3 |
 
@@ -41,8 +41,8 @@ mock-pin die de afwijking vastlegde.
 
 | # | Besluit | Waar |
 | --- | --- | --- |
-| C-1 | Solo als modus van de multiplayer-app, of twee apps met een 1c-restyle? | PLAN-CONVERGENTIE §B4 |
-| C-2 | Gameportfolio: de vier uit doelbeeld v2 of de vijf gebouwde? | §B3 |
+| ~~C-1~~ | ✅ 5 aug: **solo wordt een modus**. Uitgevoerd — "Alleen spelen" staat op home | PLAN-CONVERGENTIE §B4 |
+| ~~C-2~~ | ✅ 5 aug: **de vier uit doelbeeld v2**. Drie staan, contour resteert | §B3 |
 | C-3 | Herstelpad na serverrestart bouwen, of expliciet accepteren t/m de pilots? | BESLUITVERZOEK-recovery-en-metrics.md |
 | M-1/M-2 | Afscherming `/metrics` + timing van de eerste metricset | idem |
 | — | Sein per feedbackpunt uit FEEDBACK-eerste-livetest.md | los mandaat |
@@ -61,8 +61,12 @@ mock-pin die de afwijking vastlegde.
 4. **Stap 9 — kleine metricset** — geblokkeerd op M-1 (afscherming `/metrics`)
    en bewust ná de pilot: metrics kiezen vóór de pilot is gokken welke vraag
    we straks hebben.
-5. **Stap 10 — deel B**: solo als modus, `odd_one_out`/`capitals_mc`, contour.
-   Blokkeert op C-1/C-2.
+5. **Stap 10 — deel B** (C-1/C-2 genomen): solo-als-modus ✅ en `odd_one_out` ✅
+   staan. Resteert **"Raad het land"** — de enige game die niet op bestaande
+   motoronderdelen meelift: contourdata (257 landen, gesleuteld op Engelse
+   naam, zonder iso2) koppelen aan de pool, een eigen module vanwege het
+   gewicht, nieuwe gameType, renderer porten. Uitgeschreven in
+   PLAN-CONVERGENTIE §"Wat Raad het land nog vraagt".
 
 ### Blijvend open, ongewijzigd
 
