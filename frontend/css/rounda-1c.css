@@ -1411,3 +1411,48 @@ html:has(.lobby-screen) {
 }
 .lobby-seg-option.is-tik { animation: lobby-seg-tik var(--motion-quick, 140ms) ease-out; }
 @keyframes lobby-seg-tik { from { transform: scale(0.96); } to { transform: scale(1); } }
+
+/* R2-2 (feedback op de deploy, 5 aug): de codebalk was uit elkaar gevallen in
+   drie losse knopjes met de code er los naast — "hoe lelijk nu, en hoe mooi
+   die eerst was". Dat is precies wat punt 14 juist wilde voorkomen: code, QR
+   en delen horen één samenhangend blok te zijn.
+
+   De kaart komt dus terug, maar nu bínnen de 44px chromerij in plaats van als
+   eigen rij: 38px hoog met een lime rand en een vleugje lime vulling. De ⋯
+   blijft er bewust búiten — dat is een menu, geen onderdeel van de code (zo
+   stond de hamburger er vroeger ook naast). De iconen in de kaart verliezen
+   hun eigen rand: twee kaders in elkaar is precies de ruis die het vaag maakte.
+   Cijfers een slag groter, ook op zijn verzoek. */
+#app-header .room-header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: auto;
+  min-width: 0;
+  height: 38px;
+  padding: 0 4px 0 11px;
+  border: 1px solid rgba(216, 255, 62, 0.32);
+  border-radius: 13px;
+  background: rgba(216, 255, 62, 0.045);
+}
+#app-header .room-header .room-header-qr,
+#app-header .room-header .room-header-share {
+  height: 30px;
+  width: 32px;
+  border-color: transparent;
+  border-radius: 8px;
+}
+#app-header .room-header-code-value { font-size: clamp(23px, 6.9vw, 30px); }
+
+/* Tijdens spel en tussenstand blijft de kaart gedempt (A2): de vraag is de
+   ster. Wel als blok herkenbaar, niet als aandachttrekker. */
+body[data-rounda-fase='spel'] #app-header .room-header,
+body[data-rounda-fase='tussenstand'] #app-header .room-header {
+  height: 34px;
+  border-color: var(--rounda-row-border);
+  background: none;
+}
+body[data-rounda-fase='spel'] #app-header .room-header-code-value,
+body[data-rounda-fase='tussenstand'] #app-header .room-header-code-value {
+  font-size: 21px;
+}
