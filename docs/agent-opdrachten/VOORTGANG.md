@@ -37,11 +37,11 @@ bewezen (B1 draaide er tests op).
 
 | # | Punt | Pakket | Status |
 | -: | --- | :-: | :-: |
-| 1 | Startflow binnen één viewport | C (+A) | 🔄 |
-| 2 | Zes codevelden + compacte Go | C | ⬜ |
-| 3 | Knop "Meedoen met code" weg | C | ⬜ |
-| 4 | Subtekst "Geen account · jij leidt" weg | C | ⬜ |
-| 5 | Logo ~20% groter (96 → ~115 px) | C | ⬜ |
+| 1 | Startflow binnen één viewport | C (+A) | ✅ |
+| 2 | Zes codevelden + compacte Go | C | ✅ |
+| 3 | Knop "Meedoen met code" weg | C | ✅ |
+| 4 | Subtekst "Geen account · jij leidt" weg | C | ✅ |
+| 5 | Logo ~20% groter (96 → ~115 px) | C | ✅ |
 | 6 | Footer behouden | — | 🚫 |
 
 ## Navigatie
@@ -83,35 +83,35 @@ bewezen (B1 draaide er tests op).
 
 | # | Punt | Pakket | Status |
 | -: | --- | :-: | :-: |
-| 22 | Hostinstellingen in/uitklapbaar | C | 🟡 bestaat |
+| 22 | Hostinstellingen in/uitklapbaar | C | ✅ bestond al |
 | 23 | Horizontaal swipen tussen games | C | ⬜ |
 | 24 | Kleine pijlen mogen blijven | C | ⬜ |
-| 25 | Kies/Mix/Typ klikbaar | B | 🔄 B1 |
+| 25 | Kies/Mix/Typ klikbaar | B | ✅ |
 | 26 | Easy/Medium/Hard is goed | — | 🚫 |
 | 27 | "Antwoord automatisch tonen" moet werken | B | ⏸ serverwerk |
 | 28 | Meer instellingen is goed | — | 🚫 |
 | 29 | Taalinstelling zo laten | — | 🚫 |
 | 30 | Snelheidsbonus + later meedoen blijven | — | 🚫 |
 | 31 | "Start Rounda" hoger | C | ⬜ |
-| 32 | Startknop bedekt niets | B (+C) | 🔄 B1 |
+| 32 | Startknop bedekt niets | B (+C) | ✅ |
 
 ## Vraagweergave
 
 | # | Punt | Pakket | Status |
 | -: | --- | :-: | :-: |
-| 33 | Vraag + vlag + 4 antwoorden in één viewport | D | ⬜ wacht op A1 |
-| 34 | Vlag, witruimte, bovenbalk verkleinen | D | ⬜ wacht op A1 |
-| 35 | Vraag/antwoorden primair | D (+A) | 🔄 A-deel ✅ |
+| 33 | Vraag + vlag + 4 antwoorden in één viewport | D | ✅ |
+| 34 | Vlag, witruimte, bovenbalk verkleinen | D | ✅ |
+| 35 | Vraag/antwoorden primair | D (+A) | ✅ |
 | 36 | Segmententimer i.p.v. cijfer | B | 🟡 |
 | 37 | Timer telt vloeiend af | B | 🟡 |
-| 38 | Toon hoeveel spelers geantwoord | D | 🟡 |
-| 39 | Die status hoog in beeld | D | 🟡 |
+| 38 | Toon hoeveel spelers geantwoord | D | ✅ |
+| 39 | Die status hoog in beeld | D | ✅ |
 
 ## Reveal
 
 | # | Punt | Pakket | Status |
 | -: | --- | :-: | :-: |
-| 40 | Voortgangsbalk loopt af | B | 🔄 B1 |
+| 40 | Voortgangsbalk loopt af | B | ✅ |
 | 41 | Direct de volgende vraag | B | 🟡 |
 | 42 | Lege ruimte weg, voortgangsgevoel | D | ⬜ wacht op A1 |
 | 43 | Consistentie vlag/antwoord/spelersantwoord | B | 🔄 B1 |
@@ -122,14 +122,14 @@ bewezen (B1 draaide er tests op).
 | -: | --- | :-: | :-: |
 | 44 | Pauzeren werkt en is bereikbaar | D | ⬜ |
 | 45 | Pauzeknop zweeft niet los | A | ✅ |
-| 46 | Hostacties op één plek | A plek / D inhoud | 🔄 |
+| 46 | Hostacties op één plek | A plek ✅ / D inhoud | 🔄 |
 | 47 | Hostinstellingen niet zomaar weg | D | ⬜ |
 | 48 | Menu sluit aan op verwachting | D | ⬜ |
-| 49 | Beëindigen/verwijderen niet dominant | D | ⬜ |
-| 50 | Destructief gescheiden + bevestiging | D | ⬜ |
+| 49 | Beëindigen/verwijderen niet dominant | D | ⬜ **harde eis (5 aug)** |
+| 50 | Destructief gescheiden + bevestiging | D | ⬜ **harde eis (5 aug)** |
 | 51 | Menu bedekt de vraag niet | D | ⬜ |
-| 52 | Lege menuactie met alleen puntjes | B | 🔄 B1 |
-| 53 | Menu rendert consistent | B | 🔄 B1 |
+| 52 | Lege menuactie met alleen puntjes | B | ✅ |
+| 53 | Menu rendert consistent | B | ✅ |
 
 ## Eindstand
 

@@ -36,8 +36,8 @@ vrijwel alleen uit rode knoppen die je game beëindigen.
 | 46 | Hostacties gebundeld | ontwerp | A levert de plek, jij de inhoud |
 | 47 | Hostinstellingen verdwijnen niet zonder alternatief tijdens het spel | UX | `rounda-1c.css:746` verbergt de hostbalk in de lobby; controleer wat er tijdens het spel overblijft |
 | 48 | Het menu sluit aan op wat een host verwacht | ontwerp | nu: bijna alleen destructief |
-| 49 | "Game beëindigen" en "Verwijder" niet dominant | **safety** | IMG_0294/0295: twee rode knoppen als hoofdinhoud |
-| 50 | Destructief gescheiden + bevestiging | **safety** | er is nu geen bevestigingsstap |
+| 49 | "Game beëindigen" en "Verwijder" niet dominant | **HARDE EIS** | Zie hieronder — de producteigenaar heeft hier expliciet op aangedrongen |
+| 50 | Destructief gescheiden + bevestiging | **HARDE EIS** | idem |
 | 51 | Het menu bedekt de vraag niet onnodig | UX | IMG_0295: het paneel ligt over de vraag |
 | 54 | Eindstand compacter | ✅ **door de lead gedaan** | CSS-only, in het LEAD-blok onderaan `rounda-1c.css`. Kijk of het klopt als je bij D2 bent; verbeter gerust, maar bouw het niet opnieuw |
 | 55 | Revanche primair, rest secundair | ✅ **door de lead gedaan** | idem: Nieuw spel + Deel uitslag delen één rij en zijn lager |
@@ -56,6 +56,25 @@ vrijwel alleen uit rode knoppen die je game beëindigen.
 - [ ] Punten 42, 54, 55, 56.
 - [ ] De reveal krijgt zichtbaar voortgangsgevoel. Let op: **de balk zelf is
       pakket B** (#40) — bouw geen tweede balk ernaast, stem af.
+
+> ### Besluit producteigenaar (5 aug), letterlijk: *"Beëindigen moet in de
+> hostinstellingen verstopt zijn. Als je verkeerd klikt moet je weer opnieuw
+> beginnen."*
+>
+> **"Game beëindigen" mag geen knop zijn die je per ongeluk raakt.** Sinds A3
+> staat hij bovenin het ⋯-menu, óók in de lobby, en dat is te makkelijk. De eis:
+>
+> 1. **Weg uit het eerste niveau.** Hij hoort achter "Meer instellingen" of een
+>    eigen sectie onderaan, niet als eerste wat je ziet als je het menu opent.
+> 2. **Bevestigingsstap**, met in de vraag hoeveel spelers er in de room zitten
+>    ("Game beëindigen voor 8 spelers?"). Een potje beëindigen kun je niet
+>    terugdraaien — de room gaat naar FINISHED en iedereen moet opnieuw.
+> 3. **Visueel ondergeschikt.** Rood omkaderd én bovenaan is de omgekeerde
+>    hiërarchie van wat het zou moeten zijn.
+> 4. Hetzelfde geldt voor **Verwijder** (een speler eruit gooien).
+>
+> Dit is het punt waar deze hele lijst het duurst kan uitpakken: een host die
+> per ongeluk een avond met tien mensen beëindigt.
 
 ### D3 — hostbediening
 - [ ] Punten 44, 46, 47, 48, 49, 50, 51.
