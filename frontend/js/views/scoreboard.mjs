@@ -17,6 +17,11 @@ import { socialHeadlineFor } from './social-headline.mjs';
 import { countryName, flagAssetPath } from './country-names.mjs';
 import { renderFlagSpec } from './flag-renderer.mjs';
 
+// 11-verzoek (BOUWSPRINT doel 4): een streak van 1 of 2 is geen "reactie"
+// waard. Dezelfde grens als het origineel in gameplay.mjs — GAME-RULES.md
+// geeft er geen voorschrift voor, dus geen nieuwe drempel verzinnen.
+const STREAK_REACTIE_DREMPEL = 3;
+
 export function createScoreboardView({ root, t, tCount }) {
   root.textContent = '';
 
@@ -80,6 +85,19 @@ export function createScoreboardView({ root, t, tCount }) {
   const revealMine = el('p', 'reveal-mine');
   revealMine.hidden = true;
 
+  // 11-verzoek (BOUWSPRINT doel 4), hersteld: de streakreactie. Stond in
+  // gameplay.mjs's uitslagblok en werd daarmee onzichtbaar toen besluit 40 de
+  // reveal naar dit scherm verhuisde — de producteigenaar heeft 'm dus nooit
+  // gezien terwijl hij erom vroeg.
+  //
+  // Deelt bewust de plek met `revealMine`: die twee sluiten elkaar uit. Een
+  // streak telt alleen door bij `selfCorrect` (streak-model.mjs reset naar 0
+  // bij fout of geen antwoord), en `revealMine` verschijnt uitsluitend bij
+  // fout. Ze kunnen dus nooit samen zichtbaar zijn, en het scherm wordt er in
+  // het slechtste geval geen pixel hoger van.
+  const revealStreak = el('p', 'reveal-streak');
+  revealStreak.hidden = true;
+
   const title = document.createElement('h2');
   title.className = 'scoreboard-title';
   title.textContent = t('standings.title');
@@ -109,7 +127,7 @@ export function createScoreboardView({ root, t, tCount }) {
   const nextText = el('p', 'reveal-next-text');
   nextFooter.append(nextBar, nextText);
 
-  root.append(revealCard, revealSelf, revealMine, title, list, selfLine, headline, nextFooter);
+  root.append(revealCard, revealSelf, revealMine, revealStreak, title, list, selfLine, headline, nextFooter);
 
   /**
    * De sleutel waarop de antwoordverdeling het juiste antwoord bijhoudt,
@@ -283,7 +301,7 @@ export function createScoreboardView({ root, t, tCount }) {
     return huidigeFase === 'ROUND_RESULT' ? positief(result, 5) + beatTwee : beatTwee;
   }
 
-  function update(standings, { movement = new Map(), participants = new Map(), round = null, lang = 'nl', pacing = null, phase = null, scoreboardSeconds = null, resultSeconds = null } = {}) {
+  function update(standings, { movement = new Map(), participants = new Map(), round = null, lang = 'nl', pacing = null, phase = null, scoreboardSeconds = null, resultSeconds = null, streak = 0 } = {}) {
     // ── Scherm 5, beat 1: reveal ──
     const result = round?.result ?? null;
     // Beat 1 = ROUND_RESULT mét een uitslag om te tonen; anders (SCOREBOARD,
@@ -361,6 +379,21 @@ export function createScoreboardView({ root, t, tCount }) {
       : null;
     revealMine.hidden = mine === null;
     revealMine.textContent = mine === null ? '' : t('reveal.yourAnswer').replace('{answer}', mine);
+
+    // ── Scherm 5, beat 1d: de streakreactie ──
+    // Een beloning, geen mededeling: bij een onderbroken streak staat er
+    // niets. Dat volgt vanzelf uit `streak-model.mjs` (reset naar 0 bij fout
+    // of geen antwoord), dus geen tweede `selfCorrect`-check nodig — die zou
+    // alleen maar uit de pas kunnen gaan lopen met het model.
+    //
+    // `streak` is al `0` van de aanroeper als de speler reactiezinnen heeft
+    // uitgezet (session-shell.mjs leest de voorkeur), dus die keuze wordt
+    // hier vanzelf gerespecteerd. Nooit een telbare vorm nodig: de drempel is
+    // 3, dus dit pad toont nooit "1".
+    const toonStreak = result !== null && streak >= STREAK_REACTIE_DREMPEL;
+    revealStreak.hidden = !toonStreak;
+    revealStreak.textContent = toonStreak ? t('headline.streak').replace('{n}', String(streak)) : '';
+
     // M9/E11: FLIP — meet waar bestaande rijen NU staan (op `playerId`,
     // vóór de herbouw), zodat we ze ná de herbouw naar hun oude plek terug
     // kunnen zetten en dan pas laten bewegen naar de nieuwe. Overgeslagen

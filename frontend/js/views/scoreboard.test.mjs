@@ -432,3 +432,74 @@ test('B3: zonder bruikbare vlagbron blijft het beeld leeg in plaats van verkeerd
   assert.equal(vind(root, 'reveal-card').hidden, true, 'geen antwoordtekst → geen kaart');
   assert.equal(vind(root, 'reveal-card-flag').hidden, true);
 });
+
+// ══ De streakreactie, hersteld op scherm 5 ════════════════════════════════
+//
+// 11-verzoek (BOUWSPRINT doel 4). Stond in gameplay.mjs's uitslagblok en was
+// daarmee onzichtbaar sinds besluit 40 de reveal naar dít scherm verhuisde.
+// De producteigenaar vroeg erom en heeft 'm nooit gezien.
+
+async function metStreak(streak, ronde, naam) {
+  const { createScoreboardView } = await import(`./scoreboard.mjs?${naam}`);
+  const root = document.createElement('div');
+  const view = createScoreboardView({ root, t, tCount });
+  view.update(standings, { round: ronde, lang: 'nl', pacing: 'auto', phase: 'ROUND_RESULT', streak });
+  return root;
+}
+
+test('streak: vanaf drie op een rij verschijnt de reactie, daaronder niet', async () => {
+  for (const n of [0, 1, 2]) {
+    stubDom();
+    const root = await metStreak(n, rondeFlagsMc({ self: 'correct' }), `st${n}`);
+    assert.equal(vind(root, 'reveal-streak').hidden, true, `${n} op een rij is geen reactie waard`);
+  }
+
+  stubDom();
+  const root = await metStreak(3, rondeFlagsMc({ self: 'correct' }), 'st3');
+  const regel = vind(root, 'reveal-streak');
+  assert.equal(regel.hidden, false);
+  assert.equal(regel.textContent, 'headline.streak');
+});
+
+test('streak: een onderbroken reeks toont niets — dit is een beloning, geen mededeling', async () => {
+  // streak-model.mjs zet de teller op 0 bij fout of geen antwoord, dus dit is
+  // de stand die scherm 5 dan binnenkrijgt.
+  stubDom();
+  const fout = await metStreak(0, rondeFlagsMc({ self: 'wrong', gekozen: 'ro' }), 'st4');
+  assert.equal(vind(fout, 'reveal-streak').hidden, true);
+
+  stubDom();
+  const geen = await metStreak(0, rondeFlagsMc({ self: 'noanswer' }), 'st5');
+  assert.equal(vind(geen, 'reveal-streak').hidden, true);
+});
+
+test('streak: uitgezette reactiezinnen komen als 0 binnen en tonen dus niets', async () => {
+  // session-shell.mjs stuurt `0` i.p.v. het echte getal als de speler
+  // reactiezinnen heeft uitgezet — dit scherm kent die voorkeur niet.
+  stubDom();
+  const root = await metStreak(0, rondeFlagsMc({ self: 'correct' }), 'st6');
+  assert.equal(vind(root, 'reveal-streak').hidden, true);
+});
+
+test('streak en je eigen antwoord kunnen nooit samen in beeld staan', async () => {
+  // Ze delen dezelfde plek onder de uitslagregel. Dat mag alleen omdat een
+  // streak `selfCorrect` impliceert en "Jij: …" uitsluitend bij fout komt.
+  stubDom();
+  const goed = await metStreak(5, rondeFlagsMc({ self: 'correct' }), 'st7');
+  assert.equal(vind(goed, 'reveal-streak').hidden, false);
+  assert.equal(vind(goed, 'reveal-mine').hidden, true);
+
+  stubDom();
+  const fout = await metStreak(0, rondeFlagsMc({ self: 'wrong', gekozen: 'ro' }), 'st8');
+  assert.equal(vind(fout, 'reveal-streak').hidden, true);
+  assert.equal(vind(fout, 'reveal-mine').hidden, false);
+});
+
+test('streak: zonder uitslag (herladen middenin de stand) staat er niets', async () => {
+  stubDom();
+  const { createScoreboardView } = await import('./scoreboard.mjs?st9');
+  const root = document.createElement('div');
+  const view = createScoreboardView({ root, t, tCount });
+  view.update(standings, { round: { result: null }, pacing: null, streak: 7 });
+  assert.equal(vind(root, 'reveal-streak').hidden, true);
+});
