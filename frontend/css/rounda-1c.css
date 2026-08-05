@@ -1231,6 +1231,17 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   display: none;
 }
 
+/* Fase 2 (K1): zodra de codefout verschijnt, wordt hij een volwaardig
+   flex-item en komt de kolom-`gap` er nóg een keer bovenop — bij een lege
+   melding was die gap er niet (display:none telt niet mee). Dat duwt home
+   663px op 390×650, 13px voorbij de vouw (`node tools/meet.mjs past home`).
+   De melding zelf (tekst, padding, achtergrond) blijft ongemoeid — alleen de
+   extra gap die er ontstaat door van 0 naar 1 zichtbare regel te gaan,
+   wordt teruggegeven aan de kolom. */
+.home-screen .field-error:not(:empty) {
+  margin-top: calc(var(--home-gap) * -1);
+}
+
 /* Punt 2: de zes cellen en Go op één rij. `align-items: end` houdt de knop
    gelijk met de onderkant van de cellen, ook als het label erboven wegvalt. */
 .home-code-row {
