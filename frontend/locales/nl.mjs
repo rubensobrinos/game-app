@@ -33,6 +33,10 @@ export const nl = Object.freeze({
   'home.codeLabel': 'Voer de gamecode in',
   'home.codePlaceholder': '123456',
   'home.codeSubmit': 'Meedoen met code',
+  // C1 (punt 2): zichtbaar label van de compacte knop náást de zes cellen.
+  // `home.codeSubmit` blijft ernaast bestaan als `aria-label` — twee letters
+  // in een rij cijfers zijn duidelijk genoeg om te zien, niet om te horen.
+  'home.codeGo': 'Go',
   'home.soloStart': 'Alleen spelen',
   'home.codeInvalid': 'Vul een code van 6 cijfers in',
   'home.hostSetupLink': 'Spel aanpassen',
