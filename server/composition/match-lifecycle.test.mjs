@@ -34,6 +34,7 @@ import {
   endRound,
   finishMatch,
   getScoreboard,
+  CONTENT_UNAVAILABLE,
   PHASE_RACE_LOST,
   rematch,
   resolveEligibleFromRound,
@@ -1860,4 +1861,45 @@ test('DM19: een pauze zet fase én pausedState in ÉÉN poortaanroep — de loss
 
   store.saveMatch = realSaveMatch;
   store.setRoomAndMatchPhaseAtomically = realPort;
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §A0 (5 aug 2026): een contentbron die niet kan leveren, mag geen stille hang
+// worden. `startRound` draait op de fasepomp — een throw daar verdwijnt in een
+// unhandled rejection en de room blijft in COUNTDOWN staan zonder foutcode.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('§A0: startRound met een gameType die de contentbron niet kan bouwen geeft CONTENT_UNAVAILABLE i.p.v. te werpen', async () => {
+  const harness = makeHarness();
+  const { context, store, clock } = harness;
+
+  // `capitals_mc` is een geldige Golf-1-gameType (create-validatie laat 'm
+  // door) maar staat niet in FILLED_GAME_TYPES — precies de situatie die op
+  // 4 aug via de carrousel voor `real_or_fake_flag` ontstond.
+  const { roomId } = await seedRoom(harness, { extraPlayers: 1, roomConfig: { gameTypes: ['capitals_mc'] } });
+
+  const started = await startMatch(context, { roomId });
+  assert.equal(started.ok, true, JSON.stringify(started));
+
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  let result;
+  await assert.doesNotReject(async () => {
+    result = await startRound(context, { roomId });
+  }, 'startRound mag niet werpen — de fasepomp vangt niets op');
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'CONTENT_UNAVAILABLE');
+  assert.equal(result.contentFailure.gameType, 'capitals_mc');
+  assert.equal(typeof result.contentFailure.reason, 'string');
+  assert.ok(result.contentFailure.reason.length > 0, 'de reden hoort in de log te belanden, niet verloren te gaan');
+
+  // Geen half Round-document en geen fasewissel achtergelaten.
+  const room = await store.loadRoom(roomId);
+  assert.equal(room.phase, 'COUNTDOWN');
+  const match = await store.loadMatch(roomId, started.value.matchId);
+  assert.deepEqual(match.roundIds, []);
+});
+
+test('§A0: CONTENT_UNAVAILABLE is intern en mag nooit een gepubliceerde foutcode worden', () => {
+  assert.equal(ALL_ERROR_CODES.has(CONTENT_UNAVAILABLE), false);
 });

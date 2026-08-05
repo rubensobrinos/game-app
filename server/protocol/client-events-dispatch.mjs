@@ -11,6 +11,7 @@
  * `UNSUPPORTED_EVENT` op (Basisregel 7: "onbekende clientevents leveren
  * `UNSUPPORTED_EVENT`"), nooit een throw en nooit een stille passthrough.
  */
+import { PLAYABLE_GAME_TYPES, isPlayableGameType } from '../../shared/content/game-catalog.mjs';
 import {
   hasRequiredRole,
   validateGameStartPayload,
@@ -131,8 +132,19 @@ export function validatePlayerRecolorPayload(payload) {
  * @type {ReadonlyArray<string>}
  */
 export const UPDATABLE_CONFIG_KEYS = Object.freeze([
-  'totalRounds', 'difficulty', 'language', 'pacing', 'speedBonus', 'allowLateJoin',
+  'totalRounds', 'difficulty', 'language', 'pacing', 'speedBonus', 'allowLateJoin', 'gameTypes',
 ]);
+
+/**
+ * De speltypen die een host live mag kiezen. GEEN eigen lijst meer (5 aug,
+ * PLAN-CONVERGENTIE §A0): deze laag had er één, de carrousel een tweede en de
+ * contentbron een derde, en ze liepen uit elkaar — een host kon een game
+ * kiezen die de server niet kon bouwen. `shared/content/game-catalog.mjs` is
+ * nu de enige bron; hier alleen doorgegeven zodat de importlijst laat zien
+ * waar de waarheid vandaan komt.
+ * @type {ReadonlyArray<string>}
+ */
+export const SELECTABLE_GAME_TYPES = PLAYABLE_GAME_TYPES;
 
 /** Zelfde gesloten enums als `server/data/types/game-configuration.js` — de
  * create-validatie. Lokaal getranscribeerd omdat dat CJS-bestand in de
@@ -181,6 +193,11 @@ export function validateGameUpdateConfigPayload(payload) {
   }
   if ('allowLateJoin' in payload && typeof payload.allowLateJoin !== 'boolean') {
     return { ok: false, code: null };
+  }
+  if ('gameTypes' in payload) {
+    const list = payload.gameTypes;
+    if (!Array.isArray(list) || list.length === 0) return { ok: false, code: null };
+    if (!list.every(isPlayableGameType)) return { ok: false, code: null };
   }
   return { ok: true };
 }

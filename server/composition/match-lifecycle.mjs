@@ -107,6 +107,22 @@ if (ALL_ERROR_CODES.has(PHASE_RACE_LOST)) {
 }
 
 /**
+ * INTERNE uitkomst nummer twee (5 aug 2026, PLAN-CONVERGENTIE §A0): de
+ * contentbron kon voor deze gameType geen vraag bouwen.
+ *
+ * Bewust géén gepubliceerde foutcode. Niemand wacht op een ack — `startRound`
+ * draait op de fasepomp — en er bestaat geen zinnige clientactie: dit is een
+ * configuratiefout van ons, geen verkeerd verzoek van de speler. De
+ * transportlaag logt hem op `error` (in tegenstelling tot `PHASE_RACE_LOST`,
+ * die normaal gedrag beschrijft); `toPublicErrorCode()` maakt er de generieke
+ * fallback van mocht hij ooit tóch richting een client lopen.
+ */
+export const CONTENT_UNAVAILABLE = 'CONTENT_UNAVAILABLE';
+if (ALL_ERROR_CODES.has(CONTENT_UNAVAILABLE)) {
+  throw new Error(`match-lifecycle: "${CONTENT_UNAVAILABLE}" is intern en mag geen gepubliceerde foutcode zijn`);
+}
+
+/**
  * Wie de overgang heeft aangevraagd. Dit is de ENIGE as waarlangs deze module
  * beslist wat een verloren compare-and-set betekent (INT-7):
  *
@@ -801,10 +817,27 @@ export async function startRound(context, { roomId } = {}) {
 
   const gameType = matchGameType(room, match);
   const source = contentSourceFor(context, room);
-  const built = source.buildQuestion({
-    gameType,
-    exclude: [...match.usedQuestionKeys, ...match.previousMatchQuestionKeys],
-  });
+
+  // VANGNET, GEEN VERGOELIJKING (PLAN-CONVERGENTIE §A0). `buildQuestion`
+  // werpt wanneer de contentbron deze gameType niet kan bouwen of de pool
+  // uitgeput raakt. Deze functie draait op een timer-callback, dus een throw
+  // hier verdwijnt in een unhandled rejection: geen `round:started`, geen
+  // foutcode, room stil in COUNTDOWN. `game-catalog.mjs` + de module-load-
+  // controle in `content-source.mjs` horen dit onmogelijk te maken; komt het
+  // er tóch doorheen, dan faalt het zichtbaar in plaats van stil.
+  let built;
+  try {
+    built = source.buildQuestion({
+      gameType,
+      exclude: [...match.usedQuestionKeys, ...match.previousMatchQuestionKeys],
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      code: CONTENT_UNAVAILABLE,
+      contentFailure: { gameType, reason: error instanceof Error ? error.message : String(error) },
+    };
+  }
 
   const round = {
     id: createId(context, 'round'),

@@ -61,6 +61,7 @@ import { assertNoActiveRoundAnswerLeak, validateSnapshotShape } from '../protoco
 
 import { createId, verifySessionToken } from '../composition/context.mjs';
 import {
+  CONTENT_UNAVAILABLE,
   PHASE_RACE_LOST,
   advancePhase,
   buildSnapshot,
@@ -333,6 +334,19 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
    * @param {'host' | 'timer' | 'recovery'} source
    */
   function logPhaseRejected(message, roomId, result, source) {
+    // §A0: de contentbron kon geen vraag bouwen. Dat is geen race en geen
+    // clientfout maar een defect aan onze kant — op `error`, mét de reden,
+    // zodat het niet tussen de gewone fase-afwijzingen wegvalt.
+    if (result.code === CONTENT_UNAVAILABLE) {
+      logSafe('error', message, {
+        outcome: OUTCOME.SERVER_ERROR,
+        roomId,
+        source,
+        gameType: result.contentFailure?.gameType,
+        reason: result.contentFailure?.reason,
+      });
+      return;
+    }
     if (result.code === PHASE_RACE_LOST) {
       logSafe('info', message, {
         outcome: OUTCOME.PHASE_RACE_LOST,
@@ -516,6 +530,17 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
    */
   async function onPhaseEntered(roomId, phase, phaseEndsAt) {
     if (phase === PHASE.COUNTDOWN) {
+      // Feedbackronde 3 (4 aug): tússen rondes geen 3 seconden stilte — de
+      // aftelbalk op scherm 5 belooft "volgende vraag" en de client hoort
+      // tijdens COUNTDOWN niets (er bestaat geen tussenronde-event), dus die
+      // hing zichtbaar. De ALLEREERSTE ronde van een match houdt de 3-2-1
+      // (runtime.round is dan nog leeg; wordt bij game:start/rematch
+      // teruggezet), daarna start de volgende ronde direct.
+      const runtime = runtimeFor(roomId);
+      if (runtime.round !== null && runtime.round !== undefined) {
+        await runStartRound(roomId);
+        return;
+      }
       scheduleAt(roomId, phaseEndsAt, () => runStartRound(roomId));
       return;
     }

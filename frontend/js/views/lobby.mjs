@@ -18,6 +18,7 @@
 // blijven staan: die dienen een ander doel (de OS-deelsheet, het klembord)
 // dan wat de header al permanent toont.
 
+import { GAME_CATALOG, isPlayableGameType } from '../../../shared/content/game-catalog.mjs';
 import { shareActionsFor, shareUrlsFor } from '../../../client/flow/share-actions.mjs';
 import { participantPresentationFor } from './participant-presentation.mjs';
 import { createPlayerChip, SERVER_KLEUREN } from '../player-chip.mjs';
@@ -146,15 +147,18 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   }
 
   // Punt 6+7 (feedbackronde 2): geen "GAME"-label, wél de vier wereldgames
-  // als draaibare carrousel (DOELBEELD §1). Alleen "Raad de vlag" is
-  // speelbaar; de andere drie tonen BINNENKORT en het spel start altijd met
-  // de vlaggen (geen serverkeuze zolang er maar één gameType bestaat).
-  const GAMES = [
-    { key: 'flag', speelbaar: true },
-    { key: 'realfake', speelbaar: false },
-    { key: 'odd', speelbaar: false },
-    { key: 'outline', speelbaar: false },
-  ];
+  // als draaibare carrousel (DOELBEELD §1). Wat speelbaar is, bepaalt dit
+  // scherm NIET zelf (5 aug, PLAN-CONVERGENTIE §A0): op 4 aug zette deze
+  // lijst `real_or_fake_flag` op speelbaar terwijl de contentbron hem niet kon
+  // bouwen — starten liet de room stil in COUNTDOWN staan. `game-catalog.mjs`
+  // is nu de enige bron, gedeeld met de protocolvalidatie. Draaien naar een
+  // speelbare game stuurt game:update-config; de serverstand (config.gameTypes)
+  // blijft de waarheid.
+  const GAMES = GAME_CATALOG.map((game) => ({
+    key: game.key,
+    gameType: game.gameType,
+    speelbaar: isPlayableGameType(game.gameType),
+  }));
   let gameIndex = 0;
   const gameRow = el('div', 'lobby-gamerow');
   const gamePrev = document.createElement('button');
@@ -180,14 +184,16 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     gameCard.classList.toggle('is-soon', !game.speelbaar);
     gameCardSoon.textContent = game.speelbaar ? '' : t('lobby.gameSoonStart');
   }
-  gamePrev.addEventListener('click', () => {
-    gameIndex = (gameIndex - 1 + GAMES.length) % GAMES.length;
+  function turnGame(step) {
+    gameIndex = (gameIndex + step + GAMES.length) % GAMES.length;
     renderGameCard();
-  });
-  gameNext.addEventListener('click', () => {
-    gameIndex = (gameIndex + 1) % GAMES.length;
-    renderGameCard();
-  });
+    const game = GAMES[gameIndex];
+    if (game.speelbaar && game.gameType !== null) {
+      pushConfig({ gameTypes: [game.gameType] });
+    }
+  }
+  gamePrev.addEventListener('click', () => turnGame(-1));
+  gameNext.addEventListener('click', () => turnGame(1));
 
   // ANTWOORDEN: Kiezen actief; Mix/Typen disabled (40D)
   const answersLabel = settingsLabel('lobby-settings-answers-label');
@@ -756,6 +762,14 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
       startButton.disabled = !model.canStart;
       // Scherm 2: de serverconfig is de waarheid voor de instelknoppen.
       const config = model.config ?? {};
+      const serverGameType = Array.isArray(config.gameTypes) ? config.gameTypes[0] : null;
+      if (serverGameType && GAMES[gameIndex].gameType !== serverGameType && GAMES[gameIndex].speelbaar) {
+        const idx = GAMES.findIndex((game) => game.gameType === serverGameType);
+        if (idx >= 0) {
+          gameIndex = idx;
+          renderGameCard();
+        }
+      }
       for (const [difficulty, btn] of levelButtons) {
         btn.classList.toggle('is-active', config.difficulty === difficulty);
       }

@@ -8,7 +8,10 @@ import {
   resolveEventValidator,
   ALL_CLIENT_EVENT_NAMES,
   hasRequiredRole,
+  validateGameUpdateConfigPayload,
+  SELECTABLE_GAME_TYPES,
 } from './client-events-dispatch.mjs';
+import { PLAYABLE_GAME_TYPES } from '../../shared/content/game-catalog.mjs';
 
 // Rij 16 — player:rename, { displayName: "Ruben" } als player: ok.
 test('validatePlayerRenamePayload: geldige displayName -> ok', () => {
@@ -142,5 +145,44 @@ test('resolveEventValidator: lege string en willekeurige andere onbekende namen 
   for (const unknownName of ['', 'game:START', 'round:progress', 'admin:shutdown']) {
     assert.doesNotThrow(() => resolveEventValidator(unknownName));
     assert.deepEqual(resolveEventValidator(unknownName), { ok: false, code: 'UNSUPPORTED_EVENT' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §A0 — `gameTypes` in game:update-config. De speelbare verzameling komt uit
+// `shared/content/game-catalog.mjs`; deze laag heeft er bewust geen eigen
+// kopie meer van (die liep uiteen met de carrousel en de contentbron).
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('§A0: SELECTABLE_GAME_TYPES is letterlijk de gedeelde catalogus, geen eigen transcriptie', () => {
+  assert.equal(SELECTABLE_GAME_TYPES, PLAYABLE_GAME_TYPES);
+});
+
+test('§A0: een speelbare gameType wordt geaccepteerd', () => {
+  for (const gameType of PLAYABLE_GAME_TYPES) {
+    assert.deepEqual(validateGameUpdateConfigPayload({ gameTypes: [gameType] }), { ok: true });
+  }
+});
+
+test('§A0: een gameType die de contentbron niet kan bouwen wordt geweigerd', () => {
+  // Bestaande Golf-1-typen, maar (nog) niet speelbaar: de client mag ze niet
+  // kunnen kiezen zolang de keten niet af is.
+  for (const gameType of ['capitals_mc', 'odd_one_out', 'higher_lower', 'real_or_fake_flag']) {
+    if (PLAYABLE_GAME_TYPES.includes(gameType)) continue;
+    assert.deepEqual(
+      validateGameUpdateConfigPayload({ gameTypes: [gameType] }),
+      { ok: false, code: null },
+      `${gameType} is niet speelbaar en hoort geweigerd te worden`,
+    );
+  }
+});
+
+test('§A0: onzin in gameTypes wordt geweigerd (geen array, leeg, verkeerd type)', () => {
+  for (const value of [[], 'flags_mc', null, 42, [null], [['flags_mc']], ['flags_mc', 'onzin']]) {
+    assert.deepEqual(
+      validateGameUpdateConfigPayload({ gameTypes: value }),
+      { ok: false, code: null },
+      `${JSON.stringify(value)} hoort geweigerd te worden`,
+    );
   }
 });

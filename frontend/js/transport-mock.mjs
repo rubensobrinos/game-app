@@ -33,6 +33,7 @@
 // vastgelegde `/shared/*`-mapping uit. Een relatief modulespecifier blijft
 // bovendien rechtstreeks onder `node:test` bruikbaar.
 import { CONTENT_VERSION, getCountryPool } from '../../shared/content/index.mjs';
+import { isPlayableGameType } from '../../shared/content/game-catalog.mjs';
 
 const RENDERER_VERSION = 'flag-renderer-1'; // zelfde placeholder-waarde als PROTOCOL.md's voorbeelden.
 const GAME_TYPE = 'flags_mc';
@@ -728,7 +729,7 @@ export function createMockTransport() {
     if (target.phase !== 'LOBBY') {
       throw new ProtocolError('INVALID_PHASE', 'game:update-config only allowed in LOBBY.');
     }
-    const allowed = ['totalRounds', 'difficulty', 'language', 'pacing', 'speedBonus', 'allowLateJoin'];
+    const allowed = ['totalRounds', 'difficulty', 'language', 'pacing', 'speedBonus', 'allowLateJoin', 'gameTypes'];
     const safe = {};
     for (const key of allowed) {
       if (patch !== null && typeof patch === 'object' && key in patch) {
@@ -737,6 +738,15 @@ export function createMockTransport() {
     }
     if (Object.keys(safe).length === 0) {
       throw new ProtocolError('INVALID_REQUEST', 'Empty config patch.');
+    }
+    // Pariteit met de echte server (§A0): dezelfde gedeelde catalogus beslist
+    // wat speelbaar is. Zonder deze regel accepteert de mock een game die de
+    // server weigert — en dan bewijst een mockdoorloop het verkeerde.
+    if ('gameTypes' in safe) {
+      const list = safe.gameTypes;
+      if (!Array.isArray(list) || list.length === 0 || !list.every(isPlayableGameType)) {
+        throw new ProtocolError('INVALID_REQUEST', 'gameTypes must be a non-empty list of playable game types.');
+      }
     }
     Object.assign(target.config ?? (target.config = {}), safe);
     if ('totalRounds' in safe) {

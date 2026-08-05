@@ -38,6 +38,7 @@ import {
   getCountryPool,
   mapRoomDifficulty,
 } from '../../shared/content/index.mjs';
+import { PLAYABLE_GAME_TYPES } from '../../shared/content/game-catalog.mjs';
 import { buildMatchQuestionPlan } from '../rules/question-selection.js';
 import { GOLF_1_GAME_TYPES } from '../data/types/game-types.js';
 
@@ -61,6 +62,25 @@ export { CONTENT_DIFFICULTIES, CONTENT_VERSION, mapRoomDifficulty };
 
 /** De enige gevulde gameType (besluit 32 + 35; CT-3 voor real_or_fake_flag). */
 const FILLED_GAME_TYPES = Object.freeze(['flags_mc']);
+
+/**
+ * SLOT OP DE DEUR (5 aug 2026, PLAN-CONVERGENTIE §A0). `game-catalog.mjs` zegt
+ * welke gameTypes een host mag kiezen; dit bestand zegt welke er gebouwd
+ * kunnen worden. Loopt dat uiteen, dan kiest een host een game waar
+ * `buildQuestion` op werpt — en dat gebeurt in een timer-callback, dus de room
+ * blijft stil in COUNTDOWN staan. Dat is precies wat er op 4 aug gebeurde.
+ * Deze controle faalt bij module-load in plaats van bij de eerste ronde van
+ * een echte spelavond.
+ */
+for (const gameType of PLAYABLE_GAME_TYPES) {
+  if (!FILLED_GAME_TYPES.includes(gameType)) {
+    throw new Error(
+      `content-source: "${gameType}" staat in PLAYABLE_GAME_TYPES (shared/content/game-catalog.mjs) ` +
+        `maar deze contentbron kan hem niet bouwen (FILLED_GAME_TYPES=${JSON.stringify(FILLED_GAME_TYPES)}). ` +
+        `Vul eerst de contentbron, dan pas de catalogus.`,
+    );
+  }
+}
 
 /**
  * Bouwt de contentbron voor één room.
