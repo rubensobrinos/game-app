@@ -952,6 +952,16 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         // heeft hij ook de duur van beat 1 nodig — zonder dit kon scoreboard.mjs
         // alleen de helft van de wachttijd tekenen.
         resultSeconds: typeof roomConfig?.resultSeconds === 'number' ? roomConfig.resultSeconds : null,
+        // 11-verzoek (BOUWSPRINT doel 4), hersteld na B3: de streakreactie
+        // stond in gameplay.mjs's uitslagblok en was daarmee onzichtbaar sinds
+        // besluit 40 de reveal naar dit scherm verhuisde. `streakModel` is bij
+        // `round:ended` al bijgewerkt, dus dit getal hoort bij déze ronde.
+        //
+        // Live gelezen (niet gesnapshot bij mount): het voorkeurenpaneel is op
+        // elk scherm bereikbaar en kan dus mid-match om. `0` i.p.v. het echte
+        // getal bij uitgezet — scoreboard.mjs hoeft de voorkeur niet te kennen,
+        // alleen het getal dat 'm al dan niet over de drempel tilt.
+        streak: (loadReactionsEnabled(storage) ?? true) ? streakModel.current : 0,
       });
       return;
     }
@@ -968,12 +978,9 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       secondsLeft: secondsRemaining(roundModel.startsAt, roundModel.endsAt, offsetMs),
       phase: matchPhase.phase,
       countdownSecondsLeft: countdownEndsAt === null ? null : secondsRemaining(0, countdownEndsAt, offsetMs),
-      // 11-verzoek (BOUWSPRINT doel 4): live gelezen (niet eenmalig
-      // gesnapshot bij mount) — het voorkeurenpaneel is op elk scherm
-      // bereikbaar, dus kan mid-match omgezet worden. `0` i.p.v. het echte
-      // streaknummer bij uitgezet: gameplay.mjs hoeft de voorkeur zelf niet
-      // te kennen, alleen het getal dat 'm al dan niet over de drempel tilt.
-      streak: (loadReactionsEnabled(storage) ?? true) ? streakModel.current : 0,
+      // De streak zat hier ook, maar gameplay.mjs toont sinds besluit 40 geen
+      // uitslag meer en las 'm dus nergens. Hij gaat nu mee naar scherm 5 —
+      // zie de `scoreboard`-tak van `updateMountedView()`.
     };
   }
 
