@@ -1,9 +1,7 @@
-'use strict';
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
 
-const { test, describe } = require('node:test');
-const assert = require('node:assert/strict');
-
-const { compareForRanking, rankPlayers } = require('./standings');
+import { compareForRanking, rankPlayers } from '../../shared/rules/ranking.mjs';
 
 // Vaste geldige baseline-spelers voor de validatietests hieronder. Een tweede,
 // eveneens geldige speler is nodig omdat compareForRanking() twee argumenten

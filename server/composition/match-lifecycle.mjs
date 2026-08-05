@@ -58,7 +58,7 @@ import { assertRoomShape } from '../data/types/room.js';
 import { assertRoundShape, toActiveRoundSnapshot } from '../data/types/round.js';
 import { computeAnswerDistribution } from '../rules/answer-distribution.js';
 import { computeEligibleFromRound, isEligibleForRound } from '../rules/eligibility.js';
-import { rankPlayers } from '../rules/standings.js';
+import { rankPlayers } from '../../shared/rules/ranking.mjs';
 import { ALL_ERROR_CODES } from '../protocol/error-codes.mjs';
 import { createContentSource } from './content-source.mjs';
 import { createId } from './context.mjs';
@@ -327,6 +327,39 @@ async function buildParticipants(context, room, present) {
 /** Spelers die in de eindstand horen: gekickt valt af, vrijwillig vertrokken niet. */
 function rankablePlayers(players) {
   return players.filter((player) => player.kicked !== true);
+}
+
+/**
+ * DE ENIGE PLEK DIE EEN TUSSENSTAND-TOP BOUWT (§A3, 5 aug 2026).
+ *
+ * `getScoreboard()` en `buildSnapshot()` deden dit allebei zelf, en allebei
+ * met `rank: index + 1`. Bij een gelijke stand toonde de tussenstand dus
+ * 1-2-3-4 terwijl `finishMatch()` — die wél `rankPlayers()` gebruikt —
+ * 1-2-2-4 zei. Binnen één snapshot spraken `scoreboard.top[].rank` en
+ * `scoreboard.self.position` elkaar zelfs tegen. Één functie, één antwoord.
+ *
+ * `rank` blijft de veldnaam in de tussenstand-payloads (PROTOCOL.md) en
+ * `position` die in de eindstand; de WAARDE komt nu uit dezelfde bron.
+ *
+ * @param {Array<object>} players - de volledige spelerslijst uit de store
+ * @param {number} limit
+ * @returns {Array<{ playerId: string, effectiveName: string | null, score: number, rank: number }>}
+ */
+function buildRankedTop(players, limit) {
+  const rankable = rankablePlayers(players);
+  const nameById = new Map(rankable.map((player) => [player.id, player.effectiveName]));
+  const ranked = rankPlayers(rankable.map((player) => ({
+    id: player.id,
+    score: player.score,
+    correctCount: player.correctCount,
+    correctResponseTimeMsTotal: player.correctResponseTimeMsTotal,
+  })));
+  return ranked.slice(0, limit).map((entry) => ({
+    playerId: entry.id,
+    effectiveName: nameById.get(entry.id) ?? null,
+    score: entry.score,
+    rank: entry.position,
+  }));
 }
 
 /**
@@ -1146,21 +1179,19 @@ export async function getScoreboard(context, { roomId, limit = SCOREBOARD_TOP_LI
   }
   const { room, match } = loaded.value;
 
-  const top = await context.store.getScoreboardTop(roomId, match.id, limit);
+  // §A3: niet meer `getScoreboardTop()` + `index + 1`. Die poort sorteert op
+  // score en kent geen gedeelde posities, dus een tie kreeg hier vier
+  // verschillende nummers waar de eindstand er drie geeft. De spelerslijst
+  // werd hier toch al geladen (voor de namen); rangschikken gebeurt nu op
+  // dezelfde regels als het podium.
   const players = await context.store.listPlayers(roomId);
-  const nameById = new Map(players.map((player) => [player.id, player.effectiveName]));
 
   return succeed({
     matchId: match.id,
     limit,
     roundNumber: match.roundIndex + 1,
     totalRounds: room.config.totalRounds,
-    top: top.map((entry, index) => ({
-      playerId: entry.playerId,
-      effectiveName: nameById.get(entry.playerId) ?? null,
-      score: entry.score,
-      rank: index + 1,
-    })),
+    top: buildRankedTop(players, limit),
   });
 }
 
@@ -1507,10 +1538,10 @@ export async function buildSnapshot(context, { roomId, sessionId = null } = {}) 
     self = { ...self, answeredCurrentRound: own !== null };
   }
 
-  const top = match === null
-    ? []
-    : await context.store.getScoreboardTop(roomId, match.id, SCOREBOARD_TOP_LIMIT);
-  const nameById = new Map(players.map((player) => [player.id, player.effectiveName]));
+  // §A3: dezelfde ene rangschikker als `getScoreboard()` en het podium — de
+  // snapshot sprak zichzelf anders tegen (`top[].rank` uit index + 1,
+  // `self.position` uit `rankPlayers`).
+  const top = match === null ? [] : buildRankedTop(players, SCOREBOARD_TOP_LIMIT);
 
   const { participants, participantsTruncated } = await buildParticipants(context, room, present);
 
@@ -1538,12 +1569,7 @@ export async function buildSnapshot(context, { roomId, sessionId = null } = {}) 
     participants,
     participantsTruncated,
     scoreboard: {
-      top: top.map((entry, index) => ({
-        playerId: entry.playerId,
-        effectiveName: nameById.get(entry.playerId) ?? null,
-        score: entry.score,
-        rank: index + 1,
-      })),
+      top,
       self: selfPlayer === null
         ? {}
         : {

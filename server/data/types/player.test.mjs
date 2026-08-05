@@ -1,10 +1,8 @@
-'use strict';
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
 
-const { test, describe } = require('node:test');
-const assert = require('node:assert/strict');
-
-const { assertPlayerShape, toStandingPlayerView } = require('./player');
-const { rankPlayers } = require('../../rules/standings');
+import { assertPlayerShape, toStandingPlayerView } from './player.js';
+import { rankPlayers } from '../../../shared/rules/ranking.mjs';
 
 const VALID_PLAYER = Object.freeze({
   id: 'p_8f42d1',

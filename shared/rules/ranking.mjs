@@ -1,13 +1,21 @@
-'use strict';
-
+// shared/rules/ranking.mjs
+//
 // Eindstandberekening voor spelers. Zie docs/multiplayer/GAME-RULES.md
 // ("Gelijke eindscore") en docs/game-rules-plan/prompts/GR2-standings.md voor
 // de volledige spec.
 //
+// VERHUISD op 5 aug 2026 uit `server/rules/standings.js` (PLAN-CONVERGENTIE
+// §A3). Reden: dit is de enige plek in de codebase die een POSITIE mag
+// bepalen, en die uitspraak moet ook gelden voor de browserkant — de
+// mocktransport (`frontend/js/transport-mock.mjs`) speelde de server na met
+// een eigen sortering zonder gedeelde posities. Een CJS-bestand in `server/`
+// kan een browser niet importeren; als ESM in `shared/` kan iedereen erbij:
+// compositie, transport, mock en tests. Eén implementatie, geen transcriptie.
+//
 // Competitierangschikking (gedeelde spelers krijgen 1,1,3,4 in plaats van
-// 1,1,2,3) is een VOORGESTELDE conventie, geen bevestigde productkeuze — zie
-// GR2-standings.md, ontwerpbeslissing 1. Vóór dit in de state machine wordt
-// gehaakt, moet een mens dit expliciet bevestigen.
+// 1,1,2,3) was een VOORGESTELDE conventie (GR2-standings.md, ontwerpbeslissing
+// 1). BEVESTIGD door de producteigenaar op 5 aug 2026: dit is de spelregel,
+// en scoreboard, snapshot, eindstand en mock dragen allemaal dezelfde waarde.
 //
 // Geen enkele functie hier raakt Redis, sockets, bestanden of de klok.
 
@@ -133,4 +141,4 @@ function rankPlayers(players) {
 
 // Alleen compareForRanking en rankPlayers doen iets naast valideren; de twee
 // assert-helpers blijven intern (zie GR2-standings.md).
-module.exports = { compareForRanking, rankPlayers };
+export { compareForRanking, rankPlayers };

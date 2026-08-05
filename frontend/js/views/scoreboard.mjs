@@ -165,8 +165,11 @@ export function createScoreboardView({ root, t, tCount }) {
       // S15 toont top vijf plús de eigen rij, dus de reeks is discontinu —
       // #1 t/m #5 en dan #12. "De zoveelste rij" klopt daar niet, dus de rang
       // staat er expliciet bij (`05` §10: rankkolom vast).
+      // §A3: `entry.position` komt van de server (competitierang: bij een
+      // gelijke stand delen twee spelers een nummer). De rijvolgorde is dus
+      // niet hetzelfde als het rangnummer — daarom nooit `index + 1`.
       const rank = el('span', 'scoreboard-rank');
-      rank.textContent = `#${index + 1}`;
+      rank.textContent = `#${entry.position}`;
       const name = document.createElement('span');
       name.className = 'scoreboard-name';
       name.textContent = entry.effectiveName;

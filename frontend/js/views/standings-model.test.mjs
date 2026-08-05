@@ -69,3 +69,46 @@ test('rankMovementFrom: een nieuwe speler zonder vorige positie krijgt geen entr
   assert.equal(movement.has('p3'), false);
   assert.equal(movement.get('p1'), 0);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §A3 (5 aug 2026) — de positie komt van de server. Dit model telde 'm zelf op
+// uit de rijvolgorde, waardoor een gelijke stand er hier als 1-2-3-4 uitzag
+// terwijl de server 1-2-2-4 stuurde.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TIE_TOP = [
+  { playerId: 'p1', effectiveName: 'Vos', score: 1200, rank: 1 },
+  { playerId: 'p2', effectiveName: 'Ruben', score: 1100, rank: 2 },
+  { playerId: 'p3', effectiveName: 'Sanne', score: 1100, rank: 2 },
+  { playerId: 'p4', effectiveName: 'Dirk', score: 300, rank: 4 },
+];
+
+test('§A3: een gedeelde plaats uit de tussenstand blijft gedeeld (1-2-2-4)', () => {
+  const s = standingsFrom({ top: TIE_TOP, self: { playerId: 'p3', effectiveName: 'Sanne', score: 1100, position: 2 } });
+  assert.deepEqual(s.entries.map((e) => e.position), [1, 2, 2, 4]);
+  assert.equal(s.self.position, 2, 'de eigen regel toont dezelfde gedeelde plaats');
+});
+
+test('§A3: de eindstand gebruikt `position` en wordt net zo overgenomen', () => {
+  const podium = TIE_TOP.map(({ rank, ...rest }) => ({ ...rest, position: rank }));
+  const s = standingsFrom({ podium, self: { playerId: 'p2', effectiveName: 'Ruben', score: 1100, position: 2 } });
+  assert.deepEqual(s.entries.map((e) => e.position), [1, 2, 2, 4]);
+  assert.equal(s.self.position, 2);
+});
+
+test('§A3: de server wint van de rijvolgorde, ook als die twee uit elkaar lopen', () => {
+  const s = standingsFrom({ top: [{ playerId: 'p9', effectiveName: 'Negen', score: 10, rank: 9 }], self: null });
+  assert.equal(s.entries[0].position, 9, 'rij 1 met rank 9 blijft #9 — de speler staat buiten de top');
+});
+
+test('§A3: de eigen positie uit de self-payload wint van wat er in de toplijst staat', () => {
+  // De server stuurt de eigen positie ook mee als je buiten de top vijf valt.
+  const s = standingsFrom({ top: TIE_TOP, self: { playerId: 'p12', effectiveName: 'Laat', score: 0, position: 12 } });
+  assert.equal(s.self.position, 12);
+});
+
+test('§A3: zonder rang van de server valt het model terug op de rijvolgorde', () => {
+  // Oudere server of onvolledige payload: liever een leesbare lijst dan niets.
+  const s = standingsFrom({ top: TOP, self: null });
+  assert.deepEqual(s.entries.map((e) => e.position), [1, 2, 3]);
+});

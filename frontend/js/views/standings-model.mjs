@@ -1,7 +1,21 @@
 // views/standings-model.mjs — UI4. Pure normalisatie van `scoreboard:updated`
 // en `game:finished` naar één weergavemodel voor tussenstand én podium.
-// Geen eigen ranking of optelsom — de payloadvolgorde ís de ranglijst
+// Geen eigen ranking of optelsom — de server bepaalt de positie
 // (server-authoritative; UI4-scoreboard-and-podium.md §Regels).
+//
+// §A3 (5 aug 2026): "geen eigen ranking" stond er al, maar dit bestand deed
+// het tóch — het gooide de meegestuurde positie weg en telde `index + 1`. Bij
+// een gelijke stand toonde de client daardoor 1-2-3-4 waar de server 1-2-2-4
+// zei, en de eigen regel kreeg een vierde variant omdat ook `self.position`
+// werd overschreven. De payloadvolgorde is nog steeds de leesvolgorde; het
+// NUMMER komt uit `rank` (tussenstand) of `position` (eindstand).
+
+/** De positie die de server aan deze rij gaf; `null` als hij niets meestuurde. */
+function serverPosition(row) {
+  if (Number.isInteger(row?.rank) && row.rank >= 1) return row.rank;
+  if (Number.isInteger(row?.position) && row.position >= 1) return row.position;
+  return null;
+}
 
 /**
  * @param {{ top?: Array<object>, podium?: Array<object>, self?: object | null }} payload
@@ -15,7 +29,9 @@ export function standingsFrom(payload) {
   const entries = rows
     .filter((row) => typeof row?.playerId === 'string')
     .map((row, index) => Object.freeze({
-      position: index + 1,
+      // Terugvallen op de rijvolgorde alleen als de server niets zei — dat is
+      // een oudere server of een onvolledige payload, geen normaal geval.
+      position: serverPosition(row) ?? index + 1,
       playerId: row.playerId,
       effectiveName: typeof row.effectiveName === 'string' ? row.effectiveName : '',
       score: typeof row.score === 'number' ? row.score : 0,
@@ -26,7 +42,9 @@ export function standingsFrom(payload) {
   const self =
     payload?.self && typeof payload.self.playerId === 'string'
       ? Object.freeze({
-          position: selfInTop !== null ? selfInTop.position : null,
+          // De server stuurt de eigen positie mee (ook als je buiten de top
+          // valt); die wint van wat er toevallig in de toplijst staat.
+          position: serverPosition(payload.self) ?? (selfInTop !== null ? selfInTop.position : null),
           effectiveName: typeof payload.self.effectiveName === 'string' ? payload.self.effectiveName : '',
           score: typeof payload.self.score === 'number' ? payload.self.score : 0,
         })

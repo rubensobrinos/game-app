@@ -599,20 +599,17 @@ test('collision suffix uses the "Naam 2" format (space + bare number), not "Naam
 });
 
 // ---------------------------------------------------------------------------
-// UI-15 (HANDOFF-UI.md, pin per handoff-principles.md §6): de tie-regel ZELF
-// is al bevestigd (GAME-RULES.md §Gelijke eindscore, GR2-standings.md,
-// server/rules/standings.js) — score, dan correctCount, dan responstijd, dan
-// gedeelde positie (competitierangschikking). Deze mock implementeert die
-// regel niet: hij gebruikt een eigen `joinedAt`-tiebreak en kent geen gedeelde
-// positie. Gepind zodat een toekomstige aanpassing hier zichtbaar rood wordt
-// i.p.v. stilzwijgend te verschuiven. Zodra `UI-15` (het server-side
-// consistentiepunt tussen `scoreboard:updated` en `game:finished`, zie
-// 10-besluitverzoek-UI-15-tie-regel.md) sluit en de mock wordt aangepast: flip
-// deze assertie naar het echte gedrag (score/correctCount/responstijd, met
-// gedeelde `position` bij een volledige tie) — verwijder de test niet zonder
-// de reden erbij te zetten (principe 8).
+// UI-15 (HANDOFF-UI.md) — GESLOTEN op 5 aug 2026 (PLAN-CONVERGENTIE §A3).
+//
+// Hier stond een PIN: de mock week bewust af van de al bevestigde tie-regel
+// (GAME-RULES.md §Gelijke eindscore, GR2-standings.md) door op `joinedAt` te
+// sorteren en geen gedeelde positie te kennen. De pin schreef voor: "flip deze
+// assertie naar het echte gedrag zodra de mock wordt aangepast" — dat is nu
+// gebeurd. De mock gebruikt `shared/rules/ranking.mjs`, dezelfde functie als
+// de server, en stuurt `rank` mee in de payload.
+// ---------------------------------------------------------------------------
 test(
-  'UI-15 (pin, mock wijkt af van de al-bevestigde regel): bij gelijke score wint in deze mock wie eerder joinde — de echte regel (GAME-RULES.md) is score/correctCount/responstijd + gedeelde positie',
+  'UI-15 (gesloten): bij een volledige gelijkstand deelt de mock de plaats, net als de server',
   withFakeTimers(async () => {
     const transport = createMockTransport();
     const created = await transport.createGame({ hostParticipates: false, config: {} });
@@ -631,14 +628,15 @@ test(
     });
 
     await hostConn.send('game:start', 'act_start', {});
-    mock.timers.tick(1300); // > COUNTDOWN_MS
+    mock.timers.tick(COUNTDOWN_TICK_MS);
 
     const state = await transport.fetchState(created.gameCode, first.sessionToken);
     const correctOptionId = state.currentRound.question.targetIso2;
 
-    // Beide spelers antwoorden correct in dezelfde ronde: identieke score
-    // (+100, geen snelheidsbonus in de mock — zie submitAnswer()), maar
-    // "Eerste" joinde als eerste.
+    // Beide spelers antwoorden correct in dezelfde ronde, op hetzelfde
+    // virtuele moment: gelijke score, gelijk aantal goed, gelijke responstijd.
+    // Dat is een VOLLEDIGE gelijkstand — de enige situatie waarin de regel een
+    // gedeelde plaats voorschrijft.
     await firstConn.send('round:answer', 'act_first', {
       roundId: state.currentRound.roundId,
       answer: { optionId: correctOptionId },
@@ -648,13 +646,43 @@ test(
       answer: { optionId: correctOptionId },
     });
 
-    mock.timers.tick(8300); // > ROUND_ACTIVE_MS + startsAt-marge
-    mock.timers.tick(2600); // > ROUND_RESULT_MS -> scoreboard:updated
+    mock.timers.tick(ROUND_ACTIVE_TICK_MS);
+    mock.timers.tick(ROUND_RESULT_TICK_MS);
 
     assert.notEqual(scoreboardPayload, null);
     const [rank1, rank2] = scoreboardPayload.top;
-    assert.equal(rank1.score, rank2.score); // de tie zelf: écht gelijke score
-    assert.equal(rank1.effectiveName, 'Eerste'); // vandaag: eerder-join wint
-    assert.equal(rank2.effectiveName, 'Tweede');
+    assert.equal(rank1.score, rank2.score, 'de tie zelf: écht gelijke score');
+    assert.equal(rank1.rank, 1);
+    assert.equal(rank2.rank, 1, 'gedeelde plaats — geen stille winnaar op joinvolgorde');
+    // De onderlinge volgorde blijft deterministisch (id oplopend, presentatie
+    // zonder ranginformatie), maar wijst geen winnaar aan.
+    assert.notEqual(rank1.playerId, rank2.playerId);
+  }),
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §A3 (5 aug 2026) — de snapshot van de mock gebruikt dezelfde gedeelde rang.
+// Hij telde daar `findRankIndex() + 1`, dus bij een gelijke stand week de
+// eigen positie in de snapshot af van die in `scoreboard:updated`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test(
+  '§A3: self.position in de mocksnapshot komt uit de gedeelde rangschikker, niet uit de rijindex',
+  withFakeTimers(async () => {
+    const transport = createMockTransport();
+    const created = await transport.createGame({ hostParticipates: false, config: {} });
+    const first = await transport.joinGame({ inviteId: created.inviteId, displayName: 'Eerste' });
+    const second = await transport.joinGame({ inviteId: created.inviteId, displayName: 'Tweede' });
+
+    // Nog geen enkel antwoord: beide spelers staan op 0 en delen dus plaats 1.
+    const firstState = await transport.fetchState(created.gameCode, first.sessionToken);
+    const secondState = await transport.fetchState(created.gameCode, second.sessionToken);
+
+    assert.equal(firstState.self.position, 1);
+    assert.equal(
+      secondState.self.position,
+      1,
+      'de tweede speler stond met index + 1 op plaats 2 terwijl hij evenveel punten heeft',
+    );
   }),
 );

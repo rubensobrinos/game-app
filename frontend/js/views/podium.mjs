@@ -177,12 +177,16 @@ export function createPodiumView({ root, t, isHost, capabilities, onRematch, onN
       typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const medals = ['podium.first', 'podium.second', 'podium.third'];
     const items = podiumTop3(standings).map((entry, index) => {
+      // §A3: de trede volgt de POSITIE, niet de rijvolgorde. Bij een gedeelde
+      // eerste plaats staan er twee spelers op goud — dat is wat de eindstand
+      // zegt, en anders krijgt de ene van twee gelijke winnaars zilver.
+      const step = Math.min(Math.max(entry.position ?? index + 1, 1), medals.length);
       const item = document.createElement('li');
-      item.className = `podium-step podium-step-${index + 1}${entry.isSelf ? ' is-self' : ''}`;
+      item.className = `podium-step podium-step-${step}${entry.isSelf ? ' is-self' : ''}`;
       item.hidden = true; // reveal-opbouw hieronder
       const label = document.createElement('span');
       label.className = 'podium-medal';
-      label.textContent = t(medals[index]);
+      label.textContent = t(medals[step - 1]);
       // Decoratief: de positie zit al in de volgorde van de <ol> (een
       // screenreader kondigt "item 1 van 3" enz. vanzelf aan) — het medaille-
       // emoji hoeft niet apart voorgelezen te worden.

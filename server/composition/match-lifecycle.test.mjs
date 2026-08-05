@@ -1162,7 +1162,7 @@ test('resolveNextPhase kiest alleen een bestemming; transition() blijft de enige
 
 // ─── Tussenstand en eindstand ───────────────────────────────────────────────
 
-test('getScoreboard leest de top via getScoreboardTop uit de poort', async () => {
+test('§A3: getScoreboard rangschikt met rankPlayers over álle spelers, niet met index + 1 over de poort-index', async () => {
   const harness = makeHarness();
   const { context, clock } = harness;
   const { roomId, players } = await seedRoom(harness, { extraPlayers: 2 });
@@ -1192,8 +1192,19 @@ test('getScoreboard leest de top via getScoreboardTop uit de poort', async () =>
   assert.equal(scoreboard.value.top[0].effectiveName, players[1].name);
   assert.equal(scoreboard.value.top[0].rank, 1);
   assert.ok(scoreboard.value.top[0].score > scoreboard.value.top[1].score);
-  // De speler die nooit antwoordde staat niet in de poort-index — zie handoff.
-  assert.equal(scoreboard.value.top.length, 2);
+
+  // §A3: de speler die nooit antwoordde stond vroeger NIET in de tussenstand
+  // (de poort-index kent alleen scorende spelers), terwijl het podium hem wel
+  // toonde. Nu rangschikt dezelfde functie als het podium over de volledige
+  // spelerslijst: iedereen staat erin, ook met 0 punten, en kan dus zijn
+  // eigen rij zien (scherm 5).
+  assert.equal(scoreboard.value.top.length, 3);
+  assert.equal(scoreboard.value.top[2].score, 0);
+  assert.deepEqual(
+    scoreboard.value.top.map((entry) => entry.rank),
+    [1, 2, 3],
+    'zonder gelijke stand is de rang gewoon oplopend',
+  );
 });
 
 test('finishMatch gebruikt de tiebreak-volgorde uit standings.js', async () => {
@@ -1908,4 +1919,86 @@ test('§A0: startRound met een gameType die de contentbron niet kan bouwen geeft
 
 test('§A0: CONTENT_UNAVAILABLE is intern en mag nooit een gepubliceerde foutcode worden', () => {
   assert.equal(ALL_ERROR_CODES.has(CONTENT_UNAVAILABLE), false);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §A3 (5 aug 2026) — ÉÉN ketencontract voor rang bij een gelijke stand.
+//
+// De tussenstand telde `index + 1`, de eindstand gebruikte `rankPlayers()` en
+// de snapshot deed allebei tegelijk (`top[].rank` uit de index, `self.position`
+// uit de rangschikker). Een tie zag er in elk scherm anders uit. Deze test
+// vergelijkt de drie payloads bij een échte gelijke stand.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('§A3: bij een gelijke stand geven scoreboard, snapshot en eindstand exact dezelfde posities', async () => {
+  const harness = makeHarness();
+  const { context, store, clock } = harness;
+  const { roomId, players, room } = await seedRoom(harness, {
+    extraPlayers: 3,
+    roomConfig: { speedBonus: false, totalRounds: 1 },
+  });
+  const started = await startMatch(context, { roomId });
+
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  const round = await startRound(context, { roomId });
+  const doc = await loadRoundDoc(harness, roomId, started.value.matchId, round.value.roundId);
+
+  // Drie spelers goed op exact hetzelfde moment (zonder snelheidsbonus dus
+  // volledig gelijk: score, correctCount én responstijd), één fout.
+  // Competitierang hoort dan 1-1-1-4 te zijn.
+  clock.advance(1000);
+  for (const player of [players[0], players[1], players[2]]) {
+    const answered = await submitAnswer(context, {
+      roomId, playerId: player.playerId, roundId: doc.id,
+      answer: { optionId: doc.correctAnswer.optionId }, actionId: `tie_${player.playerId}`,
+    });
+    assert.equal(answered.ok, true, JSON.stringify(answered));
+  }
+  const wrongOption = doc.publicQuestionPayload.optionIso2s.find((iso2) => iso2 !== doc.correctAnswer.optionId);
+  await submitAnswer(context, {
+    roomId, playerId: players[3].playerId, roundId: doc.id,
+    answer: { optionId: wrongOption }, actionId: 'tie_wrong',
+  });
+
+  clock.set(doc.endsAt);
+  await endRound(context, { roomId });
+
+  const scoreboard = await getScoreboard(context, { roomId });
+  assert.equal(scoreboard.ok, true, JSON.stringify(scoreboard));
+  const scoreboardByPlayer = new Map(scoreboard.value.top.map((entry) => [entry.playerId, entry.rank]));
+
+  const snapshot = await buildSnapshot(context, { roomId, sessionId: room.sessionId });
+  assert.equal(snapshot.ok, true, JSON.stringify(snapshot));
+  const snapshotByPlayer = new Map(snapshot.value.scoreboard.top.map((entry) => [entry.playerId, entry.rank]));
+
+  const finished = await finishMatch(context, { roomId });
+  assert.equal(finished.ok, true, JSON.stringify(finished));
+  const finishedByPlayer = new Map(finished.value.standings.map((entry) => [entry.playerId, entry.position]));
+
+  // 1. De regel zelf: gedeelde plaats, en daarna doortellen (1-1-1-4).
+  assert.deepEqual(
+    [...finishedByPlayer.values()].sort((a, b) => a - b),
+    [1, 1, 1, 4],
+    'competitierangschikking: drie gedeelde eersten, dan plaats 4',
+  );
+
+  // 2. Het ketencontract: drie payloads, één antwoord per speler.
+  for (const player of players) {
+    const id = player.playerId;
+    assert.equal(
+      scoreboardByPlayer.get(id),
+      finishedByPlayer.get(id),
+      `tussenstand en eindstand moeten dezelfde positie geven voor ${id}`,
+    );
+    assert.equal(
+      snapshotByPlayer.get(id),
+      finishedByPlayer.get(id),
+      `snapshot en eindstand moeten dezelfde positie geven voor ${id}`,
+    );
+  }
+
+  // 3. En binnen de snapshot spreken de toplijst en de eigen regel elkaar niet
+  //    tegen — dat was vóór §A3 letterlijk mogelijk.
+  const selfId = snapshot.value.self.playerId;
+  assert.equal(snapshot.value.self.position, snapshotByPlayer.get(selfId));
 });

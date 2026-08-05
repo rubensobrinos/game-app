@@ -34,6 +34,7 @@
 // bovendien rechtstreeks onder `node:test` bruikbaar.
 import { CONTENT_VERSION, getCountryPool } from '../../shared/content/index.mjs';
 import { isPlayableGameType } from '../../shared/content/game-catalog.mjs';
+import { rankPlayers as rankByRules } from '../../shared/rules/ranking.mjs';
 
 const RENDERER_VERSION = 'flag-renderer-1'; // zelfde placeholder-waarde als PROTOCOL.md's voorbeelden.
 const GAME_TYPE = 'flags_mc';
@@ -536,6 +537,8 @@ export function createMockTransport() {
     const isCorrect = payload.answer.optionId === target.currentRound.question.targetIso2;
     if (isCorrect) {
       player.score += 100;
+      player.correctCount += 1;
+      player.correctResponseTimeMsTotal += Math.max(0, Date.now() - target.currentRound.startsAt);
     }
 
     emitToSession(target, playerId, 'round:answer-accepted', { roundId: target.currentRound.roundId });
@@ -773,6 +776,8 @@ export function createMockTransport() {
     target.currentRound = null;
     for (const player of target.players.values()) {
       player.score = 0;
+      player.correctCount = 0;
+      player.correctResponseTimeMsTotal = 0;
       player.answeredCurrentRound = false;
     }
     broadcast(target, 'game:rematch-started', { matchId: target.matchId });
@@ -866,7 +871,7 @@ function buildSnapshot(room, sessionToken, sessionArg) {
             effectiveName: player?.effectiveName ?? null,
             color: player?.color ?? null,
             score: player?.score ?? 0,
-            position: player !== undefined ? findRankIndex(ranked, session.playerId) + 1 : null,
+            position: player !== undefined ? (findRanked(ranked, session.playerId)?.rank ?? null) : null,
             answeredCurrentRound: player?.answeredCurrentRound ?? false,
             eligibleFromRound: player?.eligibleFromRound ?? 1,
           },
@@ -974,6 +979,11 @@ function addPlayer(room, playerId, effectiveName) {
     effectiveName,
     color: MOCK_PLAYER_COLORS[room.players.size % MOCK_PLAYER_COLORS.length],
     score: 0,
+    // §A3: de gedeelde rangschikker (shared/rules/ranking.mjs) heeft deze twee
+    // velden nodig voor de tiebreak; zonder ze zou de mock een eigen,
+    // afwijkende volgorde moeten verzinnen.
+    correctCount: 0,
+    correctResponseTimeMsTotal: 0,
     active: true,
     answeredCurrentRound: false,
     hasRenamed: false,
@@ -992,10 +1002,24 @@ function countActivePlayers(room) {
   return count;
 }
 
+/**
+ * §A3 — DEZELFDE rangschikker als de server (`shared/rules/ranking.mjs`).
+ *
+ * De mock sorteerde hier zelf op score en joinedAt en kende helemaal geen
+ * positie toe; de client vulde er daarna `index + 1` bij. Een gelijke stand
+ * zag er in de mock dus anders uit dan op de echte server — en dan bewijst een
+ * mockdoorloop het verkeerde. `rankPlayers` levert de competitierang (gedeelde
+ * spelers delen hun nummer); die reist mee als `rank`.
+ */
 function rankPlayers(room) {
-  return [...room.players.values()]
-    .filter((player) => player.active)
-    .sort((a, b) => b.score - a.score || a.joinedAt - b.joinedAt);
+  const active = [...room.players.values()].filter((player) => player.active);
+  const byId = new Map(active.map((player) => [player.playerId, player]));
+  return rankByRules(active.map((player) => ({
+    id: player.playerId,
+    score: player.score,
+    correctCount: player.correctCount,
+    correctResponseTimeMsTotal: player.correctResponseTimeMsTotal,
+  }))).map((entry) => ({ ...byId.get(entry.id), rank: entry.position }));
 }
 
 function findRankIndex(ranked, playerId) {
@@ -1010,7 +1034,14 @@ function toScoreboardEntry(player) {
   if (player === undefined) {
     return {};
   }
-  return { playerId: player.playerId, effectiveName: player.effectiveName, score: player.score };
+  // `rank` hoort in de payload: de client mag geen positie meer afleiden uit
+  // de rijvolgorde (§A3).
+  return {
+    playerId: player.playerId,
+    effectiveName: player.effectiveName,
+    score: player.score,
+    rank: player.rank,
+  };
 }
 
 // ---- Naam- en ID-generatie ------------------------------------------------
