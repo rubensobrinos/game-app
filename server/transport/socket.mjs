@@ -555,7 +555,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
    * deze functie bepaalt alleen welk serverevent erbij hoort en wanneer de
    * volgende, timergedreven overgang gepland moet worden.
    */
-  async function onPhaseEntered(roomId, phase, phaseEndsAt, { reason = 'flow' } = {}) {
+  async function onPhaseEntered(roomId, phase, phaseEndsAt, { reason = 'flow', roundEndsAt = null } = {}) {
     if (phase === PHASE.COUNTDOWN) {
       // Feedbackronde 3 (4 aug): tússen rondes geen 3 seconden stilte — de
       // aftelbalk op scherm 5 belooft "volgende vraag" en de client hoort
@@ -579,6 +579,20 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
         return;
       }
       await runStartRound(roomId);
+      return;
+    }
+    // ROND HERVATTEN (5 aug 2026, R2-7). Zonder deze tak plande niemand het
+    // einde van de ronde opnieuw in nadat de host had gepauzeerd: `game:pause`
+    // doet `cancelTimer`, en `onPhaseEntered` kende ROUND_ACTIVE niet. De
+    // match bleef daarna hangen — de ronde eindigde nooit meer.
+    //
+    // `roundEndsAt` komt uit de compositie (die schrijft de nieuwe deadline op
+    // het Round-document); ontbreekt hij, dan is dit geen hervatting en valt er
+    // niets te plannen.
+    if (phase === PHASE.ROUND_ACTIVE) {
+      if (typeof roundEndsAt === 'number') {
+        scheduleAt(roomId, roundEndsAt, () => runEndRound(roomId));
+      }
       return;
     }
     if (phase === PHASE.SCOREBOARD) {
@@ -1014,11 +1028,22 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
           after: async () => {
             await publish('game:resumed', {
               roomId,
-              payload: { phase: value.phase, countdownEndsAt: value.phaseEndsAt ?? context.now() },
+              payload: {
+                phase: value.phase,
+                countdownEndsAt: value.phaseEndsAt ?? context.now(),
+                // R2-7: bij het hervatten van een lopende ronde schuift de
+                // deadline op met de pauzeduur. Zonder dit veld telt elke
+                // client door naar de oude wandkloktijd en is de pauze
+                // afgetrokken van de antwoordtijd.
+                ...(typeof value.roundEndsAt === 'number' ? { roundEndsAt: value.roundEndsAt } : {}),
+              },
             });
             // §A2: hervatten krijgt altijd een echte aftelling terug, ook
             // midden in een match — de groep zat net niet bij het scherm.
-            await onPhaseEntered(roomId, value.phase, value.phaseEndsAt, { reason: 'resume' });
+            await onPhaseEntered(roomId, value.phase, value.phaseEndsAt, {
+              reason: 'resume',
+              roundEndsAt: value.roundEndsAt ?? null,
+            });
           },
         };
       }

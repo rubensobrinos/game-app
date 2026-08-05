@@ -43,6 +43,7 @@ import { estimateServerOffset, secondsRemaining } from './server-time.mjs';
 import {
   initialRoundModel,
   applyRoundStarted,
+  applyRoundResumed,
   hydrateFromSnapshot,
   selectOption,
   selectChoice,
@@ -635,6 +636,12 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       case 'round:started':
         countdownEndsAt = null;
         roundModel = applyRoundStarted(envelope.payload);
+        break;
+      case 'game:resumed':
+        // R2-7: de server schuift de rondedeadline op met de pauzeduur. Zonder
+        // dit telt deze client door naar de oude tijd en staat de timer na het
+        // hervatten meteen op nul, terwijl er nog geantwoord kan worden.
+        roundModel = applyRoundResumed(roundModel, envelope.payload);
         break;
       case 'round:answer-accepted':
         roundModel = applyAnswerAccepted(roundModel, envelope.payload);

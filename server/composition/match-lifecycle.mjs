@@ -812,9 +812,30 @@ export async function advancePhase(context, { roomId, event } = {}) {
   const activeRound = await loadCurrentRound(context, room, match);
   const normalized = normalizeEvent(room, match, event, activeRound, now);
 
+  // De pauzeduur van de RONDE moet hier worden ingelopen, vóór de transitie:
+  // daarna is `pausedState` weg (de state machine zet 'm op null) en is de
+  // resterende tijd niet meer te achterhalen.
+  const hervatDeadline = resumeDeadlineFor(match, normalized, now);
+
   const applied = await applyTransition(context, { room, match, event: normalized });
   if (!applied.ok) {
     return applied;
+  }
+
+  // ROND HERVATTEN NA EEN PAUZE (5 aug 2026, gevonden bij R2-7).
+  //
+  // `Round.endsAt` werd één keer geschreven en bij hervatten nooit
+  // opgeschoven, terwijl de pauze de resterende tijd wél bewaart
+  // (`pausedState.remainingMs`). Gevolg: de pauzeseconden waren gewoon weg —
+  // de client telde door naar een wandklok-deadline die tijdens de pauze
+  // gewoon doorliep. Pauzeer je acht seconden, dan verlies je acht seconden
+  // antwoordtijd. De mocktransport deed dit wél goed, en dáárom zag geen
+  // enkele test of mockmeting dit: de suite bewees de mock, niet de server.
+  let hervatteRonde = null;
+  if (hervatDeadline !== null && activeRound !== null) {
+    hervatteRonde = { ...activeRound, endsAt: hervatDeadline };
+    assertRoundShape(hervatteRonde);
+    await context.store.saveRound(roomId, hervatteRonde);
   }
 
   const updated = applied.value.match;
@@ -827,12 +848,37 @@ export async function advancePhase(context, { roomId, event } = {}) {
     totalRounds: room.config.totalRounds,
     pausedState: updated.pausedState,
     phaseEndsAt: phaseEndsAt(room, updated.phase, now),
+    // De nieuwe rondedeadline reist mee zodat de transportlaag zijn timer
+    // opnieuw kan plannen én de clients hun timer kunnen gelijkzetten.
+    ...(hervatteRonde === null ? {} : { roundEndsAt: hervatteRonde.endsAt, roundId: hervatteRonde.id }),
   });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ronde
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * De nieuwe `Round.endsAt` bij het hervatten van een gepauzeerde RONDE, of
+ * `null` als deze overgang daar niet over gaat.
+ *
+ * Alleen wanneer we vanuit PAUSED terugkeren naar ROUND_ACTIVE: de andere
+ * fases hebben geen persistente deadline (besluit 16, die zijn vluchtig) en
+ * regelen zichzelf via `phaseEndsAt`.
+ *
+ * @param {import('../data/types/match.js').Match} match - de stand VÓÓR de transitie
+ * @param {{ type: string, nextPhase?: string }} event
+ * @param {number} now
+ * @returns {number | null}
+ */
+function resumeDeadlineFor(match, event, now) {
+  const hervat = event.type === EVENT_TYPES.HOST_RESUME || event.type === EVENT_TYPES.RECOVERY_RESUME;
+  if (!hervat) return null;
+  if (match.phase !== PHASES.PAUSED || match.pausedState === null) return null;
+  if (event.nextPhase !== PHASES.ROUND_ACTIVE) return null;
+  const rest = match.pausedState.remainingMs;
+  return typeof rest === 'number' && Number.isFinite(rest) && rest >= 0 ? now + rest : null;
+}
 
 /**
  * Bouwt de vraag en opent de ronde (COUNTDOWN → ROUND_ACTIVE).

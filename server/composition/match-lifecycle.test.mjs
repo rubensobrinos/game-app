@@ -2120,3 +2120,77 @@ test('§C-3: recoverActiveRooms is idempotent en slaat over wat niet onderweg is
   assert.equal(nogmaals.get(lopend.roomId), 'already_paused');
   assert.equal(tweede.value.recovered, 0);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// R2-7 (5 aug 2026) — pauzeren mag geen antwoordtijd opeten.
+//
+// `Round.endsAt` werd één keer geschreven en bij hervatten nooit opgeschoven,
+// terwijl de pauze de resterende tijd wél bewaarde. Acht seconden pauze kostte
+// acht seconden antwoordtijd. De mocktransport deed dit goed, dus geen enkele
+// test of mockmeting zag het.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('§R2-7: hervatten schuift de rondedeadline op met de pauzeduur', async () => {
+  const harness = makeHarness();
+  const { context, store, clock } = harness;
+  const { roomId } = await seedRoom(harness, { extraPlayers: 1 });
+  const started = await startMatch(context, { roomId });
+
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  const round = await startRound(context, { roomId });
+  const doc = await loadRoundDoc(harness, roomId, started.value.matchId, round.value.roundId);
+  const origineel = doc.endsAt;
+
+  // Vier seconden gespeeld, dan pauzeren: er staat nog resterende tijd open.
+  clock.advance(4000);
+  const gepauzeerd = await advancePhase(context, { roomId, event: { type: 'HOST_PAUSE' } });
+  assert.equal(gepauzeerd.ok, true, JSON.stringify(gepauzeerd));
+  const rest = gepauzeerd.value.pausedState.remainingMs;
+  assert.ok(rest > 0, 'de pauze bewaart de resterende tijd');
+
+  // Acht seconden gepauzeerd — die mogen niet van de antwoordtijd af.
+  clock.advance(8000);
+  const hervat = await advancePhase(context, { roomId, event: { type: 'HOST_RESUME' } });
+  assert.equal(hervat.ok, true, JSON.stringify(hervat));
+  assert.equal(hervat.value.phase, 'ROUND_ACTIVE');
+
+  const na = await loadRoundDoc(harness, roomId, started.value.matchId, round.value.roundId);
+  assert.equal(na.endsAt, clock.value + rest, 'de deadline begint opnieuw bij de resterende tijd');
+  assert.equal(na.endsAt - origineel, 8000, 'precies de pauzeduur erbij, niet meer en niet minder');
+
+  // En de transportlaag moet zijn timer opnieuw kunnen plannen.
+  assert.equal(hervat.value.roundEndsAt, na.endsAt);
+  assert.equal(hervat.value.roundId, round.value.roundId);
+
+  // De ronde is daarna gewoon af te maken — vóór deze fix hing hij hier.
+  clock.set(na.endsAt);
+  const geeindigd = await endRound(context, { roomId });
+  assert.equal(geeindigd.ok, true, JSON.stringify(geeindigd));
+});
+
+test('§R2-7: buiten een lopende ronde kán er niet gepauzeerd worden, dus verschuift er ook niets', async () => {
+  const harness = makeHarness();
+  const { context, clock } = harness;
+  const { roomId } = await seedRoom(harness, { extraPlayers: 1, roomConfig: { pacing: 'host' } });
+  const started = await startMatch(context, { roomId });
+
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  const round = await startRound(context, { roomId });
+  const doc = await loadRoundDoc(harness, roomId, started.value.matchId, round.value.roundId);
+
+  clock.set(doc.endsAt);
+  await endRound(context, { roomId });
+
+  // Besluit 12: alleen tijdens ROUND_ACTIVE is de resterende tijd uit
+  // persistente state af te leiden. In ROUND_RESULT levert een pauze intern
+  // INVALID_PAUSE_STATE op, wat naar buiten INVALID_PHASE wordt. Dat is
+  // bestaand, bekend gedrag — hier vastgelegd omdat het precies de reden is
+  // dat de deadline-herberekening alleen over ROUND_ACTIVE hoeft te gaan.
+  clock.advance(1000);
+  const gepauzeerd = await advancePhase(context, { roomId, event: { type: 'HOST_PAUSE' } });
+  assert.equal(gepauzeerd.ok, false);
+  assert.equal(gepauzeerd.code, 'INVALID_PHASE');
+
+  const na = await loadRoundDoc(harness, roomId, started.value.matchId, round.value.roundId);
+  assert.equal(na.endsAt, doc.endsAt, 'de afgesloten ronde blijft ongemoeid');
+});

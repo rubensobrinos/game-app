@@ -674,7 +674,14 @@ export function createMockTransport() {
     target.phase = previousPhase;
     target.pausedState = null;
 
-    broadcast(target, 'game:resumed', { phase: previousPhase });
+    broadcast(target, 'game:resumed', {
+      phase: previousPhase,
+      // Pariteit met de server (R2-7): bij het hervatten van een lopende ronde
+      // reist de nieuwe deadline mee.
+      ...(previousPhase === 'ROUND_ACTIVE' && target.currentRound !== null
+        ? { roundEndsAt: target.currentRound.endsAt }
+        : {}),
+    });
 
     if (previousPhase === 'ROUND_ACTIVE' && target.currentRound !== null) {
       const newEndsAt = Date.now() + (remainingMs ?? ROUND_ACTIVE_MS);

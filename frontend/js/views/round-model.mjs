@@ -189,6 +189,26 @@ export function applyAnswerRejected(model, code) {
   });
 }
 
+/**
+ * `game:resumed` met een nieuwe rondedeadline (R2-7).
+ *
+ * Pauzeren schuift `Round.endsAt` op met de pauzeduur; zonder dit blijft de
+ * client naar de óude wandkloktijd tellen en staat de timer na het hervatten
+ * meteen op nul, terwijl er nog gewoon geantwoord kan worden. Alleen de
+ * deadline verandert — antwoordstatus, vraag en selectie blijven staan, want
+ * er is niets nieuws begonnen.
+ *
+ * @param {object} model
+ * @param {{ roundEndsAt?: number }} payload
+ */
+export function applyRoundResumed(model, payload) {
+  const nieuw = payload?.roundEndsAt;
+  if (typeof nieuw !== 'number' || !Number.isFinite(nieuw) || model.roundId === null) {
+    return model;
+  }
+  return Object.freeze({ ...model, endsAt: nieuw });
+}
+
 /** `round:progress` — max 2×/s volgens PROTOCOL.md; laatste telling wint. */
 export function applyProgress(model, payload) {
   return Object.freeze({

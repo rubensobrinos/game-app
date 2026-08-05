@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {
   initialRoundModel,
   applyRoundStarted,
+  applyRoundResumed,
   hydrateFromSnapshot,
   selectOption,
   selectChoice,
@@ -231,4 +232,23 @@ test('applyRoundEnded: correctChoice/correctSide komen uit correctAnswer, ongeac
   assert.equal(hlEnded.result.correctSide, 0);
   assert.equal(hlEnded.result.correctChoice, null);
   assert.equal(hlEnded.result.correctOptionId, null);
+});
+
+// R2-7: pauzeren schuift de rondedeadline op. Zonder dit telt de client door
+// naar de oude tijd en staat de timer na het hervatten meteen op nul.
+test('applyRoundResumed: een nieuwe deadline verschuift alleen endsAt', () => {
+  const actief = selectOption(applyRoundStarted(STARTED), 'FR');
+  const hervat = applyRoundResumed(actief, { roundEndsAt: actief.endsAt + 8000 });
+  assert.equal(hervat.endsAt, actief.endsAt + 8000);
+  assert.equal(hervat.answerStatus, actief.answerStatus, 'antwoordstatus blijft');
+  assert.equal(hervat.selectedOptionId, 'FR', 'de selectie blijft');
+  assert.deepEqual(hervat.question, actief.question);
+});
+
+test('applyRoundResumed: zonder deadline of zonder ronde verandert er niets', () => {
+  const actief = applyRoundStarted(STARTED);
+  assert.equal(applyRoundResumed(actief, {}), actief);
+  assert.equal(applyRoundResumed(actief, { roundEndsAt: 'straks' }), actief);
+  const leeg = initialRoundModel();
+  assert.equal(applyRoundResumed(leeg, { roundEndsAt: 123 }), leeg);
 });
