@@ -120,6 +120,7 @@ export const es = Object.freeze({
   'reveal.youCorrect': 'Acertaste',
   'reveal.youWrong': 'Esta vez no',
   'reveal.youNone': 'Sin respuesta',
+  'reveal.yourAnswer': 'Tú: {answer}',
   'standings.nextAuto': 'La siguiente pregunta llega ya…',
   'standings.nextHost': 'El anfitrión lanza la siguiente pregunta',
   'standings.title': 'Clasificación',

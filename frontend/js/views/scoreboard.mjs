@@ -14,25 +14,57 @@
 // S15, al gedeeld met deze headline via dezelfde `movement`-Map).
 
 import { socialHeadlineFor } from './social-headline.mjs';
-import { countryName } from './country-names.mjs';
+import { countryName, flagAssetPath } from './country-names.mjs';
+import { renderFlagSpec } from './flag-renderer.mjs';
 
 export function createScoreboardView({ root, t, tCount }) {
   root.textContent = '';
 
-  // ── Scherm 5, beat 1: het goede antwoord (lime kaart) + eigen resultaat ──
+  // ── Scherm 5, beat 1: het goede antwoord + eigen resultaat ──
+  //
+  // B3 (producteigenaar, 5 aug): de kaart was ALTIJD lime, ook als je het
+  // antwoord miste — "Geen antwoord +0" onder een feestelijke groene balk.
+  // De kleur volgt nu de uitslag: lime bij goed, magenta bij fout, gedempt
+  // bij geen antwoord (je hebt niets fout gedaan, je was er niet bij).
+  // `data-state` stuurt dat vanuit CSS; kleur is nooit de énige drager —
+  // het icoon (✓/✗/·) en de regel eronder zeggen hetzelfde in tekst.
   const revealCard = document.createElement('div');
   revealCard.className = 'reveal-card';
   revealCard.hidden = true;
   const revealLabel = el('span', 'reveal-card-label');
   revealLabel.textContent = t('reveal.correctLabel');
+
+  // B3: de vlag hoort terug op dit scherm. Zonder haar is een vlaggenspel
+  // een woord op een scherm — en de lege onderhelft (punt 42) is precies de
+  // ruimte die ze nodig heeft. Twee dragers, want een vraagvlag kan
+  // GEGENEREERD zijn (`spec`, geen bestaand land): een <img> voor bestaande
+  // vlagassets, een <canvas> voor wat `flag-renderer.mjs` tekent.
+  const revealMain = el('div', 'reveal-card-main');
+  const revealFlag = document.createElement('img');
+  revealFlag.className = 'reveal-card-flag';
+  revealFlag.alt = '';
+  revealFlag.setAttribute('aria-hidden', 'true'); // de landnaam staat ernaast
+  revealFlag.hidden = true;
+  revealFlag.addEventListener('error', () => {
+    // Zelfde discipline als gameplay.mjs: een ontbrekend asset toont geen
+    // gebroken-icoon maar simpelweg niets — de naam draagt het antwoord al.
+    revealFlag.hidden = true;
+  });
+  const revealFlagCanvas = document.createElement('canvas');
+  revealFlagCanvas.className = 'reveal-card-flag reveal-card-flag-canvas';
+  revealFlagCanvas.setAttribute('aria-hidden', 'true');
+  revealFlagCanvas.hidden = true;
   const revealAnswer = el('strong', 'reveal-card-answer');
+  revealMain.append(revealFlag, revealFlagCanvas, revealAnswer);
+
   const revealCount = el('span', 'reveal-card-count');
   // Doelbeeld v2 §1: bij "Welke hoort er niet bij" wordt de afwijklogica ná
   // het antwoord kort getoond — anders denkt een speler terecht dat meerdere
-  // antwoorden verdedigbaar waren.
+  // antwoorden verdedigbaar waren. Dit is de ENIGE uitlegregel die blijft:
+  // B3 besluit expliciet géén "waarom"-tekst bij de andere spelvormen.
   const revealWhy = el('span', 'reveal-card-why');
   revealWhy.hidden = true;
-  revealCard.append(revealLabel, revealAnswer, revealCount, revealWhy);
+  revealCard.append(revealLabel, revealMain, revealCount, revealWhy);
 
   const revealSelf = document.createElement('div');
   revealSelf.className = 'reveal-self';
@@ -41,6 +73,12 @@ export function createScoreboardView({ root, t, tCount }) {
   const revealSelfText = el('span', 'reveal-self-text');
   const revealSelfPoints = el('strong', 'reveal-self-points');
   revealSelf.append(revealSelfIcon, revealSelfText, revealSelfPoints);
+
+  // B3: je eigen antwoord, klein, en ALLEEN als je ernaast zat. Niet om het
+  // in te wrijven — Moldavië en Roemenië verwarren is de leuke bijna-goed,
+  // en zonder te zien wát je koos mis je precies dat.
+  const revealMine = el('p', 'reveal-mine');
+  revealMine.hidden = true;
 
   const title = document.createElement('h2');
   title.className = 'scoreboard-title';
@@ -71,7 +109,7 @@ export function createScoreboardView({ root, t, tCount }) {
   const nextText = el('p', 'reveal-next-text');
   nextFooter.append(nextBar, nextText);
 
-  root.append(revealCard, revealSelf, title, list, selfLine, headline, nextFooter);
+  root.append(revealCard, revealSelf, revealMine, title, list, selfLine, headline, nextFooter);
 
   /**
    * De sleutel waarop de antwoordverdeling het juiste antwoord bijhoudt,
@@ -111,7 +149,16 @@ export function createScoreboardView({ root, t, tCount }) {
       .replace('{minority}', t(`continent.${details.minorityContinent}`));
   }
 
-  /** Correcte-antwoordtekst per gameType — zelfde bronvelden als gameplay.mjs. */
+  /**
+   * Correcte-antwoordtekst per gameType.
+   *
+   * B3: dit was de armere van twee implementaties — `gameplay.mjs` had een
+   * `correctAnswerStampText()` die bij hoger/lager óók de metric noemde
+   * ("Frankrijk had de meeste inwoners"), maar die kon nooit renderen omdat
+   * gameplay alleen tijdens COUNTDOWN/ROUND_ACTIVE gemount is en `result`
+   * dan altijd `null` is. Die regel is hierheen overgenomen en de dode kopie
+   * is verwijderd — twee implementaties van hetzelfde lopen uit elkaar.
+   */
   function correctAnswerTextFor(round, lang) {
     const result = round.result;
     if (round.gameType === 'real_or_fake_flag') {
@@ -119,7 +166,14 @@ export function createScoreboardView({ root, t, tCount }) {
     }
     if (round.gameType === 'higher_lower') {
       const side = round.question?.sides?.find((s) => s.side === result.correctSide);
-      return side ? countryName(side.iso2, lang) : null;
+      if (side === undefined) return null;
+      const metric = round.question?.metric;
+      const metricLabel = t(`game.metric.${metric}`);
+      return t('game.higherLowerResult')
+        .replace('{country}', countryName(side.iso2, lang))
+        // Geen vertaling bekend voor deze metric: de rauwe waarde i.p.v. een
+        // kapotte sleutel op het scherm (overgenomen uit gameplay.mjs).
+        .replace('{metric}', metricLabel === `game.metric.${metric}` ? String(metric) : metricLabel);
     }
     if (round.gameType === 'odd_one_out') {
       const kaart = round.question?.cards?.find((c) => c.cardIndex === result.correctCardIndex);
@@ -130,6 +184,62 @@ export function createScoreboardView({ root, t, tCount }) {
         : countryName(kaart.iso2, lang);
     }
     return result.correctOptionId !== null ? countryName(result.correctOptionId, lang) : null;
+  }
+
+  /**
+   * De vlag die bij het JUISTE antwoord hoort, per gameType. Levert óf een
+   * `iso2` (bestaand vlagasset) óf een `spec` (gegenereerde vlag) op, of
+   * `null` als er niets te tonen valt — dan blijft het beeld gewoon leeg in
+   * plaats van dat we een verkeerde vlag verzinnen.
+   *
+   * @returns {{ iso2: string } | { spec: object } | null}
+   */
+  function correctFlagFor(round) {
+    const result = round.result;
+    if (round.gameType === 'real_or_fake_flag') {
+      // De vlag die de vraag wás — echt of gegenereerd, dat is nu net de clou.
+      const q = round.question;
+      if (q?.spec !== undefined && q?.spec !== null) return { spec: q.spec };
+      return typeof q?.iso2 === 'string' ? { iso2: q.iso2 } : null;
+    }
+    if (round.gameType === 'higher_lower') {
+      const side = round.question?.sides?.find((s) => s.side === result.correctSide);
+      return side === undefined ? null : { iso2: side.iso2 };
+    }
+    if (round.gameType === 'odd_one_out') {
+      // De kaart die het juiste antwoord wás — niet de vraag, die bestaat
+      // hier uit vier kaarten tegelijk.
+      const kaart = round.question?.cards?.find((c) => c.cardIndex === result.correctCardIndex);
+      if (kaart === undefined) return null;
+      return kaart.spec !== undefined && kaart.spec !== null ? { spec: kaart.spec } : { iso2: kaart.iso2 };
+    }
+    // flags_mc: de getoonde vlag ís het antwoord.
+    if (typeof round.question?.targetIso2 === 'string') return { iso2: round.question.targetIso2 };
+    return typeof result.correctOptionId === 'string' ? { iso2: result.correctOptionId } : null;
+  }
+
+  /**
+   * Wat de speler zelf koos, als tekst. `null` zodra er niets te tonen valt
+   * (geen antwoord, of een selectie die we niet kunnen benoemen) — dan blijft
+   * de regel weg in plaats van "Jij: undefined".
+   */
+  function ownAnswerTextFor(round, lang) {
+    if (round.gameType === 'real_or_fake_flag') {
+      if (round.selectedChoice === null || round.selectedChoice === undefined) return null;
+      return t(round.selectedChoice === 'real' ? 'game.choiceReal' : 'game.choiceFake');
+    }
+    if (round.gameType === 'higher_lower') {
+      const side = round.question?.sides?.find((s) => s.side === round.selectedSide);
+      return side === undefined ? null : countryName(side.iso2, lang);
+    }
+    if (round.gameType === 'odd_one_out') {
+      const kaart = round.question?.cards?.find((c) => c.cardIndex === round.selectedCardIndex);
+      if (kaart === undefined) return null;
+      return kaart.spec !== undefined && kaart.spec !== null
+        ? t('game.oddOneOutFakeAnswer')
+        : countryName(kaart.iso2, lang);
+    }
+    return typeof round.selectedOptionId === 'string' ? countryName(round.selectedOptionId, lang) : null;
   }
 
   /**
@@ -208,6 +318,25 @@ export function createScoreboardView({ root, t, tCount }) {
         revealCount.hidden = true;
         revealCount.textContent = '';
       }
+
+      // B3: de kleur van de kaart volgt de uitslag. Zie de toelichting bij
+      // `revealCard` hierboven — dit stuurt alleen `data-state`, de kleuren
+      // zelf staan in rounda-1c.css.
+      revealCard.dataset.state = result.selfNoAnswer ? 'noanswer' : result.selfCorrect ? 'correct' : 'wrong';
+
+      // B3: de vlag terug. `renderFlagSpec` tekent alleen als er echt een
+      // spec is; anders het gewone asset. Beide dragers eerst uit, zodat een
+      // vorige ronde nooit blijft staan.
+      const vlag = correctFlagFor(round);
+      revealFlag.hidden = true;
+      revealFlagCanvas.hidden = true;
+      if (vlag !== null && 'spec' in vlag) {
+        revealFlagCanvas.hidden = false;
+        renderFlagSpec(revealFlagCanvas, vlag.spec);
+      } else if (vlag !== null) {
+        revealFlag.hidden = false;
+        revealFlag.src = flagAssetPath(vlag.iso2);
+      }
     }
 
     // ── Scherm 5, beat 1b: eigen resultaat + punten ──
@@ -223,6 +352,15 @@ export function createScoreboardView({ root, t, tCount }) {
       revealSelfPoints.hidden = points === null;
       revealSelfPoints.textContent = points !== null ? `+${points}` : '';
     }
+
+    // ── Scherm 5, beat 1c: wát je koos, alleen als je ernaast zat ──
+    // Bij goed voegt het niets toe (dat staat al groot bovenaan) en bij geen
+    // antwoord bestaat het niet.
+    const mine = result !== null && !result.selfCorrect && !result.selfNoAnswer
+      ? ownAnswerTextFor(round, lang)
+      : null;
+    revealMine.hidden = mine === null;
+    revealMine.textContent = mine === null ? '' : t('reveal.yourAnswer').replace('{answer}', mine);
     // M9/E11: FLIP — meet waar bestaande rijen NU staan (op `playerId`,
     // vóór de herbouw), zodat we ze ná de herbouw naar hun oude plek terug
     // kunnen zetten en dan pas laten bewegen naar de nieuwe. Overgeslagen

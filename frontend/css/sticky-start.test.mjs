@@ -54,3 +54,36 @@ test('punt 32: de reservering is minstens zo hoog als de knop zelf (85 px)', () 
     `gemeten knophoogte is 85px, gereserveerd wordt ${waarde}`,
   );
 });
+
+// ── B3: de foute revealkaart is magenta; de labels erop moeten leesbaar
+//    blijven. `contrast.test.mjs` dekt alleen de tokens in base.css/
+//    components.css, dus deze twee hardgecodeerde 1c-kleuren vielen buiten
+//    elke controle. De eerste poging (#5c0035) haalde 4,30:1 en zakte door
+//    AA heen — precies waarom dit hier staat. ─────────────────────────────
+
+function relatieveLuminantie(hex) {
+  const n = Number.parseInt(hex.slice(1), 16);
+  const kanalen = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * kanalen[0] + 0.7152 * kanalen[1] + 0.0722 * kanalen[2];
+}
+
+function contrast(a, b) {
+  const [licht, donker] = [relatieveLuminantie(a), relatieveLuminantie(b)].sort((x, y) => y - x);
+  return (licht + 0.05) / (donker + 0.05);
+}
+
+test('B3: de labels op de magenta revealkaart halen AA (4,5:1)', () => {
+  const blok = /\.reveal-card\[data-state='wrong'\] \.reveal-card-label,[\s\S]*?\{([^}]*)\}/.exec(css);
+  assert.notEqual(blok, null, 'de labelkleur voor de foute kaart ontbreekt');
+  const kleur = /color:\s*(#[0-9a-f]{6})/i.exec(blok[1])[1];
+
+  const magenta = /--rounda-magenta:\s*(#[0-9a-f]{6})/i.exec(css)[1];
+  const verhouding = contrast(kleur, magenta);
+  assert.ok(
+    verhouding >= 4.5,
+    `${kleur} op ${magenta} haalt ${verhouding.toFixed(2)}:1 — 10-11px tekst vraagt 4,5:1`,
+  );
+});
