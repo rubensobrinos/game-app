@@ -897,6 +897,10 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         // SCOREBOARD voegt de (dan pas kloppende) tussenstand toe.
         phase: matchPhase.phase,
         scoreboardSeconds: typeof roomConfig?.scoreboardSeconds === 'number' ? roomConfig.scoreboardSeconds : null,
+        // Punt 40 (B2): de aftelbalk op scherm 5 loopt over BEIDE beats, dus
+        // heeft hij ook de duur van beat 1 nodig — zonder dit kon scoreboard.mjs
+        // alleen de helft van de wachttijd tekenen.
+        resultSeconds: typeof roomConfig?.resultSeconds === 'number' ? roomConfig.resultSeconds : null,
       });
       return;
     }

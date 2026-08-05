@@ -1135,3 +1135,32 @@ body:has(.lobby-screen) .session-hostbar { display: none; }
 .screen-top:has(.lobby-screen) {
   padding-top: var(--chrome-gap, 16px);
 }
+
+/* ══ PAKKET B — bugs & functionele eisen (agent B) ══ */
+
+/* Punt 32 — de startknop bedekt de hostinstellingen. Sticky blijft sticky
+   (productbesluit 5 aug); wat ontbrak is ruimte-reservering bij het scrollen.
+
+   GEMETEN met Playwright op 390×650, lobby met de hostinstellingen open
+   (`tools/meet-viewport.mjs`-patroon). De knop is 85 px hoog. Twee metingen,
+   want ze wijzen niet dezelfde kant op:
+
+   1. Visuele overlap tijdens het scrollen: op 13 van de 22 scrollposities
+      ligt de knop over aantikbare inhoud, ergste geval 52 px (de rij
+      Kiezen/Mix/Typen, al bij scrollTop 0). Bottom-padding onder de kolom
+      verandert dáár NIETS aan — het verlengt alleen de pagina (+101 px
+      scrollhoogte). Dat is inherent aan `position: sticky; bottom: 0` in de
+      normale paginastroom en is niet met CSS weg te nemen zolang de knop in
+      die stroom staat. Zie de handover: dat is een structuurkeuze, geen bug.
+
+   2. Focus: tab je met een toetsenbord naar een instelling, dan landde die
+      in 9 van de 16 gevallen áchter de knop (tot 44 px eronder) — dus
+      onbereikbaar, niet alleen lelijk. Mét `scroll-padding-bottom`: 0 van 16.
+
+   Daarom staat hier alleen (2). De pagina is de scroller, dus dit hoort op
+   `html` en nergens anders. Bewust géén bottom-padding: die kost 101 px
+   scrollhoogte in een scherm dat juist korter moet (README §1) en levert
+   blijkens meting 1 geen enkele pixel op. */
+html:has(.lobby-screen) {
+  scroll-padding-bottom: calc(85px + var(--chrome-gap, 16px));
+}

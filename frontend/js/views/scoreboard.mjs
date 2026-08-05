@@ -150,7 +150,30 @@ export function createScoreboardView({ root, t, tCount }) {
    */
   let lastDrainKey = null;
 
-  function update(standings, { movement = new Map(), participants = new Map(), round = null, lang = 'nl', pacing = null, phase = null, scoreboardSeconds = null } = {}) {
+  /**
+   * Hoe lang de speler vanaf NU nog op de volgende vraag wacht, in seconden.
+   *
+   * Vanaf beat 1 (ROUND_RESULT) is dat de volledige uitslagtijd: eerst
+   * `resultSeconds`, daarna `scoreboardSeconds`. Wie pas bij beat 2 binnenkomt
+   * (herladen middenin SCOREBOARD) heeft de eerste beat al gemist; dan is
+   * alleen `scoreboardSeconds` nog waar. Ontbreekt een waarde in de
+   * serverconfig, dan vallen we terug op de defaults uit
+   * `server/composition/room-lifecycle.mjs` — niets verzinnen, wel de bekende
+   * standaard gebruiken zodat de balk niet stilvalt.
+   *
+   * @param {string|null} huidigeFase
+   * @param {number|null} result seconden voor beat 1
+   * @param {number|null} scoreboard seconden voor beat 2
+   * @returns {number}
+   */
+  function wachtSeconden(huidigeFase, result, scoreboard) {
+    const positief = (waarde, standaard) =>
+      typeof waarde === 'number' && waarde > 0 ? waarde : standaard;
+    const beatTwee = positief(scoreboard, 4);
+    return huidigeFase === 'ROUND_RESULT' ? positief(result, 5) + beatTwee : beatTwee;
+  }
+
+  function update(standings, { movement = new Map(), participants = new Map(), round = null, lang = 'nl', pacing = null, phase = null, scoreboardSeconds = null, resultSeconds = null } = {}) {
     // ── Scherm 5, beat 1: reveal ──
     const result = round?.result ?? null;
     // Beat 1 = ROUND_RESULT mét een uitslag om te tonen; anders (SCOREBOARD,
@@ -321,17 +344,22 @@ export function createScoreboardView({ root, t, tCount }) {
       nextBar.hidden = pacing !== 'auto';
       nextText.textContent = t(pacing === 'auto' ? 'standings.nextAuto' : 'standings.nextHost');
       // Feedbackronde 2 (punt 12): geen pendel — een echte aflopende balk.
-      // `scoreboardSeconds` komt uit de serverconfig (room:state/config-
-      // changed); de aftelling start bij beat 2 (SCOREBOARD) en herstart
-      // alleen bij een nieuwe ronde, niet bij elke re-render.
+      //
+      // Punt 40 (B2): de balk startte op `phase === 'SCOREBOARD'`, terwijl de
+      // voet al zichtbaar is vanaf ROUND_RESULT (beat 1). De speler keek dus
+      // eerst `resultSeconds` lang naar een balk die vol stilstond — dat is de
+      // "voortgangsbalk loopt niet af" van IMG_0296. De balk hoort af te lopen
+      // over de tijd die de speler DAADWERKELIJK wacht, en dat zijn beide
+      // beats samen; daarom start hij nu bij de eerste render mét uitslag en
+      // loopt hij door de faseovergang heen (`drainKey` is de ronde, niet
+      // meer ronde+fase — anders herstartte hij halverwege op vol).
       const bar = nextBar.firstElementChild;
-      const drainKey = `${round?.roundId ?? ''}:${phase}`;
-      if (pacing === 'auto' && phase === 'SCOREBOARD' && bar != null && typeof bar.style === 'object' && drainKey !== lastDrainKey) {
+      const drainKey = round?.roundId ?? null;
+      if (pacing === 'auto' && bar != null && typeof bar.style === 'object' && drainKey !== null && drainKey !== lastDrainKey) {
         lastDrainKey = drainKey;
-        const seconds = typeof scoreboardSeconds === 'number' && scoreboardSeconds > 0 ? scoreboardSeconds : 4;
         bar.style.animation = 'none';
         void bar.offsetWidth; // reflow zodat de animatie echt herstart
-        bar.style.animation = `reveal-drain ${seconds}s linear forwards`;
+        bar.style.animation = `reveal-drain ${wachtSeconden(phase, resultSeconds, scoreboardSeconds)}s linear forwards`;
       }
     }
   }
