@@ -111,6 +111,12 @@ h1, h2 {
   letter-spacing: 0.45em;
   color: var(--color-text-primary);
 }
+/* Zonder dit blijft de achtergrond hardcoded donker terwijl de tekstkleur wél
+   met het thema meeswitcht — in licht wordt --color-text-primary dan bijna
+   zwarte tekst op een bijna zwarte kaart (1,02:1, contrastcontrole T5-6b). */
+:root[data-theme='light'] .home-code-input {
+  background: var(--color-surface-2);
+}
 
 /* ── De chrome: één rij, code dominant (A1, punten 13/14/15/16) ────────────
    Het oplichtende paneel om de code heen is weg. Niet omdat het lelijk was,
@@ -358,6 +364,13 @@ h1, h2 {
 .scoreboard-score, .podium-score {
   font: 700 18px/1 var(--font-mono);
   color: var(--rounda-lime);
+}
+/* .scoreboard-entry/.podium-step krijgen in licht --color-surface-1 (wit,
+   verderop in dit bestand) — pure lime tekst daarop is 1,15:1. Zelfde
+   vervangkleur als de chromeknoppen en het wordmark hieronder. */
+:root[data-theme='light'] .scoreboard-score,
+:root[data-theme='light'] .podium-score {
+  color: #55731a;
 }
 .podium-step-1 { border-color: var(--rounda-magenta); }
 
@@ -672,6 +685,9 @@ body:has(.home-screen) .app-footer { display: block; }
 :root[data-theme='light'] .reveal-card-label,
 :root[data-theme='light'] .reveal-card-count { color: #55731a; }
 :root[data-theme='light'] .reveal-next-bar { background: var(--color-surface-1); }
+/* .reveal-self gaat hierboven al naar --color-surface-1 in licht; de score
+   erin bleef pure lime (1,15:1 op wit) — zelfde vervangkleur als de kaart. */
+:root[data-theme='light'] .reveal-self-points { color: #55731a; }
 
 /* ════ MOCK-REVIEWFIXES (3 aug, na doelbeeld v2-vergelijking) ════ */
 
@@ -1541,6 +1557,9 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   text-transform: uppercase;
   color: var(--rounda-lime, #d8ff3e);
 }
+/* Staat los op het canvas (geen kaart eromheen) — in licht wordt dat bijna
+   wit, en pure lime daarop is 1,05:1. */
+:root[data-theme='light'] .gameplay-countdown-players { color: #55731a; }
 
 .gameplay-countdown-label {
   font: 500 15px/1.3 var(--font-body);
@@ -1565,6 +1584,9 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   border: 2px solid var(--rounda-row-border, #23232c);
   border-radius: 50%;
 }
+/* Zelfde reden als .gameplay-countdown-players hierboven: geen kaart, dus
+   licht canvas eronder — pure lime is daar 1,05:1. */
+:root[data-theme='light'] .gameplay-countdown-value { color: #55731a; }
 
 /* ── D3: het hostmenu ─────────────────────────────────────────────────────
    Besluit producteigenaar: "Beëindigen moet in de hostinstellingen verstopt
@@ -1791,7 +1813,11 @@ body[data-rounda-fase='tussenstand'] #app-header .room-header-code-value {
   border: 1.5px solid var(--rounda-row-border);
   box-shadow: none;
 }
-.reveal-card[data-state='noanswer'] .reveal-card-answer { color: var(--color-text-primary, #fff); }
+/* Vaste kleur, geen token: de kaart zelf blijft --rounda-row (donker) in
+   beide thema's — --color-text-primary volgt wél het thema en werd in licht
+   bijna-zwarte tekst op deze bijna-zwarte kaart (1,00:1). De buren hierboven
+   (label/count/why) gebruiken om diezelfde reden ook al een vaste hex. */
+.reveal-card[data-state='noanswer'] .reveal-card-answer { color: #f4f4f6; }
 .reveal-card[data-state='noanswer'] .reveal-card-label,
 .reveal-card[data-state='noanswer'] .reveal-card-count,
 .reveal-card[data-state='noanswer'] .reveal-card-why { color: #8e8e9c; }
