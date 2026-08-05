@@ -18,14 +18,15 @@ Peildatum: 6 aug 2026.
 | --- | --- |
 | [Antwoord automatisch tonen](antwoord-automatisch-tonen.md) | klaar om te starten |
 | [Continentfilter](continentfilter.md) | klaar om te starten |
-| Reactiezinnen naar 50–100 per taal (besluit 44) | nog niet uitgewerkt |
+| [Reactiezinnen naar 50–100 per taal](reactiezinnen.md) | klaar om te starten |
 | [Hoger/lager en Hoofdsteden aanzetten](hoger-lager-en-hoofdsteden.md) | klaar om te starten |
 
 ## Groot — weken
 
 | Wat | Status |
 | --- | --- |
-| [Spelersidentiteit (*Bulgaarse Koe*)](spelersidentiteit.md) | klaar om te starten |
+| [Landcontent: 60 landen](landcontent.md) | klaar om te starten |
+| [Spelersidentiteit stap 4–6](spelersidentiteit.md) | klaar om te starten |
 | [Raad het land](raad-het-land.md) | klaar om te starten |
 | [Typed answers](typed-answers.md) | wacht op het scorebesluit |
 | De donut-gamekeuze (besluit 45) | nog niet uitgewerkt |
