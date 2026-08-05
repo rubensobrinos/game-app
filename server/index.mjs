@@ -47,6 +47,10 @@ import { CONTENT_VERSION } from '../shared/content/index.mjs';
 // CommonJS-interop: `module.exports = { createInMemoryStore }` wordt door
 // Node's cjs-module-lexer herkend, dus een named import werkt (besluit 28).
 import { createInMemoryStore } from './data/in-memory-store.js';
+// Stap 1, docs/openstaand/spelersidentiteit.md: `generateName` bestond al en
+// werkt, maar kreeg tot nu toe geen `nameWordLists` mee — zie de moduledoc
+// van name-word-lists.js. Zelfde CommonJS-interop als hierboven.
+import { nameWordLists } from './data/name-word-lists.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
@@ -646,6 +650,10 @@ export async function buildServer(options = {}) {
         tokenPeppers: config.tokenPeppers,
         publicAppUrl: config.publicAppUrl,
         contentVersion: config.contentVersion ?? CONTENT_VERSION,
+        // Stap 1, spelersidentiteit.md: zonder dit viel generateName() altijd
+        // terug op "Speler {n}" — de woordenlijst zelf is contentbeslissing,
+        // niet iets wat deze module kiest (zie name-word-lists.js/bevinding 14).
+        nameWordLists: config.nameWordLists ?? nameWordLists,
       },
     });
   } catch (error) {
