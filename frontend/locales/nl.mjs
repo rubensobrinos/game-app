@@ -33,7 +33,7 @@ export const nl = Object.freeze({
   'home.codeLabel': 'Voer de gamecode in',
   'home.codePlaceholder': '123456',
   'home.codeSubmit': 'Meedoen met code',
-  'home.soloLink': 'Liever solo oefenen? Speel de sologames',
+  'home.soloStart': 'Alleen spelen',
   'home.codeInvalid': 'Vul een code van 6 cijfers in',
   'home.hostSetupLink': 'Spel aanpassen',
 

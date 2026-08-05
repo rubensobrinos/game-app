@@ -20,7 +20,7 @@ import { setButtonLoading } from '../button-loading.mjs';
 
 const CODE_FORMAT = /^[0-9]{6}$/;
 
-export function createHomeView({ root, t, transport, storage, onNavigate, onCodeLocator }) {
+export function createHomeView({ root, t, transport, storage, onNavigate, onCodeLocator, onSolo = null }) {
   root.textContent = '';
 
   const screen = el('div', 'screen home-screen');
@@ -92,10 +92,23 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
   hostSetupLink.className = 'home-host-setup-link btn-quiet';
   hostSetupLink.addEventListener('click', () => dispatch({ type: 'OPEN_ADVANCED' }));
 
+  // ── SOLO (besluit C-1, 5 aug 2026): alleen spelen is geen tweede app meer
+  // maar dezelfde app op de mocktransport — één kamer, één speler. Tertiair,
+  // onder het codeveld: samen spelen is de belofte van dit scherm, solo is de
+  // uitwijk voor wie nu niemand bij zich heeft.
+  const soloButton = document.createElement('button');
+  soloButton.type = 'button';
+  soloButton.className = 'home-solo-link btn-quiet';
+  soloButton.hidden = onSolo === null;
+  soloButton.addEventListener('click', () => {
+    if (onSolo === null) return;
+    onSolo();
+  });
+
   // Feedbackronde 2 (4 aug, punt 1+2): "Spel aanpassen" is hier weg — je
   // stelt een spel pas in als er een lobby ís (scherm 2). De hostSetup-flow
   // blijft in de code bestaan maar heeft geen ingang meer.
-  const quickStartGroup = [logo, title, promise, quickStartButton, quickStartStatus, quickStartError, divider, codeSection, codeError, codeSubmitButton];
+  const quickStartGroup = [logo, title, promise, quickStartButton, quickStartStatus, quickStartError, divider, codeSection, codeError, codeSubmitButton, soloButton];
   screen.append(...quickStartGroup);
 
   // S02: los scherm, hergebruikt dezelfde HostSetupState-instantie (geen
@@ -262,6 +275,10 @@ export function createHomeView({ root, t, transport, storage, onNavigate, onCode
     codeSection.hidden = state.status === 'creating';
     codeSubmitButton.hidden = state.status === 'creating';
     codeSubmitButton.textContent = t('home.codeSubmit');
+    soloButton.textContent = t('home.soloStart');
+    // Na de groepslus: zonder `onSolo` bestaat er geen solomodus en mag de
+    // knop nooit zichtbaar worden, ook niet in quick-start-weergave.
+    soloButton.hidden = onSolo === null || state.status === 'creating';
     hostSetupLink.textContent = t('home.hostSetupLink');
     hostSetupLink.hidden = true; // punt 1+2: geen instellingen-ingang zonder lobby
     quickStartStatus.textContent = state.status === 'creating' ? t('home.creating') : '';

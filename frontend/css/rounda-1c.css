@@ -335,6 +335,19 @@ h1, h2 {
 }
 .home-host-setup-link { align-self: flex-end; }
 
+/* Solo (besluit C-1): tertiaire uitwijk onder het codeveld — samen spelen is
+   de belofte van dit scherm, dus deze knop concurreert nergens mee. */
+.home-solo-link {
+  align-self: center;
+  margin-top: 4px;
+  font: 700 11px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7c7c8b;
+}
+.home-solo-link:hover,
+.home-solo-link:focus-visible { color: var(--rounda-lime, #d8ff3e); }
+
 /* ── Sessieschermen: inhoud boven, primaire actie onderaan ── */
 .screen-top .lobby-start { margin-top: auto; }
 .screen-top:has(.gameplay-options) .gameplay-options { margin-top: auto; }

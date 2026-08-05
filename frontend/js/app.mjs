@@ -25,13 +25,25 @@
 // (UX-werk, demo's, testen zonder host). De keuze geldt per pagelaad: de
 // query hoeft alleen op de eerste URL te staan en verdwijnt daarna gewoon
 // uit beeld bij navigatie; een verse reload zonder `?mock` is weer echt.
+//
+// SOLOMODUS (besluit C-1, 5 aug 2026): "Alleen spelen" op het homescherm is
+// dezelfde mocktransport, maar dan als PRODUCT in plaats van als
+// ontwikkelhulpmiddel. Solo is geen tweede app meer (zie
+// docs/PLAN-CONVERGENTIE.md deel B): je speelt dezelfde schermen, dezelfde
+// games en hetzelfde ontwerp, in een kamer met één speler. Er gaat geen enkel
+// verzoek naar de server.
+//
+// Wat solo NIET heeft: overleven van een herlaadbeurt. De mock houdt zijn
+// kamer in het geheugen van deze pagina; wie ververst, begint opnieuw. Dat is
+// een bewuste grens (geen serverstate = geen persistentie), en `render()`
+// hieronder vangt het netjes op in plaats van een dood scherm te tonen.
 
 import { applyI18n, t, tCount, setLang, getLang } from './i18n.mjs';
 import { loadLang, saveLang, loadTheme, saveTheme } from './preferences.mjs';
 import { createAppMenu } from './app-menu.mjs';
 import { resolveRoute } from '../../client/flow/route-resolver.mjs';
 import { joinSourceFor } from '../../client/flow/share-actions.mjs';
-import { loadSession } from '../../client/flow/session-store.mjs';
+import { clearSession, loadSession, saveSession } from '../../client/flow/session-store.mjs';
 import { createTransport } from './transport.mjs';
 import { createMockTransport } from './transport-mock.mjs';
 import { createHomeView } from './views/home.mjs';
@@ -41,7 +53,15 @@ import { createSessionShell } from './session-shell.mjs';
 const ROOT_ID = 'app-root';
 const HEADER_ID = 'app-header';
 const mockMode = new URLSearchParams(window.location.search).has('mock');
-const transport = mockMode ? createMockTransport() : createTransport();
+/**
+ * De actieve transportlaag. Geen `const` meer: "Alleen spelen" wisselt hem
+ * voor deze pagina om naar de mock (zie `startSolo`). De echte transport komt
+ * nooit terug zonder herlaadbeurt — dat hoeft ook niet, want een solopartij
+ * eindigt op het podium of bij het verlaten van de pagina.
+ */
+let transport = mockMode ? createMockTransport() : createTransport();
+/** Draait deze pagina een solopartij? (Bepaalt of een sessie herstelbaar is.) */
+let soloMode = mockMode;
 if (mockMode) {
   console.warn('[frontend] MOCKMODUS actief (?mock=1): geen server, alles lokaal gesimuleerd.');
 }
@@ -101,6 +121,7 @@ function render() {
       onCodeLocator: (locator) => {
         currentScreen = mountJoin(root, locator);
       },
+      onSolo: startSolo,
     });
     return;
   }
@@ -116,6 +137,14 @@ function render() {
 
   if (route.route === 'game' || route.route === 'host') {
     const session = loadSession(storage, route.code);
+    if (session !== null && session.solo === true && !soloMode) {
+      // Een solosessie uit een vórige pagelaad: de mockkamer bestond alleen in
+      // het geheugen van die pagina en is dus weg. Liever meteen terug naar
+      // huis dan een scherm dat op een niet-bestaande kamer wacht.
+      clearSession(storage, route.code);
+      navigate('/');
+      return;
+    }
     if (session !== null) {
       currentScreen = createSessionShell({
         root,
@@ -139,6 +168,39 @@ function render() {
 
   // 'screen' (spectators, buiten scope — DECISIONS.md #9) | 'unknown'
   renderPlaceholder(root, 'scaffold.ready');
+}
+
+/**
+ * Start een solopartij: dezelfde app, dezelfde schermen, één speler.
+ *
+ * Bewust geen eigen route (`/solo` is nog de oude singleplayer-app, en een
+ * nieuwe toplevel-route vraagt een Caddy-regel): een solopartij loopt over
+ * `/host/{code}` net als elke andere, alleen dan tegen de mocktransport.
+ */
+async function startSolo() {
+  transport = createMockTransport();
+  soloMode = true;
+  try {
+    const response = await transport.createGame({
+      config: {},
+      hostParticipates: true,
+      displayName: null,
+    });
+    saveSession(storage, {
+      sessionToken: response.sessionToken,
+      roomCode: response.gameCode,
+      playerId: response.playerId,
+      savedAt: Date.now(),
+      solo: true,
+    });
+    navigate(`/host/${response.gameCode}`);
+  } catch (error) {
+    // De mock werpt hier in de praktijk niet; valt hij toch om, dan blijft de
+    // gebruiker gewoon op het homescherm staan met de echte transport terug.
+    console.error('[frontend] solopartij starten mislukt', error);
+    transport = mockMode ? transport : createTransport();
+    soloMode = mockMode;
+  }
 }
 
 function initialTheme() {
