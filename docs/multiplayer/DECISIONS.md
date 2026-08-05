@@ -247,7 +247,7 @@ wanneer hun server, UI, Compose-stack of aangewezen testomgeving bestaat. Publie
 routes, productiegegevens en secrets blijven afzonderlijk afgeschermd; het akkoord
 is geen toestemming om tests destructief tegen productie uit te voeren.
 
-44. **Het voorkeurenmenu is op elke breedte een dropdown** (producteigenaar,
+43. **Het voorkeurenmenu is op elke breedte een dropdown** (producteigenaar,
     5 aug 2026). GEBOUWD.
 
     T5-7 maakte vanaf 768 px een vast side panel van het voorkeurenpaneel: het
