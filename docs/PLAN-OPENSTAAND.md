@@ -52,9 +52,9 @@ geen cijfers hebben.
 
 | # | Wat | Omvang | Waarom groot |
 | --- | --- | --- | --- |
-| G1 | **Spelersidentiteit** — besluit 41 (*Bulgaarse Koe* + vlag) | weken | 230 landen × 3 talen aan bijvoeglijke naamwoorden, met Spaanse verbuiging. Lost meteen punt 8 op (naam in je eigen taal) |
-| G2 | **"Raad het land"** — de vierde game | groot | Contourdata (257 landen, gesleuteld op Engelse naam, zonder iso2) koppelen aan de pool van 230. Die koppeling is het werk, niet het tekenen |
-| G3 | **Typed answers** | groot | Spec klaar; Mix en Typen staan daarom uitgeschakeld |
+| G1 | **Spelersidentiteit** — besluit 41 (*Bulgaarse Koe* + vlag) · plan: `bouwplan-spelersidentiteit.md` | 5–8 dagen bij 60 landen, weken bij alle 230 | Landbijvoeglijke naamwoorden per taal, met verbuiging in het Spaans én het Nederlands. Lost meteen punt 8 op (naam in je eigen taal). De woordenlijsten worden in productie nu helemaal niet meegegeven — dat is één regel config |
+| G2 | **"Raad het land"** — de vierde game · plan: `bouwplan-raad-het-land.md` | 4 dagen | De koppeling is inmiddels gedraaid: 225 van de 230 matchen, de vijf die missen zijn Franse overzeese gebieden. Resteert de renderer en de gewone ketenstappen |
+| G3 | **Typed answers** · plan: `bouwplan-typed-answers.md` | 6–7 dagen | Spec klaar; Mix en Typen staan daarom uitgeschakeld |
 | G4 | "Wie had het goed" rijker tonen | middel | Hangt aan G1: zonder identiteit valt er weinig te tonen |
 
 ## 6. Dood hout — bestaat, maar niemand ziet het
