@@ -3,7 +3,12 @@
 Eén plek waar te zien is hoe ver we zijn. **Bijgehouden door de lead**, na elke
 review. Agents schrijven hier niet in; zij leveren op via hun stoppunt.
 
-**Stand: 5 aug 2026, agents A1 / B1 / C0 gestart.**
+**Stand: 5 aug 2026.** C0 ✅ gemerged (101 px), B1 ✅ opgeleverd, A1 draait.
+
+**Deploy gebeurt pas ná alle rondes** (producteigenaar, 5 aug) — de build
+kopieert de werkboom, dus mid-sprint deployen is precies wat STATUS afraadt.
+De zes 🟡-punten blijven dus tot het eind op die status staan; ze zijn wél
+bewezen (B1 draaide er tests op).
 
 | Status | Betekenis |
 | --- | --- |
@@ -40,7 +45,7 @@ review. Agents schrijven hier niet in; zij leveren op via hun stoppunt.
 | -: | --- | :-: | :-: |
 | 9 | Titel "Lobby" weg | C | 🔄 C0 |
 | 10 | "1 speler" weg als eigen regel | C | 🔄 C0 |
-| 11 | Lege zwarte ruimtes weg | C | ⏸ minigame-besluit |
+| 11 | Lege zwarte ruimtes weg | C | ⬜ besluit genomen: warm-up blijft open |
 | 12 | Spelersweergave is goed | — | 🚫 |
 
 ## Codeblok
@@ -151,7 +156,9 @@ review. Agents schrijven hier niet in; zij leveren op via hun stoppunt.
 
 ## Openstaande besluiten producteigenaar
 
-1. **Warm-up in de lobby** — open laten of ingeklapt starten? Blokkeert punt 11.
+1. ~~Warm-up in de lobby~~ ✅ **5 aug: blijft opengeklapt.** Gevolg: de lobby past
+   niet in één viewport; de eis wordt "alles wat je nodig hebt boven de vouw,
+   de warm-up mag eronder".
 2. **Palet van 36 kleuren** — de server kent er acht (gesloten enum). Meer
    betekent protocolwerk. Blokkeert punt 20.
 3. **"Antwoord automatisch tonen"** — besluit C uit doelbeeld v2, serverwerk.
