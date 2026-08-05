@@ -79,17 +79,22 @@ test('round:ended is de enige bron van goed/fout en negeert de verkeerde ronde',
     correctAnswer: { optionId: 'FR' },
     ownCorrect: true,
     ownPoints: 187,
-    distribution: { FR: 2, DE: 1 },
+    distribution: [{ optionId: 'FR', count: 2 }, { optionId: 'DE', count: 1 }],
   });
   assert.equal(displayState(ended), 'result');
   assert.deepEqual(ended.result, {
     correctOptionId: 'FR',
     correctChoice: null,
     correctSide: null,
+    // C-2 (5 aug 2026): odd_one_out kwam erbij, met een kaartindex als
+    // antwoordvorm en `resultDetails` voor de uitlegregel. Beide staan altijd
+    // op het model; niet-toepasselijke blijven null.
+    correctCardIndex: null,
     selfCorrect: true,
     selfNoAnswer: false,
     roundPoints: 187,
-    distribution: { FR: 2, DE: 1 },
+    distribution: [{ optionId: 'FR', count: 2 }, { optionId: 'DE', count: 1 }],
+    resultDetails: null,
   });
   assert.equal(applyRoundEnded(sending, { roundId: 'round_99', correctAnswer: { optionId: 'DE' } }), sending);
 });

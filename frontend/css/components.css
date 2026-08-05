@@ -720,6 +720,32 @@ button.is-loading::after {
   object-fit: cover;
 }
 
+/* C-2 (5 aug 2026) — "Welke hoort er niet bij": vier vlaggen in een 2x2-raster.
+   Zelfde patroon als het duel hierboven (eigen klasse, gezet door gameplay.mjs
+   op basis van gameType), maar dan vier kaarten in plaats van twee kanten. Een
+   rij van vier onder elkaar zou het vergelijken juist onmogelijk maken — je
+   moet ze náást elkaar kunnen zien. */
+.gameplay-options-cards {
+  grid-template-columns: 1fr 1fr;
+}
+
+.gameplay-option-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.gameplay-option-card-flag {
+  width: 100%;
+  max-width: 140px;
+  aspect-ratio: 3 / 2;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--color-border-subtle);
+  object-fit: cover;
+}
+
 .gameplay-option.is-selected {
   border-color: var(--color-accent-primary-hover);
   box-shadow: 0 0 0 3px var(--color-accent-glow);

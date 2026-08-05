@@ -31,6 +31,7 @@ import { createTimerBar } from '../timer-bar.mjs';
 function selectedValueFor(model) {
   if (model.gameType === 'real_or_fake_flag') return model.selectedChoice;
   if (model.gameType === 'higher_lower') return model.selectedSide;
+  if (model.gameType === 'odd_one_out') return model.selectedCardIndex;
   return model.selectedOptionId;
 }
 
@@ -39,6 +40,7 @@ function correctValueFor(model) {
   if (model.result === null) return null;
   if (model.gameType === 'real_or_fake_flag') return model.result.correctChoice;
   if (model.gameType === 'higher_lower') return model.result.correctSide;
+  if (model.gameType === 'odd_one_out') return model.result.correctCardIndex;
   return model.result.correctOptionId;
 }
 
@@ -166,6 +168,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     flagCanvas.hidden = true;
     options.textContent = '';
     options.classList.toggle('gameplay-options-duel', model.gameType === 'higher_lower');
+    options.classList.toggle('gameplay-options-cards', model.gameType === 'odd_one_out');
     optionButtons = new Map();
 
     if (model.gameType === 'real_or_fake_flag') {
@@ -221,6 +224,31 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
       return;
     }
 
+    if (model.gameType === 'odd_one_out') {
+      // Vier vlaggen, één hoort er niet bij (doelbeeld v2 §1). Geen
+      // vraagafbeelding bovenaan: de kaarten ZIJN de vraag.
+      questionPrompt.textContent = t('game.oddOneOutPrompt');
+      options.classList.add('gameplay-options-cards');
+      for (const kaart of model.question.cards) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'gameplay-option gameplay-option-card';
+        const kaartVlag = document.createElement('img');
+        kaartVlag.className = 'gameplay-option-card-flag';
+        kaartVlag.src = flagAssetPath(kaart.iso2);
+        kaartVlag.alt = '';
+        kaartVlag.setAttribute('aria-hidden', 'true');
+        const kaartNaam = document.createElement('span');
+        kaartNaam.textContent = countryName(kaart.iso2, lang);
+        btn.append(kaartVlag, kaartNaam);
+        btn.setAttribute('aria-pressed', 'false');
+        btn.addEventListener('click', () => onAnswer(kaart.cardIndex));
+        optionButtons.set(kaart.cardIndex, btn);
+        options.appendChild(btn);
+      }
+      return;
+    }
+
     // flags_mc (default)
     questionPrompt.textContent = t('game.questionPrompt');
     flag.hidden = false;
@@ -249,6 +277,11 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
       return t('game.higherLowerResult')
         .replace('{country}', name)
         .replace('{metric}', metricLabel === `game.metric.${model.question.metric}` ? model.question.metric : metricLabel);
+    }
+    if (model.gameType === 'odd_one_out') {
+      const kaart = model.question.cards.find((c) => c.cardIndex === model.result.correctCardIndex);
+      const naam = kaart ? countryName(kaart.iso2, lang) : '';
+      return `${t('game.correctAnswer')}: ${naam}`;
     }
     return `${t('game.correctAnswer')}: ${countryName(model.result.correctOptionId, lang)}`;
   }

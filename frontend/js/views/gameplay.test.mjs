@@ -212,3 +212,28 @@ test('§A5: een lege ronde laat niets van de vorige staan', async () => {
   assert.equal(vind(root, 'gameplay-round-text').textContent, '');
   assert.equal(vindAlle(root, 'gameplay-option').length, 0);
 });
+
+test('C-2: odd_one_out rendert vier kaarten en geeft de kaartindex door', async () => {
+  const antwoorden = [];
+  const { root, view } = await maakView(antwoorden);
+  view.update(
+    actiefModel({
+      gameType: 'odd_one_out',
+      question: {
+        cards: [
+          { cardIndex: 0, iso2: 'fr' },
+          { cardIndex: 1, iso2: 'de' },
+          { cardIndex: 2, iso2: 'es' },
+          { cardIndex: 3, iso2: 'jp' },
+        ],
+      },
+    }),
+    { phase: 'ROUND_ACTIVE', secondsLeft: 12 },
+  );
+
+  const kaarten = vindAlle(root, 'gameplay-option-card');
+  assert.equal(kaarten.length, 4, 'vier kaarten, geen vraagafbeelding erboven — de kaarten zijn de vraag');
+
+  kaarten[3]._listeners.get('click')?.();
+  assert.deepEqual(antwoorden, [3], 'de kaartindex gaat door, niet de rijvolgorde of de iso2');
+});

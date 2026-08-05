@@ -36,10 +36,11 @@ export function initialRoundModel() {
     selectedOptionId: null, // flags_mc
     selectedChoice: null, // real_or_fake_flag: 'real' | 'fake'
     selectedSide: null, // higher_lower: 0 | 1
+    selectedCardIndex: null, // odd_one_out: 0..3
     answerStatus: /** @type {AnswerStatus} */ ('idle'),
     rejectionCode: null,
     progress: null, // { answeredCount, eligiblePlayerCount }
-    result: null, // { correctOptionId, correctChoice, correctSide, selfCorrect, selfNoAnswer, roundPoints, distribution }
+    result: null, // { correctOptionId, correctChoice, correctSide, correctCardIndex, selfCorrect, selfNoAnswer, roundPoints, distribution, resultDetails }
   });
 }
 
@@ -128,6 +129,22 @@ export function selectSide(model, side) {
 }
 
 /**
+ * `odd_one_out` — besluit C-2 (5 aug 2026). Zelfde vergrendelregels als
+ * `selectOption`: één antwoord per speler per ronde. De kaartindex komt uit de
+ * payload zelf (`cards[].cardIndex`), niet uit de weergavevolgorde.
+ */
+export function selectCard(model, cardIndex) {
+  if (model.answerStatus !== 'idle' || model.question === null) {
+    return model;
+  }
+  const kaarten = Array.isArray(model.question.cards) ? model.question.cards : [];
+  if (!kaarten.some((kaart) => kaart.cardIndex === cardIndex)) {
+    return model;
+  }
+  return Object.freeze({ ...model, selectedCardIndex: cardIndex, answerStatus: 'sending' });
+}
+
+/**
  * De ene plek die weet welke `round:answer`-payloadvorm bij welk `gameType`
  * hoort (`PROTOCOL.md` per type) — de DOM-/transportlaag hoeft dat zelf niet
  * te weten, roept alleen `selectOption`/`selectChoice`/`selectSide` aan en
@@ -139,6 +156,9 @@ export function answerPayloadFor(model) {
   }
   if (model.gameType === 'higher_lower') {
     return model.selectedSide === null ? null : { side: model.selectedSide };
+  }
+  if (model.gameType === 'odd_one_out') {
+    return model.selectedCardIndex === null ? null : { cardIndex: model.selectedCardIndex };
   }
   return model.selectedOptionId === null ? null : { optionId: model.selectedOptionId };
 }
@@ -207,6 +227,7 @@ export function applyRoundEnded(model, payload) {
       // staan hier altijd op het model, niet-toepasselijke blijven `null`.
       correctChoice: payload.correctAnswer?.choice ?? null,
       correctSide: typeof payload.correctAnswer?.side === 'number' ? payload.correctAnswer.side : null,
+      correctCardIndex: typeof payload.correctAnswer?.cardIndex === 'number' ? payload.correctAnswer.cardIndex : null,
       selfCorrect: payload.ownCorrect === true,
       selfNoAnswer,
       // Punten van déze ronde, geen lopend totaal — dat laatste bestaat
@@ -216,6 +237,9 @@ export function applyRoundEnded(model, payload) {
       // heeft gestuurd — zie PROGRESS.md §9's bugmelding).
       roundPoints: typeof payload.ownPoints === 'number' ? payload.ownPoints : null,
       distribution: payload.distribution ?? null,
+      // `resultDetails` draagt bij odd_one_out de twee continenten voor de
+      // uitlegregel (doelbeeld v2 §1). Andere gameTypes sturen 'm niet mee.
+      resultDetails: payload.resultDetails ?? null,
     },
   });
 }

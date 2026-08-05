@@ -348,6 +348,16 @@ h1, h2 {
 .home-solo-link:hover,
 .home-solo-link:focus-visible { color: var(--rounda-lime, #d8ff3e); }
 
+/* C-2: de uitlegregel onder het goede antwoord ("Drie uit Europa, één uit
+   Azië"). Bewust klein en rustig: het is een verantwoording, geen headline. */
+.reveal-card-why {
+  display: block;
+  margin-top: 6px;
+  font: 500 12px/1.4 var(--font-body, inherit);
+  color: #0a0a0c;
+  opacity: 0.72;
+}
+
 /* ── Sessieschermen: inhoud boven, primaire actie onderaan ── */
 .screen-top .lobby-start { margin-top: auto; }
 .screen-top:has(.gameplay-options) .gameplay-options { margin-top: auto; }

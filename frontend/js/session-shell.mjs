@@ -47,6 +47,7 @@ import {
   selectOption,
   selectChoice,
   selectSide,
+  selectCard,
   answerPayloadFor,
   applyAnswerAccepted,
   applyAnswerRejected,
@@ -917,15 +918,18 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     }
   }
 
-  // 14-S09-S10: `value` is de iso2 (flags_mc), 'real'/'fake'
-  // (real_or_fake_flag) of 0/1 (higher_lower) — welke van de drie hangt af
-  // van `roundModel.gameType`, dezelfde bron die `answerPayloadFor` leest.
-  // gameplay.mjs kent die vorm zelf niet, roept alleen `onAnswer(value)` aan.
+  // 14-S09-S10 + C-2: `value` is de iso2 (flags_mc), 'real'/'fake'
+  // (real_or_fake_flag), 0/1 (higher_lower) of een kaartindex (odd_one_out) —
+  // welke van de vier hangt af van `roundModel.gameType`, dezelfde bron die
+  // `answerPayloadFor` leest. gameplay.mjs kent die vorm zelf niet, roept
+  // alleen `onAnswer(value)` aan.
   async function sendAnswer(value) {
     if (roundModel.gameType === 'real_or_fake_flag') {
       roundModel = selectChoice(roundModel, value);
     } else if (roundModel.gameType === 'higher_lower') {
       roundModel = selectSide(roundModel, value);
+    } else if (roundModel.gameType === 'odd_one_out') {
+      roundModel = selectCard(roundModel, value);
     } else {
       roundModel = selectOption(roundModel, value);
     }

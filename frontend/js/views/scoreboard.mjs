@@ -27,7 +27,12 @@ export function createScoreboardView({ root, t, tCount }) {
   revealLabel.textContent = t('reveal.correctLabel');
   const revealAnswer = el('strong', 'reveal-card-answer');
   const revealCount = el('span', 'reveal-card-count');
-  revealCard.append(revealLabel, revealAnswer, revealCount);
+  // Doelbeeld v2 §1: bij "Welke hoort er niet bij" wordt de afwijklogica ná
+  // het antwoord kort getoond — anders denkt een speler terecht dat meerdere
+  // antwoorden verdedigbaar waren.
+  const revealWhy = el('span', 'reveal-card-why');
+  revealWhy.hidden = true;
+  revealCard.append(revealLabel, revealAnswer, revealCount, revealWhy);
 
   const revealSelf = document.createElement('div');
   revealSelf.className = 'reveal-self';
@@ -77,7 +82,14 @@ export function createScoreboardView({ root, t, tCount }) {
   function correctDistributionKeyFor(round) {
     const result = round.result;
     if (round.gameType === 'real_or_fake_flag') return result.correctChoice;
-    if (round.gameType === 'higher_lower') return result.correctSide;
+    // `higher_lower` en `odd_one_out` tellen per index; de verdeling gebruikt
+    // die als tekstsleutel ('0'..'3'), dus vergelijken op string.
+    if (round.gameType === 'higher_lower') {
+      return result.correctSide === null ? null : String(result.correctSide);
+    }
+    if (round.gameType === 'odd_one_out') {
+      return result.correctCardIndex === null ? null : String(result.correctCardIndex);
+    }
     return result.correctOptionId;
   }
 
@@ -90,6 +102,10 @@ export function createScoreboardView({ root, t, tCount }) {
     if (round.gameType === 'higher_lower') {
       const side = round.question?.sides?.find((s) => s.side === result.correctSide);
       return side ? countryName(side.iso2, lang) : null;
+    }
+    if (round.gameType === 'odd_one_out') {
+      const kaart = round.question?.cards?.find((c) => c.cardIndex === result.correctCardIndex);
+      return kaart ? countryName(kaart.iso2, lang) : null;
     }
     return result.correctOptionId !== null ? countryName(result.correctOptionId, lang) : null;
   }
@@ -132,6 +148,21 @@ export function createScoreboardView({ root, t, tCount }) {
       const correctCount = Array.isArray(result.distribution) && correctKey !== null
         ? (result.distribution.find((d) => d.optionId === correctKey)?.count ?? null)
         : null;
+      // De uitlegregel: alleen tonen als de server de continenten meestuurde
+      // (`resultDetails`). Niets verzinnen als ze ontbreken.
+      const details = result.resultDetails ?? null;
+      const heeftUitleg =
+        round.gameType === 'odd_one_out' &&
+        details !== null &&
+        typeof details.majorityContinent === 'string' &&
+        typeof details.minorityContinent === 'string';
+      revealWhy.hidden = !heeftUitleg;
+      revealWhy.textContent = heeftUitleg
+        ? t('game.oddOneOutWhy')
+          .replace('{majority}', t(`continent.${details.majorityContinent}`))
+          .replace('{minority}', t(`continent.${details.minorityContinent}`))
+        : '';
+
       const total = round.progress?.eligiblePlayerCount ?? null;
       if (typeof correctCount === 'number' && typeof total === 'number' && total > 0) {
         revealCount.hidden = false;
