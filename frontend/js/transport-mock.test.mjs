@@ -232,6 +232,7 @@ test('host-only socket actions reject a player-only session with NOT_HOST', asyn
     'game:pause',
     'game:resume',
     'game:next',
+    'game:reveal',
     'game:lock',
     'game:kick',
     'game:finish',

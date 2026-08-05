@@ -205,6 +205,7 @@ export const es = Object.freeze({
   'hostbar.unlock': 'Desbloquear la sala',
   'hostbar.more': 'Más opciones',
   'hostbar.next': 'Siguiente',
+  'hostbar.reveal': 'Mostrar respuesta',
   'hostbar.finish': 'Finalizar la partida',
   'hostbar.finishConfirm': '¿Seguro que quieres finalizar la partida?',
   // D3: el número de jugadores va en la pregunta — es lo que está en juego.

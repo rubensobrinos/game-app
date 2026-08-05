@@ -4,11 +4,12 @@
  * @typedef {{
  *   phase: Phase,
  *   pacing: 'auto' | 'host',
+ *   autoReveal?: boolean,
  *   playerCount: number,
  *   locked: boolean,
  * }} HostControlContext
  *
- * @typedef {'start'|'pause'|'resume'|'next'|'lock'|'unlock'|'kick'|'finish'|'rematch'} HostAction
+ * @typedef {'start'|'pause'|'resume'|'next'|'reveal'|'lock'|'unlock'|'kick'|'finish'|'rematch'} HostAction
  */
 
 const ACTIVE_PHASES = new Set(['COUNTDOWN', 'ROUND_ACTIVE', 'ROUND_RESULT', 'SCOREBOARD']);
@@ -16,6 +17,17 @@ const ACTIVE_PHASES = new Set(['COUNTDOWN', 'ROUND_ACTIVE', 'ROUND_RESULT', 'SCO
 // always timer-driven, even under host pacing. The host only acts from
 // SCOREBOARD ("Volgende"), never from ROUND_RESULT.
 const WAITING_PHASES = new Set(['SCOREBOARD']);
+
+/**
+ * Besluit C: staat "Antwoord automatisch tonen" uit, dan verhuist die ene
+ * hostactie naar ROUND_RESULT ("Toon antwoord"). Er komen er dus geen twee —
+ * 'next' vervalt dan, precies zoals de server hem dan weigert. Ontbreekt het
+ * veld (oudere snapshot, mock), dan geldt de standaard: automatisch tonen aan.
+ * @param {HostControlContext} context
+ */
+function onthultDeHostZelf(context) {
+  return context.autoReveal === false;
+}
 
 /** @param {HostControlContext} context @returns {HostAction[]} */
 export function availableHostActions(context) {
@@ -39,7 +51,10 @@ export function availableHostActions(context) {
   if (phase === 'PAUSED') {
     actions.push('resume');
   }
-  if (context.pacing === 'host' && WAITING_PHASES.has(phase)) {
+  if (onthultDeHostZelf(context) && phase === 'ROUND_RESULT') {
+    actions.push('reveal');
+  }
+  if (!onthultDeHostZelf(context) && context.pacing === 'host' && WAITING_PHASES.has(phase)) {
     actions.push('next');
   }
   actions.push(context.locked ? 'unlock' : 'lock');
@@ -81,6 +96,8 @@ export function hostActionRequest(action, context, params) {
       return { event: 'game:resume', payload: {} };
     case 'next':
       return { event: 'game:next', payload: {} };
+    case 'reveal':
+      return { event: 'game:reveal', payload: {} };
     case 'lock':
       return { event: 'game:lock', payload: { locked: true } };
     case 'unlock':

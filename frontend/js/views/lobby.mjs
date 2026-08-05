@@ -291,10 +291,20 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     pushConfig({ pacing: currentPacing === 'auto' ? 'host' : 'auto' });
   });
   autoNextRow.append(autoNextLabel, autoNextToggle);
-  const autoRevealRow = el('div', 'lobby-toggle-row is-soon');
+  // Toggle: antwoord automatisch tonen (uit = de host onthult zelf, besluit C).
+  // Stond hier tot 5 aug 2026 als BINNENKORT-rij zónder besturingselement; het
+  // veld en de hostactie bestaan nu wél (`game:reveal`), dus het is een gewone
+  // toggle geworden — zelfde vorm als "Automatisch volgende vraag" erboven.
+  const autoRevealRow = el('div', 'lobby-toggle-row');
   const autoRevealLabel = el('span', 'lobby-toggle-label');
-  const autoRevealSoon = el('span', 'lobby-toggle-soon');
-  autoRevealRow.append(autoRevealLabel, autoRevealSoon);
+  const autoRevealToggle = document.createElement('button');
+  autoRevealToggle.type = 'button';
+  autoRevealToggle.className = 'lobby-toggle';
+  autoRevealToggle.setAttribute('role', 'switch');
+  autoRevealToggle.appendChild(el('i', ''));
+  let currentAutoReveal = true;
+  autoRevealToggle.addEventListener('click', () => pushConfig({ autoReveal: !currentAutoReveal }));
+  autoRevealRow.append(autoRevealLabel, autoRevealToggle);
 
   const moreToggle = document.createElement('button');
   moreToggle.type = 'button';
@@ -622,7 +632,6 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     gamePrev.setAttribute('aria-label', t('lobby.gameTurn'));
     gameNext.setAttribute('aria-label', t('lobby.gameTurn'));
     autoRevealLabel.textContent = t('lobby.autoReveal');
-    autoRevealSoon.textContent = t('lobby.soon');
     moreToggle.textContent = t('lobby.moreSettings');
     qLangLabel.textContent = t('lobby.questionLanguage');
     bonusLabel.textContent = t('lobby.speedBonus');
@@ -859,6 +868,10 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
       autoNextToggle.classList.toggle('is-on', currentPacing === 'auto');
       autoNextToggle.setAttribute('aria-checked', String(currentPacing === 'auto'));
       autoNextToggle.setAttribute('aria-label', t('lobby.autoNext'));
+      currentAutoReveal = config.autoReveal !== false;
+      autoRevealToggle.classList.toggle('is-on', currentAutoReveal);
+      autoRevealToggle.setAttribute('aria-checked', String(currentAutoReveal));
+      autoRevealToggle.setAttribute('aria-label', t('lobby.autoReveal'));
       for (const [lang, btn] of qLangButtons) {
         btn.classList.toggle('is-active', config.language === lang);
       }
