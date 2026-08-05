@@ -150,3 +150,144 @@ prioriteert tijdelijk andere. Geen extra instelling — gewoon gedrag.
 
 Bouwvolgorde (akkoord regie-voorstel): **5 → 3 → 2 (met C erin) → carrousel/
 disabled-states**; games 2–4 en mix-machinerie daarna.
+
+---
+
+# 6. Aanvulling van de producteigenaar (5 aug 2026) — punten 7 t/m 12
+
+Letterlijk aangeleverd en hier canoniek vastgelegd, met per punt een
+regie-notitie: wat er al staat, wat het kost, en waar het botst met iets
+anders. De notities zijn geen tegenspraak — ze maken de bouwvolgorde
+beslisbaar.
+
+## 6.1 Landenselectie (punt 7)
+
+**Standaard:** alle landen, wereldwijd, geen configuratie nodig.
+**Onder Geavanceerde instellingen:** continenten aan- of uitzetten; mogelijk
+later aanvullende filters. **Geen** lange lijst waarin de host individuele
+landen selecteert.
+
+> **Regie:** de standaard is vandaag al zo — de pool is wereldwijd en
+> `difficulty` is de enige as die de landenselectie versmalt (§4.3). Er is dus
+> niets te bouwen aan de default.
+>
+> Het continentfilter is nieuw en raakt drie lagen: een veld op
+> `GameConfiguration`, een filter in `question-selection.js`, en de
+> "Meer instellingen"-sectie in de lobby.
+>
+> **Botsing om te beslissen:** "Welke hoort er niet bij" heeft **minstens twee
+> continenten** nodig — de hele opgave is drie uit continent A en één uit B.
+> Zet een host alles behalve Europa uit, dan kan die game geen vraag meer
+> bouwen. Drie uitwegen: (a) het filter alleen tonen bij games die het aankan,
+> (b) een ondergrens afdwingen ("minstens twee continenten"), of (c) de game
+> laten terugvallen op een andere afwijklogica (zie 6.5). **Voorkeur regie: (b)
+> plus (c)** — een ondergrens is uitlegbaar, en (c) maakt de game sowieso beter.
+
+## 6.2 Persoonlijke taal per speler (punt 8)
+
+Iedere speler kiest zijn eigen taal, los van de game-instellingen. Die taal
+bepaalt: knoppen, instructies, landnamen, feedback, scoreteksten én
+gegenereerde spelersnamen. Nederlanders, Spanjaarden en Engelstaligen spelen zo
+in dezelfde lobby, ieder in de eigen taal.
+
+> **Regie: dit is voor het grootste deel al zo.** De app-taal staat per client
+> in het hamburgermenu en wordt bewaard in `preferences`; knoppen, instructies,
+> feedback en scoreteksten lopen allemaal door `i18n.mjs`, en landnamen worden
+> client-side vertaald (`country-names.mjs` krijgt de app-taal mee). De
+> vragentaal (`config.language`) is bewust een gaminstelling en blijft dat —
+> §4.5 noemt die scheiding een kernkwaliteit.
+>
+> **Eén echt gat: de gegenereerde spelersnaam.** Die maakt de server nu als
+> platte tekst in de taal van de ROOM (`generateName(config.language, …)`) en
+> stuurt hem als `effectiveName` naar iedereen. Een Spanjaard ziet dus een
+> Nederlandse naam. Dat is niet met een vertaaltabel op te lossen: de naam moet
+> als **structuur** over de lijn (welk dier, welk land), zodat elke client hem
+> in de eigen taal rendert. Dat is precies wat punt 12 óók nodig heeft — zie
+> daar; het is één verbouwing, niet twee.
+
+## 6.3 Raad het land (punt 9)
+
+De speler ziet alleen de contour of kaartvorm van één land, en kiest daarna uit
+vier landnamen of typt het land zelf. **Geen wereldkaart, geen locatie prikken,
+geen extra interactie. Bewust basic.**
+
+> **Regie:** ongewijzigd t.o.v. §1 en het bouwplan. De meerkeuzevariant is de
+> eerste oplevering; "zelf typen" hangt aan de typed-answers-feature en komt
+> daarmee mee, niet eerder. Wat deze game nog vraagt staat in
+> `PLAN-CONVERGENTIE` §"Wat Raad het land nog vraagt" — de contourdata koppelen
+> aan de landenpool is daar de eerste en grootste taak.
+
+## 6.4 Echt of nep (punt 10)
+
+De speler ziet een vlag en kiest echt of nep. Geen aanvullende antwoordvorm
+nodig.
+
+> **Regie: gebouwd en live** (5 aug, verticaal bewezen). Dat "geen aanvullende
+> antwoordvorm" is nu ook expliciet: deze game slaat de Kiezen/Mix/Typen-as
+> over, wat de mix-machinerie voor deze game overbodig maakt.
+
+## 6.5 Welke hoort er niet bij? (punt 11)
+
+Meerdere vlaggen, kies de afwijkende. Mogelijke logica: andere regio, ander
+continent, ander kleurpatroon, andere vorm of symboliek, of een echte vlag
+tussen neppe (of andersom). **Na het antwoord moet kort worden uitgelegd
+waarom** één vlag afwijkt.
+
+> **Regie:** gebouwd, met vandaag één afwijklogica (continent) en de uitlegregel
+> erbij — dat laatste was een open ontwerppunt in §1 en is hiermee beslecht.
+>
+> Deze lijst is de ontbrekende helft: de andere logicavormen. Twee ervan zijn
+> goedkoop omdat het materiaal er al ligt:
+> - **echte vlag tussen neppe** (en andersom): `generateFlagSpec(seed)` levert
+>   de nepvlaggen al voor Echt of nep;
+> - **ander kleurpatroon**: de gegenereerde vlaggen dragen `pattern` en
+>   `palette`; voor échte vlaggen bestaat die metadata nog niet in de pool.
+>
+> "Andere vorm of symboliek" vraagt nieuwe contentannotatie per vlag en is
+> daarmee een orde duurder — die zou ik pas doen als de andere drie te weinig
+> variatie blijken te geven.
+
+## 6.6 Automatisch gegenereerde spelersidentiteit (punt 12)
+
+Bij binnenkomst krijgt iedere speler automatisch een grappige naam, een
+gekoppeld land, de vlag van dat land en een dier of speels woord —
+*Bulgarian Cow*, *Peruvian Penguin*, *Japanese Jaguar*. De naam wordt vertaald
+naar de persoonlijke app-taal.
+
+> **Regie:** dit is de leukste toevoeging van de zes en tegelijk de enige die
+> het protocol raakt. Vandaag krijgt een speler een adjectief+dier ("Vlugge
+> Vos") plus een kleur uit een palet van acht; land en vlag bestaan niet, en de
+> naam is een platte string in de roomtaal.
+>
+> **De verbouwing (één keer, dekt ook punt 8):** de identiteit wordt een
+> structuur op `Player` — `{ iso2, animalKey }` — en `effectiveName` blijft
+> alleen bestaan voor spelers die zélf een naam typten. Elke client rendert de
+> gegenereerde identiteit in de eigen taal, met de vlag uit `flags/`.
+>
+> **Één taalvraag die eerst beslist moet worden.** "Bulgarian Cow" is een
+> *bijvoeglijk naamwoord* van een land, en dat is nieuwe content: 230 landen ×
+> 3 talen, met in het Spaans ook nog geslachtsverbuiging (*vaca búlgara*, maar
+> *pingüino peruano*). Twee opties:
+>
+> | | A. Bijvoeglijke vorm | B. "uit"-vorm |
+> | --- | --- | --- |
+> | NL | Bulgaarse Koe | Koe uit Bulgarije |
+> | EN | Bulgarian Cow | Cow from Bulgaria |
+> | ES | Vaca búlgara | Vaca de Bulgaria |
+> | Content | 230 × 3 nieuwe woorden + verbuiging | **niets** — de landnamen staan al in de pool |
+> | Klank | precies het voorbeeld uit punt 12 | iets langer, even herkenbaar |
+>
+> **Voorstel regie: B**, met A als latere verfijning voor de dertig bekendste
+> landen. Zo staat de identiteit er in dagen in plaats van weken, en blijft de
+> vlag — het meest zichtbare deel — precies zoals bedoeld.
+
+## 6.7 Wat dit betekent voor de volgorde
+
+| # | Werk | Zwaarte | Blokkeert op |
+| --- | --- | --- | --- |
+| 1 | Extra afwijklogica voor "Welke hoort er niet bij" (echt-tussen-nep, kleurpatroon) | Klein–middel, server + uitlegregel | — |
+| 2 | Continentfilter onder Meer instellingen | Middel, config + selectie + UI | ondergrens-besluit uit 6.1 |
+| 3 | Spelersidentiteit als structuur (punt 12 + de naamhelft van punt 8) | **Groot**: Player, protocol, snapshot, client, mock | taalvraag A/B uit 6.6 |
+| 4 | Raad het land | Groot, eigen contentmigratie | — |
+
+Punt 1 kan meteen; punt 3 is de grootste maar levert twee punten tegelijk op.
