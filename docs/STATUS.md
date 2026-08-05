@@ -17,10 +17,11 @@ live (v1c28), ronde 3 loopt._
 | Speelbare games | **3 van de 4** — Raad de vlag, Echt of nep, Welke hoort er niet bij (alle drie verticaal bewezen). Raad het land (contour) resteert |
 | Git | schoon; alles gecommit en gepusht (zie onderaan) |
 | Grootste open risico | de pilot is nog niet gedraaid — alles is getest, niets is met echte mensen gespeeld |
-| Loopt nu | ronde 3: hostacties, spelinstellingen, betrouwbaarheid (`docs/agent-opdrachten/ronde-3/`) |
+| Openstaand | 7 bouwklussen, waarvan 3 groot — zie `docs/openstaand/` |
 
-De volledige analyse en volgorde staan in **`docs/PLAN-CONVERGENTIE.md`**. Dat
-document is leidend voor wat er nu gebeurt; dit bestand zegt waar we staan.
+**Wat er nog te doen is staat in `docs/openstaand/`** — alleen open werk, één
+bestand per klus. Afgerond werk gaat naar `docs/archief/` en komt niet terug in
+statusoverzichten.
 
 ## Wat er 5 aug is gerepareerd (stabilisatieronde)
 
@@ -69,22 +70,6 @@ mock-pin die de afwijking vastlegde.
    naam, zonder iso2) koppelen aan de pool, een eigen module vanwege het
    gewicht, nieuwe gameType, renderer porten. Uitgeschreven in
    PLAN-CONVERGENTIE §"Wat Raad het land nog vraagt".
-
-### Mobiele UX-ronde — af
-
-De 58 punten van de producteigenaar plus acht uit een tweede feedbackronde:
-allemaal gebouwd, gereviewd en live. Verslag in
-`docs/agent-opdrachten/ronde-2/VOORTGANG.md`.
-
-### Ronde 3 — in uitvoering
-
-| Wie | Ronde 1 | Ronde 2 | Ronde 3 |
-| --- | --- | --- | --- |
-| agent 1 | antwoord automatisch tonen | speler die weggaat | host wijzigt naam/kleur ander |
-| agent 2 | continentfilter | home scrolt 13 px | — |
-| agent 3 | Redis keten-race (~1 op 7 flaky) | contrastcontrole op 1c-kleuren | solo overleeft reload |
-
-Dat sluit de vier punten die hier eerder als "blijvend open" stonden.
 
 ### Blijvend open, ongewijzigd
 
