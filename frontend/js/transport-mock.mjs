@@ -1000,6 +1000,16 @@ function serializeRoomState(room) {
             startsAt: room.currentRound.startsAt,
             endsAt: room.currentRound.endsAt,
             answers: [...room.currentRound.answers],
+            // docs/openstaand/solo-antwoordvolgorde.md, punt 1: de enige
+            // willekeur in `buildQuestionSequence` is `shuffle()` voor de
+            // weergavevolgorde van meerkeuze-opties — bij herstel wordt de
+            // reeks opnieuw opgebouwd (zie de doc-comment hierboven) en dus
+            // ook opnieuw geschud. Alleen de volgorde van de HUIDIGE ronde
+            // opslaan (een handvol optie-ID's) volstaat om die na een
+            // herlaadbeurt hetzelfde te tonen.
+            optionOrder: Array.isArray(room.currentRound.question?.payload?.optionIso2s)
+              ? [...room.currentRound.question.payload.optionIso2s]
+              : null,
           },
     players: [...room.players],
     // `actionCache` (idempotentie voor retries binnen dezelfde paginalaad,
@@ -1037,7 +1047,7 @@ function deserializeRoomState(saved) {
   const gameType = isPlayableGameType(saved.gameType) ? saved.gameType : DEFAULT_GAME_TYPE;
   const questions = buildQuestionSequence(gameType);
   const roundIndex = typeof saved.roundIndex === 'number' ? saved.roundIndex : -1;
-  const question = questions[roundIndex];
+  const question = withSavedOptionOrder(questions[roundIndex], saved.currentRound?.optionOrder);
 
   return {
     roomId: saved.roomId,
@@ -1114,6 +1124,15 @@ function buildSnapshot(room, sessionToken, sessionArg) {
             position: player !== undefined ? (findRanked(ranked, session.playerId)?.rank ?? null) : null,
             answeredCurrentRound: player?.answeredCurrentRound ?? false,
             eligibleFromRound: player?.eligibleFromRound ?? 1,
+            // docs/openstaand/solo-antwoordvolgorde.md, punt 2 — mock-only
+            // uitbreiding op PROTOCOL.md's `self` (de echte server stuurt dit
+            // veld niet mee, `hydrateFromSnapshot` behandelt het dus overal
+            // buiten deze mock als afwezig): het gegeven antwoord van déze
+            // ronde, dezelfde ruwe waarde als `round:answer`'s payload
+            // (optionId/choice/kaartindex-als-tekst). Zonder dit weet de
+            // client na een herlaadbeurt wél dát er geantwoord is
+            // (`answeredCurrentRound`), maar niet meer waarop.
+            answeredValue: room.currentRound !== null ? (room.currentRound.answers.get(session.playerId) ?? null) : null,
           },
     currentRound:
       room.currentRound === null
@@ -1218,6 +1237,28 @@ function buildQuestionSequence(gameType = DEFAULT_GAME_TYPE) {
   }
 
   return questions;
+}
+
+/**
+ * Zet de opgeslagen weergavevolgorde terug op een net herbouwde vraag
+ * (`deserializeRoomState`, docs/openstaand/solo-antwoordvolgorde.md punt 1).
+ * Alleen toegepast als `optionOrder` letterlijk dezelfde optieset is — een
+ * andere permutatie, geen andere inhoud. Dezelfde ronde-index bouwt altijd
+ * dezelfde optieset op (`buildQuestionSequence` is deterministisch op de
+ * shuffle na), dus dat mag hier nooit falen; de check is puur verdediging
+ * tegen een corrupte of verouderde `sessionStorage`-waarde — dan liever de
+ * vers geschudde volgorde dan een vraag met een fantoomoptie.
+ */
+function withSavedOptionOrder(question, optionOrder) {
+  if (question === undefined || !Array.isArray(optionOrder) || !Array.isArray(question.payload?.optionIso2s)) {
+    return question;
+  }
+  const current = question.payload.optionIso2s;
+  const sameSet = optionOrder.length === current.length && current.every((iso2) => optionOrder.includes(iso2));
+  if (!sameSet) {
+    return question;
+  }
+  return { ...question, payload: { ...question.payload, optionIso2s: optionOrder } };
 }
 
 function shuffle(array) {

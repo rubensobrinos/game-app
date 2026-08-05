@@ -838,6 +838,64 @@ test(
   }),
 );
 
+test(
+  'restoreState toont de meerkeuze-opties in dezelfde volgorde na een herlaadbeurt (docs/openstaand/solo-antwoordvolgorde.md, punt 1)',
+  withFakeTimers(async () => {
+    const { transport, created, latestState } = await createSoloRoomInRound1();
+    const before = await transport.fetchState(created.gameCode, created.sessionToken);
+    const savedRoundState = latestState();
+    assert.ok(
+      Array.isArray(savedRoundState.currentRound.optionOrder),
+      'de weergavevolgorde van de huidige ronde moet in de opslag staan',
+    );
+
+    const restored = createMockTransport({ restoreState: savedRoundState });
+    const after = await restored.fetchState(created.gameCode, created.sessionToken);
+
+    assert.deepEqual(
+      after.currentRound.question.optionIso2s,
+      before.currentRound.question.optionIso2s,
+      'dezelfde ronde moet dezelfde weergavevolgorde tonen, vóór en ná een herlaadbeurt',
+    );
+  }),
+);
+
+test(
+  'restoreState herstelt ook het eigen gegeven antwoord (docs/openstaand/solo-antwoordvolgorde.md, punt 2)',
+  withFakeTimers(async () => {
+    const { transport, created, hostConn, latestState } = await createSoloRoomInRound1();
+    const before = await transport.fetchState(created.gameCode, created.sessionToken);
+    assert.equal(before.self.answeredValue, null, 'nog niet geantwoord: nog geen waarde');
+    const chosen = before.currentRound.question.optionIso2s[1];
+
+    await hostConn.send('round:answer', 'act_answer', {
+      roundId: before.currentRound.roundId,
+      answer: { optionId: chosen },
+    });
+
+    const restored = createMockTransport({ restoreState: latestState() });
+    const after = await restored.fetchState(created.gameCode, created.sessionToken);
+
+    assert.equal(after.self.answeredCurrentRound, true);
+    assert.equal(
+      after.self.answeredValue,
+      chosen,
+      'de snapshot moet na een herlaadbeurt nog weten wélke optie er gekozen was',
+    );
+  }),
+);
+
+test(
+  'restoreState vóór enig antwoord: answeredValue is null, niet undefined of een oude waarde',
+  withFakeTimers(async () => {
+    const { created, latestState } = await createSoloRoomInRound1();
+    const restored = createMockTransport({ restoreState: latestState() });
+    const after = await restored.fetchState(created.gameCode, created.sessionToken);
+    assert.equal(after.self.answeredCurrentRound, false);
+    assert.equal(after.self.answeredValue, null);
+  }),
+);
+
 test('restoreState met een andere contentVersion dan de huidige wordt geweigerd, niet stilzwijgend geaccepteerd', () => {
   assert.throws(() =>
     createMockTransport({

@@ -138,6 +138,47 @@ test('hydrateFromSnapshot: answeredCurrentRound=true vergrendelt zonder een geko
   assert.equal(optionsLocked(model), true);
 });
 
+// docs/openstaand/solo-antwoordvolgorde.md, punt 2: alleen transport-mock.mjs
+// kent een derde argument (`self.answeredValue`, mock-only — PROTOCOL.md's
+// echte server stuurt dit niet mee). De bestaande test hierboven bewijst dat
+// het tweede argument alléén onveranderd blijft werken; deze bewijzen wat er
+// verandert zodra er wél een waarde binnenkomt.
+test('hydrateFromSnapshot: een derde argument markeert wél de gekozen optie', () => {
+  const model = hydrateFromSnapshot(STARTED, true, 'DE');
+  assert.equal(model.answerStatus, 'accepted');
+  assert.equal(model.selectedOptionId, 'DE');
+  assert.equal(optionsLocked(model), true);
+});
+
+test('hydrateFromSnapshot: een gegeven waarde die niet bij déze vraag hoort, wordt genegeerd', () => {
+  const model = hydrateFromSnapshot(STARTED, true, 'XX');
+  assert.equal(model.selectedOptionId, null);
+});
+
+test('hydrateFromSnapshot: geen gegeven waarde zonder bevestigd antwoord blijft idle, ook met een derde argument', () => {
+  const model = hydrateFromSnapshot(STARTED, false, 'DE');
+  assert.equal(model.answerStatus, 'idle');
+  assert.equal(model.selectedOptionId, null);
+});
+
+test('hydrateFromSnapshot: de gegeven waarde landt op het veld van het juiste gameType', () => {
+  const oddOneOut = hydrateFromSnapshot(
+    {
+      roundId: 'round_04',
+      gameType: 'odd_one_out',
+      question: { cards: [{ cardIndex: 0, iso2: 'FR' }, { cardIndex: 1, iso2: 'DE' }] },
+    },
+    true,
+    '1',
+  );
+  assert.equal(oddOneOut.selectedCardIndex, 1);
+  assert.equal(oddOneOut.selectedOptionId, null);
+
+  const realOrFake = hydrateFromSnapshot({ roundId: 'round_05', gameType: 'real_or_fake_flag' }, true, 'fake');
+  assert.equal(realOrFake.selectedChoice, 'fake');
+  assert.equal(realOrFake.selectedOptionId, null);
+});
+
 test('hydrateFromSnapshot ná reconnect: round:ended toont dan terecht geen GEEN ANTWOORD', () => {
   const rehydrated = hydrateFromSnapshot(STARTED, true);
   const ended = applyRoundEnded(rehydrated, {

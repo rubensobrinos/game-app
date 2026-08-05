@@ -76,19 +76,49 @@ export function applyRoundStarted(payload) {
  * (`PROTOCOL.md`, `self.answeredCurrentRound`) — dit bestand verzint niets,
  * het leest alleen wat de server al meegeeft en nu nog genegeerd werd.
  *
+ * `givenAnswer` is de ENIGE uitzondering op "nooit zelf een selectie
+ * verzinnen": PROTOCOL.md's echte server stuurt 'm niet mee (`self` kent
+ * geen zo'n veld) en dan blijft dit precies het oude gedrag — vergrendeld,
+ * geen gemarkeerde optie. `transport-mock.mjs` stuurt 'm wél mee
+ * (`self.answeredValue`, mock-only) zodat solo na een herlaadbeurt kan tonen
+ * wát je koos (docs/openstaand/solo-antwoordvolgorde.md, punt 2), niet alleen
+ * dát je iets koos. Dezelfde ruwe vorm als `round:answer`'s payload:
+ * optionId-string (flags_mc), 'real'|'fake' (real_or_fake_flag) of een
+ * kaartindex als tekst (odd_one_out) — nooit verzonnen, alleen doorgegeven,
+ * en alleen aangenomen als de waarde ook echt bij deze vraag hoort.
+ *
  * @param {object} currentRoundPayload snapshot's `currentRound` (`{}` als er geen actieve ronde is)
  * @param {boolean} answeredCurrentRound snapshot's `self.answeredCurrentRound`
+ * @param {string | null} [givenAnswer] snapshot's `self.answeredValue`, indien de transport dat kent
  */
-export function hydrateFromSnapshot(currentRoundPayload, answeredCurrentRound) {
+export function hydrateFromSnapshot(currentRoundPayload, answeredCurrentRound, givenAnswer = null) {
   if (currentRoundPayload === null || typeof currentRoundPayload !== 'object' || currentRoundPayload.roundId == null) {
     return initialRoundModel();
   }
   const started = applyRoundStarted(currentRoundPayload);
-  // Alleen de bevestiging overnemen, nooit zelf een `selectedOptionId`
-  // verzinnen — welke optie het was, weet deze client na een reload niet
-  // meer, en hoeft ook niet: vergrendeling en het "geen antwoord"-onderscheid
-  // hebben genoeg aan de statuswaarde zelf.
-  return answeredCurrentRound === true ? Object.freeze({ ...started, answerStatus: 'accepted' }) : started;
+  if (answeredCurrentRound !== true) {
+    return started;
+  }
+  const accepted = { ...started, answerStatus: 'accepted' };
+  return Object.freeze(typeof givenAnswer === 'string' ? withGivenAnswer(accepted, givenAnswer) : accepted);
+}
+
+/** Zet `givenAnswer` op het veld dat bij `model.gameType` hoort — zie `hydrateFromSnapshot`. */
+function withGivenAnswer(model, givenAnswer) {
+  if (model.gameType === 'real_or_fake_flag') {
+    return givenAnswer === 'real' || givenAnswer === 'fake' ? { ...model, selectedChoice: givenAnswer } : model;
+  }
+  if (model.gameType === 'odd_one_out') {
+    const kaarten = Array.isArray(model.question?.cards) ? model.question.cards : [];
+    const cardIndex = Number(givenAnswer);
+    return kaarten.some((kaart) => kaart.cardIndex === cardIndex) ? { ...model, selectedCardIndex: cardIndex } : model;
+  }
+  if (model.gameType === 'higher_lower') {
+    const side = Number(givenAnswer);
+    return side === 0 || side === 1 ? { ...model, selectedSide: side } : model;
+  }
+  const opties = Array.isArray(model.question?.optionIso2s) ? model.question.optionIso2s : [];
+  return opties.includes(givenAnswer) ? { ...model, selectedOptionId: givenAnswer } : model;
 }
 
 /**

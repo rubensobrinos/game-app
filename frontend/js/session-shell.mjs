@@ -771,7 +771,16 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     // terwijl er allang een ronde liep, en was `answerStatus` na een
     // reconnect altijd `'idle'` ook als de server al een antwoord had
     // geaccepteerd (reviewfeedback T4-3).
-    roundModel = hydrateFromSnapshot(payload?.currentRound, payload?.self?.answeredCurrentRound === true);
+    // `self.answeredValue` bestaat niet in PROTOCOL.md (de echte server kent
+    // het niet) — alleen transport-mock.mjs stuurt het mee, voor solo na een
+    // herlaadbeurt (docs/openstaand/solo-antwoordvolgorde.md, punt 2). Een
+    // reconnect tegen de echte server geeft hier gewoon `undefined` -> `null`,
+    // hydrateFromSnapshot's ongewijzigde oude gedrag.
+    roundModel = hydrateFromSnapshot(
+      payload?.currentRound,
+      payload?.self?.answeredCurrentRound === true,
+      typeof payload?.self?.answeredValue === 'string' ? payload.self.answeredValue : null,
+    );
     // Zelfde reden als hierboven: `room:state` draagt `scoreboard: { top,
     // self }` (PROTOCOL.md), maar dat werd tot nu toe genegeerd — een reload
     // tijdens SCOREBOARD/FINISHED liet de tussenstand/eindstand dus leeg
