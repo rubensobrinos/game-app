@@ -13,7 +13,7 @@
 // reveal-model.mjs's toelichting), dit scherm wél (`rankMovementFrom()`,
 // S15, al gedeeld met deze headline via dezelfde `movement`-Map).
 
-import { socialHeadlineFor } from './social-headline.mjs';
+import { socialHeadlineFor, pickHeadlineVariantKey } from './social-headline.mjs';
 import { countryName, flagAssetPath } from './country-names.mjs';
 import { renderFlagSpec } from './flag-renderer.mjs';
 
@@ -301,6 +301,27 @@ export function createScoreboardView({ root, t, tCount }) {
     return huidigeFase === 'ROUND_RESULT' ? positief(result, 5) + beatTwee : beatTwee;
   }
 
+  // Besluit 44: negen varianten per situatie. De keuze valt ÉÉN keer per ronde
+  // per situatie — `update()` draait bij elke statuswijziging, en opnieuw
+  // kiezen zou de zin onder je ogen laten verspringen. `vorigeSleutel` draagt
+  // over rondes heen zodat dezelfde variant nooit twee keer achter elkaar komt.
+  let variantKeuze = { roundId: null, type: null, key: null };
+  let vorigeSleutel = null;
+
+  /**
+   * @param {string} type situatie uit social-headline.mjs
+   * @param {string|null} roundId
+   * @returns {string} volledige sleutel, bv. `headline.comeback.3`
+   */
+  function variantSleutel(type, roundId) {
+    if (variantKeuze.roundId !== roundId || variantKeuze.type !== type) {
+      const key = pickHeadlineVariantKey(type, vorigeSleutel, Math.random);
+      variantKeuze = { roundId, type, key };
+      vorigeSleutel = key;
+    }
+    return variantKeuze.key;
+  }
+
   function update(standings, { movement = new Map(), participants = new Map(), round = null, lang = 'nl', pacing = null, phase = null, scoreboardSeconds = null, resultSeconds = null, streak = 0 } = {}) {
     // ── Scherm 5, beat 1: reveal ──
     const result = round?.result ?? null;
@@ -392,7 +413,9 @@ export function createScoreboardView({ root, t, tCount }) {
     // 3, dus dit pad toont nooit "1".
     const toonStreak = result !== null && streak >= STREAK_REACTIE_DREMPEL;
     revealStreak.hidden = !toonStreak;
-    revealStreak.textContent = toonStreak ? t('headline.streak').replace('{n}', String(streak)) : '';
+    revealStreak.textContent = toonStreak
+      ? t(variantSleutel('streak', round?.roundId ?? null)).replace('{n}', String(streak))
+      : '';
 
     // M9/E11: FLIP — meet waar bestaande rijen NU staan (op `playerId`,
     // vóór de herbouw), zodat we ze ná de herbouw naar hun oude plek terug
@@ -503,7 +526,7 @@ export function createScoreboardView({ root, t, tCount }) {
     });
     if (found !== null) {
       headline.hidden = false;
-      headline.textContent = textForHeadline(found, lang);
+      headline.textContent = textForHeadline(found, lang, round?.roundId ?? null);
     } else {
       headline.hidden = true;
       headline.textContent = '';
@@ -537,23 +560,15 @@ export function createScoreboardView({ root, t, tCount }) {
 
   // Zelfde sleutel-mapping als gameplay.mjs's textForHeadline — de
   // distribution-headlines zijn met besluit 40 meeverhuisd naar dit scherm.
-  function textForHeadline(found, lang) {
-    if (found.type === 'self-sole-correct') {
-      return t('headline.selfSoleCorrect');
-    }
-    if (found.type === 'everyone-correct') {
-      return t('headline.everyoneCorrect');
-    }
-    if (found.type === 'everyone-wrong') {
-      return t('headline.everyoneWrong');
-    }
+  function textForHeadline(found, lang, roundId) {
+    const zin = t(variantSleutel(found.type, roundId));
     if (found.type === 'misleading-answer') {
-      return t('headline.misleadingAnswer').replace('{country}', countryName(found.optionId, lang));
+      return zin.replace('{country}', countryName(found.optionId, lang));
     }
     if (found.type === 'comeback') {
-      return t('headline.comeback').replace('{naam}', found.name).replace('{n}', String(found.diff));
+      return zin.replace('{naam}', found.name).replace('{n}', String(found.diff));
     }
-    return '';
+    return zin;
   }
 
   return { update };

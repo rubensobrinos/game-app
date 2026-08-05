@@ -458,7 +458,10 @@ test('streak: vanaf drie op een rij verschijnt de reactie, daaronder niet', asyn
   const root = await metStreak(3, rondeFlagsMc({ self: 'correct' }), 'st3');
   const regel = vind(root, 'reveal-streak');
   assert.equal(regel.hidden, false);
-  assert.equal(regel.textContent, 'headline.streak');
+  // Besluit 44: negen varianten per situatie, dus de sleutel eindigt op een
+  // index. Welke variant het wordt is willekeurig; dát het er één uit de
+  // streakfamilie is, is de eis.
+  assert.match(regel.textContent, /^headline\.streak\.[0-8]$/);
 });
 
 test('streak: een onderbroken reeks toont niets — dit is een beloning, geen mededeling', async () => {
