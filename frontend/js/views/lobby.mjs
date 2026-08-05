@@ -206,8 +206,14 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   // ANTWOORDEN: Kiezen actief; Mix/Typen disabled (40D)
   const answersLabel = settingsLabel('lobby-settings-answers-label');
   const answersGroup = segGroup();
-  const answersChoose = segButton(answersGroup);
+  // Punt 25 (5 aug): "Kiezen" was een klasse zonder handler — je kon erop
+  // tikken en er gebeurde niets, wat het hele rijtje dood liet voelen. Er is
+  // vandaag maar één antwoordvorm, dus de klik bevestigt alleen; zodra Mix en
+  // Typen bestaan (besluit 40D) hangt hier dezelfde `pushConfig` als bij de
+  // andere instellingen.
+  const answersChoose = segButton(answersGroup, { onPick: () => bevestigAntwoordvorm() });
   answersChoose.classList.add('is-active');
+  answersChoose.setAttribute('aria-pressed', 'true');
   const answersMix = segButton(answersGroup, { disabled: true });
   const answersType = segButton(answersGroup, { disabled: true });
 
@@ -578,10 +584,11 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
     lateLabel.textContent = t('lobby.lateJoin');
     answersLabel.textContent = t('lobby.answers');
     answersChoose.textContent = t('lobby.answersChoose');
-    answersMix.textContent = t('lobby.answersMix');
-    answersMix.title = t('lobby.soon');
-    answersType.textContent = t('lobby.answersType');
-    answersType.title = t('lobby.soon');
+    // Een `title` is op een telefoon onzichtbaar: de speler zag drie dode
+    // knoppen zonder reden. Het label staat nu ín de knop, zoals bij
+    // "Antwoord automatisch tonen".
+    zetSoonLabel(answersMix, t('lobby.answersMix'), t('lobby.soon'));
+    zetSoonLabel(answersType, t('lobby.answersType'), t('lobby.soon'));
     levelLabel.textContent = t('lobby.level');
     for (const [difficulty, btn] of levelButtons) {
       btn.textContent = t(`lobby.level_${btn.dataset.levelKey}`);
@@ -817,6 +824,27 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
       lateToggle.setAttribute('aria-checked', String(currentLate));
       lateToggle.setAttribute('aria-label', t('lobby.lateJoin'));
     }
+  }
+
+  /**
+   * Punt 25: de enige antwoordvorm die vandaag bestaat is "Kiezen", dus er is
+   * niets te wisselen. Wat er wél moet gebeuren is bevestigen dat de tik is
+   * aangekomen — anders voelt de knop kapot.
+   */
+  function bevestigAntwoordvorm() {
+    answersChoose.classList.remove('is-tik');
+    void answersChoose.offsetWidth;
+    answersChoose.classList.add('is-tik');
+  }
+
+  /** Knoplabel + een klein, zichtbaar BINNENKORT eronder. */
+  function zetSoonLabel(knop, label, soon) {
+    knop.textContent = '';
+    const tekst = document.createElement('span');
+    tekst.textContent = label;
+    const badge = el('span', 'lobby-seg-soon');
+    badge.textContent = soon;
+    knop.append(tekst, badge);
   }
 
   return {

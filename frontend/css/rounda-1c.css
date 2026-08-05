@@ -1379,3 +1379,18 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 html:has(.lobby-screen) {
   scroll-padding-bottom: calc(85px + var(--chrome-gap, 16px));
 }
+
+/* Punt 25 (lead): Mix en Typen blijven uitgeschakeld (besluit 40D), maar de
+   reden stond in een `title` — op een telefoon bestaat die niet. Nu een klein
+   label ín de knop, zoals bij "Antwoord automatisch tonen". De tikbevestiging
+   op "Kiezen" is er omdat die knop anders dood aanvoelt: er valt vandaag maar
+   één vorm te kiezen, dus er verandert zichtbaar niets. */
+.lobby-seg-option { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.lobby-seg-soon {
+  font: 700 8px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.lobby-seg-option.is-tik { animation: lobby-seg-tik var(--motion-quick, 140ms) ease-out; }
+@keyframes lobby-seg-tik { from { transform: scale(0.96); } to { transform: scale(1); } }
