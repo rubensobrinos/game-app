@@ -36,6 +36,41 @@
 //     zelf, niet op de volgorde van verzending).
 //   - Datum van deze audit/activatie: 2026-08-02 (DT-R1-heraudit-integratie,
 //     derde heraudit).
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// WAAROM GEEN FLUSH-ACK ALS BARRIÈRE (ronde 3, de flaky Redis-race)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Deze test wachtte op de ack van een daarna verstuurd `share:opened` en nam
+// aan dat daarmee álles binnen was wat de server eerder naar deze socket had
+// geschreven. Die aanname klopt niet, en onder Redis viel hij ~1 op de 10 om
+// (matrixrij 13 in STATUS.md, "keten-race onder Redis"):
+//
+//   1. `socket.mjs` stuurt eerst de ack van `round:answer` en draait pas dáárna
+//      de `after`-hook, die `maybeEmitRoundProgress()` doet — bewust, zodat een
+//      client zijn eigen ack nooit ná de bijbehorende broadcast ziet.
+//   2. Die hook wacht op `listPlayers()`. In het geheugen is dat een al
+//      opgeloste promise, tegen Redis een echte roundtrip.
+//   3. `share:opened` raakt de store niet en wordt dus meteen beantwoord. De
+//      ack en de nog lopende broadcast zijn geen keten maar een fotofinish.
+//
+// Gemeten (20 runs tegen `redis://127.0.0.1:6380`, direct na de ack van het
+// hostantwoord): de flush-ack kwam gemiddeld 0,3 ms later terug, de broadcast
+// gemiddeld 0,3 ms — in 19 runs kwam de broadcast er nog vóór of in hetzelfde
+// frame, in 1 run duurde de Redis-roundtrip 1,5 ms en won de flush-ack. Het
+// gedrag van de server is dus goed (er zijn altijd precies drie broadcasts, en
+// nooit één vóór zijn eigen ack); de barrière van de test deugde niet.
+//
+// Daarom wacht deze test nu op de broadcasts zélf (`waitForCount`). Dat een
+// venster er niet méér dan twee doorlaat, blijft exact getoetst: frames naar
+// dezelfde room komen geordend over dezelfde verbinding binnen, dus een
+// overtollige broadcast uit venster 1 is er al vóór die van venster 2 — de
+// totaalcontrole (`=== 3`) vangt hem.
+//
+// Wat hierbij OPGEMERKT is en NIET hier gerepareerd (server/transport is deze
+// ronde van een andere agent): de server serialiseert events per socket niet.
+// De ack van een later event kan de broadcast van een eerder event inhalen.
+// Voor de client is dat zichtbaar als "ack van B vóór broadcast van A".
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -96,15 +131,13 @@ test('Matrixrij 13: round:progress wordt bij een reeks antwoorden hoogstens twee
     assert.equal(ack.ok, true, `antwoord ${index} moet geaccepteerd worden: ${JSON.stringify(ack)}`);
   }
 
-  // Deterministische barrière: één rondgang over de socket die we tellen.
-  const flushAck1 = await hostSocket.emitWithAck('share:opened', { actionId: 'act_flush_1', payload: { method: 'link' } });
-  assert.equal(flushAck1.ok, true);
-
-  assert.equal(
-    hostSocket.eventsNamed('round:progress').length,
-    2,
-    'vier antwoorden binnen één seconde geven precies twee daadwerkelijk ontvangen broadcasts, niet vier',
-  );
+  // Oorzakelijke barrière: wachten op de broadcasts zélf. NIET op de ack van
+  // een volgend event — zie de kopnotitie "waarom geen flush-ack als barrière".
+  // Dat er niet MEER dan twee komen, bewijst de totaalcontrole na het
+  // rollende venster hieronder: broadcasts naar dezelfde room komen in volgorde
+  // over dezelfde verbinding aan, dus een derde broadcast uit dit venster zou
+  // vóór die van het volgende venster zijn binnengekomen.
+  await hostSocket.waitForCount('round:progress', 2);
 
   // Alle vier de antwoorden zijn wél verwerkt: throttling raakt alleen de
   // broadcast, nooit de acceptatie van het antwoord zelf.
@@ -132,11 +165,15 @@ test('Matrixrij 13: round:progress wordt bij een reeks antwoorden hoogstens twee
   });
   assert.equal(hostAnswerAck.ok, true, JSON.stringify(hostAnswerAck));
 
-  const flushAck2 = await hostSocket.emitWithAck('share:opened', { actionId: 'act_flush_2', payload: { method: 'link' } });
-  assert.equal(flushAck2.ok, true);
+  await hostSocket.waitForCount('round:progress', 3);
 
   const progressEvents = hostSocket.eventsNamed('round:progress');
-  assert.equal(progressEvents.length, 3, 'ná het rollende venster mag er weer één broadcast bij (2 + 1)');
+  assert.equal(
+    progressEvents.length,
+    3,
+    'ná het rollende venster mag er weer één broadcast bij (2 + 1) — en geen enkele meer: '
+      + 'vier antwoorden in het eerste venster geven er precies twee, niet vier',
+  );
 
   // ── Geen enkel venster van 1 seconde bevat meer dan twee broadcasts ──────
   // Gemeten op de `serverTime` van de daadwerkelijk ontvangen envelopes, niet

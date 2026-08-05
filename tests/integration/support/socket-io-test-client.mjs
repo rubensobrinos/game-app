@@ -45,6 +45,7 @@ const DEFAULT_WAIT_MS = 4000;
  *   emit(event: string, body: object): void,
  *   emitWithAck(event: string, body: object): Promise<object>,
  *   waitFor(event: string, predicate?: (envelope: object) => boolean, timeoutMs?: number): Promise<object>,
+ *   waitForCount(event: string, count: number, timeoutMs?: number): Promise<number>,
  *   eventsNamed(event: string): Array<{ event: string, envelope: object }>,
  *   close(): void,
  * }>}
@@ -93,6 +94,33 @@ export function createTestClient(port, auth, { host = '127.0.0.1', path = '/sock
             clearTimeout(timer);
             watchers.delete(watcher);
             resolveEvent(entry.envelope);
+          };
+          watchers.add(watcher);
+        });
+      },
+      /**
+       * Wacht tot er MINSTENS `count` events met deze naam binnen zijn (of al
+       * binnen waren). Dit is de enige oorzakelijke barrière die een client
+       * heeft voor een broadcast: de ack van een VOLGEND event is er géén,
+       * want de server stuurt zijn ack vóór de `after`-hook die de broadcast
+       * doet, en die hook kan nog op de store staan te wachten. Zie de
+       * kopnotitie van `matrix-row-13-...test.mjs`.
+       */
+      waitForCount(event, count, timeoutMs = DEFAULT_WAIT_MS) {
+        const tally = () => received.filter((entry) => entry.event === event).length;
+        if (tally() >= count) {
+          return Promise.resolve(tally());
+        }
+        return new Promise((resolveCount, rejectCount) => {
+          const timer = setTimeout(() => {
+            watchers.delete(watcher);
+            rejectCount(new Error(`timeout wachtend op ${count}x "${event}" (nu ${tally()})`));
+          }, timeoutMs);
+          const watcher = () => {
+            if (tally() < count) return;
+            clearTimeout(timer);
+            watchers.delete(watcher);
+            resolveCount(tally());
           };
           watchers.add(watcher);
         });
