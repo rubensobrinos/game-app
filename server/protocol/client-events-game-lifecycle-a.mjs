@@ -1,6 +1,7 @@
 /**
  * @file PR4a — `client-events`-module, sub-batch a: payload- en
- *   rolvalidatie voor `game:start`, `game:pause`, `game:resume`, `game:next`.
+ *   rolvalidatie voor `game:start`, `game:pause`, `game:resume`, `game:next`
+ *   en `game:reveal`.
  * @see docs/multiplayer/PROTOCOL.md — §Client → server events, Basisregel 3.
  * @see docs/protocol-plan/prompts/PR4-client-events.md — sub-batch PR4a.
  *
@@ -89,6 +90,23 @@ export function validateGameResumePayload(payload) {
  * @returns {ValidationResult}
  */
 export function validateGameNextPayload(payload) {
+  if (!isPlainObject(payload)) return { ok: false, code: null };
+  if (Object.keys(payload).length !== 0) return { ok: false, code: null };
+  return { ok: true };
+}
+
+/**
+ * Valideert de payload van `game:reveal` (fase 4, autoReveal). Verwacht exact
+ * een leeg object — welke ronde het betreft weet de server zelf.
+ *
+ * Of `autoReveal` daadwerkelijk uit staat, de ronde nog actief is en de
+ * deadline al voorbij is, is roomstate en dus 'Niet in scope' voor deze
+ * structuurvalidator (zie de bestandskop); `socket.mjs` bewaakt dat vóór het
+ * de bestaande `endRound()`-compositie aanroept.
+ * @param {unknown} payload
+ * @returns {ValidationResult}
+ */
+export function validateGameRevealPayload(payload) {
   if (!isPlainObject(payload)) return { ok: false, code: null };
   if (Object.keys(payload).length !== 0) return { ok: false, code: null };
   return { ok: true };

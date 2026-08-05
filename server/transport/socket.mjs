@@ -641,17 +641,31 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
     // compositielaag levert ze al als allowlist (besluit 20: geen correct
     // antwoord in `round:started`).
     await publish('round:started', { roomId, payload: { ...result.value } });
+
+    // Fase 4 (autoReveal, docs/openstaand/antwoord-automatisch-tonen.md): staat
+    // "Antwoord automatisch tonen" uit, dan wordt `runEndRound` NIET getimed
+    // ingepland. De ronde houdt gewoon zijn `endsAt` — spelers zien hun timer
+    // aftellen en `submitAnswer` sluit vanzelf op de deadline (dat gaat via
+    // dezelfde deadline+grace-toets als altijd, hier niets aan gewijzigd) —
+    // maar het juiste antwoord verlaat de server pas bij `game:reveal`. Geen
+    // aparte fase, geen weggelaten `phaseEndsAt`: gewoon een timer die er nooit
+    // komt totdat de host 'm zelf triggert.
+    const room = await context.store.loadRoom(roomId);
+    if (room !== null && room.config.autoReveal === false) {
+      return;
+    }
     scheduleAt(roomId, result.value.endsAt, () => runEndRound(roomId));
   }
 
-  /** ROUND_ACTIVE → ROUND_RESULT, met `round:ended` inclusief persoonlijke velden. */
-  async function runEndRound(roomId) {
-    const result = await endRound(context, { roomId });
-    if (!result.ok) {
-      logPhaseRejected('endRound geweigerd', roomId, result, 'timer');
-      return;
-    }
-    const value = result.value;
+  /**
+   * Zendt `round:ended` uit en plant de volgende fase — het deel van
+   * `endRound()`'s afhandeling dat ná een geslaagde compositie-aanroep
+   * gebeurt, ongeacht WANNEER die aanroep kwam (timer, of `game:reveal`).
+   * Losgetrokken van `runEndRound` zodat `game:reveal` (die zelf ackt) de
+   * compositie-aanroep vóór de ack kan doen en dit deel — net als elke andere
+   * hostactie — pas ná de ack via `after` kan laten lopen.
+   */
+  async function announceRoundEnded(roomId, value) {
     const personal = new Map(
       value.results.map((entry) => [entry.playerId, {
         ownPoints: entry.points,
@@ -678,6 +692,16 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
     const runtime = runtimeFor(roomId);
     runtime.round = null;
     await onPhaseEntered(roomId, value.phase, value.phaseEndsAt);
+  }
+
+  /** ROUND_ACTIVE → ROUND_RESULT, met `round:ended` inclusief persoonlijke velden. */
+  async function runEndRound(roomId) {
+    const result = await endRound(context, { roomId });
+    if (!result.ok) {
+      logPhaseRejected('endRound geweigerd', roomId, result, 'timer');
+      return;
+    }
+    await announceRoundEnded(roomId, result.value);
   }
 
   /** Elke timergedreven overgang die geen ronde opent of sluit. */
@@ -1057,6 +1081,40 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
           ok: true,
           value: { phase: value.phase },
           after: () => onPhaseEntered(roomId, value.phase, value.phaseEndsAt),
+        };
+      }
+
+      case 'game:reveal': {
+        // Fase 4 (autoReveal). GEEN fase-overgang zoals `game:next` — dit is
+        // dezelfde `endRound()`-aanroep die de timer anders had gedaan, alleen
+        // op het moment dat de host kiest i.p.v. op de deadline. Precies
+        // daarom géén `advancePhase`/state-machine-event: er wordt geen fase
+        // overgeslagen, er wordt een ronde later afgesloten (zie het
+        // opdrachtdocument — dát was de fout van de vorige poging).
+        //
+        // Twee poorten die `endRound()` zelf niet bewaakt (die kent geen
+        // transportintentie): autoReveal moet uit staan, en de deadline moet
+        // al voorbij zijn — een host die te vroeg tikt, onthult niet vervroegd.
+        const room = await context.store.loadRoom(roomId);
+        if (room === null) return { ok: false, code: 'GAME_NOT_FOUND' };
+        if (room.config.autoReveal !== false) return { ok: false, code: 'INVALID_PHASE' };
+        if (room.currentMatchId === null) return { ok: false, code: 'INVALID_PHASE' };
+        const match = await context.store.loadMatch(roomId, room.currentMatchId);
+        if (match === null || match.phase !== PHASE.ROUND_ACTIVE || match.roundIds.length === 0) {
+          return { ok: false, code: 'INVALID_PHASE' };
+        }
+        const activeRoundId = match.roundIds[match.roundIds.length - 1];
+        const round = await context.store.loadRound(roomId, match.id, activeRoundId);
+        if (round === null || context.now() < round.endsAt) {
+          return { ok: false, code: 'INVALID_PHASE' };
+        }
+
+        const result = await endRound(context, { roomId });
+        if (!result.ok) return result;
+        return {
+          ok: true,
+          value: {},
+          after: () => announceRoundEnded(roomId, result.value),
         };
       }
 

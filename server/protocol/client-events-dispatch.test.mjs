@@ -110,19 +110,19 @@ test('validateShareOpenedPayload: method "qrcode" (onbekende vijfde waarde) -> a
 
 // Rij 23 — resolveEventValidator("game:start") ... ("share:opened"): elk van
 // de 12 levert { ok: true, entry }.
-test('ALL_CLIENT_EVENT_NAMES bevat exact de 14 gedocumenteerde eventnamen', () => {
+test('ALL_CLIENT_EVENT_NAMES bevat exact de 15 gedocumenteerde eventnamen', () => {
   // 14 sinds besluit 40 + feedbackronde 4 aug: +player:recolor,
-  // +game:update-config.
+  // +game:update-config. 15 sinds fase 4/besluit C, 5 aug: +game:reveal.
   assert.deepEqual(
     [...ALL_CLIENT_EVENT_NAMES].sort(),
     [
       'game:finish', 'game:kick', 'game:lock', 'game:next', 'game:pause',
-      'game:rematch', 'game:resume', 'game:start', 'game:update-config',
+      'game:rematch', 'game:resume', 'game:reveal', 'game:start', 'game:update-config',
       'player:leave', 'player:recolor', 'player:rename', 'round:answer',
       'share:opened',
     ].sort(),
   );
-  assert.equal(ALL_CLIENT_EVENT_NAMES.length, 14);
+  assert.equal(ALL_CLIENT_EVENT_NAMES.length, 15);
 });
 
 for (const eventName of ALL_CLIENT_EVENT_NAMES) {
@@ -148,6 +148,18 @@ test('resolveEventValidator: lege string en willekeurige andere onbekende namen 
     assert.doesNotThrow(() => resolveEventValidator(unknownName));
     assert.deepEqual(resolveEventValidator(unknownName), { ok: false, code: 'UNSUPPORTED_EVENT' });
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fase 4 (autoReveal) — `autoReveal` in game:update-config.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('game:update-config: { autoReveal: false } -> ok', () => {
+  assert.deepEqual(validateGameUpdateConfigPayload({ autoReveal: false }), { ok: true });
+});
+
+test('game:update-config: { autoReveal: "false" } (string) -> afgewezen', () => {
+  assert.deepEqual(validateGameUpdateConfigPayload({ autoReveal: 'false' }), { ok: false, code: null });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

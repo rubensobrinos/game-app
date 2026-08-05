@@ -899,6 +899,91 @@ test('een verloren fase-race wordt gelogd als phase_race_lost, niet als een gene
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Fase 4 (autoReveal, docs/openstaand/antwoord-automatisch-tonen.md).
+//
+// De vorige poging (teruggedraaid, merge b55a44e) verplaatste de hostactie
+// naar "doorgaan vanaf de uitslag" i.p.v. "toon het antwoord": de suite was
+// groen, alleen een browser liet zien dat `correctAnswer` allang was
+// uitgelekt. Deze tests bewaken daarom expliciet WANNEER `round:ended` (dat
+// het antwoord draagt, besluit 20) verstuurd wordt — niet alleen dát het
+// uiteindelijk gebeurt.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('autoReveal false: de ronde sluit niet vanzelf op de deadline — round:ended blijft uit tot game:reveal', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness, { roomConfig: { autoReveal: false } });
+  const host = await harness.connect(authFor(room));
+
+  const started = await startFirstRound(harness, host);
+  assert.ok(started.payload.roundId);
+
+  // De deadline verstrijkt — geen timer plant `runEndRound` in (dat is de
+  // kern van de fix), dus er valt hier niets af te vuren.
+  harness.clock.value = started.payload.endsAt;
+  await harness.scheduler.fireAll();
+  await settle();
+  assert.equal(harness.scheduler.pending, 0, 'er staat geen enkele timer gepland — geen ronde-einde ingepland');
+  assert.equal(host.eventsNamed('round:ended').length, 0, 'het antwoord mag de server nog niet verlaten');
+
+  // De host tikt "Toon antwoord".
+  const ack = await host.emitWithAck('game:reveal', { actionId: 'act_reveal', payload: {} });
+  assert.equal(ack.ok, true, JSON.stringify(ack));
+
+  const ended = await host.waitFor('round:ended');
+  assert.equal(ended.payload.roundId, started.payload.roundId);
+  assert.ok('correctAnswer' in ended.payload, 'pas nu mag het antwoord er staan');
+
+  // En de rest van de ronde loopt gewoon vanzelf door (besluit 1: geen
+  // aparte "volgende"-knop nodig, ROUND_RESULT is een gewone getimede fase).
+  const match = await harness.rawStore.loadMatch(room.roomId, (await harness.rawStore.loadRoom(room.roomId)).currentMatchId);
+  assert.equal(match.phase, 'ROUND_RESULT');
+  assert.equal(harness.scheduler.pending, 1, 'ROUND_RESULT -> SCOREBOARD staat weer gewoon getimed gepland');
+});
+
+test('game:reveal vóór de deadline geeft INVALID_PHASE — te vroeg tikken onthult niet vervroegd', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness, { roomConfig: { autoReveal: false } });
+  const host = await harness.connect(authFor(room));
+
+  const started = await startFirstRound(harness, host);
+  // Bewust NIET de klok verzet: de deadline is nog niet voorbij.
+  const ack = await host.emitWithAck('game:reveal', { actionId: 'act_te_vroeg', payload: {} });
+  assert.equal(ack.ok, false);
+  assert.equal(ack.payload.code, 'INVALID_PHASE');
+
+  await settle();
+  assert.equal(host.eventsNamed('round:ended').length, 0, 'geen ronde is voortijdig afgesloten');
+  assert.equal(started.payload.roundId, (await harness.rawStore.loadMatch(
+    room.roomId,
+    (await harness.rawStore.loadRoom(room.roomId)).currentMatchId,
+  )).roundIds.at(-1), 'nog steeds dezelfde, nog actieve ronde');
+});
+
+test('game:reveal terwijl autoReveal aanstaat (standaard) geeft INVALID_PHASE — er is niets te onthullen', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness); // standaard: autoReveal true
+  const host = await harness.connect(authFor(room));
+
+  await startFirstRound(harness, host);
+  const ack = await host.emitWithAck('game:reveal', { actionId: 'act_onnodig', payload: {} });
+  assert.equal(ack.ok, false);
+  assert.equal(ack.payload.code, 'INVALID_PHASE');
+});
+
+test('autoReveal true (standaard): de ronde sluit gewoon vanzelf op de deadline, zoals vóór fase 4', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness);
+  const host = await harness.connect(authFor(room));
+
+  const started = await startFirstRound(harness, host);
+  harness.clock.value = started.payload.endsAt;
+  await harness.scheduler.fireAll();
+
+  const ended = await host.waitFor('round:ended');
+  assert.equal(ended.payload.roundId, started.payload.roundId);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // §A2 (5 aug 2026) — aftellen alleen vóór de eerste ronde
 //
 // De eerste versie van deze regel las `runtime.round`, dat `runEndRound()`
