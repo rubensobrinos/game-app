@@ -2,6 +2,7 @@
 # Voeg lokale wijzigingen BUITEN deze markers toe — devkit update overschrijft alleen dit blok.
 # Node
 node_modules/
+node_modules
 .npm/
 
 # Build output
@@ -29,3 +30,10 @@ coverage/
 # Uitgeleverde documentatiearchieven — de inhoud staat gecommit in docs/,
 # het zip-bestand is dus een duplicaat.
 *.zip
+
+# Meetgereedschap (tools/meet-viewport.mjs) schrijft hier zijn opnames heen.
+# Screenshots horen in een review, niet in de geschiedenis.
+tools/shots/
+
+# Agent-worktrees: eigen checkouts, horen niet in de geschiedenis van de repo zelf.
+.claude/worktrees/
