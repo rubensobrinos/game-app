@@ -53,23 +53,6 @@
 //    de tussenstand nog steeds overslaan (TIMER_ELAPSED rechtstreeks naar
 //    COUNTDOWN/ROUND_ACTIVE/FINISHED).
 //
-// 3. HOST_REVEAL — de hostactie van besluit C (5 aug 2026). Staat de
-//    configuratie `autoReveal` UIT, dan loopt ROUND_RESULT niet op zijn timer
-//    door maar wacht hij op de host. Deze module kent `autoReveal` niet (het
-//    zit in GameConfiguration, net als pacing) en accepteert HOST_REVEAL vanuit
-//    ROUND_RESULT daarom bij BEIDE tempo's; de aanroeper (match-lifecycle)
-//    weigert het event wanneer automatisch tonen aanstaat.
-//
-//    Dit is NIET de teruggedraaide HOST_NEXT-tak hierboven. Het verschil dat
-//    telt is de DEADLOCK die dáár het probleem was: de server wachtte op een
-//    actie die de client nooit stuurde. HOST_REVEAL komt tegelijk met zijn
-//    knop — `client/flow/host-controls-state.mjs` biedt 'reveal' aan zodra de
-//    fase ROUND_RESULT is en automatisch tonen uitstaat — en besluit 1 blijft
-//    staan: bij `autoReveal: false` VERHUIST de ene hostactie van SCOREBOARD
-//    naar ROUND_RESULT, er komt er geen tweede bij. match-lifecycle regelt dat
-//    door de reducer in dat geval 'auto' als pacing te geven, zodat SCOREBOARD
-//    gewoon doortikt.
-//
 // TWEE HERVAT-EVENTS — HOST_RESUME en RECOVERY_RESUME (INT-16)
 //
 // Deze module kende eerst één hervat-event, waarbij de aanroeper de bestemming
@@ -128,7 +111,6 @@
  *   | { type: "HOST_START" }
  *   | { type: "TIMER_ELAPSED", nextPhase: string }
  *   | { type: "HOST_NEXT", nextPhase: string }
- *   | { type: "HOST_REVEAL", nextPhase: string }
  *   | { type: "HOST_PAUSE", reason: string, remainingMs: number }
  *   | { type: "HOST_RESUME", nextPhase: string }
  *   | { type: "RECOVERY_RESUME", nextPhase: "COUNTDOWN" }
@@ -152,7 +134,6 @@ const EVENT_TYPES = Object.freeze({
   HOST_START: 'HOST_START',
   TIMER_ELAPSED: 'TIMER_ELAPSED',
   HOST_NEXT: 'HOST_NEXT',
-  HOST_REVEAL: 'HOST_REVEAL',
   HOST_PAUSE: 'HOST_PAUSE',
   HOST_RESUME: 'HOST_RESUME',
   RECOVERY_RESUME: 'RECOVERY_RESUME',
@@ -235,18 +216,6 @@ const TRANSITIONS = Object.freeze({
         target(PHASES.COUNTDOWN, PACING.AUTO),
         target(PHASES.ROUND_ACTIVE, PACING.AUTO),
         target(PHASES.FINISHED, PACING.AUTO),
-      ]),
-    }),
-    // Besluit C: bij `autoReveal: false` onthult de host zelf, en dat onthullen
-    // ÍS de hostactie van de ronde (aanname 3 in de modulekop). Alle vier de
-    // bestemmingen bij ANY_PACING: welke het wordt beslist de aanroeper, en
-    // `autoReveal` — niet pacing — bepaalt of dit event überhaupt mag.
-    [EVENT_TYPES.HOST_REVEAL]: Object.freeze({
-      targets: Object.freeze([
-        target(PHASES.SCOREBOARD, ANY_PACING),
-        target(PHASES.COUNTDOWN, ANY_PACING),
-        target(PHASES.ROUND_ACTIVE, ANY_PACING),
-        target(PHASES.FINISHED, ANY_PACING),
       ]),
     }),
   }),
@@ -332,7 +301,7 @@ function transition(state, event, pacing, now) {
     case EVENT_TYPES.HOST_FINISH:
       return applyFinish(phase);
     default:
-      // HOST_START, TIMER_ELAPSED, HOST_NEXT en HOST_REVEAL lopen via de tabel.
+      // HOST_START, TIMER_ELAPSED en HOST_NEXT lopen allemaal via de tabel.
       return applyTableTransition(phase, type, event, pacing);
   }
 }

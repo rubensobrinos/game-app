@@ -128,7 +128,6 @@ const FALLBACK_PUBLIC_CODE = 'INVALID_PHASE';
 const HOST_PAUSE = 'HOST_PAUSE';
 const HOST_RESUME = 'HOST_RESUME';
 const HOST_NEXT = 'HOST_NEXT';
-const HOST_REVEAL = 'HOST_REVEAL';
 const TIMER_ELAPSED = 'TIMER_ELAPSED';
 
 /** Fasewaarden uit ARCHITECTURE.md/state-machine.js. */
@@ -617,13 +616,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
       return;
     }
     if (phase === PHASE.ROUND_RESULT) {
-      // Besluit C: staat "Antwoord automatisch tonen" uit, dan levert de
-      // compositielaag hier geen `phaseEndsAt` en wacht de uitslag op
-      // `game:reveal` — dat onthullen ís dan de ene hostactie van de ronde
-      // (besluit 1). Zelfde vorm als de SCOREBOARD-tak hierboven.
-      if (phaseEndsAt !== null) {
-        scheduleAt(roomId, phaseEndsAt, () => runAdvanceOnTimer(roomId));
-      }
+      scheduleAt(roomId, phaseEndsAt, () => runAdvanceOnTimer(roomId));
       return;
     }
     if (phase === PHASE.FINISHED) {
@@ -1058,21 +1051,6 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
       case 'game:next': {
         // Besluit 1: één hostactie per ronde, altijd vanuit SCOREBOARD.
         const result = await advancePhase(context, { roomId, event: { type: HOST_NEXT } });
-        if (!result.ok) return result;
-        const value = result.value;
-        return {
-          ok: true,
-          value: { phase: value.phase },
-          after: () => onPhaseEntered(roomId, value.phase, value.phaseEndsAt),
-        };
-      }
-
-      case 'game:reveal': {
-        // Besluit C: de hostactie bij `autoReveal: false`, altijd vanuit
-        // ROUND_RESULT. Verder identiek aan `game:next` — het is dezelfde ene
-        // knop, alleen een fase eerder. `advancePhase` weigert het event zelf
-        // zodra automatisch tonen aanstaat.
-        const result = await advancePhase(context, { roomId, event: { type: HOST_REVEAL } });
         if (!result.ok) return result;
         const value = result.value;
         return {

@@ -12,7 +12,6 @@ import {
   validateGamePausePayload,
   validateGameResumePayload,
   validateGameNextPayload,
-  validateGameRevealPayload,
 } from './client-events-game-lifecycle-a.mjs';
 import {
   validateGameLockPayload,
@@ -128,18 +127,17 @@ for (const [label, validator, fixture] of variantValidatorsWithFixture) {
   });
 }
 
-// Rij 25 — cross-cutting negatieve test (Basisregel 3), over alle 18
-// schema's (13 client-events + 5 PR4d-varianten): een overigens geldige
+// Rij 25 — cross-cutting negatieve test (Basisregel 3), over alle 17
+// schema's (12 client-events + 5 PR4d-varianten): een overigens geldige
 // fixture met telkens één extra sessionToken/token/bearer/authorization-
 // sleutel erbij moet worden afgewezen. Geen enkel schema kent deze namen bij
 // naam — de strikte "geen extra sleutels"-regel (Ontwerpkeuze #1 in alle
 // PR4-bestanden) maakt dit vanzelf waar.
-const allEighteenSchemas = [
+const allSeventeenSchemas = [
   ['game:start', validateGameStartPayload, {}],
   ['game:pause', validateGamePausePayload, {}],
   ['game:resume', validateGameResumePayload, {}],
   ['game:next', validateGameNextPayload, {}],
-  ['game:reveal', validateGameRevealPayload, {}],
   ['game:lock', validateGameLockPayload, { locked: true }],
   ['game:kick', validateGameKickPayload, { playerId: 'p_1' }],
   ['game:finish', validateGameFinishPayload, {}],
@@ -159,13 +157,13 @@ const allEighteenSchemas = [
   ['round:answer.answer text-variant', validateTextAnswer, { text: 'Argentinie' }],
 ];
 
-test('cross-cutting Bearer-test: exact 18 schema-fixtures worden getoetst (13 events + 5 varianten)', () => {
-  assert.equal(allEighteenSchemas.length, 18);
+test('cross-cutting Bearer-test: exact 17 schema-fixtures worden getoetst (12 events + 5 varianten)', () => {
+  assert.equal(allSeventeenSchemas.length, 17);
 });
 
 const bearerLikeKeys = ['sessionToken', 'token', 'bearer', 'authorization'];
 
-for (const [label, validator, fixture] of allEighteenSchemas) {
+for (const [label, validator, fixture] of allSeventeenSchemas) {
   // Baseline: de fixture zelf moet ok zijn, anders bewijst de afwijzing
   // hieronder niets over het Bearer-veld specifiek.
   test(`cross-cutting Bearer-test — baseline: "${label}" fixture is zelf ok`, () => {

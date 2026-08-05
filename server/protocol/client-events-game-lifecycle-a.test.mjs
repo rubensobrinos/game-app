@@ -6,7 +6,6 @@ import {
   validateGamePausePayload,
   validateGameResumePayload,
   validateGameNextPayload,
-  validateGameRevealPayload,
 } from './client-events-game-lifecycle-a.mjs';
 
 // Rij 1 — game:start, {} als host: ok.
@@ -64,24 +63,13 @@ test('validateGameNextPayload: extra sleutel -> afgewezen', () => {
   assert.deepEqual(validateGameNextPayload({ extra: 1 }), { ok: false, code: null });
 });
 
-// Besluit C — game:reveal, {}: ok. Zelfde vorm als game:next; de host stuurt
-// geen rondenummer mee, dat weet de server zelf.
-test('validateGameRevealPayload: leeg object -> ok', () => {
-  assert.deepEqual(validateGameRevealPayload({}), { ok: true });
-});
-
-test('validateGameRevealPayload: extra sleutel -> afgewezen', () => {
-  assert.deepEqual(validateGameRevealPayload({ roundNumber: 3 }), { ok: false, code: null });
-});
-
-// Rij 8 — elk van de PR4a-events met payload null, [], "string": stuk
+// Rij 8 — elk van de vier PR4a-events met payload null, [], "string": stuk
 // voor stuk afgewezen, geen throw.
 const pr4aValidators = [
   ['game:start', validateGameStartPayload],
   ['game:pause', validateGamePausePayload],
   ['game:resume', validateGameResumePayload],
   ['game:next', validateGameNextPayload],
-  ['game:reveal', validateGameRevealPayload],
 ];
 const malformedPayloads = [
   ['null', null],

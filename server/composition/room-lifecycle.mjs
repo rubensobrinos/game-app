@@ -107,10 +107,6 @@ export const QUICK_START_CONFIG = Object.freeze({
   scoreboardSeconds: 4,
   scoreboardFrequency: 'every_round',
   pacing: 'auto',
-  // Besluit C (DOELBEELD-v2 §3): standaard AAN — de uitslag loopt vanzelf door.
-  // Uit betekent: de uitslagfase wacht op de host, en dát onthullen ís dan de
-  // ene hostactie van de ronde (besluit 1).
-  autoReveal: true,
   speedBonus: true,
   deadlineGraceMs: 250,
   mode: 'individual',

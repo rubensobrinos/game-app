@@ -150,7 +150,6 @@ if (ALL_ERROR_CODES.has(CONTENT_UNAVAILABLE)) {
 const HOST_EVENT_TYPES = Object.freeze(new Set([
   EVENT_TYPES.HOST_START,
   EVENT_TYPES.HOST_NEXT,
-  EVENT_TYPES.HOST_REVEAL,
   EVENT_TYPES.HOST_PAUSE,
   EVENT_TYPES.HOST_RESUME,
   EVENT_TYPES.HOST_FINISH,
@@ -470,44 +469,15 @@ function showsScoreboard(config, roundNumber) {
 }
 
 /**
- * De fase die op de ENE hostactie van de ronde wacht (besluit 1), of `null` als
- * de hele ronde op timers loopt. Er is er hoogstens één — dat is de hele inhoud
- * van besluit 1 — en welke het is, hangt aan de configuratie:
- *
- *   - `autoReveal: false` (besluit C, 5 aug 2026) → ROUND_RESULT. Het onthullen
- *     ÍS dan de hostactie; daarna loopt de ronde vanzelf door. Er komt bewust
- *     GEEN tweede knop "Volgende" bij, ook niet bij host-tempo — zie
- *     `machinePacing`.
- *   - anders bij host-tempo → SCOREBOARD, ALTIJD, in elke configuratie.
- *     state-machine.js heeft `HOST_NEXT` vanuit ROUND_RESULT bewust verwijderd
- *     (INT-10: die tak liep vast op client/flow/host-controls-state.mjs, dat de
- *     hostactie alleen bij SCOREBOARD aanbiedt). `scoreboardFrequency: 'uit'`
- *     betekent bij host-tempo dus "toon geen tussenstand", niet "sla de fase
- *     over".
- *
- * @param {import('../data/types/game-configuration.js').GameConfiguration} config
- * @returns {string|null}
+ * De fase waarin bij host-tempo de ENE hostactie van de ronde zit
+ * (besluit 1): dat is ALTIJD SCOREBOARD, in elke configuratie.
+ * state-machine.js heeft `HOST_NEXT` vanuit ROUND_RESULT bewust verwijderd
+ * (INT-10: die tak liep vast op client/flow/host-controls-state.mjs, dat de
+ * hostactie alleen bij SCOREBOARD aanbiedt). `scoreboardFrequency: 'uit'`
+ * betekent bij host-tempo dus "toon geen tussenstand", niet "sla de fase over".
  */
-function hostActionPhase(config) {
-  if (config.autoReveal === false) {
-    return PHASES.ROUND_RESULT;
-  }
-  return config.pacing === 'host' ? PHASES.SCOREBOARD : null;
-}
-
-/**
- * De pacing zoals de state machine hem moet zien. Die reducer kent `autoReveal`
- * niet (dat veld hoort bij GameConfiguration, net als pacing zelf) en zou bij
- * host-tempo SCOREBOARD op de host laten wachten — terwijl de hostactie dan al
- * bij de uitslag is gebeurd. Dat zijn twee knoppen per ronde, en besluit 1 laat
- * er één toe. Staat automatisch tonen uit, dan ziet de reducer daarom 'auto':
- * de rest van de ronde tikt door, en de enige hostactie is HOST_REVEAL.
- *
- * @param {import('../data/types/game-configuration.js').GameConfiguration} config
- * @returns {"auto" | "host"}
- */
-function machinePacing(config) {
-  return config.autoReveal === false ? 'auto' : config.pacing;
+function isHostActionPhase(phase) {
+  return phase === PHASES.SCOREBOARD;
 }
 
 /** Duur van een timergedreven fase in ms, of null als de fase geen timer heeft. */
@@ -532,7 +502,7 @@ function phaseDurationMs(config, phase) {
  * aanroep".
  */
 function phaseEndsAt(room, phase, now) {
-  if (hostActionPhase(room.config) === phase) {
+  if (room.config.pacing === 'host' && isHostActionPhase(phase)) {
     return null;
   }
   const duration = phaseDurationMs(room.config, phase);
@@ -565,9 +535,7 @@ export function resolveNextPhase(room, match) {
       // Besluit 1: bij host-tempo loopt de uitslag ALTIJD op zijn timer door
       // naar SCOREBOARD — daar zit de enige hostactie van de ronde, ook als de
       // tussenstand niets toont. Bij auto-tempo beslist scoreboardFrequency.
-      // `machinePacing`: staat automatisch tonen uit, dan is de hostactie al bij
-      // de uitslag gedaan en hoeft SCOREBOARD niet meer geforceerd te worden.
-      if (machinePacing(room.config) === 'host' || showsScoreboard(room.config, roundNumber)) {
+      if (room.config.pacing === 'host' || showsScoreboard(room.config, roundNumber)) {
         return PHASES.SCOREBOARD;
       }
       return isLastRound ? PHASES.FINISHED : PHASES.COUNTDOWN;
@@ -633,32 +601,10 @@ function transitionPatch(match, fromPhase, toPhase, now) {
  */
 async function applyTransition(context, { room, match, event, extraPatch = {} }) {
   const now = context.now();
-
-  // WAT DE REDUCER NIET KAN ZIEN (besluit C). Hij krijgt alleen pacing binnen,
-  // geen `autoReveal`; deze twee regels horen dus hier. Beide leveren
-  // `INVALID_PHASE` — de code die de client al kent als "je scherm is
-  // achterhaald, haal een verse snapshot op".
-  const eventType = event !== null && typeof event === 'object' ? event.type : null;
-  //  1. HOST_REVEAL bestaat alleen als automatisch tonen UIT staat. Anders is
-  //     er geen onthulknop en is dit verzoek net zo ongeldig als een knop uit
-  //     een verouderd scherm.
-  if (eventType === EVENT_TYPES.HOST_REVEAL && room.config.autoReveal !== false) {
-    return fail(CODES.INVALID_PHASE);
-  }
-  //  2. De hostactiefase wacht op de HOST, niet op een klok. Bij host-tempo
-  //     bewaakt de reducer dat zelf (SCOREBOARD + TIMER_ELAPSED is dan
-  //     ongeldig); bij `autoReveal: false` ziet hij 'auto' en zou een verdwaald
-  //     TIMER_ELAPSED de uitslag alsnog wegklikken. `phaseEndsAt` levert voor
-  //     die fase nooit een deadline, dus zo'n timer hoort niet te bestaan —
-  //     maar "hoort niet" is geen bewaking.
-  if (eventType === EVENT_TYPES.TIMER_ELAPSED && hostActionPhase(room.config) === match.phase) {
-    return fail(CODES.INVALID_PHASE);
-  }
-
   const result = transition(
     { phase: match.phase, pausedState: match.pausedState },
     event,
-    machinePacing(room.config),
+    room.config.pacing,
     now,
   );
   if (!result.ok) {
@@ -959,7 +905,7 @@ export async function startRound(context, { roomId } = {}) {
   const probe = transition(
     { phase: match.phase, pausedState: match.pausedState },
     { type: EVENT_TYPES.TIMER_ELAPSED, nextPhase: PHASES.ROUND_ACTIVE },
-    machinePacing(room.config),
+    room.config.pacing,
     now,
   );
   if (!probe.ok) {
@@ -1212,7 +1158,7 @@ export async function endRound(context, { roomId } = {}) {
   const probe = transition(
     { phase: match.phase, pausedState: match.pausedState },
     { type: EVENT_TYPES.TIMER_ELAPSED, nextPhase: PHASES.ROUND_RESULT },
-    machinePacing(room.config),
+    room.config.pacing,
     now,
   );
   if (!probe.ok) {

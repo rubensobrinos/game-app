@@ -10,8 +10,7 @@ document totdat de betreffende fundamentele specificatie is bijgewerkt.
 ## Spelverloop en protocol
 
 1. Host-tempo gebruikt **één hostactie per ronde**. `ROUND_RESULT` loopt op timer
-   door naar `SCOREBOARD`; de host kiest daarna “Volgende”. Sinds besluit 43
-   kan die ene actie ergens anders zitten — nooit een tweede erbij.
+   door naar `SCOREBOARD`; de host kiest daarna “Volgende”.
 2. Een verlopen room-TTL wordt extern `GAME_NOT_FOUND`.
 3. De client krijgt proactief de antwoordgerechtigdheid van de eigen speler te
    zien, bij voorkeur via `eligibleFromRound`. Servervalidatie blijft leidend.
@@ -160,7 +159,6 @@ document totdat de betreffende fundamentele specificatie is bijgewerkt.
       daarna wachten tot start; géén ready-check in het protocol.
     - **C** — host-getriggerde reveal wordt gebouwd: toggle "Antwoord
       automatisch tonen" uit → host onthult (serverwerk, match-lifecycle).
-      Uitgewerkt en gebouwd als besluit 43 (5 aug 2026).
     - **D** — Mix/Typen en games 2–4 zichtbaar maar disabled ("binnenkort")
       tot de betreffende feature bestaat; geen dode maar klikbaar ogende
       knoppen.
@@ -236,29 +234,6 @@ document totdat de betreffende fundamentele specificatie is bijgewerkt.
       `server-events-room-lifecycle.mjs`, `room-lifecycle.mjs` en
       `transport-mock.mjs`; `player-chip.mjs` levert de hexwaarden. Tests
       bewaken de pariteit én de contrastondergrens.
-
-43. **"Antwoord automatisch tonen" uit → het onthullen ÍS de hostactie**
-    (lead, 5 aug 2026; uitwerking van besluit 40-C). GEBOUWD.
-
-    `GameConfiguration.autoReveal` is een verplichte boolean, standaard `true`.
-    Staat hij op `false`, dan krijgt `ROUND_RESULT` geen `phaseEndsAt` en
-    blijft het scherm op de uitslag staan tot de host `game:reveal` stuurt;
-    daarna loopt de ronde gewoon door naar de tussenstand of de volgende vraag.
-
-    De botsing met besluit 1 is zó beslecht: met host-tempo én handmatig
-    onthullen zou de host twee knoppen per ronde krijgen. Dat mag niet, dus de
-    ene hostactie **verhuist** van `SCOREBOARD` naar `ROUND_RESULT`. Bij
-    `autoReveal: false` is `game:next` ongeldig — ook bij `pacing: "host"` — en
-    loopt de tussenstand op zijn eigen timer. Er komt géén tweede knop
-    "Volgende" bij; de hostbalk toont "Toon antwoord" op precies de plek waar
-    anders "Volgende" staat.
-
-    De state machine kent hiervoor één nieuw event, `HOST_REVEAL` vanuit
-    `ROUND_RESULT`. Dat is nadrukkelijk niet de teruggedraaide
-    `HOST_NEXT`-vanuit-`ROUND_RESULT`-tak (INT-10): die liep vast omdat de
-    client de actie nooit aanbood. `autoReveal` zit niet in de reducer — die
-    krijgt bij `false` de pacing `'auto'` te zien, en `match-lifecycle.mjs` is
-    de poort die het event weigert zodra automatisch tonen aanstaat.
 
 ## Uitvoeringsakkoord test- en deploymentwerk
 

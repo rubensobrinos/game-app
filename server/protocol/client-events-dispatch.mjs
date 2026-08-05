@@ -18,7 +18,6 @@ import {
   validateGamePausePayload,
   validateGameResumePayload,
   validateGameNextPayload,
-  validateGameRevealPayload,
 } from './client-events-game-lifecycle-a.mjs';
 import {
   validateGameLockPayload,
@@ -138,19 +137,16 @@ export function validatePlayerRecolorPayload(payload) {
 }
 
 /**
- * De zeven configuratievelden die een host ná creatie nog mag bijstellen
+ * De zes configuratievelden die een host ná creatie nog mag bijstellen
  * (besluit 40 + feedbackronde producteigenaar, 4 aug 2026). Bewust een subset
  * van GameConfiguration: de overige velden (preset, gameTypes, mode, ...)
  * blijven create-only. De feedbackronde verving `questionSeconds` (bewust
  * NIET meer wijzigbaar na creatie) door `speedBonus`; `hostParticipates`
- * blijft eveneens uitgesloten (te laat na join). `autoReveal` kwam er op
- * 5 aug bij (besluit C): de toggle staat in de lobby náást "Automatisch
- * volgende vraag" (= `pacing`), dus hij moet net zo bijstelbaar zijn.
+ * blijft eveneens uitgesloten (te laat na join).
  * @type {ReadonlyArray<string>}
  */
 export const UPDATABLE_CONFIG_KEYS = Object.freeze([
-  'totalRounds', 'difficulty', 'language', 'pacing', 'autoReveal', 'speedBonus', 'allowLateJoin',
-  'gameTypes',
+  'totalRounds', 'difficulty', 'language', 'pacing', 'speedBonus', 'allowLateJoin', 'gameTypes',
 ]);
 
 /**
@@ -206,9 +202,6 @@ export function validateGameUpdateConfigPayload(payload) {
   if ('pacing' in payload && !UPDATE_PACING_VALUES.has(payload.pacing)) {
     return { ok: false, code: null };
   }
-  if ('autoReveal' in payload && typeof payload.autoReveal !== 'boolean') {
-    return { ok: false, code: null };
-  }
   if ('speedBonus' in payload && typeof payload.speedBonus !== 'boolean') {
     return { ok: false, code: null };
   }
@@ -258,10 +251,9 @@ export function validateShareOpenedPayload(payload) {
  */
 
 /**
- * De 15 bekende clientevents (de 12 uit §Client → server events, plus
+ * De 14 bekende clientevents (de 12 uit §Client → server events, plus
  * `player:recolor` en `game:update-config` uit besluit 40 + feedbackronde,
- * 4 aug 2026, plus `game:reveal` uit besluit C, 5 aug 2026), met hun validator
- * en vereiste rol. Enige bron van waarheid voor
+ * 4 aug 2026), met hun validator en vereiste rol. Enige bron van waarheid voor
  * "welke eventnamen bestaan" — `resolveEventValidator` doet een pure lookup
  * hierop, geen tweede lijst.
  * @type {ReadonlyMap<string, EventValidatorEntry>}
@@ -271,7 +263,6 @@ const EVENT_VALIDATORS_BY_NAME = new Map([
   ['game:pause', { validate: validateGamePausePayload, requiredRole: 'host' }],
   ['game:resume', { validate: validateGameResumePayload, requiredRole: 'host' }],
   ['game:next', { validate: validateGameNextPayload, requiredRole: 'host' }],
-  ['game:reveal', { validate: validateGameRevealPayload, requiredRole: 'host' }],
   ['game:lock', { validate: validateGameLockPayload, requiredRole: 'host' }],
   ['game:kick', { validate: validateGameKickPayload, requiredRole: 'host' }],
   ['game:finish', { validate: validateGameFinishPayload, requiredRole: 'host' }],
@@ -285,7 +276,7 @@ const EVENT_VALIDATORS_BY_NAME = new Map([
 ]);
 
 /**
- * Alle 15 bekende clientevent-namen, afgeleid van `EVENT_VALIDATORS_BY_NAME`
+ * Alle 14 bekende clientevent-namen, afgeleid van `EVENT_VALIDATORS_BY_NAME`
  * (geen tweede handmatige lijst), voor gebruik in exhaustiviteitstests.
  * @type {ReadonlyArray<string>}
  */

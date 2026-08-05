@@ -545,16 +545,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   }
 
   function buildHostContext() {
-    // Besluit C: `autoReveal` komt rechtstreeks uit de canonieke serverconfig
-    // (room:state / room:config-changed). Ontbreekt hij — oudere server, mock —
-    // dan geldt de standaard "automatisch tonen aan" en verandert er niets.
-    return {
-      phase: matchPhase.phase,
-      pacing,
-      autoReveal: roomConfig?.autoReveal !== false,
-      playerCount,
-      locked,
-    };
+    return { phase: matchPhase.phase, pacing, playerCount, locked };
   }
 
   function renderHostBar() {

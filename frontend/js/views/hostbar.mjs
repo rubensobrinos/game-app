@@ -51,17 +51,6 @@ export function createHostBar({ root, t, tCount = null, onAction }) {
   nextButton.hidden = true;
   nextButton.addEventListener('click', () => onAction('next'));
 
-  // Besluit C: staat "Antwoord automatisch tonen" uit, dan staat hier "Toon
-  // antwoord" in plaats van "Volgende" — dezelfde plek, dezelfde vorm, want het
-  // is dezelfde ENE hostactie van de ronde (besluit 1), alleen een fase eerder.
-  // Beide knoppen kunnen daardoor nooit tegelijk zichtbaar zijn:
-  // `availableHostActions()` geeft er hoogstens één van de twee.
-  const revealButton = document.createElement('button');
-  revealButton.type = 'button';
-  revealButton.className = 'btn-secondary session-hostbar-next session-hostbar-reveal';
-  revealButton.hidden = true;
-  revealButton.addEventListener('click', () => onAction('reveal'));
-
   const moreButton = document.createElement('button');
   moreButton.type = 'button';
   moreButton.className = 'btn-secondary session-hostbar-more session-hostbar-icon';
@@ -127,7 +116,7 @@ export function createHostBar({ root, t, tCount = null, onAction }) {
   settingsBox.append(finishButton, finishConfirm);
 
   morePanel.append(lockButton, playersToggle, playersList, settingsToggle, settingsBox);
-  bar.append(pauseButton, nextButton, revealButton, moreButton, morePanel);
+  bar.append(pauseButton, nextButton, moreButton, morePanel);
   root.appendChild(bar);
 
   let lockAction = null;
@@ -294,9 +283,6 @@ export function createHostBar({ root, t, tCount = null, onAction }) {
 
     nextButton.hidden = !availableActions.includes('next');
     nextButton.textContent = t('hostbar.next');
-
-    revealButton.hidden = !availableActions.includes('reveal');
-    revealButton.textContent = t('hostbar.reveal');
 
     lockAction = availableActions.includes('unlock') ? 'unlock' : availableActions.includes('lock') ? 'lock' : null;
     lockButton.hidden = lockAction === null;

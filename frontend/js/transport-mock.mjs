@@ -334,10 +334,6 @@ export function createMockTransport() {
           requireRole(isHost, 'NOT_HOST');
           return ackWith(advanceOnHostCue(room));
 
-        case 'game:reveal':
-          requireRole(isHost, 'NOT_HOST');
-          return ackWith(revealOnHostCue(room));
-
         case 'game:lock':
           requireRole(isHost, 'NOT_HOST');
           return ackWith(setLocked(room, safePayload.locked === true));
@@ -405,7 +401,6 @@ export function createMockTransport() {
       locked: false,
       allowLateJoin: safeRoomConfig.allowLateJoin !== false,
       pacing: safeRoomConfig.pacing === 'host' ? 'host' : 'auto',
-      autoReveal: safeRoomConfig.autoReveal !== false,
       config: safeRoomConfig,
       matchId: randomId('match'),
       matchSequence: 1,
@@ -599,12 +594,7 @@ export function createMockTransport() {
       };
     });
 
-    // Besluit C: staat "Antwoord automatisch tonen" uit, dan plant de server
-    // hier geen timer maar wacht hij op `game:reveal`. De mock doet hetzelfde —
-    // anders bewijst de suite de mock in plaats van het echte gedrag.
-    if (target.autoReveal !== false) {
-      scheduleTimer(target, ROUND_RESULT_MS, () => showScoreboard(target));
-    }
+    scheduleTimer(target, ROUND_RESULT_MS, () => showScoreboard(target));
   }
 
   function showScoreboard(target) {
@@ -618,27 +608,10 @@ export function createMockTransport() {
       self: playerId !== null ? toScoreboardEntry(findRanked(ranked, playerId)) : null,
     }));
 
-    if (effectivePacing(target) === 'auto') {
+    if (target.pacing === 'auto') {
       scheduleTimer(target, SCOREBOARD_AUTO_ADVANCE_MS, () => advanceFromScoreboard(target));
     }
     // pacing === 'host': wacht op een expliciete `game:next` (zie advanceOnHostCue).
-  }
-
-  /**
-   * Besluit 1 + besluit C: er is hoogstens ÉÉN hostactie per ronde. Onthult de
-   * host zelf, dan is dat de actie en loopt de tussenstand gewoon door — ook
-   * bij host-tempo. Zelfde afleiding als `machinePacing` op de server.
-   */
-  function effectivePacing(target) {
-    return target.autoReveal === false ? 'auto' : target.pacing;
-  }
-
-  function revealOnHostCue(target) {
-    if (target.phase !== 'ROUND_RESULT' || target.autoReveal !== false) {
-      throw new ProtocolError('INVALID_PHASE', 'game:reveal requires phase ROUND_RESULT and autoReveal false.');
-    }
-    showScoreboard(target);
-    return {};
   }
 
   function advanceOnHostCue(target) {
@@ -716,7 +689,7 @@ export function createMockTransport() {
       scheduleTimer(target, newEndsAt - Date.now(), () => endRound(target, target.roundIndex));
     } else if (previousPhase === 'COUNTDOWN') {
       scheduleTimer(target, COUNTDOWN_MS, () => startRound(target, 0));
-    } else if (previousPhase === 'SCOREBOARD' && effectivePacing(target) === 'auto') {
+    } else if (previousPhase === 'SCOREBOARD' && target.pacing === 'auto') {
       scheduleTimer(target, SCOREBOARD_AUTO_ADVANCE_MS, () => advanceFromScoreboard(target));
     }
     return {};
@@ -789,10 +762,7 @@ export function createMockTransport() {
     if (target.phase !== 'LOBBY') {
       throw new ProtocolError('INVALID_PHASE', 'game:update-config only allowed in LOBBY.');
     }
-    const allowed = [
-      'totalRounds', 'difficulty', 'language', 'pacing', 'autoReveal', 'speedBonus', 'allowLateJoin',
-      'gameTypes',
-    ];
+    const allowed = ['totalRounds', 'difficulty', 'language', 'pacing', 'speedBonus', 'allowLateJoin', 'gameTypes'];
     const safe = {};
     for (const key of allowed) {
       if (patch !== null && typeof patch === 'object' && key in patch) {
@@ -823,9 +793,6 @@ export function createMockTransport() {
     }
     if ('pacing' in safe) {
       target.pacing = safe.pacing;
-    }
-    if ('autoReveal' in safe) {
-      target.autoReveal = safe.autoReveal;
     }
     if ('allowLateJoin' in safe) {
       target.allowLateJoin = safe.allowLateJoin;

@@ -16,7 +16,6 @@ const VALID_CONFIG = Object.freeze({
   scoreboardSeconds: 4,
   scoreboardFrequency: 'every_round',
   pacing: 'auto',
-  autoReveal: true,
   speedBonus: true,
   deadlineGraceMs: 150,
   mode: 'individual',
@@ -95,20 +94,6 @@ describe('assertGameConfigurationShape — bewust-open velden slagen op elke str
 
   test('#26 metricMode met een andere waarde dan het voorbeeld slaagt', () => {
     assert.doesNotThrow(() => assertGameConfigurationShape({ ...VALID_CONFIG, metricMode: 'population' }));
-  });
-});
-
-describe('assertGameConfigurationShape — autoReveal is een verplichte boolean (besluit C)', () => {
-  test('een string "false" is geen boolean en wordt geweigerd', () => {
-    // Waarom expliciet: `autoReveal` komt binnen via een toggle en via
-    // `game:update-config`. Een waarheidsachtige string zou hier stilzwijgend
-    // "aan" betekenen, terwijl de host "uit" bedoelde — en dan wacht de
-    // uitslagfase nooit op hem.
-    assert.throws(() => assertGameConfigurationShape({ ...VALID_CONFIG, autoReveal: 'false' }), TypeError);
-  });
-
-  test('false slaagt gewoon', () => {
-    assert.doesNotThrow(() => assertGameConfigurationShape({ ...VALID_CONFIG, autoReveal: false }));
   });
 });
 

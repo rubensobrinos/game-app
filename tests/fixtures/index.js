@@ -28,7 +28,6 @@ function makeGameConfiguration(overrides = {}) {
     scoreboardSeconds: 4,
     scoreboardFrequency: 'every_round',
     pacing: 'auto',
-    autoReveal: true,
     speedBonus: true,
     deadlineGraceMs: 250,
     mode: 'individual',
