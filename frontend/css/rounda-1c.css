@@ -1063,3 +1063,16 @@ body:has(.lobby-screen) .session-hostbar { display: none; }
 .gameplay-timer-host .timer-segment { border-radius: 999px; }
 /* De oude onderregel-voortgang is naar de kop verhuisd */
 .gameplay-progress { display: none; }
+
+/* ══ PAKKET C — home & lobby (agent C) ══ */
+
+/* C0 (punten 9/10): met de titel en de tellerregel op `sr-only` (lobby.mjs)
+   begon de spelerslijst nog altijd 32px onder de codebalk — `.screen`'s
+   `padding: 2rem` is er voor schermen die met een kop openen, en de lobby
+   opent nu met de lijst zelf. Alleen deze `padding-top` wijzigt, en alleen
+   voor de lobby: de andere sessieschermen houden hun kop en hun lucht.
+   `--chrome-gap` is het ruimtetoken van pakket A; de fallback geldt zolang
+   dat token nog niet in `:root` staat. */
+.screen-top:has(.lobby-screen) {
+  padding-top: var(--chrome-gap, 16px);
+}

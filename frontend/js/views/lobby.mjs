@@ -36,7 +36,13 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   // een container die dat al levert (consistent met hoe gameplay.mjs/
   // scoreboard.mjs/podium.mjs geen eigen layout-wrapper hebben).
   const screen = el('div', 'lobby-screen');
-  const title = el('h2', 'lobby-title');
+  // C0 (punt 9): de zichtbare titel "Lobby" vertelde niemand iets wat het
+  // scherm niet al toont, en kostte bovenaan een telefoonscherm meer ruimte
+  // dan de spelerslijst eronder. Screenreaders hebben bij een schermwissel
+  // wél een aankondigingspunt nodig, dus dezelfde constructie als
+  // gameplay.mjs' `screenTitle`: een `sr-only`-kop, visueel niets. Absoluut
+  // gepositioneerd (`.sr-only`), dus geen flex-item en dus ook geen `gap`.
+  const title = el('h2', 'sr-only');
   const lockedNotice = el('p', 'lobby-locked');
   lockedNotice.hidden = true;
   // Spelerslobby-copy (09 §6) — additief naast de host-kant hieronder, geen
@@ -394,7 +400,14 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
   // is (defensief: zou niet voorkomen, maar dan is er tenminste één wachttekst).
   const waiting = el('p', 'lobby-waiting');
   waiting.hidden = isHost || !playerStatus.hidden;
-  const countLine = el('p', 'lobby-count');
+  // C0 (punt 10): "1 SPELER" stond als eigen regel mét ruimte erboven én
+  // eronder boven de lijst die datzelfde aantal al toont — dubbele informatie
+  // voor ~40px op het smalste scherm. De regel verdwijnt visueel, maar niet
+  // uit de toegankelijkheidsboom: wie de lijst niet ziet, hoort het aantal
+  // hier, en `aria-live` meldt voortaan iedere join — dat is precies wat de
+  // (nu onzichtbare) puls hieronder visueel deed.
+  const countLine = el('p', 'lobby-count sr-only');
+  countLine.setAttribute('aria-live', 'polite');
   const list = document.createElement('ul');
   list.className = 'lobby-players';
   // T5-9: 36+ spelers toont alleen de recente joins + dit totaal; de
@@ -663,6 +676,10 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
       if (lastPulsedCount === null) {
         lastPulsedCount = model.playerCount;
       } else if (model.playerCount !== lastPulsedCount) {
+        // C0: sinds de teller `sr-only` is, is deze puls visueel inert; hij
+        // blijft staan omdat de debounce-regel (M7/E03) bij een zichtbare
+        // teller weer nodig is, en `aria-live` intussen dezelfde
+        // wijziging hoorbaar maakt.
         // M7/E03: "teller pulseert één keer" — bij een snelle reeks joins
         // (bulkjoin) pulseert de teller dus één keer ná de rustmoment, niet
         // eenmaal per join. Geluid-clustering (06 §2) is hier niet van
