@@ -110,11 +110,14 @@ function actiefModel(overrides = {}) {
   };
 }
 
-async function maakView(antwoorden = []) {
+/** Zelfde tweevormenregel als i18n.mjs's `tCount`, zonder de echte woordenlijst. */
+const tCount = (sleutel, n) => `${n} ${sleutel}.${n === 1 ? 'one' : 'other'}`;
+
+async function maakView(antwoorden = [], extra = {}) {
   stubDom();
   const { createGameplayView } = await import(`./gameplay.mjs?t=${Math.random()}`);
   const root = document.createElement('div');
-  const view = createGameplayView({ root, t, onAnswer: (waarde) => antwoorden.push(waarde), lang: 'nl' });
+  const view = createGameplayView({ root, t, onAnswer: (waarde) => antwoorden.push(waarde), lang: 'nl', ...extra });
   return { root, view };
 }
 
@@ -158,6 +161,48 @@ test('§A5: de aftelling is alleen zichtbaar in COUNTDOWN', async () => {
 
   view.update(actiefModel(), { phase: 'ROUND_ACTIVE', secondsLeft: 12 });
   assert.equal(vind(root, 'gameplay-countdown').hidden, true);
+});
+
+test('R2-8: tijdens het aftellen staat er geen leeg vlagkader', async () => {
+  const { root, view } = await maakView();
+
+  // Met een gevuld model: hervatten na een pauze telt af terwijl de vorige
+  // ronde nog in het model zit (§A2). Ook dán hoort de vlag weg te zijn.
+  view.update(actiefModel(), { phase: 'COUNTDOWN', countdownSecondsLeft: 3 });
+  const vlag = vind(root, 'gameplay-flag');
+  assert.equal(vlag.hidden, true, 'de vlag-img hoort verborgen te zijn, niet leeg zichtbaar');
+  assert.equal(vlag.src, '', 'geen achtergebleven src van de vorige ronde');
+  assert.equal(vind(root, 'gameplay-question').hidden, true);
+  assert.equal(vindAlle(root, 'gameplay-option').length, 0);
+
+  // En daarna staat de vraag er weer volledig, ondanks hetzelfde roundId.
+  view.update(actiefModel(), { phase: 'ROUND_ACTIVE', secondsLeft: 12 });
+  assert.equal(vind(root, 'gameplay-flag').hidden, false);
+  assert.equal(vindAlle(root, 'gameplay-option').length, 4);
+});
+
+test('R2-8: het aftelscherm meldt hoeveel spelers klaar zijn', async () => {
+  const { root, view } = await maakView([], { tCount });
+
+  view.update(actiefModel(), { phase: 'COUNTDOWN', countdownSecondsLeft: 3, playerCount: 5 });
+  const spelers = vind(root, 'gameplay-countdown-players');
+  assert.equal(spelers.hidden, false);
+  assert.equal(spelers.textContent, '5 game.countdownPlayersReady.other');
+
+  // Eén speler krijgt de enkelvoudsvorm, niet "1 spelers".
+  view.update(actiefModel(), { phase: 'COUNTDOWN', countdownSecondsLeft: 2, playerCount: 1 });
+  assert.equal(vind(root, 'gameplay-countdown-players').textContent, '1 game.countdownPlayersReady.one');
+
+  // Zonder telling geen regel — liever niets dan "0 spelers klaar".
+  view.update(actiefModel(), { phase: 'COUNTDOWN', countdownSecondsLeft: 1, playerCount: null });
+  assert.equal(vind(root, 'gameplay-countdown-players').hidden, true);
+});
+
+test('R2-8: zonder tCount blijft de spelersregel weg in plaats van een sleutelnaam te tonen', async () => {
+  const { root, view } = await maakView();
+
+  view.update(actiefModel(), { phase: 'COUNTDOWN', countdownSecondsLeft: 3, playerCount: 5 });
+  assert.equal(vind(root, 'gameplay-countdown-players').hidden, true);
 });
 
 test('§A5: flags_mc rendert vier landknoppen en geeft de iso2 door aan onAnswer', async () => {

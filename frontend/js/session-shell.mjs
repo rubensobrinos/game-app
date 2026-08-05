@@ -880,7 +880,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       return;
     }
     if (viewName === 'gameplay') {
-      mountedView = createGameplayView({ root: phaseContainer, t, onAnswer: sendAnswer });
+      mountedView = createGameplayView({ root: phaseContainer, t, tCount, onAnswer: sendAnswer });
       startGameplayTicker();
       return;
     }
@@ -968,6 +968,10 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       secondsLeft: secondsRemaining(roundModel.startsAt, roundModel.endsAt, offsetMs),
       phase: matchPhase.phase,
       countdownSecondsLeft: countdownEndsAt === null ? null : secondsRemaining(0, countdownEndsAt, offsetMs),
+      // R2-8: het aftelscherm zegt hoeveel spelers er meedoen ("5 spelers
+      // klaar"). Dezelfde teller die de lobby al toont — `game:started` en
+      // elke `room:state` houden 'm bij, dus hier alleen doorgeven.
+      playerCount,
       // 11-verzoek (BOUWSPRINT doel 4): live gelezen (niet eenmalig
       // gesnapshot bij mount) — het voorkeurenpaneel is op elk scherm
       // bereikbaar, dus kan mid-match omgezet worden. `0` i.p.v. het echte
