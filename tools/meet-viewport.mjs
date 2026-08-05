@@ -13,9 +13,11 @@
 // GEBRUIK
 //   node tools/meet-viewport.mjs <basisurl> <flow>
 //
-// `flow` is een van: home | lobby | spel. Het script klikt zelf naar dat
-// scherm toe in mockmodus, zodat er geen tweede telefoon en geen backend aan
-// te pas komt.
+// `flow` is een van: home | lobby | spel | tussenstand | podium. Het script
+// klikt zelf naar dat scherm toe in mockmodus, zodat er geen tweede telefoon en
+// geen backend aan te pas komt. `podium` speelt een hele partij uit en duurt
+// daardoor ruim een minuut — dat is de prijs van meten op het echte scherm in
+// plaats van op een nagebouwde DOM.
 //
 // Bijvoorbeeld, tegen een lokaal draaiende server in mockmodus (geen backend
 // nodig — de mocktransport speelt de hele keten na):
@@ -46,13 +48,20 @@ const SCALE = 3;
  */
 const GEMETEN = [
   ['chrome', '#app-header'],
-  ['codebalk', '.room-header'],
+  // Sinds A1 is `.room-header` `display: contents` — hij heeft geen eigen box
+  // meer en mat dus altijd 0. De code zelf is wél een element, en dat is het
+  // getal dat iets zegt over "hoe dominant is de code hier".
+  ['codewaarde', '.room-header-code-value'],
   ['hostbalk', '.session-hostbar'],
   ['vraag', '.gameplay-question'],
   ['vlag', '.gameplay-flag'],
   ['antwoorden', '.gameplay-options'],
   ['startknop', '.lobby-start'],
   ['minigame', '.rounda-flag-card'],
+  ['tussenstand', '.scoreboard-list'],
+  ['revealkaart', '.reveal-card'],
+  ['podium', '.podium-steps'],
+  ['podiumacties', '.podium-action'],
 ];
 
 const basis = process.argv[2];
@@ -73,12 +82,29 @@ const FLOWS = {
     await page.waitForSelector('.lobby-screen', { timeout: 10_000 });
   },
   spel: async (page) => {
-    await page.click('.home-quick-start');
-    await page.waitForSelector('.lobby-screen', { timeout: 10_000 });
-    await page.click('.lobby-start button, button.lobby-start');
-    await page.waitForSelector('.gameplay-options .gameplay-option', { timeout: 20_000 });
+    await naarSpel(page);
+  },
+  tussenstand: async (page) => {
+    await naarSpel(page);
+    // De mockronde duurt 8 s; daarna komt de reveal. Wachten op het element
+    // zelf, niet op een vaste tijd.
+    await page.waitForSelector('.reveal-card:not([hidden])', { timeout: 30_000 });
+  },
+  podium: async (page) => {
+    await naarSpel(page);
+    // Vijf rondes van ~14 s in de mock. Traag, maar dit is de enige manier om
+    // het echte eindscherm te zien in plaats van een nagebouwd scherm.
+    await page.waitForSelector('.podium-steps', { timeout: 180_000 });
   },
 };
+
+/** De gedeelde weg naar een lopende ronde. */
+async function naarSpel(page) {
+  await page.click('.home-quick-start');
+  await page.waitForSelector('.lobby-screen', { timeout: 10_000 });
+  await page.click('.lobby-start button, button.lobby-start');
+  await page.waitForSelector('.gameplay-options .gameplay-option', { timeout: 20_000 });
+}
 if (!(flow in FLOWS)) {
   console.error(`onbekende flow "${flow}" — kies uit: ${Object.keys(FLOWS).join(', ')}`);
   process.exit(2);

@@ -1169,9 +1169,11 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
    voor de lobby: de andere sessieschermen houden hun kop en hun lucht.
    `--chrome-gap` is het ruimtetoken van pakket A; de fallback geldt zolang
    dat token nog niet in `:root` staat. */
-.screen-top:has(.lobby-screen) {
-  padding-top: var(--chrome-gap, 16px);
-}
+/* Weggehaald door de lead (5 aug): C0 zette hier `padding-top:
+   var(--chrome-gap)` — geschreven vóórdat A1 landde met `.screen.screen-top
+   { padding-top: 0 }` plús 16px `margin-bottom` op `#app-header`. Die twee
+   telden op, waardoor de lobby op y=76 begon en elk ander sessiescherm op 60.
+   Gemeld door agent A, en het klopte. */
 
 /* ══ LEAD — losse punten (regie) ══════════════════════════════════════════ */
 

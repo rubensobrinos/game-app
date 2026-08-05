@@ -7,8 +7,15 @@ review. Agents schrijven hier niet in; zij leveren op via hun stoppunt.
 nu parallel (A2 · B2 · C1 · D1). De lead pakt losse punten er zelf tussendoor
 bij — een deletie van één regel hoort niet in een briefing.
 
-Gemeten op `main` @390×650: home 883 px · lobby 1319 px · spel 810 px
-(baseline was 879 / 1438 / 912; de chrome ging van 74-78 naar 44 px).
+Gemeten op `main` @390×650, ná A2:
+
+| scherm | baseline | nu | oordeel |
+| --- | -: | -: | --- |
+| home | 879 | 883 | PAST NIET (233 te veel) — C1 draait |
+| lobby | 1438 | **1303** | PAST NIET (653 te veel) — warm-up blijft, C2 |
+| spel | 912 | 810 | PAST NIET (160 te veel) — de vlag, D1 draait |
+| tussenstand | — | — | **PAST** |
+| podium | — | — | **PAST** |
 
 **Deploy gebeurt pas ná alle rondes** (producteigenaar, 5 aug) — de build
 kopieert de werkboom, dus mid-sprint deployen is precies wat STATUS afraadt.
@@ -62,7 +69,7 @@ bewezen (B1 draaide er tests op).
 | 15 | DEEL → deelicoon | A | ✅ |
 | 16 | Herkenbaar QR-icoon | A | ✅ |
 | 17 | Drie puntjes ín het codeblok | A | ✅ |
-| 18 | Codebalk compact tijdens spel | A | 🟡 deels |
+| 18 | Codebalk compact tijdens spel | A | ✅ |
 
 ## Spelersidentiteit
 
@@ -94,7 +101,7 @@ bewezen (B1 draaide er tests op).
 | -: | --- | :-: | :-: |
 | 33 | Vraag + vlag + 4 antwoorden in één viewport | D | ⬜ wacht op A1 |
 | 34 | Vlag, witruimte, bovenbalk verkleinen | D | ⬜ wacht op A1 |
-| 35 | Vraag/antwoorden primair | D (+A) | 🔄 |
+| 35 | Vraag/antwoorden primair | D (+A) | 🔄 A-deel ✅ |
 | 36 | Segmententimer i.p.v. cijfer | B | 🟡 |
 | 37 | Timer telt vloeiend af | B | 🟡 |
 | 38 | Toon hoeveel spelers geantwoord | D | 🟡 |
@@ -130,13 +137,13 @@ bewezen (B1 draaide er tests op).
 | -: | --- | :-: | :-: |
 | 54 | Eindstand compacter | **lead** | ✅ |
 | 55 | Revanche primair, rest secundair | **lead** | ✅ |
-| 56 | Codebalk/menu niet dominant | A + D | 🔄 |
+| 56 | Codebalk/menu niet dominant | A + D | ✅ codebalk weg bij FINISHED |
 
 ## Overkoepelend
 
 | # | Punt | Pakket | Status |
 | -: | --- | :-: | :-: |
-| 57 | Compacte mobiele bovenbalk | A | 🔄 |
+| 57 | Compacte mobiele bovenbalk | A | ✅ |
 | 58 | Alles speelbaar zonder scrollen | eindtoets lead | ⬜ |
 
 ## Erbij gekomen (niet uit de 58)
@@ -144,7 +151,7 @@ bewezen (B1 draaide er tests op).
 | # | Punt | Pakket | Status |
 | -: | --- | :-: | :-: |
 | A-x1 | Sticky header zonder achtergrond | A | ✅ |
-| A-x2 | Codebalk mag weg bij FINISHED | A | 🔄 |
+| A-x2 | Codebalk mag weg bij FINISHED | A | ✅ |
 
 ---
 
