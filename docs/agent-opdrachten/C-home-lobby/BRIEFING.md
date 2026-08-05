@@ -35,7 +35,7 @@ viewport**, zonder dat het gedrongen wordt.
 | 5 | Logo ~20% groter | visueel | |
 | 9 | Titel "Lobby" weg | vereenvoudiging | |
 | 10 | Losse regel "1 SPELER" weg of compacter | vereenvoudiging | `.lobby-count` is al een mono-label; het punt is de eigen regel |
-| 11 | Grote zwarte vlakken weg, lobby compacter | ontwerp | zie IMG_0289: ~200 px gaat op aan de kleurenrij |
+| 11 | Grote zwarte vlakken weg, lobby compacter | **wacht op besluit** | De grootste "lege zwarte ruimte" is de minigamekaart: `clamp(260px, 38vh, 360px)` = ~335 px, meer dan de helft van het scherm, en donker zolang niemand tikt (`rounda-1c.css:423`). Dit haal je niet met marges. Zie `../VERKENNING.md §1.2` — de producteigenaar beslist of de warm-up ingeklapt start. **Begin met de rest van C2 en pak dit als het besluit er is.** |
 | 19 | Niet standaard acht losse kleurknoppen | ontwerp | |
 | 20 | Klik op het kleurvlak opent een palet (~36 kleuren) | **feature + serverwerk** | de server kent er **acht** (gesloten enum). 36 kleuren betekent protocolwerk. **Bouw de interactie (kleurvlak → palet), niet 36 kleuren.** Lever bij stoppunt 2 een inschatting voor de uitbreiding; de lead beslist |
 | 21 | Naam en kleur uit hetzelfde compacte blok | ontwerp | het JIJ-blok bestaat, maak het compacter en zet de kleur erin |

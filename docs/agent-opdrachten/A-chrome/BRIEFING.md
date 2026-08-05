@@ -49,7 +49,7 @@ regel doet en of hij genoeg doet. (Hij doet ~25 px; er moet ~155 px af.)
 | 56 | Codebalk niet dominant op het eindscherm | ontwerp | zie hieronder |
 | 57 | Compacte mobiele variant van de bovenbalk | ontwerp | |
 | 58 | Kernschermen zonder scrollen | eindtoets | de lead toetst dit over alle pakketten heen |
-| **A-x1** | **Codebalk overlapt content bij scrollen** | **bug (nieuw)** | zie IMG_0292: de sticky balk snijdt door de knop "Hard". `z-index: 60` zonder achtergrond onder de balk |
+| **A-x1** | **Sticky header zonder achtergrond** | **bug (nieuw, oorzaak gevonden)** | `#app-header` (`base.css:400`) is sticky maar heeft géén `background`. De pagina scrolt er zichtbaar onderdoor: dát is de lime-rode strook op IMG_0291 én de codebalk die door "Hard" lijkt te snijden op IMG_0292. **Eén bug, twee symptomen.** Zie `../VERKENNING.md §1.1` |
 | **A-x2** | **Codebalk mag weg bij FINISHED** | voorstel | op het eindscherm doet de code niets meer. D-018 zegt "het hele potje" — een afgelopen potje is geen potje meer. Levert #56 gratis op |
 
 ## Stoppunten

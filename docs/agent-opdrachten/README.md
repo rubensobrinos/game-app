@@ -7,6 +7,10 @@ producteigenaar zijn verdeeld over de mappen `A/` t/m `D/`.
 **Lead en reviewer: regie (Claude).** De producteigenaar stuurt de agents aan;
 review loopt via de lead. Deze map is de enige bron voor wat er moet gebeuren.
 
+> **Lees ook `VERKENNING.md`.** Daarin staat wat er al in de tree zit (zes
+> punten staan gebouwd maar niet live — niet opnieuw bouwen), waar de ruimte
+> werkelijk heen gaat, en één bug die op geen enkele lijst stond.
+
 ---
 
 ## 1. Het ruimtebudget — het contract waar alles aan hangt

@@ -38,6 +38,11 @@ categorie die zonder test stilletjes terugkomt.
 
 ## Stoppunten
 
+> **Uit de verkenning (`../VERKENNING.md §2`): 36, 37 en 41 staan
+> waarschijnlijk al opgelost in de tree, alleen niet live.** Begin daar; het
+> kan zijn dat je eerste stoppunt vooral uit verifiëren bestaat. Dat is een
+> volwaardig resultaat.
+
 ### B1 — reproduceren en vastleggen
 - [ ] Per punt: reproduceerbaar gemaakt en in één zin beschreven **wat** er
       misgaat en **waarom** (niet "de timer werkt niet", maar de oorzaak).
