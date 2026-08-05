@@ -905,23 +905,40 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   font-size: 16px;
   line-height: 1;
 }
+/* A3 (#7/#8): de tweede ⋯. Twee identieke glyphs naast elkaar in de chrome
+   dwingen de gebruiker te raden welke hij nodig heeft — punt 7 in één beeld.
+   De knop blijft in de DOM (hostbar.mjs blijft 'm gebruiken als bron voor
+   "is er iets te tonen", zie `plaatsHostmenu()` in session-shell.mjs), maar
+   hij heeft niets meer te openen: zijn paneel hangt nu in het gedeelde menu.
+   Twee selectors, want twee plekken: in de chromerij moet hij het winnen van
+   de gedeelde chromeknopregel (die heeft `#app-header`-specificiteit), en
+   tijdens PAUSED staat de hostbalk in de pauzekaart — daar geldt de losse
+   klasse. Zonder de tweede zou de knop in de pauzekaart weer opduiken, zonder
+   iets te openen. */
+.session-hostbar-more,
+#app-header .session-hostbar-more {
+  display: none;
+}
+
+/* Het ⋯-paneel is geen zwevend menu meer maar een sectie ín het
+   voorkeurenmenu (#46). Daarmee vervallen zijn eigen kaart, schaduw en
+   positionering — die zitten nu één laag hoger, op `.app-menu`. Wat blijft is
+   de kolom met volle-breedte knoppen. */
 .session-hostbar-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 30;
-  min-width: 220px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px;
-  border-radius: 16px;
-  background: #101015;
-  border: 1px solid var(--rounda-row-border);
-  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.5);
 }
-.session-hostbar-panel .btn-secondary,
-.session-hostbar-panel .btn-destructive { width: 100%; }
+/* `>` en niet een gewone afstammingsselector. Dat was geen stijlkeuze maar een
+   bug: `.session-hostbar-panel .btn-secondary` (0,2,0) won van
+   `.session-hostbar-player-menu` (0,1,0), dus kreeg óók de ⋯-knop per speler
+   `width: 100%`. Die duwde de naam ernaast naar 0 px breed — in het paneel
+   stonden twee rijen met alleen een ⋯ en geen naam (gemeten: span 246 px
+   beschikbaar, 0 px toegekend). Alleen de knoppen die rechtstreeks in het
+   paneel staan horen volle breedte te zijn; wat D in een rij zet, bepaalt hij
+   zelf. */
+.session-hostbar-panel > .btn-secondary,
+.session-hostbar-panel > .btn-destructive { width: 100%; }
 .session-hostbar-players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 
 /* ════ SCHERM 2 (besluit 40): host-instellingen in de lobby ════ */

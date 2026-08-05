@@ -9,6 +9,7 @@ export const en = Object.freeze({
   'scaffold.ready': 'Frontend scaffold ready — screens follow in UI1–UI5.',
 
   'menu.open': 'Menu',
+  'menu.hostActions': 'Host actions',
   'menu.language': 'Language',
   'menu.theme': 'Theme',
   'menu.themeDark': 'Dark',

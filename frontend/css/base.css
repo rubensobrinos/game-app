@@ -584,12 +584,21 @@ button {
 
 .btn-icon:active { transform: scale(0.99); }
 
+/* A3 (#7/#8/#46): dit is sinds A3 het énige menu in de app — voorkeuren én
+   hostacties, in die volgorde van onder naar boven. 280 i.p.v. 260 px: de
+   hostsectie krijgt er een spelerslijst met naam + ⋯ in, en op 260 px begon
+   die te wringen. `max-height` + scroll omdat die lijst met de room meegroeit;
+   zonder dat loopt het menu bij een volle room onder het scherm door en is de
+   onderste knop onbereikbaar. `z-index: 61` is bewust hoger dan de
+   pauze-overlay (55): een host moet ook tijdens PAUSED bij zijn acties. */
 .app-menu {
   position: absolute;
   top: calc(100% + 0.5rem);
   right: 1rem;
   z-index: 61;
-  width: min(260px, calc(100vw - 2rem));
+  width: min(280px, calc(100vw - 2rem));
+  max-height: calc(100dvh - var(--chrome-h) - 1.5rem);
+  overflow-y: auto;
   background: var(--color-surface-1);
   border: 1.5px solid var(--color-border-subtle);
   border-radius: var(--r);
@@ -633,6 +642,10 @@ button {
     gap: 1.5rem;
     box-shadow: none;
     border-radius: var(--r-sm);
+    /* Het paneel staat hier in de flow en niet over de pagina heen; een
+       eigen scrollgebied zou dan een tweede scrollbalk op de pagina zijn. */
+    max-height: none;
+    overflow: visible;
   }
 }
 

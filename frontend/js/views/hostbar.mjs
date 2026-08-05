@@ -210,6 +210,14 @@ export function createHostBar({ root, t, onAction }) {
     focusPause() {
       pauseButton.focus();
     },
+    // A3 (#7/#8/#46): het ⋯-paneel hierboven is niet langer een eigen
+    // zwevend menu — session-shell.mjs hangt het ín het gedeelde
+    // voorkeurenmenu, zodat er één ⋯ in de chrome staat in plaats van twee
+    // identieke naast elkaar. Wat hier gebouwd wordt verandert daar niet
+    // door; alleen wáár het hangt. `menuButton` blijft de bron voor "is er
+    // iets te tonen" (`hasMore` hierboven) — de sectie in het menu volgt die.
+    menuPanel: morePanel,
+    menuButton: moreButton,
   };
 }
 
