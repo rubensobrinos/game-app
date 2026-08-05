@@ -996,3 +996,47 @@ body:has(.lobby-screen) .session-hostbar { display: none; }
   /* de pendel vervalt: de drain-animatie wordt per ronde inline gezet */
   .reveal-next-bar i { animation: none; }
 }
+
+/* ════ FEEDBACKRONDE 3 (4 aug): de vraag-kop uit mockup 4 ════ */
+
+.screen-top .gameplay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.gameplay-round { display: flex; align-items: center; gap: 8px; margin: 0; }
+.gameplay-round-dial {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+.gameplay-round-text { font: 700 13px/1 var(--font-mono); letter-spacing: 0.08em; }
+.gameplay-round-text strong { color: var(--color-text-primary); font-weight: 700; }
+.gameplay-round-text span { color: #5c5c6b; }
+.gameplay-inline-progress { display: flex; align-items: center; gap: 7px; margin: 0; }
+.gameplay-inline-progress-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rounda-lime);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gameplay-inline-progress-dot { animation: rounda-adem 1.4s infinite; }
+}
+.gameplay-inline-progress-text {
+  font: 700 12px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8e8e9c;
+}
+/* Segmentbalk: volle breedte op een eigen regel; het losse cijfer vervalt
+   (mockup 4 heeft alleen de segmenten — de screenreader-melding blijft). */
+.gameplay-timer-host { margin-top: 12px; }
+.gameplay-timer-host .timer-value { display: none; }
+.gameplay-timer-host .timer { display: block; }
+.gameplay-timer-host .timer-track { width: 100%; height: 8px; gap: 4px; }
+.gameplay-timer-host .timer-segment { border-radius: 999px; }
+/* De oude onderregel-voortgang is naar de kop verhuisd */
+.gameplay-progress { display: none; }

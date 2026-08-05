@@ -71,7 +71,17 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   countdown.append(countdownLabel, countdownValue);
 
   const header = el('div', 'gameplay-header');
-  const roundLabel = el('p', 'gameplay-round');
+  const roundWrap = el('p', 'gameplay-round');
+  const roundDial = el('span', 'gameplay-round-dial');
+  roundDial.setAttribute('aria-hidden', 'true');
+  const roundLabel = el('span', 'gameplay-round-text');
+  roundWrap.append(roundDial, roundLabel);
+  // Feedbackronde 3 (mockup 4): "9/14 BINNEN" hoort in de kop, met dot.
+  const headerProgress = el('p', 'gameplay-inline-progress');
+  const headerProgressDot = el('span', 'gameplay-inline-progress-dot');
+  headerProgressDot.setAttribute('aria-hidden', 'true');
+  const headerProgressText = el('span', 'gameplay-inline-progress-text');
+  headerProgress.append(headerProgressDot, headerProgressText);
   // M8/E07: de timer komt uit thema 2's module (`timer-bar.mjs`), niet meer
   // hier handmatig opgebouwd. Die inline versie animeerde `width` (reflow bij
   // elke tik, de enige overtreding uit thema 3's performancebudget), had de
@@ -79,7 +89,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   // aan. De module lost alle drie op en is de 12-segmentenvorm uit 1c.
   const timerHost = el('div', 'gameplay-timer-host');
   const timer = createTimerBar({ root: timerHost, t });
-  header.append(roundLabel, timerHost);
+  header.append(roundWrap, headerProgress);
 
   const questionPrompt = el('p', 'gameplay-question');
 
@@ -133,7 +143,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     }
   });
 
-  root.append(screenTitle, countdown, header, questionPrompt, flag, flagCanvas, flagFallback, options, status, progress, result, headline);
+  root.append(screenTitle, countdown, header, timerHost, questionPrompt, flag, flagCanvas, flagFallback, options, status, progress, result, headline);
 
   let renderedRoundId = null;
   let optionButtons = new Map(); // value (iso2 | 'real'/'fake' | 0/1) -> button
@@ -270,6 +280,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
 
     if (state === 'empty') {
       roundLabel.textContent = '';
+      headerProgress.hidden = true;
       timer.update({ secondsLeft: null, totalSeconds: null });
       timer.reset();
       questionPrompt.hidden = true;
@@ -291,11 +302,20 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
 
     questionPrompt.hidden = false;
 
-    // Ronde-header
-    roundLabel.textContent =
-      model.roundNumber !== null && model.totalRounds !== null
-        ? `${t('game.round')} ${model.roundNumber}/${model.totalRounds}`
-        : '';
+    // Ronde-header: mini-rad (conic vult mee met de voortgang) + "06/10".
+    if (model.roundNumber !== null && model.totalRounds !== null) {
+      const pct = Math.round((model.roundNumber / model.totalRounds) * 100);
+      roundDial.style.background = `conic-gradient(var(--rounda-lime, #d8ff3e) ${pct}%, var(--rounda-row-border, #23232c) ${pct}%)`;
+      roundLabel.textContent = '';
+      const current = document.createElement('strong');
+      current.textContent = String(model.roundNumber).padStart(2, '0');
+      const total = document.createElement('span');
+      total.textContent = `/${model.totalRounds}`;
+      roundLabel.append(current, total);
+      roundWrap.setAttribute('aria-label', `${t('game.round')} ${model.roundNumber}/${model.totalRounds}`);
+    } else {
+      roundLabel.textContent = '';
+    }
 
     // Vraag (her)opbouwen bij een nieuwe ronde
     if (model.roundId !== renderedRoundId) {
@@ -358,9 +378,13 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
           ? Math.max(1, Math.round((model.endsAt - model.startsAt) / 1000))
           : null;
       timer.update({ secondsLeft, totalSeconds });
-      progress.textContent = model.progress
-        ? `${model.progress.answeredCount}/${model.progress.eligiblePlayerCount} ${t('game.answered')}`
-        : '';
+      headerProgress.hidden = model.progress === null;
+      if (model.progress !== null) {
+        headerProgressText.textContent = t('game.inCount')
+          .replace('{n}', String(model.progress.answeredCount))
+          .replace('{m}', String(model.progress.eligiblePlayerCount));
+      }
+      progress.textContent = '';
     } else {
       timer.update({ secondsLeft: null, totalSeconds: null });
       progress.textContent = '';

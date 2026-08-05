@@ -106,6 +106,7 @@ export const nl = Object.freeze({
   'game.tooLate': 'Te laat — deze ronde telt niet meer',
   'game.notAccepted': 'Niet gelukt, probeer opnieuw',
   'game.answered': 'beantwoord',
+  'game.inCount': '{n}/{m} binnen',
   'game.correctAnswer': 'Het juiste antwoord',
   // Resultaatstempel (09-CONTENT-AND-MICROCOPY.md §9): drie gelijkwaardige
   // staten via één component, hoofdletters via CSS (text-transform) — niet

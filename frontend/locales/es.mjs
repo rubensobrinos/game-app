@@ -79,6 +79,7 @@ export const es = Object.freeze({
   'game.tooLate': 'Demasiado tarde — esta ronda ya no cuenta',
   'game.notAccepted': 'No se pudo, inténtalo de nuevo',
   'game.answered': 'respondido',
+  'game.inCount': '{n}/{m} listos',
   'game.correctAnswer': 'La respuesta correcta',
   'game.resultCorrect': 'Correcto',
   'game.resultIncorrect': 'Incorrecto',

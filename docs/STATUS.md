@@ -19,7 +19,8 @@ designrichtingen liggen bij de producteigenaar).
 4. UI-20 — arbitrage: T2-9 vs T5-7 claimen beide het voorkeurenpaneel
 5. UI-21 — productvraag grote QR-kaart vs room-header (D-018)
 6. Rebuild-moment afspreken (alleen op gecommitte, gelande stand)
-7. ± 280 ongepushte commits → push naar remote (backup!)
+7. ~~± 280 ongepushte commits~~ — 5 aug: nog **2** commits vóór `origin/main`
+   + 10 ongecommitte bestanden (protocol/socket/frontend). Git-locks zijn weg.
 
 ### Spelregel toegevoegd (NIVEAUS.md, regel 0)
 Een component telt pas als af wanneer een scherm hem gebruikt — antwoord op
@@ -46,9 +47,10 @@ handoff-item met drie concrete gebreken ligt klaar.
 
 ## Actuele testuitslag
 
-Regie (sandbox, zonder live Redis): `npm test` **2515 groen · 0 rood**.
-DT (met Redis, vóór de INT-18-fix): **2727 groen · 0 rood · 1 skip** — die
-skip was de Redis-herstarttest, geblokkeerd op INT-18 → kan nu opnieuw.
+_Gemeten 5 aug 2026:_ `npm test` **2900 groen · 0 rood · 0 skip**, 174 suites,
+11,5 s (sandbox, zonder live Redis). Kanttekening bij dat cijfer: het bewijst
+het bestaande systeem, niet het nieuwe UI-werk — zie PLAN-CONVERGENTIE §A5.
+(Historisch: 2515 op 3 aug; DT met Redis 2727 vóór de INT-18-fix.)
 
 ## Tegencontrole-2 (regie, 3 aug ± 07:00) — UITSLAG
 
@@ -72,7 +74,13 @@ update). Commit door regie klaargezet maar geblokkeerd op `.git/index.lock`/
 
 ## Open launchblockers (volgorde = prioriteit)
 
-1. **Git-locks weg + commit werkboom** (zie kanttekening) — producteigenaar + regie
+0. **NIEUW 5 aug — "Echt of nep" is selecteerbaar maar onspeelbaar.** De
+   lobbycarrousel zet `real_or_fake_flag` op speelbaar (`lobby.mjs:157`), het
+   protocol accepteert het, maar `FILLED_GAME_TYPES` in `content-source.mjs:63`
+   staat nog op `['flags_mc']` en `buildQuestion` (`match-lifecycle.mjs:804`)
+   heeft geen catch → de room blijft in COUNTDOWN hangen. Mag niet mee de
+   deploy in. Zie PLAN-CONVERGENTIE §A0 + besluit C-0.
+1. ~~Git-locks weg~~ (5 aug: weg) + **commit + push werkboom** — regie
 2. **Livegang-sein**: `SHOW_MULTIPLAYER=true` in `public-mode.js` +
    force-recreate frontend (kaart "🎉 Samen spelen" zichtbaar) — wanneer
    producteigenaar de UX goed genoeg vindt
@@ -146,8 +154,23 @@ balk op scoreboardSeconds uit de serverconfig. Cachebust `?v=1c21`;
 498 client-tests groen. Ticket nieuw: host wijzigt naam/kleur van ánderen
 (serverwerk). 
 
+## Convergentie solo ↔ samen (5 aug, analyse)
+
+Twee apps naast elkaar (solo = `app.js`/`style.css`, samen = `frontend/`):
+aparte data, i18n, CSS en renderers. De multiplayer-motor kan **vijf** games
+(`question-selection.js`, pool gevuld, `generateFlagSpec` bestaat) maar toont
+er één — `FILLED_GAME_TYPES` in `server/composition/content-source.mjs:63`
+staat op `['flags_mc']`. `docs/PLAN-CONVERGENTIE.md` bevat nu ook de
+**stabilisatieronde** die hieraan voorafgaat: A0 (zie launchblocker 0), A1
+`gameTypes` accepteert meerdere spellen terwijl alleen `[0]` telt, A2 de
+"geen tweede countdown"-fix is dode code (`runtime.round` is bij elke
+COUNTDOWN al leeg), A3 ties komen goed van de server maar worden in
+`standings-model.mjs:18` weggegooid voor `index + 1`, A4 vier publieke events
+ontbreken in PROTOCOL.md, A5 nieuw UI-werk is ongetest.
+
 ## Wachtend op producteigenaar
 
+- C-0/C-1/C-2/C-3 uit PLAN-CONVERGENTIE.md (A0-aanpak, richting, portfolio, recovery)
 - `rm -f .git/index.lock .git/HEAD.lock` (blocker 1)
 - Sein per feedbackpunt + volgorde (blocker 3)
 - Besluit herstelpad-als-accepted-risk (blocker 5)

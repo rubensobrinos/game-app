@@ -186,3 +186,28 @@ test('§A0: onzin in gameTypes wordt geweigerd (geen array, leeg, verkeerd type)
     );
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §A1 — exact één gameType. De compositie gebruikt alleen `gameTypes[0]`; een
+// langere lijst zou stilzwijgend gehalveerd worden en als mixed games lezen.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('§A1: twee gameTypes worden geweigerd, ook als beide op zichzelf geldig zouden zijn', () => {
+  const playable = PLAYABLE_GAME_TYPES[0];
+  assert.deepEqual(
+    validateGameUpdateConfigPayload({ gameTypes: [playable, 'capitals_mc'] }),
+    { ok: false, code: null },
+  );
+});
+
+test('§A1: een duplicaat is óók meer dan één waarde en wordt geweigerd', () => {
+  const playable = PLAYABLE_GAME_TYPES[0];
+  assert.deepEqual(
+    validateGameUpdateConfigPayload({ gameTypes: [playable, playable] }),
+    { ok: false, code: null },
+  );
+});
+
+test('§A1: precies één speelbare waarde blijft de enige geaccepteerde vorm', () => {
+  assert.deepEqual(validateGameUpdateConfigPayload({ gameTypes: [PLAYABLE_GAME_TYPES[0]] }), { ok: true });
+});

@@ -744,8 +744,8 @@ export function createMockTransport() {
     // server weigert — en dan bewijst een mockdoorloop het verkeerde.
     if ('gameTypes' in safe) {
       const list = safe.gameTypes;
-      if (!Array.isArray(list) || list.length === 0 || !list.every(isPlayableGameType)) {
-        throw new ProtocolError('INVALID_REQUEST', 'gameTypes must be a non-empty list of playable game types.');
+      if (!Array.isArray(list) || list.length !== 1 || !isPlayableGameType(list[0])) {
+        throw new ProtocolError('INVALID_REQUEST', 'gameTypes must hold exactly one playable game type.');
       }
     }
     Object.assign(target.config ?? (target.config = {}), safe);

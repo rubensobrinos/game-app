@@ -46,6 +46,7 @@ import { assertRoomShape } from '../data/types/room.js';
 import { assertSessionShape } from '../data/types/session.js';
 import { ALL_ERROR_CODES } from '../protocol/error-codes.mjs';
 import { PLAYER_COLORS, UPDATABLE_CONFIG_KEYS, validateGameUpdateConfigPayload } from '../protocol/client-events-dispatch.mjs';
+import { PLAYABLE_GAME_TYPES, isPlayableGameType } from '../../shared/content/game-catalog.mjs';
 import { createId, createSessionToken, verifySessionToken } from './context.mjs';
 
 /**
@@ -137,9 +138,30 @@ export function resolveGameConfiguration(partial) {
     throw new TypeError(`resolveGameConfiguration: config moet een object of undefined zijn, kreeg: ${JSON.stringify(partial)}`);
   }
   const merged = { ...QUICK_START_CONFIG, ...(partial ?? {}) };
-  merged.gameTypes = [...merged.gameTypes];
+  merged.gameTypes = Array.isArray(merged.gameTypes) ? [...merged.gameTypes] : merged.gameTypes;
   merged.teamNames = [...merged.teamNames];
   assertGameConfigurationShape(merged);
+
+  // §A1 — EXACT ÉÉN SPEELBARE GAMETYPE, op de enige trechter waar room-configs
+  // ontstaan én wijzigen (createRoom én updateConfig lopen hier langs).
+  //
+  // Waarom hier en niet in `assertGameConfigurationShape`: die functie keurt de
+  // VORM van een GameConfiguration zoals DATA-MODEL.md hem definieert (een
+  // lijst), en dat contract blijft staan voor de dag dat mixed games terugkomen.
+  // Wat er vandaag een room in mag, is een productbesluit (32: één gameType per
+  // match) plus een ketenfeit (game-catalog.mjs: is de hele keten er klaar
+  // voor?) — en dat hoort in de compositie.
+  if (merged.gameTypes.length !== 1) {
+    throw new RangeError(
+      `resolveGameConfiguration: gameTypes moet exact één waarde bevatten (besluit 32), kreeg: ${JSON.stringify(merged.gameTypes)}`,
+    );
+  }
+  if (!isPlayableGameType(merged.gameTypes[0])) {
+    throw new RangeError(
+      `resolveGameConfiguration: gameType ${JSON.stringify(merged.gameTypes[0])} is niet speelbaar; ` +
+        `speelbaar zijn: ${JSON.stringify(PLAYABLE_GAME_TYPES)} (shared/content/game-catalog.mjs)`,
+    );
+  }
   return merged;
 }
 

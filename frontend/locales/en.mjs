@@ -81,6 +81,7 @@ export const en = Object.freeze({
   'game.tooLate': 'Too late — this round no longer counts',
   'game.notAccepted': 'Not accepted, try again',
   'game.answered': 'answered',
+  'game.inCount': '{n}/{m} in',
   'game.correctAnswer': 'The correct answer',
   'game.resultCorrect': 'Correct',
   'game.resultIncorrect': 'Incorrect',

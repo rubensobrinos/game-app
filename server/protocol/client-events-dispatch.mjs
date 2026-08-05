@@ -195,9 +195,16 @@ export function validateGameUpdateConfigPayload(payload) {
     return { ok: false, code: null };
   }
   if ('gameTypes' in payload) {
+    // EXACT ÉÉN (§A1, besluit 32: één gameType per match). De eerste versie
+    // accepteerde iedere niet-lege lijst terwijl de compositie alleen
+    // `gameTypes[0]` gebruikt: een client kon er drie sturen, kreeg ze alle
+    // drie bevestigd in `room:config-changed` en er werden er stilzwijgend
+    // twee genegeerd. Dat leest bovendien als heropende mixed games, die
+    // expliciet buiten scope staan. Meer dan één waarde — ook een duplicaat —
+    // is daarom een vormfout, geen stille reductie.
     const list = payload.gameTypes;
-    if (!Array.isArray(list) || list.length === 0) return { ok: false, code: null };
-    if (!list.every(isPlayableGameType)) return { ok: false, code: null };
+    if (!Array.isArray(list) || list.length !== 1) return { ok: false, code: null };
+    if (!isPlayableGameType(list[0])) return { ok: false, code: null };
   }
   return { ok: true };
 }

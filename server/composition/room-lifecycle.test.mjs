@@ -29,6 +29,7 @@ import {
   resolveSession,
   setRoomLocked,
 } from './room-lifecycle.mjs';
+import { PLAYABLE_GAME_TYPES } from '../../shared/content/game-catalog.mjs';
 
 const FIXED_NOW = 1_754_136_000_000;
 const PEPPER = 'test-pepper-met-ruim-genoeg-bytes';
@@ -685,4 +686,38 @@ test('alle tijdstempels komen uit de geïnjecteerde klok, nooit uit Date.now()',
   clock = 1_000_000_120_000;
   await setRoomLocked(context, { roomId: room.roomId, locked: true });
   assert.equal((await context.store.loadRoom(room.roomId)).lastActivityAt, 1_000_000_120_000);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §A1 — de trechter waar élke room-config langskomt (createRoom én
+// updateConfig) laat maar één, speelbare gameType door.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('§A1: resolveGameConfiguration weigert meer dan één gameType', () => {
+  assert.throws(
+    () => resolveGameConfiguration({ gameTypes: ['flags_mc', 'capitals_mc'] }),
+    /exact één waarde/,
+  );
+  assert.throws(
+    () => resolveGameConfiguration({ gameTypes: ['flags_mc', 'flags_mc'] }),
+    /exact één waarde/,
+  );
+  assert.throws(() => resolveGameConfiguration({ gameTypes: [] }), /exact één waarde/);
+});
+
+test('§A1: resolveGameConfiguration weigert een gameType waarvan de keten nog niet af is', () => {
+  for (const gameType of ['capitals_mc', 'odd_one_out', 'higher_lower', 'real_or_fake_flag']) {
+    if (PLAYABLE_GAME_TYPES.includes(gameType)) continue;
+    assert.throws(
+      () => resolveGameConfiguration({ gameTypes: [gameType] }),
+      /niet speelbaar/,
+      `${gameType} hoort geweigerd te worden zolang hij niet speelbaar is`,
+    );
+  }
+});
+
+test('§A1: de quick-start default komt er ongeschonden doorheen', () => {
+  const config = resolveGameConfiguration();
+  assert.equal(config.gameTypes.length, 1);
+  assert.ok(PLAYABLE_GAME_TYPES.includes(config.gameTypes[0]));
 });
