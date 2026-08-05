@@ -3,7 +3,8 @@
 **Eigenaar:** regie (Claude). **Bijgewerkt bij elk meetmoment; historie hoort
 in git, niet hier.** Bij twijfel wint dit bestand van elk PROGRESS-bestand.
 
-_Laatst geverifieerd: 5 aug 2026 · stabilisatieronde stap 1–5 gelanden._
+_Laatst geverifieerd: 5 aug 2026 · stabilisatieronde stap 1–6 geland; 7–9 liggen
+bij de producteigenaar, 10 blokkeert op C-1/C-2._
 
 ---
 
@@ -11,9 +12,9 @@ _Laatst geverifieerd: 5 aug 2026 · stabilisatieronde stap 1–5 gelanden._
 
 | | Stand |
 | --- | --- |
-| Suite | **2942 groen · 0 rood · 0 skip** (174+ suites, ~12 s, zonder live Redis) |
+| Suite | **2948 groen · 0 rood · 0 skip** (175 suites, ~11 s, zonder live Redis) |
 | Live op rounda.io | Werkende multiplayerketen: create/join/QR/rondes/pauze/rematch |
-| Speelbare games | **1** — Raad de vlag. De motor kan er vijf; zie PLAN-CONVERGENTIE §B2 |
+| Speelbare games | **2** — Raad de vlag en Echt of nep (verticaal bewezen). De motor kan er vijf; zie PLAN-CONVERGENTIE §B2 |
 | Git | schoon; alles gecommit en gepusht (zie onderaan) |
 | Grootste open risico | herstel na serverrestart (ARCHITECTURE §10) — besluit C-3 |
 
@@ -42,20 +43,26 @@ mock-pin die de afwijking vastlegde.
 | --- | --- | --- |
 | C-1 | Solo als modus van de multiplayer-app, of twee apps met een 1c-restyle? | PLAN-CONVERGENTIE §B4 |
 | C-2 | Gameportfolio: de vier uit doelbeeld v2 of de vijf gebouwde? | §B3 |
-| C-3 | Herstelpad na serverrestart bouwen, of expliciet accepteren t/m de pilots? | §A7 |
+| C-3 | Herstelpad na serverrestart bouwen, of expliciet accepteren t/m de pilots? | BESLUITVERZOEK-recovery-en-metrics.md |
+| M-1/M-2 | Afscherming `/metrics` + timing van de eerste metricset | idem |
 | — | Sein per feedbackpunt uit FEEDBACK-eerste-livetest.md | los mandaat |
 | — | Productvraag typed answers: meer punten voor intypen dan voor meerkeuze? | FEATURE-typed-answers |
 
 ### Techniek (volgorde uit PLAN-CONVERGENTIE deel C)
 
-1. **Stap 6 — "Echt of nep" verticaal opleveren**: contentbron openzetten,
-   `generateFlagSpec` doorgeven, mockpariteit, reveal per gameType, dan pas
-   de carrousel aanzetten. Nu bewust nog niet speelbaar.
-2. **Stap 7 — één echte groepspilot** (6–10 mensen). Draaiboek + meetlat:
-   `docs/pilot-b-draaiboek.md`.
-3. **Stap 8 — recovery** (C-3).
-4. **Stap 9 — kleine metricset**, gericht op de vragen uit de pilot.
+1. ~~Stap 6 — "Echt of nep" verticaal~~ **klaar** (5 aug). Onderweg twee
+   defecten gevonden en gerepareerd: `distribution` ging als object over de
+   lijn terwijl de client een array leest (scherm-5-telling en sociale
+   headlines verschenen buiten de mock nooit), en echt/nep was een muntworp per
+   vraag in plaats van de gebalanceerde reeks.
+2. **Stap 7 — één echte groepspilot** (6–10 mensen). Draaiboek + meetlat staan
+   klaar: `docs/pilot-b-draaiboek.md`. **Uitvoering is aan de producteigenaar.**
+3. **Stap 8 — recovery** (C-3) — besluit ligt voor.
+4. **Stap 9 — kleine metricset** — geblokkeerd op M-1 (afscherming `/metrics`)
+   en bewust ná de pilot: metrics kiezen vóór de pilot is gokken welke vraag
+   we straks hebben.
 5. **Stap 10 — deel B**: solo als modus, `odd_one_out`/`capitals_mc`, contour.
+   Blokkeert op C-1/C-2.
 
 ### Blijvend open, ongewijzigd
 
