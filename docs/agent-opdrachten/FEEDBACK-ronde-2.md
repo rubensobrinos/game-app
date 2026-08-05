@@ -11,6 +11,20 @@ genoteerd zodat hij niet ondergaat in de 58 van ronde 1. Nummering `R2-x`.
 | R2-4 | Lobby | "Antwoord automatisch tonen" werkt nog steeds niet | — | ⏸ = punt 27, nooit gebouwd, wacht op besluit |
 | R2-5 | Lobby | **"Meer instellingen" moet een kleine regel onderin zijn, geen grote knop.** | C | 🔄 |
 | R2-6 | Lobby | Kleurkeuze en spelersnamen moeten nog gefixt worden (= punten 19, 20, 21) | C | 🔄 |
+| R2-7 | Spel | Timer ziet er veel beter uit, maar klopt niet: bij ronde 1 branden er **4 van de 12** segmenten terwijl er 12 horen te staan | D | 🔄 |
+| R2-8 | Aftellen | Het scherm vóór de eerste vraag is vaag: "Zo begint de vraag", een grote 1, en een leeg kader met "Te raden vlag". *"Mag veeeeel enthousiaster, dat iedereen echt klaar is, counter van 3 naar 0."* | D | 🔄 |
+
+## R2-8 — wat er nu misgaat
+
+Twee dingen tegelijk. **Het lege kader** ("Te raden vlag") is de vlagplaceholder
+die al bestaat vóórdat er een vraag is; dat leest als een kapot scherm in plaats
+van als spanning. En **het aftellen zelf** is een kaal cijfer met een zin
+erboven, terwijl dit juist het moment is waarop de hele kamer tegelijk stil valt.
+
+De aanleiding is bovendien nieuw sinds §A2: tússen rondes telt de server niet
+meer af (de ronde begint direct), dus dit scherm is nu **alleen nog het begin
+van de match**. Dat maakt het een echte opening — één keer per potje — en dat
+rechtvaardigt een moment in plaats van een tussenstand.
 
 ## R2-2 — waarom de balk uit elkaar viel
 
