@@ -98,6 +98,7 @@ in de review terug:
 | **32** | Eén gameType per match |
 | **Doelbeeld C** | "Antwoord automatisch tonen" is serverwerk, geen CSS-toggle |
 | **Positief** | Punten 6, 12, 26, 28, 29, 30 vond de producteigenaar goed. **Niet verbeteren.** |
+| **Sticky blijft** | De codebalk én de startknop blijven sticky — de producteigenaar wil ze altijd in beeld (5 aug, expliciet). De bug uit `VERKENNING.md §1.1` is dat de header géén achtergrond heeft, niet dát hij sticky is. **Fix = achtergrond toevoegen. Sticky weghalen is een afgekeurde review.** |
 
 ## 5. Reviewprotocol
 
