@@ -1105,7 +1105,13 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
         }
         const activeRoundId = match.roundIds[match.roundIds.length - 1];
         const round = await context.store.loadRound(roomId, match.id, activeRoundId);
-        if (round === null || context.now() < round.endsAt) {
+        // Zelfde coulance als besluit 13's antwoorddeadline (`deadlineGraceMs`,
+        // standaard 250ms): de host ziet "Toon antwoord" verschijnen op basis
+        // van zijn EIGEN, licht afwijkende klokschatting (`estimateServerOffset`)
+        // — zonder deze marge zou een tik op het exacte moment dat de knop
+        // verschijnt soms nog vóór de server dezelfde deadline zien, en dan
+        // zwijgend niets doen (browsermeting, 6 aug 2026: precies dit gebeurde).
+        if (round === null || context.now() < round.endsAt - room.config.deadlineGraceMs) {
           return { ok: false, code: 'INVALID_PHASE' };
         }
 

@@ -58,6 +58,16 @@ const SCOREBOARD_AUTO_ADVANCE_MS = 2500;
 // altijd exact 0.
 const SIMULATED_SERVER_SKEW_MS = 400;
 
+// Fase 4 (autoReveal, besluit 51): dezelfde coulance als besluit 13's
+// `deadlineGraceMs` voor de host-tik op "Toon antwoord" (zie `revealAnswer`).
+// De host ziet die knop verschijnen op basis van ZIJN eigen klokschatting
+// (`estimateServerOffset()`, die hier per definitie ~`SIMULATED_SERVER_SKEW_MS`
+// afwijkt) — zonder marge zou een tik op het exacte moment dat de knop
+// verschijnt hier stelselmatig te vroeg zijn. Ruim boven de skew, niet gelijk
+// eraan: `estimateServerOffset` middelt drie metingen en kan er dus nog naast
+// zitten.
+const REVEAL_DEADLINE_GRACE_MS = 600;
+
 const NAME_ADJECTIVES = ['Vlugge', 'Slimme', 'Dappere', 'Rustige', 'Gouden', 'Wakkere'];
 const NAME_NOUNS = ['Vos', 'Uil', 'Leeuw', 'Reiger', 'Das', 'Havik'];
 
@@ -723,7 +733,11 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
     if (target.config.autoReveal !== false) {
       throw new ProtocolError('INVALID_PHASE', 'game:reveal requires autoReveal:false.');
     }
-    if (target.phase !== 'ROUND_ACTIVE' || target.currentRound === null || Date.now() < target.currentRound.endsAt) {
+    if (
+      target.phase !== 'ROUND_ACTIVE'
+      || target.currentRound === null
+      || Date.now() < target.currentRound.endsAt - REVEAL_DEADLINE_GRACE_MS
+    ) {
       throw new ProtocolError('INVALID_PHASE', 'game:reveal requires an active round past its deadline.');
     }
     endRound(target, target.roundIndex);
