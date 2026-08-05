@@ -266,3 +266,35 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
       JS was dus nooit het probleem.
     - Vervangt de tabletvariant uit T5-7; besluit UI-20 (het paneel zelf
       blijft bestaan) is ongewijzigd.
+
+44. **Reactiezinnen: minimaal vijftig, nooit twee tegelijk** (producteigenaar,
+    5 aug 2026). VASTGELEGD, NOG NIET GEBOUWD.
+
+    Er zijn er nu **zes** (`headline.*` in de locales) en het scherm toont er
+    één per ronde. Bij vijf rondes zie je in één avond de halve voorraad.
+
+    - **Doel: 50 tot 100 zinnen per taal.** Dat is redactiewerk, geen
+      programmeerwerk — de selectielogica in `social-headline.mjs` blijft zoals
+      hij is.
+    - **Nooit twee tegelijk.** De eerdere vraag "streak én 'jij was de enige'
+      naast elkaar tonen" vervalt: de producteigenaar noemt dat vaag en raar.
+      Eén zin, de sterkste.
+    - Drie talen, dus reken op 150–300 zinnen in totaal. Ze mogen per taal
+      groeien; de code hoeft er niet op te wachten.
+
+45. **De gamekeuze wordt de Rounda-donut op zijn kant** (producteigenaar,
+    5 aug 2026). VASTGELEGD, NOG NIET GEBOUWD.
+
+    Vervangt het eerdere voorstel "strip van vier kaartjes naast elkaar" — dat
+    was een idee van de regie, niet van de producteigenaar, en het vervalt.
+
+    Je kijkt tegen de zíjkant van de donut aan; dat is het Rounda-logo. Op de
+    rand staan de games. Draai je naar links of rechts, dan komt de volgende
+    game in beeld. Omdat je op een computer niet veegt, staan er links en
+    rechts pijltjes waarop je kunt klikken.
+
+    - De pijltjes bestaan al in de huidige carrousel; de draaiing en het
+      donutbeeld zijn nieuw.
+    - Dit is een visueel concept, geen laadstructuur: welke games speelbaar
+      zijn blijft `shared/content/game-catalog.mjs`.
+
