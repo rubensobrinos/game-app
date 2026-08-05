@@ -208,6 +208,13 @@ export const en = Object.freeze({
   'hostbar.next': 'Next',
   'hostbar.finish': 'End the game',
   'hostbar.finishConfirm': 'Are you sure you want to end the game?',
+  // D3: the player count belongs in the question — that is what is at stake.
+  'hostbar.finishConfirmCount.one': 'End the game for {n} player?',
+  'hostbar.finishConfirmCount.other': 'End the game for {n} players?',
+  'hostbar.finishYes': 'Yes, end it',
+  'hostbar.kickYes': 'Yes, remove',
+  'hostbar.cancel': 'Cancel',
+  'hostbar.settings': 'More settings',
   'hostbar.players': 'Manage players',
   'hostbar.kick': 'Remove',
   'hostbar.kickConfirmPrefix': 'Remove from this game:',

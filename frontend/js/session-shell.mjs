@@ -196,6 +196,9 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   const hostBar = createHostBar({
     root: hostBarRoot,
     t,
+    // D3: de bevestiging van "Game beëindigen" noemt het aantal spelers, en
+    // dat aantal is telbaar ("1 speler" / "8 spelers").
+    tCount,
     onAction: (action, params) => sendHostAction(action, params),
   });
 
@@ -585,6 +588,10 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
    * over van een potje dat niet meer bestaat.
    */
   function ruimHostmenuOp() {
+    // D3: de hostbalk kijkt mee of het voorkeurenmenu sluit (om een half
+    // ingezette bevestiging terug te zetten). Die waarnemer hangt aan het
+    // menu, dat élke sessie overleeft — dus hier expliciet afkoppelen.
+    hostBar.destroy();
     hostBar.menuPanel.remove();
     const slot = hostActionSlot();
     if (slot !== null) {
