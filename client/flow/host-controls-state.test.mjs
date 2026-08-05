@@ -116,6 +116,47 @@ test('17. hostActionRequest with a bogus action is null, no throw', () => {
   });
 });
 
+// Fase 4 (autoReveal, besluit 51). 'reveal' en 'next' liggen in disjuncte
+// fasen (ROUND_ACTIVE resp. SCOREBOARD) — geen onderdrukking van 'next' nodig
+// zoals bij de teruggedraaide eerste poging.
+test('19. autoReveal false + ROUND_ACTIVE + roundExpired heeft reveal', () => {
+  const actions = availableHostActions(ctx({ phase: 'ROUND_ACTIVE', autoReveal: false, roundExpired: true }));
+  assert.ok(actions.includes('reveal'));
+});
+
+test('20. autoReveal false + ROUND_ACTIVE zonder roundExpired heeft geen reveal — te vroeg tikken kan niet', () => {
+  const actions = availableHostActions(ctx({ phase: 'ROUND_ACTIVE', autoReveal: false, roundExpired: false }));
+  assert.ok(!actions.includes('reveal'));
+});
+
+test('21. autoReveal true (of ontbrekend) heeft nooit reveal, ook niet als de tijd om is', () => {
+  assert.ok(!availableHostActions(ctx({ phase: 'ROUND_ACTIVE', autoReveal: true, roundExpired: true })).includes('reveal'));
+  assert.ok(!availableHostActions(ctx({ phase: 'ROUND_ACTIVE', roundExpired: true })).includes('reveal'), 'ontbrekend autoReveal = standaard aan');
+});
+
+test('22. reveal verschijnt alleen in ROUND_ACTIVE, nooit in ROUND_RESULT/SCOREBOARD', () => {
+  for (const phase of ['ROUND_RESULT', 'SCOREBOARD', 'COUNTDOWN', 'LOBBY']) {
+    const actions = availableHostActions(ctx({ phase, autoReveal: false, roundExpired: true }));
+    assert.ok(!actions.includes('reveal'), `geen reveal in ${phase}`);
+  }
+});
+
+test('23. reveal en next kunnen nooit tegelijk beschikbaar zijn', () => {
+  const actions = availableHostActions(ctx({ phase: 'ROUND_ACTIVE', pacing: 'host', autoReveal: false, roundExpired: true }));
+  assert.ok(actions.includes('reveal'));
+  assert.ok(!actions.includes('next'));
+});
+
+test('24. hostActionRequest(reveal) geeft game:reveal met lege payload', () => {
+  const result = hostActionRequest('reveal', ctx({ phase: 'ROUND_ACTIVE', autoReveal: false, roundExpired: true }));
+  assert.deepStrictEqual(result, { event: 'game:reveal', payload: {} });
+});
+
+test('25. hostActionRequest(reveal) is null als reveal niet beschikbaar is (te vroeg)', () => {
+  const result = hostActionRequest('reveal', ctx({ phase: 'ROUND_ACTIVE', autoReveal: false, roundExpired: false }));
+  assert.strictEqual(result, null);
+});
+
 test('18. null/undefined/malformed context never throws and resolves conservatively', () => {
   assert.doesNotThrow(() => {
     assert.deepStrictEqual(availableHostActions(null), []);

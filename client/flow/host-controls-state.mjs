@@ -4,11 +4,13 @@
  * @typedef {{
  *   phase: Phase,
  *   pacing: 'auto' | 'host',
+ *   autoReveal?: boolean,
+ *   roundExpired?: boolean,
  *   playerCount: number,
  *   locked: boolean,
  * }} HostControlContext
  *
- * @typedef {'start'|'pause'|'resume'|'next'|'lock'|'unlock'|'kick'|'finish'|'rematch'} HostAction
+ * @typedef {'start'|'pause'|'resume'|'next'|'reveal'|'lock'|'unlock'|'kick'|'finish'|'rematch'} HostAction
  */
 
 const ACTIVE_PHASES = new Set(['COUNTDOWN', 'ROUND_ACTIVE', 'ROUND_RESULT', 'SCOREBOARD']);
@@ -16,6 +18,20 @@ const ACTIVE_PHASES = new Set(['COUNTDOWN', 'ROUND_ACTIVE', 'ROUND_RESULT', 'SCO
 // always timer-driven, even under host pacing. The host only acts from
 // SCOREBOARD ("Volgende"), never from ROUND_RESULT.
 const WAITING_PHASES = new Set(['SCOREBOARD']);
+
+/**
+ * Besluit 51 (fase 4, autoReveal): staat "Antwoord automatisch tonen" uit,
+ * dan is onthullen de ene hostactie van de ronde — maar ROUND_RESULT/
+ * SCOREBOARD zijn en blijven gewone getimede fasen (ongewijzigd, geen
+ * HOST_REVEAL-fase-overgang). 'reveal' en 'next' liggen daardoor altijd in
+ * disjuncte fasen (ROUND_ACTIVE resp. SCOREBOARD) en kunnen nooit tegelijk
+ * beschikbaar zijn — geen aparte onderdrukking van 'next' nodig, in
+ * tegenstelling tot de eerder teruggedraaide poging.
+ * @param {HostControlContext} context
+ */
+function onthultDeHostZelf(context) {
+  return context.autoReveal === false;
+}
 
 /** @param {HostControlContext} context @returns {HostAction[]} */
 export function availableHostActions(context) {
@@ -38,6 +54,9 @@ export function availableHostActions(context) {
   }
   if (phase === 'PAUSED') {
     actions.push('resume');
+  }
+  if (onthultDeHostZelf(context) && phase === 'ROUND_ACTIVE' && context.roundExpired === true) {
+    actions.push('reveal');
   }
   if (context.pacing === 'host' && WAITING_PHASES.has(phase)) {
     actions.push('next');
@@ -81,6 +100,8 @@ export function hostActionRequest(action, context, params) {
       return { event: 'game:resume', payload: {} };
     case 'next':
       return { event: 'game:next', payload: {} };
+    case 'reveal':
+      return { event: 'game:reveal', payload: {} };
     case 'lock':
       return { event: 'game:lock', payload: { locked: true } };
     case 'unlock':

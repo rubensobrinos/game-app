@@ -373,3 +373,32 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
 
     Uitvoering: CSS plus de bestaande beat-logica in `scoreboard.mjs`. Lead.
 
+51. **"Antwoord automatisch tonen" uit → het onthullen ÍS de hostactie, door
+    de ronde LATER af te sluiten, niet door een fase over te slaan** (lead,
+    6 aug 2026; herziening van besluit 40-C). GEBOUWD.
+
+    Een eerste poging (`git revert` van merge `b55a44e`, 5 aug 2026) had de
+    kern omgekeerd: die introduceerde `HOST_REVEAL` als state-machine-event
+    vanuit `ROUND_RESULT` en maakte `phaseEndsAt` daar voorwaardelijk. Gemeten
+    met een browser stond het antwoord dan al bij het verstrijken van de tijd
+    (`endRound()` had het al onthuld), en de hostknop deed "doorgaan vanaf de
+    uitslag" in plaats van "toon het antwoord". De testsuite was groen —
+    alleen een browser liet het verschil zien. Zie
+    `docs/openstaand/antwoord-automatisch-tonen.md` voor de volledige
+    nabeschouwing.
+
+    De juiste vorm: `GameConfiguration.autoReveal` (verplichte boolean,
+    standaard `true`) bepaalt alleen WANNEER `endRound()` wordt aangeroepen,
+    niet WELKE fase-overgangen er bestaan. Staat hij op `false`, dan plant de
+    server bij het openen van de ronde geen automatische `round:ended` meer
+    in — de ronde blijft `ROUND_ACTIVE` voorbij de deadline (spelers zien hun
+    timer gewoon aftellen; `round:answer` sluit al op de bestaande
+    deadline+grace-toets, besluit 13). Het nieuwe hostevent `game:reveal` roept
+    dezelfde `endRound()` rechtstreeks aan — geweigerd als de deadline nog
+    niet voorbij is, of als `autoReveal` al aan staat. `state-machine.js` en
+    `match-lifecycle.mjs` blijven **ongewijzigd**: er is geen nieuw event, geen
+    overgeslagen fase. `ROUND_RESULT`/`SCOREBOARD` lopen na het onthullen —
+    wanneer dat ook gebeurt — gewoon getimed door zoals altijd (besluit 1
+    blijft dus intact zonder aparte uitzondering: het onthullen ís de ene
+    hostactie van de ronde, er komt geen tweede knop "Volgende" bij).
+

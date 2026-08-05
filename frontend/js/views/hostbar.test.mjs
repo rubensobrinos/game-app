@@ -305,3 +305,43 @@ test('D3: zonder tCount valt de vraag terug op de zin zonder getal', async () =>
     'hostbar.finishConfirm',
   );
 });
+
+// Fase 4 (autoReveal, besluit 51): "Toon antwoord" op dezelfde plek als
+// "Volgende" — geen tweede knop erbij, want de twee kunnen nooit tegelijk
+// beschikbaar zijn (host-controls-state.mjs).
+
+test('besluit 51: reveal beschikbaar toont "Toon antwoord" i.p.v. "Volgende", op dezelfde knop', async () => {
+  stubDom();
+  const { root } = await bouw({ availableActions: [...TIJDENS_SPEL, 'reveal'] });
+
+  const volgende = vind(root, 'session-hostbar-next');
+  assert.equal(volgende.hidden, false);
+  assert.equal(volgende.textContent, 'hostbar.reveal');
+});
+
+test('besluit 51: reveal-knop stuurt de reveal-actie, niet next', async () => {
+  stubDom();
+  const { root, acties } = await bouw({ availableActions: [...TIJDENS_SPEL, 'reveal'] });
+
+  klik(vind(root, 'session-hostbar-next'));
+  assert.deepEqual(acties, [['reveal', null]]);
+});
+
+test('besluit 51: next beschikbaar (geen reveal) toont gewoon "Volgende" en stuurt next', async () => {
+  stubDom();
+  const { root, acties } = await bouw({ availableActions: [...TIJDENS_SPEL, 'next'], phase: 'SCOREBOARD' });
+
+  const volgende = vind(root, 'session-hostbar-next');
+  assert.equal(volgende.hidden, false);
+  assert.equal(volgende.textContent, 'hostbar.next');
+
+  klik(volgende);
+  assert.deepEqual(acties, [['next', null]]);
+});
+
+test('besluit 51: geen van beide beschikbaar houdt de knop verborgen', async () => {
+  stubDom();
+  const { root } = await bouw({ availableActions: TIJDENS_SPEL });
+
+  assert.equal(vind(root, 'session-hostbar-next').hidden, true);
+});

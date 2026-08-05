@@ -315,3 +315,48 @@ test('punt 11: een odd_one_out-kaart met een vlagspec wordt getekend, niet als a
   const soorten = kaarten.map((kaart) => kaart.children[0].tagName);
   assert.deepEqual(soorten, ['IMG', 'IMG', 'CANVAS', 'IMG']);
 });
+
+// Fase 4 (autoReveal, besluit 51): "tijd om, nog geen round:ended" — of dat nu
+// komt doordat autoReveal uit staat en de host nog moet tikken, of door de
+// normale verwerkingslatentie, is deze view om het even (secondsLeft is haar
+// enige signaal, niet autoReveal zelf).
+
+test('besluit 51: secondsLeft 0 zonder result toont "wachten op de host", ongeacht of er al geantwoord is', async () => {
+  const { root, view } = await maakView();
+
+  view.update(actiefModel({ answerStatus: 'idle' }), { phase: 'ROUND_ACTIVE', secondsLeft: 0 });
+  assert.equal(vind(root, 'gameplay-status').textContent, 'game.waitingForReveal', 'niet geantwoord + tijd om');
+
+  view.update(actiefModel({ answerStatus: 'accepted' }), { phase: 'ROUND_ACTIVE', secondsLeft: 0 });
+  assert.equal(vind(root, 'gameplay-status').textContent, 'game.waitingForReveal', 'wél geantwoord + tijd om');
+});
+
+test('besluit 51: een net mislukte poging (DEADLINE_PASSED) houdt voorrang op de wachtmelding', async () => {
+  const { root, view } = await maakView();
+
+  view.update(
+    actiefModel({ answerStatus: 'rejected', rejectionCode: 'DEADLINE_PASSED' }),
+    { phase: 'ROUND_ACTIVE', secondsLeft: 0 },
+  );
+  assert.equal(vind(root, 'gameplay-status').textContent, 'game.tooLate');
+});
+
+test('besluit 51: zolang er nog tijd is, blijft de gewone verzendstatus staan', async () => {
+  const { root, view } = await maakView();
+
+  view.update(actiefModel({ answerStatus: 'accepted' }), { phase: 'ROUND_ACTIVE', secondsLeft: 3 });
+  assert.equal(vind(root, 'gameplay-status').textContent, 'game.received');
+
+  view.update(actiefModel({ answerStatus: 'idle' }), { phase: 'ROUND_ACTIVE', secondsLeft: 3 });
+  assert.equal(vind(root, 'gameplay-status').textContent, '', 'idle zonder tijdsdruk toont niets');
+});
+
+test('besluit 51: zodra het echte resultaat er is, wint dat altijd van de wachtmelding', async () => {
+  const { root, view } = await maakView();
+
+  view.update(
+    actiefModel({ result: { correct: true }, answerStatus: 'accepted' }),
+    { phase: 'ROUND_ACTIVE', secondsLeft: 0 },
+  );
+  assert.equal(vind(root, 'gameplay-status').textContent, '');
+});

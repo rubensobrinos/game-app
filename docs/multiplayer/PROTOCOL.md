@@ -427,6 +427,7 @@ Een snapshot bevat nooit het correcte antwoord van een actieve ronde.
 | `game:pause` | host | `{ reason?: string }` | actieve game |
 | `game:resume` | host | `{}` | fase PAUSED |
 | `game:next` | host | `{}` | host-tempo en wachtfase |
+| `game:reveal` | host | `{}` | `autoReveal: false`, ronde actief, deadline voorbij |
 | `game:lock` | host | `{ locked: boolean }` | room bestaat |
 | `game:kick` | host | `{ playerId }` | speler bestaat, niet zichzelf als enige host |
 | `game:finish` | host | `{}` | niet reeds FINISHED |
@@ -441,6 +442,44 @@ Een snapshot bevat nooit het correcte antwoord van een actieve ronde.
 `share:opened.method` is gelijkgetrokken met de vier herkomsten uit
 `POST /games/join`'s `joinSource` (`DECISIONS.md`, punt 18): `qr`, `link`,
 `native` en `code` (handmatige codeweergave).
+
+### `game:reveal`
+
+De hostactie van besluit C (5 aug 2026), herzien op 6 aug 2026 na een
+teruggedraaide eerste poging (`git revert` van merge `b55a44e`) — zie
+`docs/openstaand/antwoord-automatisch-tonen.md` voor de volledige
+nabeschouwing.
+
+**De kern: dit slaat GEEN fase over, het sluit de ronde LATER af.** Staat
+`config.autoReveal` op `false`, dan plant de server bij het openen van de
+ronde geen automatische `round:ended` in. De ronde blijft `ROUND_ACTIVE`
+voorbij `Round.endsAt` — spelers zien hun timer gewoon naar 0 aftellen, en
+`round:answer` sluit al op de normale deadline+grace-toets (besluit 13,
+ongewijzigd). Het correcte antwoord verlaat de server pas bij `game:reveal`:
+dat roept dezelfde `endRound()` aan die de timer anders had gedaan, alleen op
+het moment dat de host kiest.
+
+| | |
+| --- | --- |
+| Payload | `{}` — de server weet zelf welke ronde er loopt |
+| Fase | `ROUND_ACTIVE`, met de deadline al voorbij |
+| Rol | host |
+| Voorwaarden | `config.autoReveal === false`; de deadline (`Round.endsAt`) moet al voorbij zijn — te vroeg tikken onthult niet vervroegd |
+| Foutcode | `INVALID_PHASE` bij een van beide geschonden voorwaarden |
+| Effect | identiek aan een timergedreven ronde-einde: `round:ended` (met `correctAnswer`, besluit 20) gaat de deur uit, en de ronde loopt daarna gewoon door — ROUND_RESULT/SCOREBOARD zijn en blijven **gewone getimede fasen**, niet aangepast door `autoReveal` |
+
+**Er komt geen tweede hostknop bij** (besluit 1: één hostactie per ronde). Bij
+`autoReveal: false` **is het onthullen** die ene hostactie van de ronde — hij
+staat op dezelfde plek als "Volgende" (dat bij host-tempo dan ook niet meer
+verschijnt vanuit SCOREBOARD, want ROUND_RESULT/SCOREBOARD lopen bij
+`autoReveal: false` gewoon getimed door zoals altijd, en de ene hostactie zat
+al bij het onthullen).
+
+**Wat dit NIET is** (de fout van de eerste poging): `game:reveal` is geen
+`HOST_REVEAL`-fase-overgang die `ROUND_RESULT` overslaat of voorwaardelijk
+maakt. Er is geen nieuw event in `state-machine.js` en geen wijziging aan
+`match-lifecycle.mjs` — alleen aan *wanneer* de bestaande `endRound()`-route
+wordt aangeroepen.
 
 ### `player:rename` en `player:recolor`
 
@@ -483,6 +522,7 @@ terugkomt — nooit wat hij zelf net verstuurde.
    | `difficulty` | string; dezelfde waarden die create accepteert |
    | `language` | `nl` \| `en` \| `es` |
    | `pacing` | `auto` \| `host` |
+   | `autoReveal` | boolean |
    | `speedBonus` | boolean |
    | `allowLateJoin` | boolean |
    | `gameTypes` | array met **exact één** speelbare gameType |
@@ -524,6 +564,7 @@ terugkomt — nooit wat hij zelf net verstuurde.
       "difficulty": "hard",
       "language": "nl",
       "pacing": "auto",
+      "autoReveal": true,
       "speedBonus": true,
       "allowLateJoin": true
     }

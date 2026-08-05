@@ -367,6 +367,15 @@ export function createGameplayView({ root, t, tCount = null, onAnswer, lang = 'n
       status.textContent = '';
     } else if (model.answerStatus === 'sending') {
       status.textContent = t('game.sending');
+    } else if (secondsLeft === 0 && model.answerStatus !== 'rejected') {
+      // Fase 4 (autoReveal, besluit 51): de tijd is om maar er is nog geen
+      // `round:ended` — dat kan zijn omdat autoReveal uit staat en de host nog
+      // moet tikken, óf omdat de server het antwoord nog moet uitzenden. In
+      // beide gevallen is dit de eerlijke tekst, of de speler nu wel
+      // ('accepted') of niet ('idle') geantwoord heeft. Een net mislukte
+      // poging ('rejected', bv. DEADLINE_PASSED) houdt voorrang: die feedback
+      // gaat over de eigen actie van de speler en is specifieker.
+      status.textContent = t('game.waitingForReveal');
     } else if (model.answerStatus === 'accepted') {
       status.textContent = t('game.received');
     } else if (model.answerStatus === 'rejected') {

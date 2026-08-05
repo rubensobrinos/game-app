@@ -55,6 +55,7 @@ autoritatieve fase voor een lopende game staat in `Match.phase`; updates gebeure
   "scoreboardSeconds": 4,
   "scoreboardFrequency": "every_round",
   "pacing": "auto",
+  "autoReveal": true,
   "speedBonus": true,
   "deadlineGraceMs": 150,
   "mode": "individual",

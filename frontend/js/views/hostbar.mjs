@@ -45,11 +45,20 @@ export function createHostBar({ root, t, tCount = null, onAction }) {
   pauseButton.className = 'btn-secondary session-hostbar-pause session-hostbar-icon';
   pauseButton.hidden = true;
 
+  // Besluit 51 (fase 4, autoReveal): "Toon antwoord" staat op dezelfde plek
+  // als "Volgende" — ze kunnen nooit tegelijk beschikbaar zijn
+  // (`host-controls-state.mjs`: 'reveal' zit in ROUND_ACTIVE, 'next' alleen
+  // in SCOREBOARD), dus één knop met twee namen, net als pauzeren/hervatten
+  // hierboven. Geen tweede knop erbij.
   const nextButton = document.createElement('button');
   nextButton.type = 'button';
   nextButton.className = 'btn-secondary session-hostbar-next';
   nextButton.hidden = true;
-  nextButton.addEventListener('click', () => onAction('next'));
+  nextButton.addEventListener('click', () => {
+    if (nextAction !== null) {
+      onAction(nextAction);
+    }
+  });
 
   const moreButton = document.createElement('button');
   moreButton.type = 'button';
@@ -121,6 +130,7 @@ export function createHostBar({ root, t, tCount = null, onAction }) {
 
   let lockAction = null;
   let pauseAction = null;
+  let nextAction = null;
   /** Laatst gerenderde fase — zie punt 53 in `update()`. */
   let gerenderdeFase = null;
   /** Het aantal spelers dat in de bevestigingsvraag komt te staan. */
@@ -281,8 +291,9 @@ export function createHostBar({ root, t, tCount = null, onAction }) {
     pauseButton.textContent = pauseAction === 'resume' ? '▶' : '⏸';
     pauseButton.setAttribute('aria-label', pauseAction === 'resume' ? t('session.resume') : t('session.pause'));
 
-    nextButton.hidden = !availableActions.includes('next');
-    nextButton.textContent = t('hostbar.next');
+    nextAction = availableActions.includes('reveal') ? 'reveal' : availableActions.includes('next') ? 'next' : null;
+    nextButton.hidden = nextAction === null;
+    nextButton.textContent = t(nextAction === 'reveal' ? 'hostbar.reveal' : 'hostbar.next');
 
     lockAction = availableActions.includes('unlock') ? 'unlock' : availableActions.includes('lock') ? 'lock' : null;
     lockButton.hidden = lockAction === null;
