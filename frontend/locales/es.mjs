@@ -206,6 +206,13 @@ export const es = Object.freeze({
   'hostbar.next': 'Siguiente',
   'hostbar.finish': 'Finalizar la partida',
   'hostbar.finishConfirm': '¿Seguro que quieres finalizar la partida?',
+  // D3: el número de jugadores va en la pregunta — es lo que está en juego.
+  'hostbar.finishConfirmCount.one': '¿Finalizar la partida para {n} jugador?',
+  'hostbar.finishConfirmCount.other': '¿Finalizar la partida para {n} jugadores?',
+  'hostbar.finishYes': 'Sí, finalizar',
+  'hostbar.kickYes': 'Sí, eliminar',
+  'hostbar.cancel': 'Cancelar',
+  'hostbar.settings': 'Más ajustes',
   'hostbar.players': 'Gestionar jugadores',
   'hostbar.kick': 'Eliminar',
   'hostbar.kickConfirmPrefix': 'Eliminar de esta partida:',

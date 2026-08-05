@@ -1558,6 +1558,101 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   border-radius: 50%;
 }
 
+/* ── D3: het hostmenu ─────────────────────────────────────────────────────
+   Besluit producteigenaar: "Beëindigen moet in de hostinstellingen verstopt
+   zijn. Als je verkeerd klikt moet je weer opnieuw beginnen."
+
+   GEMETEN vóór (390×650, menu open tijdens een ronde): paneel 415 px hoog,
+   "Game beëindigen" als bovenste knop, rood omkaderd en volle breedte; het
+   paneel bedekte 80% van de vraag en 84% van de vlag. De volgorde en het
+   inklappen zitten in `hostbar.mjs`; dit blok regelt alleen dat de rangorde
+   ook te zien is. */
+
+/* De twee laden ("Spelers beheren", "Meer instellingen") zijn geen acties
+   maar wegwijzers: zelfde vorm als de andere menuknoppen, maar stiller, en
+   met een chevron die meedraait zodat je ziet dat er iets ónder zit. */
+.session-hostbar-lock,
+.session-hostbar-players-toggle,
+.session-hostbar-settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+}
+.session-hostbar-players-toggle,
+.session-hostbar-settings-toggle {
+  color: #b9b9c6;
+}
+.session-hostbar-players-toggle::after,
+.session-hostbar-settings-toggle::after {
+  content: '›';
+  font-size: 18px;
+  line-height: 1;
+  color: #5c5c6b;
+  transform: rotate(90deg);
+}
+.session-hostbar-players-toggle[aria-expanded='false']::after,
+.session-hostbar-settings-toggle[aria-expanded='false']::after {
+  transform: none;
+}
+
+.session-hostbar-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--rounda-row-border, #23232c);
+  border-radius: 12px;
+}
+
+/* Punt 49, letterlijk: niet dominant. De INGANG naar beëindigen is een stille
+   regel — geen rode omkadering, geen volle-breedte-knop die om een tik vraagt.
+   Rood is voorbehouden aan de bevestiging eronder, want dáár gebeurt het. */
+.session-hostbar-finish,
+.session-hostbar-kick {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: #9a9aa8;
+  font: 500 13px/1.3 var(--font-body);
+  text-align: left;
+}
+.session-hostbar-finish:hover,
+.session-hostbar-kick:hover,
+.session-hostbar-finish:focus-visible,
+.session-hostbar-kick:focus-visible {
+  color: var(--color-danger, #ff5470);
+  background: rgba(255, 84, 112, 0.08);
+}
+
+/* Stap 2. Pas hier krijgt de actie de rode vorm die er in stap 1 niet was —
+   en staat "Annuleren" er even groot naast, want dat is de uitweg. */
+.session-hostbar-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.session-hostbar-confirm-question {
+  margin: 0;
+  font: 600 13px/1.35 var(--font-body);
+  color: var(--color-text-primary, #f4f4f6);
+}
+.session-hostbar-confirm .btn-destructive,
+.session-hostbar-confirm .btn-secondary {
+  width: 100%;
+  min-height: 44px;
+}
+/* Een rij in de spelerslijst is smaller dan het paneel; daar staat de vraag
+   over de volle rij en vervangt hij de naam (die stáát al in de vraag). */
+.session-hostbar-confirm-row {
+  flex: 1;
+  min-width: 0;
+}
+
 /* ══ PAKKET B — bugs & functionele eisen (agent B) ══ */
 
 /* Punt 32 — de startknop bedekt de hostinstellingen. Sticky blijft sticky

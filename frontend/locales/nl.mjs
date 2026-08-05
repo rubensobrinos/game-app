@@ -268,6 +268,15 @@ export const nl = Object.freeze({
   'hostbar.next': 'Volgende',
   'hostbar.finish': 'Game beëindigen',
   'hostbar.finishConfirm': 'Weet je zeker dat je het potje wilt beëindigen?',
+  // D3 (besluit producteigenaar 5 aug): het aantal spelers hoort ín de vraag
+  // — dát is wat de host op het spel zet. Beëindigen is onomkeerbaar.
+  'hostbar.finishConfirmCount.one': 'Game beëindigen voor {n} speler?',
+  'hostbar.finishConfirmCount.other': 'Game beëindigen voor {n} spelers?',
+  'hostbar.finishYes': 'Ja, beëindigen',
+  'hostbar.kickYes': 'Ja, verwijderen',
+  'hostbar.cancel': 'Annuleren',
+  // De la(a)de waar beëindigen in zit — bewust dezelfde naam als in de lobby.
+  'hostbar.settings': 'Meer instellingen',
   'hostbar.players': 'Spelers beheren',
   'hostbar.kick': 'Verwijder',
   'hostbar.kickConfirmPrefix': 'Verwijderen uit deze game:',
