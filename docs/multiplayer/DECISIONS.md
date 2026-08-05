@@ -199,6 +199,42 @@ document totdat de betreffende fundamentele specificatie is bijgewerkt.
     Volledige uitwerking en de afweging: `DOELBEELD-v2-schermen-en-games.md`
     §6.6.
 
+42. **Het spelerskleurenpalet gaat van acht naar zestien** (producteigenaar,
+    5 aug 2026 — punt 20). GEBOUWD.
+
+    De vraag was 36 kleuren. Inschatting daarvan: één tot anderhalve dag,
+    waarvan het meeste in de designronde ging zitten — 36 tinten die op donker
+    én licht leesbaar zijn én onderling te onderscheiden, plus een raster van
+    36 in de UI en een herziening van de kleur/vorm-herkenning. Zestien geeft
+    hetzelfde gevoel ("mijn eigen kleur, niet die van de buurman") voor
+    ongeveer een derde van dat werk, en past in twee rijen van acht.
+
+    - **De bestaande acht blijven staan, op dezelfde plek in de lijst.** Er
+      kunnen rooms in Redis leven met een speler die `purple` heeft, en de
+      server wijst bij join round-robin toe op volgorde van deze lijst.
+      Aanvullen mag, herschikken niet.
+    - **De acht nieuwe zijn dieper van toon**: `blue #1f7ae0`, `teal #0f9285`,
+      `indigo #6a4fe6`, `violet #b34ad6`, `rose #c8377e`, `moss #4f9422`,
+      `rust #b8542a`, `slate #63718c`. De heldere acht zijn ontworpen om op
+      bijna-zwart te lichten (5,7–16:1) maar halen op het lichte thema
+      1,05–2,96:1; de nieuwe halen **≥3,3:1 op béíde** oppervlakken
+      (`#14141a` en `#f4f4fa`). Dat lichtheidsverschil maakt ze meteen ook
+      onderscheidbaar van hun heldere buur.
+    - **Onderlinge verwarbaarheid is niet toegenomen**: de kleinste afstand in
+      het palet van zestien is nog steeds het bestáánde paar magenta/red
+      (OKLab 0,097); elk nieuw paar zit op ≥0,115.
+    - De hash-identiteit (`player-chip.mjs`: `PALET` × `VORMEN`) blijft
+      ongemoeid en telt nog steeds acht tinten × acht vormen. Die is de
+      terugval voor spelers zónder serverkleur en staat los van deze enum; de
+      vorm blijft uit de `playerId` komen, dus zestien serverkleuren maken het
+      onderscheid alleen groter. Geen herziening nodig.
+    - De enum blijft gesloten: een zeventiende waarde is een vormfout en komt
+      als `INVALID_ANSWER_FORMAT` op de wire, zonder eigen foutcode.
+    - Vier plekken houden dezelfde lijst: `client-events-dispatch.mjs` (bron),
+      `server-events-room-lifecycle.mjs`, `room-lifecycle.mjs` en
+      `transport-mock.mjs`; `player-chip.mjs` levert de hexwaarden. Tests
+      bewaken de pariteit én de contrastondergrens.
+
 ## Uitvoeringsakkoord test- en deploymentwerk
 
 De producteigenaar heeft akkoord gegeven om de eerder geparkeerde test- en

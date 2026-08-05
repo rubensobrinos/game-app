@@ -453,7 +453,7 @@ host wijzigt (nog) niet de naam of kleur van een ander.
 | Fase | LOBBY | LOBBY |
 | Rol | player | player |
 | Herhaalbaar | **nee** — maximaal eenmaal per speler per room | ja |
-| Validatie | naamnormalisatie zoals bij join (grafemen tellen, gestript, geen lege naam) | `color` moet in het vaste palet van acht zitten: `orange`, `magenta`, `cyan`, `green`, `yellow`, `purple`, `lime`, `red` |
+| Validatie | naamnormalisatie zoals bij join (grafemen tellen, gestript, geen lege naam) | `color` moet in het vaste palet van zestien zitten (besluit 42): `orange`, `magenta`, `cyan`, `green`, `yellow`, `purple`, `lime`, `red`, `blue`, `teal`, `indigo`, `violet`, `rose`, `moss`, `rust`, `slate` — de eerste acht ongewijzigd op hun plek, want de round-robin bij join loopt over deze volgorde |
 | Foutcodes | `GAME_NOT_FOUND`, `INVALID_PHASE` (ook bij een **tweede** hernoeming), `NOT_PLAYER`, `INVALID_ANSWER_FORMAT` (na normalisatie bleef er niets bruikbaars over) | `GAME_NOT_FOUND`, `INVALID_PHASE`, `NOT_PLAYER`, `INVALID_ANSWER_FORMAT` |
 | Broadcast | `room:player-changed` met `delta: { type: "rename", playerId, effectiveName }` | `room:player-changed` met `delta: { type: "recolor", playerId, color }` |
 | In de snapshot | `participants[].effectiveName`, en `self.effectiveName` | `participants[].color`, en `self.color` |

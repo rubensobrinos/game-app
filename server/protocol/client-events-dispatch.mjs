@@ -90,16 +90,30 @@ export function validateRoundAnswerEnvelope(payload) {
 }
 
 /**
- * De acht toegestane spelerkleuren (besluit 40 + feedbackronde
- * producteigenaar, 4 aug 2026 — de feedbackronde verving `blue` door `red`).
+ * De zestien toegestane spelerkleuren (besluit 40 + feedbackronde
+ * producteigenaar, 4 aug 2026 — die ronde verving `blue` door `red`; besluit
+ * besluit 42, 5 aug 2026 — acht erbij).
+ *
  * Gesloten enum: elke andere waarde is een vormfout, geen open veld. De
  * VOLGORDE is betekenisvol: de server wijst bij join round-robin toe in deze
  * volgorde (zie `room-lifecycle.mjs`). Geëxporteerd zodat de compositielaag
  * (`recolorPlayer`) en tests dezelfde lijst gebruiken — geen tweede opsomming.
- * @type {ReadonlyArray<'orange' | 'magenta' | 'cyan' | 'green' | 'yellow' | 'purple' | 'lime' | 'red'>}
+ *
+ * De eerste acht staan er ongewijzigd en op dezelfde plek: er kunnen rooms in
+ * Redis leven met een speler die `purple` heeft, en die waarde moet geldig
+ * blijven. Aanvullen mag dus, herschikken niet — dat zou bestaande spelers
+ * stilzwijgend van kleur laten wisselen én de round-robin-volgorde breken.
+ *
+ * De acht nieuwe zijn bewust dieper van toon dan de eerste acht: die zijn
+ * ontworpen om op te lichten op bijna-zwart en zakken op het lichte thema
+ * onder 3:1. De nieuwe halen ≥3,3:1 op béíde oppervlakken (meting in
+ * `DECISIONS.md` besluit 42), en dat lichtheidsverschil maakt ze meteen ook
+ * onderscheidbaar van hun heldere buur.
+ * @type {ReadonlyArray<'orange' | 'magenta' | 'cyan' | 'green' | 'yellow' | 'purple' | 'lime' | 'red' | 'blue' | 'teal' | 'indigo' | 'violet' | 'rose' | 'moss' | 'rust' | 'slate'>}
  */
 export const PLAYER_COLORS = Object.freeze([
   'orange', 'magenta', 'cyan', 'green', 'yellow', 'purple', 'lime', 'red',
+  'blue', 'teal', 'indigo', 'violet', 'rose', 'moss', 'rust', 'slate',
 ]);
 const VALID_PLAYER_COLORS = new Set(PLAYER_COLORS);
 

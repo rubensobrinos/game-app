@@ -1073,8 +1073,13 @@ function buildDistribution(optionValues, answers) {
 // ---- Spelers / scorebord ------------------------------------------------
 
 // Zelfde gesloten palet + volgorde als de server (client-events-dispatch.mjs).
-const MOCK_PLAYER_COLORS = Object.freeze([
+// Zestien sinds besluit 42; de eerste acht staan onveranderd op hun plek, want de
+// round-robin bij join loopt over deze volgorde. `transport-mock.test.mjs`
+// bewaakt de pariteit met de serverlijst — anders bewijst een mockdoorloop
+// het verkeerde.
+export const MOCK_PLAYER_COLORS = Object.freeze([
   'orange', 'magenta', 'cyan', 'green', 'yellow', 'purple', 'lime', 'red',
+  'blue', 'teal', 'indigo', 'violet', 'rose', 'moss', 'rust', 'slate',
 ]);
 
 function addPlayer(room, playerId, effectiveName) {

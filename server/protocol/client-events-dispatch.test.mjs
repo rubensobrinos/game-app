@@ -9,6 +9,8 @@ import {
   ALL_CLIENT_EVENT_NAMES,
   hasRequiredRole,
   validateGameUpdateConfigPayload,
+  validatePlayerRecolorPayload,
+  PLAYER_COLORS,
   SELECTABLE_GAME_TYPES,
 } from './client-events-dispatch.mjs';
 import { PLAYABLE_GAME_TYPES } from '../../shared/content/game-catalog.mjs';
@@ -210,4 +212,43 @@ test('§A1: een duplicaat is óók meer dan één waarde en wordt geweigerd', ()
 
 test('§A1: precies één speelbare waarde blijft de enige geaccepteerde vorm', () => {
   assert.deepEqual(validateGameUpdateConfigPayload({ gameTypes: [PLAYABLE_GAME_TYPES[0]] }), { ok: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// besluit 42 — het palet gaat van acht naar zestien. Gesloten blijft gesloten.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('besluit 42: het palet telt zestien kleuren', () => {
+  assert.equal(PLAYER_COLORS.length, 16);
+  assert.equal(new Set(PLAYER_COLORS).size, 16, 'geen dubbele namen');
+});
+
+test('besluit 42: de bestaande acht staan onveranderd vooraan, in dezelfde volgorde', () => {
+  // Er kunnen rooms in Redis leven met een speler die `purple` heeft, en de
+  // round-robin bij join loopt over deze volgorde: aanvullen mag, herschikken
+  // niet.
+  assert.deepEqual(
+    PLAYER_COLORS.slice(0, 8),
+    ['orange', 'magenta', 'cyan', 'green', 'yellow', 'purple', 'lime', 'red'],
+  );
+});
+
+test('besluit 42: elk van de zestien wordt geaccepteerd door player:recolor', () => {
+  for (const color of PLAYER_COLORS) {
+    assert.deepEqual(validatePlayerRecolorPayload({ color }), { ok: true }, color);
+  }
+});
+
+test('besluit 42: een zeventiende waarde blijft een vormfout (INVALID_ANSWER_FORMAT op de wire)', () => {
+  // `code: null` is precies wat de transportlaag als INVALID_ANSWER_FORMAT
+  // doorgeeft — er is bewust geen aparte kleurfoutcode.
+  for (const color of ['turquoise', 'blue2', 'ORANGE', '#ff8a3e', '', null, 9]) {
+    assert.deepEqual(validatePlayerRecolorPayload({ color }), { ok: false, code: null }, String(color));
+  }
+});
+
+test('besluit 42: het uitgebreide palet maakt de vorm van de payload niet losser', () => {
+  assert.deepEqual(validatePlayerRecolorPayload({ color: 'teal', extra: 1 }), { ok: false, code: null });
+  assert.deepEqual(validatePlayerRecolorPayload({}), { ok: false, code: null });
+  assert.deepEqual(validatePlayerRecolorPayload('teal'), { ok: false, code: null });
 });
