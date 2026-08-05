@@ -12,6 +12,7 @@ export const nl = Object.freeze({
   // host-setup-state's config.language) + licht/donker-thema —
   'menu.open': 'Menu',
   // A3: kop boven de hostsectie in datzelfde menu. Alleen een host ziet 'm.
+  'menu.preferences': 'Voorkeuren',
   'menu.hostActions': 'Hostacties',
   'menu.language': 'Taal',
   'menu.theme': 'Thema',

@@ -141,7 +141,53 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
 
   // Hostacties bovenaan: ze horen bij wat er nú gebeurt en zijn de reden dat
   // een host het menu opent. Taal en thema zet je één keer per apparaat.
-  panel.append(hostSection, langSection, themeSection, reactionsSection);
+  // Punt 51 (lead, 5 aug): zolang er een match loopt bedekt dit paneel de
+  // vraag. Agent D mat waar de hoogte zit: van de 468 px is 267 px taal, thema
+  // en reactiezinnen — voorkeuren die je midden in een potje zelden verzet,
+  // terwijl de hostacties juist dán nodig zijn.
+  //
+  // Daarom klappen de drie voorkeursecties samen achter één regel zodra de
+  // hostsectie zichtbaar is (dus: er loopt iets én jij bent host). Buiten een
+  // match staat alles gewoon open — daar is er niets om te bedekken.
+  const voorkeuren = el('div', 'app-menu-prefs');
+  voorkeuren.append(langSection, themeSection, reactionsSection);
+  const voorkeurenToggle = document.createElement('button');
+  voorkeurenToggle.type = 'button';
+  voorkeurenToggle.className = 'app-menu-prefs-toggle';
+  voorkeurenToggle.setAttribute('aria-controls', 'app-menu-prefs');
+  voorkeuren.id = 'app-menu-prefs';
+  voorkeurenToggle.hidden = true;
+  voorkeurenToggle.addEventListener('click', () => {
+    const open = voorkeurenToggle.getAttribute('aria-expanded') === 'true';
+    zetVoorkeuren(!open);
+  });
+
+  /** @param {boolean} open */
+  function zetVoorkeuren(open) {
+    voorkeurenToggle.setAttribute('aria-expanded', String(open));
+    voorkeuren.hidden = !open;
+  }
+
+  /**
+   * Roept de aanroeper aan zodra de hostsectie van zichtbaarheid wisselt. In
+   * een match: voorkeuren dicht, één regel ervoor in de plaats. Daarbuiten:
+   * alles open en de regel weg.
+   */
+  function zetCompact(compact) {
+    voorkeurenToggle.hidden = !compact;
+    zetVoorkeuren(!compact);
+  }
+
+  panel.append(hostSection, voorkeurenToggle, voorkeuren);
+
+  // De hostsectie wordt van búiten zichtbaar gemaakt (session-shell hangt het
+  // paneel van hostbar.mjs erin en zet `hidden` om). In plaats van dat door
+  // twee lagen heen te vlechten, kijkt dit menu zelf of die sectie er staat —
+  // één waarnemer op één attribuut, en de aanroeper hoeft niets te weten.
+  if (typeof MutationObserver === 'function') {
+    new MutationObserver(() => zetCompact(!hostSection.hidden))
+      .observe(hostSection, { attributes: true, attributeFilter: ['hidden'] });
+  }
   root.append(menuKnop, panel);
 
   menuKnop.setAttribute('aria-label', t('menu.open'));
@@ -188,6 +234,7 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
   let reactionsEnabled = loadReactionsEnabled(storage) ?? true;
 
   function refresh() {
+    voorkeurenToggle.textContent = t('menu.preferences');
     menuKnop.setAttribute('aria-label', t('menu.open'));
     hostLabel.textContent = t('menu.hostActions');
     langLabel.textContent = t('menu.language');
@@ -218,6 +265,7 @@ export function createAppMenu({ root, t, initialLang, initialTheme, onLangChange
 
   return {
     refresh,
+
     setLang(lang) {
       currentLang = lang;
       refresh();

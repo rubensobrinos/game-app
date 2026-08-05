@@ -7,6 +7,7 @@ export const es = Object.freeze({
   'scaffold.ready': 'Base del frontend lista — las pantallas llegan en UI1–UI5.',
 
   'menu.open': 'Menú',
+  'menu.preferences': 'Preferencias',
   'menu.hostActions': 'Acciones de anfitrión',
   'menu.language': 'Idioma',
   'menu.theme': 'Tema',
