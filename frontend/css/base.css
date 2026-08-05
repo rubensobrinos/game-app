@@ -619,45 +619,21 @@ button {
   gap: 0.85rem;
 }
 
-/* T5-7: vanaf tabletbreedte een vast side panel i.p.v. een zwevende
-   dropdown (`07` §3) — geen aparte hover-state nodig (`07` §12: blijft een
-   touchapparaat), gewoon altijd zichtbaar in de header. De ⋯-knop heeft dan
-   niets meer om te togglen en verdwijnt; `setOpen()`/Escape/klik-buiten in
-   app-menu.mjs blijven functioneel ongewijzigd (ze zetten nog steeds
-   `hidden`/`aria-expanded`), maar hebben op dit breekpunt geen zichtbaar
-   effect meer — geen aparte tablet-tak nodig in de JS.
+/* VERVALLEN — T5-7 maakte hier vanaf 768 px een vast side panel van: het
+   paneel stond dan permanent open ín de header en de ⋯-knop verdween
+   (`display: flex !important` versloeg daarvoor het `hidden`-attribuut dat
+   app-menu.mjs netjes bleef zetten).
 
-   A1: het ruimtebudget is een telefoonbudget. Op tabletbreedte staat dat
-   uitgeklapte paneel ín de balk, dus daar mag de chrome wél meegroeien —
-   anders zou het paneel uit een 44 px hoge balk gesneden worden. */
-@media (min-width: 768px) {
-  #app-header {
-    height: auto;
-    min-height: var(--chrome-h);
-    flex-wrap: wrap;
-    padding: 8px 12px;
-  }
+   Waarom het weg is (producteigenaar, 5 aug 2026): op een breed scherm was
+   TAAL / THEMA / REACTIEZINNEN daardoor het eerste wat je op de homepagina
+   zag, drie blokken hoog, boven het logo. "Een slechte binnenkomer" — en
+   terecht: dat zijn instellingen die je één keer per apparaat zet.
 
-  /* Het verbergen van de ⋯-knop zelf staat in `rounda-1c.css`' chrome-sectie:
-     dáár krijgt hij zijn `display: flex` mee (met `#app-header` ervoor, om de
-     knopfamilieregels te verslaan), en die zou deze regel anders overrulen.
-     Eén eigenaar per eigenschap — niet twee bestanden die elkaar bevechten. */
+   Waarom niemand het zag: het ruimtebudget van de UX-ronde is een
+   telefoonbudget, en op telefoonbreedte gold deze regel nooit. Alle metingen
+   stonden op 390 px.
 
-  .app-menu {
-    position: static;
-    display: flex !important;
-    width: auto;
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 1.5rem;
-    box-shadow: none;
-    border-radius: var(--r-sm);
-    /* Het paneel staat hier in de flow en niet over de pagina heen; een
-       eigen scrollgebied zou dan een tweede scrollbalk op de pagina zijn. */
-    max-height: none;
-    overflow: visible;
-  }
-}
+   Het menu is nu op élke breedte hetzelfde: een dropdown achter de ⋯. */
 
 .app-menu-section {
   display: flex;

@@ -199,13 +199,10 @@ h1, h2 {
    in plaats van een aparte "geen sessie"-tak. */
 #app-header .app-menu-trigger { margin-left: auto; }
 
-/* T5-7 (base.css): vanaf tabletbreedte staat het voorkeurenpaneel altijd open
-   ín de header en heeft de knop niets meer te togglen. De regel staat hier en
-   niet daar omdat de chromeregel hierboven `#app-header`-specificiteit heeft
-   en een losse klasse dus zou verslaan. */
-@media (min-width: 768px) {
-  #app-header .app-menu-trigger { display: none; }
-}
+/* Hier stond de tegenhanger van T5-7: vanaf 768 px verdween de ⋯-knop, omdat
+   het paneel daar permanent open stond. Beide regels zijn vervallen
+   (producteigenaar, 5 aug 2026 — zie base.css). De knop hoort er op elke
+   breedte te zijn. */
 
 .room-header-share-glyph {
   position: relative;
