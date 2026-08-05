@@ -31,6 +31,17 @@ Peildatum: 6 aug 2026.
 | [Typed answers](typed-answers.md) | wacht op het scorebesluit |
 | De donut-gamekeuze (besluit 45) | nog niet uitgewerkt |
 
+## Refactor — de rem op parallel werken
+
+| Wat | Status |
+| --- | --- |
+| [`base.css` + `components.css` opsplitsen](refactor-css.md) | klaar om te starten |
+| [`analytics`, `redis/data-store`, `index.mjs` opsplitsen](refactor-server-adapters.md) | klaar om te starten |
+
+De overige grote bestanden (`match-lifecycle`, `socket`, `transport-mock`,
+`rounda-1c.css`, `room-lifecycle`, `lobby`, `session-shell`) zijn nu in gebruik
+en komen later aan de beurt.
+
 ## Aanzetten
 
 | Wat | Wie |
