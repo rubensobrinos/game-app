@@ -277,9 +277,20 @@ naar de persoonlijke app-taal.
 > | Content | 230 × 3 nieuwe woorden + verbuiging | **niets** — de landnamen staan al in de pool |
 > | Klank | precies het voorbeeld uit punt 12 | iets langer, even herkenbaar |
 >
-> **Voorstel regie: B**, met A als latere verfijning voor de dertig bekendste
-> landen. Zo staat de identiteit er in dagen in plaats van weken, en blijft de
-> vlag — het meest zichtbare deel — precies zoals bedoeld.
+> **BESLUIT PRODUCTEIGENAAR (5 aug 2026): A — de bijvoeglijke vorm**, dus
+> *Bulgaarse Koe*, niet *Koe uit Bulgarije*. Land plus een speels woord (dier of
+> iets anders geks), met de vlag erbij. Mijn voorstel was B vanwege de kosten;
+> de klank is hier het punt van de feature en dat weegt zwaarder.
+>
+> Daarmee is de woordenlijst per taal onderdeel van het werk: 230 landen × 3
+> talen mét de Spaanse verbuiging. **Voorstel voor wie het bouwt:** valt er voor
+> één land in één taal nog geen bijvoeglijke vorm te vinden, val dan voor dát
+> geval terug op de "uit"-vorm. Dan levert een onvolledige lijst nooit een lege
+> naam op en kan de lijst per taal groeien in plaats van in één keer af te
+> moeten zijn.
+>
+> Vastgelegd als besluit 41 in `docs/multiplayer/DECISIONS.md`. **Nog niet
+> gebouwd** — dit is een noteerbesluit, geen bouwopdracht.
 
 ## 6.7 Wat dit betekent voor de volgorde
 
@@ -287,7 +298,7 @@ naar de persoonlijke app-taal.
 | --- | --- | --- | --- |
 | 1 | Extra afwijklogica voor "Welke hoort er niet bij" (echt-tussen-nep, kleurpatroon) | Klein–middel, server + uitlegregel | — |
 | 2 | Continentfilter onder Meer instellingen | Middel, config + selectie + UI | ondergrens-besluit uit 6.1 |
-| 3 | Spelersidentiteit als structuur (punt 12 + de naamhelft van punt 8) | **Groot**: Player, protocol, snapshot, client, mock | taalvraag A/B uit 6.6 |
+| 3 | Spelersidentiteit als structuur (punt 12 + de naamhelft van punt 8) | **Groot**: Player, protocol, snapshot, client, mock, plus de woordenlijst uit besluit 41 | ~~taalvraag~~ beslist: vorm A |
 | 4 | Raad het land | Groot, eigen contentmigratie | — |
 
 Punt 1 kan meteen; punt 3 is de grootste maar levert twee punten tegelijk op.

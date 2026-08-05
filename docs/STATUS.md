@@ -45,6 +45,7 @@ mock-pin die de afwijking vastlegde.
 | ~~C-2~~ | ✅ 5 aug: **de vier uit doelbeeld v2**. Drie staan, contour resteert | §B3 |
 | ~~C-3~~ | ✅ 5 aug: **bouwen**. Geland — een herstart zet lopende matches op `PAUSED(server_recovery)`, de host hervat met een nieuwe aftelling | BESLUITVERZOEK-recovery-en-metrics.md |
 | ~~M-1/M-2~~ | ✅ 5 aug: **metrics mogen komen**. Geland achter een eigen secret; **zet `METRICS_SECRET` in `.env`** (min. 16 tekens) om `/metrics` aan te zetten — zonder secret geeft het pad 404 | idem |
+| ~~Naamvorm~~ | ✅ 5 aug: **besluit 41** — spelersidentiteit wordt land + speels woord in de bijvoeglijke vorm (*Bulgaarse Koe*). Vastgelegd, **nog niet gebouwd** | DECISIONS.md 41 |
 | — | Sein per feedbackpunt uit FEEDBACK-eerste-livetest.md | los mandaat |
 | — | Productvraag typed answers: meer punten voor intypen dan voor meerkeuze? | FEATURE-typed-answers |
 

@@ -167,6 +167,38 @@ document totdat de betreffende fundamentele specificatie is bijgewerkt.
       bij?, Raad het land — die per game gebouwd worden; `flags_mc` blijft
       de enige bestaande.
 
+41. **Spelersidentiteit: land + speels woord, in de bijvoeglijke vorm**
+    (producteigenaar, 5 aug 2026 — punt 12, mét punt 8). VASTGELEGD, NOG NIET
+    GEBOUWD.
+
+    Iedere speler krijgt bij binnenkomst automatisch een identiteit die bestaat
+    uit een **land** (met de vlag erbij) en een **speels woord** — een dier of
+    iets anders geks. De weergave is de **bijvoeglijke vorm**: *Bulgaarse Koe*,
+    *Peruaanse Pinguïn*, *Japanse Jaguar* — dus **niet** "Koe uit Bulgarije".
+
+    - Gekozen boven de "uit"-vorm, die goedkoper was maar minder leuk klinkt.
+      De klank is hier het punt van de feature.
+    - **Consequentie, bewust aanvaard:** de landbijvoeglijke naamwoorden zijn
+      nieuwe content — 230 landen × 3 talen, en in het Spaans met
+      geslachtsverbuiging (*vaca búlgara*, maar *pingüino peruano*). Dat is
+      weken werk, geen dagen.
+    - De identiteit gaat als **structuur** over de lijn (welk land, welk woord),
+      niet als platte tekst, zodat elke client hem in de **eigen app-taal**
+      rendert. Daarmee lost dit ook het laatste gat van punt 8 op: vandaag maakt
+      de server de naam in de taal van de ROOM, dus een Spanjaard ziet nu een
+      Nederlandse naam.
+    - `effectiveName` blijft bestaan voor spelers die zélf een naam typen; de
+      gegenereerde identiteit vervangt alleen de automatische naam.
+
+    **Open bij de bouw** (geen besluit gevraagd, wel te beslissen door wie het
+    bouwt): wat er gebeurt met een land waarvoor een taal nog geen bijvoeglijke
+    vorm heeft. Voorstel regie: per ontbrekend geval terugvallen op de
+    "uit"-vorm, zodat een onvolledige woordenlijst nooit een lege naam oplevert
+    en de lijst per taal kan groeien.
+
+    Volledige uitwerking en de afweging: `DOELBEELD-v2-schermen-en-games.md`
+    §6.6.
+
 ## Uitvoeringsakkoord test- en deploymentwerk
 
 De producteigenaar heeft akkoord gegeven om de eerder geparkeerde test- en
