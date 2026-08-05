@@ -236,12 +236,18 @@ function assertNoTokenInAnyUrl(harness, secretTokens) {
 let flushSequence = 0;
 
 /**
- * Deterministische barrière ZONDER sleep: één rondgang over de echte socket.
- * `share:opened` muteert niets ("analytics, mag falen zonder UX-effect") en
- * levert alleen een ack. Omdat frames per verbinding geordend zijn, is elk
- * serverevent dat vóór dit moment naar deze socket is geschreven ook vóór de
- * ack aangekomen. Daarmee is "dit event is NIET gestuurd" toetsbaar zonder op
- * de klok te wachten.
+ * Barrière ZONDER sleep: één rondgang over de echte socket. `share:opened`
+ * muteert niets ("analytics, mag falen zonder UX-effect") en levert alleen een
+ * ack. Omdat frames per verbinding geordend zijn, is elk serverevent dat vóór
+ * dit moment naar deze socket GESCHREVEN is ook vóór de ack aangekomen.
+ *
+ * GRENS — dit is geen barrière voor werk dat nog loopt (ronde 3, de flaky
+ * Redis-race): `socket.mjs` stuurt de ack van een event vóór zijn `after`-hook,
+ * en die hook kan nog op de store staan te wachten. Tegen Redis is dat een
+ * echte roundtrip en wint de flush-ack er soms van. Wacht daarom eerst
+ * oorzakelijk op de events die je verwacht (`waitFor`/`waitForCount`) en
+ * gebruik deze rondgang alleen daarná, om "dit event kwam er níét bij" vast te
+ * leggen. Zie de kopnotitie van `matrix-row-13-...test.mjs`.
  * @param {object} client
  */
 async function flush(client) {
@@ -851,13 +857,11 @@ test('Matrixrij 13 over de wire: een reeks antwoorden levert hoogstens twee daad
     });
     assert.equal(ack.ok, true, `antwoord ${index} moet geaccepteerd worden: ${JSON.stringify(ack)}`);
   }
-  await flush(hostSocket);
-
-  assert.equal(
-    hostSocket.eventsNamed('round:progress').length,
-    2,
-    'vier antwoorden binnen één seconde geven precies twee ontvangen broadcasts',
-  );
+  // Oorzakelijke barrière: wachten op de broadcasts zélf, niet op een
+  // flush-ack — die haalt een nog lopende `after`-hook niet in (zie `flush()`
+  // en de kopnotitie van `matrix-row-13-...test.mjs`). Dat er niet MEER dan
+  // twee per venster komen, toetst de totaalcontrole verderop exact.
+  await hostSocket.waitForCount('round:progress', 2);
 
   // Het venster rolt door; daarna mogen er weer twee.
   harness.clock.set(startsAt + 500 + 1200);
@@ -868,10 +872,15 @@ test('Matrixrij 13 over de wire: een reeks antwoorden levert hoogstens twee daad
     });
     assert.equal(ack.ok, true, JSON.stringify(ack));
   }
-  await flush(hostSocket);
+  await hostSocket.waitForCount('round:progress', 4);
 
   const progressEvents = hostSocket.eventsNamed('round:progress');
-  assert.equal(progressEvents.length, 4, 'na het rollende venster mogen er opnieuw twee door');
+  assert.equal(
+    progressEvents.length,
+    4,
+    'na het rollende venster mogen er opnieuw twee door — en geen enkele meer: '
+      + 'vier antwoorden in het eerste venster geven er precies twee, niet vier',
+  );
 
   // Geen enkel venster van één seconde bevat meer dan twee broadcasts — getoetst
   // op de `serverTime` die de ontvangen envelopes zelf dragen.
