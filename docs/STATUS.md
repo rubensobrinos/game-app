@@ -12,11 +12,11 @@ bij de producteigenaar, 10 blokkeert op C-1/C-2._
 
 | | Stand |
 | --- | --- |
-| Suite | **2953 groen · 0 rood · 0 skip** (~177 suites, ~11 s, zonder live Redis) |
+| Suite | **2963 groen · 0 rood · 0 skip** (~178 suites, ~11 s) |
 | Live op rounda.io | Werkende multiplayerketen: create/join/QR/rondes/pauze/rematch |
 | Speelbare games | **3 van de 4** — Raad de vlag, Echt of nep, Welke hoort er niet bij (alle drie verticaal bewezen). Raad het land (contour) resteert |
 | Git | schoon; alles gecommit en gepusht (zie onderaan) |
-| Grootste open risico | herstel na serverrestart (ARCHITECTURE §10) — besluit C-3 |
+| Grootste open risico | de pilot is nog niet gedraaid — alles is getest, niets is met echte mensen gespeeld |
 
 De volledige analyse en volgorde staan in **`docs/PLAN-CONVERGENTIE.md`**. Dat
 document is leidend voor wat er nu gebeurt; dit bestand zegt waar we staan.
@@ -43,8 +43,8 @@ mock-pin die de afwijking vastlegde.
 | --- | --- | --- |
 | ~~C-1~~ | ✅ 5 aug: **solo wordt een modus**. Uitgevoerd — "Alleen spelen" staat op home | PLAN-CONVERGENTIE §B4 |
 | ~~C-2~~ | ✅ 5 aug: **de vier uit doelbeeld v2**. Drie staan, contour resteert | §B3 |
-| C-3 | Herstelpad na serverrestart bouwen, of expliciet accepteren t/m de pilots? | BESLUITVERZOEK-recovery-en-metrics.md |
-| M-1/M-2 | Afscherming `/metrics` + timing van de eerste metricset | idem |
+| ~~C-3~~ | ✅ 5 aug: **bouwen**. Geland — een herstart zet lopende matches op `PAUSED(server_recovery)`, de host hervat met een nieuwe aftelling | BESLUITVERZOEK-recovery-en-metrics.md |
+| ~~M-1/M-2~~ | ✅ 5 aug: **metrics mogen komen**. Geland achter een eigen secret; **zet `METRICS_SECRET` in `.env`** (min. 16 tekens) om `/metrics` aan te zetten — zonder secret geeft het pad 404 | idem |
 | — | Sein per feedbackpunt uit FEEDBACK-eerste-livetest.md | los mandaat |
 | — | Productvraag typed answers: meer punten voor intypen dan voor meerkeuze? | FEATURE-typed-answers |
 
@@ -57,10 +57,10 @@ mock-pin die de afwijking vastlegde.
    vraag in plaats van de gebalanceerde reeks.
 2. **Stap 7 — één echte groepspilot** (6–10 mensen). Draaiboek + meetlat staan
    klaar: `docs/pilot-b-draaiboek.md`. **Uitvoering is aan de producteigenaar.**
-3. **Stap 8 — recovery** (C-3) — besluit ligt voor.
-4. **Stap 9 — kleine metricset** — geblokkeerd op M-1 (afscherming `/metrics`)
-   en bewust ná de pilot: metrics kiezen vóór de pilot is gokken welke vraag
-   we straks hebben.
+3. ~~Stap 8 — recovery~~ **klaar** (C-3 = bouwen). De Redis-herstarttest die het
+   gat vastlegde is omgedraaid en bewijst nu het herstel.
+4. ~~Stap 9 — metricset~~ **klaar**, achter `METRICS_SECRET`. Zeven signalen,
+   gericht op de pilotvragen; event-loop lag en room-size bewust overgeslagen.
 5. **Stap 10 — deel B** (C-1/C-2 genomen): solo-als-modus ✅ en `odd_one_out` ✅
    staan. Resteert **"Raad het land"** — de enige game die niet op bestaande
    motoronderdelen meelift: contourdata (257 landen, gesleuteld op Engelse
