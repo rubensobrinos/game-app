@@ -23,6 +23,7 @@ import {
   getShareInfo,
   joinRoom,
   kickPlayer,
+  leaveRoom,
   previewInvite,
   QUICK_START_CONFIG,
   resolveGameConfiguration,
@@ -424,6 +425,62 @@ test('een gekickte speler telt niet meer mee als actieve speler', async () => {
 
   assert.deepEqual(await joinRoom(context, { gameCode: room.gameCode, joinSource: 'code' }), { ok: false, code: 'GAME_FULL' });
   await kickPlayer(context, { roomId: room.roomId, playerId: first.value.playerId });
+  assert.equal((await joinRoom(context, { gameCode: room.gameCode, joinSource: 'code' })).ok, true);
+});
+
+// ─── Fase 2 (agent 1) — vrijwillig vertrekken ───────────────────────────────
+
+test('leaveRoom zet left, maar trekt het sessietoken NIET in (besluit 4) — hernieuwd gebruik blijft geldig', async () => {
+  const context = makeContext();
+  const room = await makeRoom(context);
+  const joined = await joinRoom(context, { gameCode: room.gameCode, displayName: 'Vertrekker', joinSource: 'code' });
+  const credentials = {
+    roomId: joined.value.roomId,
+    sessionId: joined.value.sessionId,
+    sessionToken: joined.value.sessionToken,
+  };
+
+  const left = await leaveRoom(context, { roomId: room.roomId, playerId: joined.value.playerId });
+  assert.equal(left.ok, true);
+  assert.equal(left.value.changed, true);
+
+  assert.equal((await context.store.loadPlayer(room.roomId, joined.value.playerId)).left, true);
+  // In tegenstelling tot kickPlayer: de sessie blijft bruikbaar.
+  const resolved = await resolveSession(context, credentials);
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.value.revoked, false);
+});
+
+test('leaveRoom geeft NOT_PLAYER voor een onbekende speler en GAME_NOT_FOUND voor een onbekende room', async () => {
+  const context = makeContext();
+  const room = await makeRoom(context);
+  assert.deepEqual(await leaveRoom(context, { roomId: room.roomId, playerId: 'p_x' }), { ok: false, code: 'NOT_PLAYER' });
+  assert.deepEqual(await leaveRoom(context, { roomId: 'room_x', playerId: 'p_x' }), { ok: false, code: 'GAME_NOT_FOUND' });
+});
+
+test('een tweede leaveRoom van dezelfde speler is een no-op: changed blijft false, geen extra schrijfactie', async () => {
+  const counting = countingStore();
+  const context = makeContext({ store: counting.store });
+  const room = await makeRoom(context);
+  const joined = await joinRoom(context, { gameCode: room.gameCode, joinSource: 'code' });
+
+  const first = await leaveRoom(context, { roomId: room.roomId, playerId: joined.value.playerId });
+  assert.equal(first.value.changed, true);
+  const before = counting.counts.savePlayer;
+
+  const second = await leaveRoom(context, { roomId: room.roomId, playerId: joined.value.playerId });
+  assert.equal(second.ok, true);
+  assert.equal(second.value.changed, false);
+  assert.equal(counting.counts.savePlayer, before);
+});
+
+test('een vertrokken speler telt niet meer mee als actieve speler, en mag opnieuw joinen', async () => {
+  const context = makeContext({ config: {} });
+  const room = await makeRoom(context, { hostParticipates: false, config: { maxPlayers: 1 } });
+  const first = await joinRoom(context, { gameCode: room.gameCode, joinSource: 'code' });
+
+  assert.deepEqual(await joinRoom(context, { gameCode: room.gameCode, joinSource: 'code' }), { ok: false, code: 'GAME_FULL' });
+  await leaveRoom(context, { roomId: room.roomId, playerId: first.value.playerId });
   assert.equal((await joinRoom(context, { gameCode: room.gameCode, joinSource: 'code' })).ok, true);
 });
 

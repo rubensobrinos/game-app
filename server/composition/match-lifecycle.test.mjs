@@ -26,7 +26,7 @@ import { validateRoundEndedPayload } from '../protocol/server-events-scoring.mjs
 import { assertNoActiveRoundAnswerLeak, validateSnapshotShape } from '../protocol/snapshot-shape.mjs';
 import { ALL_ERROR_CODES } from '../protocol/error-codes.mjs';
 import { createContext, createId, createSessionToken } from './context.mjs';
-import { joinRoom, resolveGameConfiguration } from './room-lifecycle.mjs';
+import { joinRoom, leaveRoom, resolveGameConfiguration } from './room-lifecycle.mjs';
 import {
   advancePhase,
   buildSnapshot,
@@ -1277,6 +1277,35 @@ test('finishMatch levert de eindstand ook als de match al FINISHED is', async ()
   assert.equal(finished.ok, true, JSON.stringify(finished));
   assert.equal(finished.value.phase, 'FINISHED');
   assert.equal(finished.value.standings.length, 2);
+});
+
+test('fase 2 (agent 1): een speler die na zijn antwoord vertrekt, houdt zijn behaalde punten in de eindstand', async () => {
+  const harness = makeHarness();
+  const { context, clock } = harness;
+  const { roomId, players } = await seedRoom(harness, { extraPlayers: 1, roomConfig: { speedBonus: false, totalRounds: 1 } });
+  const started = await startMatch(context, { roomId });
+
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  const round = await startRound(context, { roomId });
+  const doc = await loadRoundDoc(harness, roomId, started.value.matchId, round.value.roundId);
+
+  await submitAnswer(context, {
+    roomId, playerId: players[1].playerId, roundId: doc.id,
+    answer: { optionId: doc.correctAnswer.optionId }, actionId: 't1',
+  });
+
+  const left = await leaveRoom(context, { roomId, playerId: players[1].playerId });
+  assert.equal(left.ok, true);
+  assert.equal(left.value.changed, true);
+
+  clock.set(doc.endsAt);
+  await endRound(context, { roomId });
+
+  const finished = await finishMatch(context, { roomId });
+  assert.equal(finished.ok, true, JSON.stringify(finished));
+  const standing = finished.value.standings.find((entry) => entry.playerId === players[1].playerId);
+  assert.ok(standing !== undefined, 'de vertrokken speler moet in de eindstand blijven staan (GAME-FLOW.md §11)');
+  assert.equal(standing.score, 100, 'hij behoudt de punten die hij vóór zijn vertrek verdiende');
 });
 
 // ─── Vraagselectie en gepinde versies ───────────────────────────────────────

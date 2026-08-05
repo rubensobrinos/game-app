@@ -834,6 +834,44 @@ export async function kickPlayer(context, { roomId, playerId } = {}) {
 }
 
 /**
+ * Laat een speler vrijwillig vertrekken (fase 2, agent 1). Leent de structuur
+ * van `kickPlayer` hierboven, maar is er bewust de vrijwillige tegenhanger
+ * van: besluit 4 zet hier alleen `left: true` en trekt het sessietoken NIET
+ * in (in tegenstelling tot een kick) — reactivatie binnen de TTL door
+ * opnieuw te joinen blijft dus mogelijk (PROTOCOL.md §leave).
+ *
+ * Alleen bij een ECHTE overgang (`player.left` was nog niet `true`) wordt de
+ * room-TTL verlengd en `changed: true` teruggegeven, zodat de aanroepende
+ * transportlaag een tweede `leave` van dezelfde speler niet nogmaals als
+ * `room:player-changed` uitzendt.
+ *
+ * @param {import('./context.mjs').Context} context
+ * @param {{ roomId: string, playerId: string }} params
+ */
+export async function leaveRoom(context, { roomId, playerId } = {}) {
+  const room = await context.store.loadRoom(roomId);
+  if (room === null) {
+    return fail(CODES.GAME_NOT_FOUND);
+  }
+  const player = await context.store.loadPlayer(roomId, playerId);
+  if (player === null) {
+    return fail(CODES.NOT_PLAYER);
+  }
+
+  if (player.left === true) {
+    return succeed({ roomId, playerId, changed: false });
+  }
+
+  const at = context.now();
+  const left = { ...player, left: true };
+  assertPlayerShape(left);
+  await context.store.savePlayer(left);
+  await touchRoom(context, room, at);
+
+  return succeed({ roomId, playerId, changed: true });
+}
+
+/**
  * Hernoemt een speler (besluit 40B + feedbackronde 4 aug 2026 — dicht het
  * gedocumenteerde `player:rename`-gat in socket.mjs). Zelfde regels als de
  * mock (transport-mock.mjs `renamePlayer`): alleen in LOBBY, en hooguit één

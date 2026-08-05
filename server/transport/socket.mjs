@@ -74,7 +74,7 @@ import {
   startRound,
   submitAnswer,
 } from '../composition/match-lifecycle.mjs';
-import { kickPlayer, recolorPlayer, renamePlayer, setRoomLocked, updateConfig } from '../composition/room-lifecycle.mjs';
+import { kickPlayer, leaveRoom, recolorPlayer, renamePlayer, setRoomLocked, updateConfig } from '../composition/room-lifecycle.mjs';
 
 import { isEligibleForRound } from '../rules/eligibility.js';
 
@@ -1227,10 +1227,26 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
       }
 
       case 'player:leave': {
-        // GAT — vrijwillig verlaten heeft nog geen compositiefunctie (alleen
-        // `kickPlayer`). Bewust niet omheen gebouwd; zie het handoff-item.
-        logSafe('warn', 'clientevent zonder compositiefunctie', { roomId, actionId, event: eventName });
-        return { ok: false, code: 'UNSUPPORTED_EVENT' };
+        // Fase 2 (agent 1): vrijwillig vertrekken, geleend van de
+        // `kickPlayer`-structuur maar zonder sessie-intrekking (besluit 4).
+        const result = await leaveRoom(context, { roomId, playerId });
+        if (!result.ok) return result;
+        return {
+          ok: true,
+          value: {},
+          after: async () => {
+            // Alleen uitzenden bij een échte overgang — een tweede `leave`
+            // van dezelfde speler is een no-op en meldt de room dus niets.
+            if (!result.value.changed) return;
+            await publish('room:player-changed', {
+              roomId,
+              payload: {
+                playerCount: await playerCountOf(roomId),
+                delta: { type: 'leave', playerId },
+              },
+            });
+          },
+        };
       }
 
       default:

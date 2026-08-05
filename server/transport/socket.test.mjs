@@ -583,6 +583,46 @@ test('game:kick meldt de gekickte sessie persoonlijk en de room het nieuwe aanta
   assert.equal(bystanderClient.eventsNamed('session:kicked').length, 0, 'session:kicked is een single_session-event');
 });
 
+test('player:leave laat de speler zelf vertrekken: room:player-changed uit, maar geen geforceerde disconnect of sessie-intrekking', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness);
+  const target = await seedPlayer(harness, room, 'Vertrekker');
+  const bystander = await seedPlayer(harness, room, 'Blijft');
+
+  const host = await harness.connect(authFor(room));
+  const targetClient = await harness.connect(authFor(target));
+  await harness.connect(authFor(bystander));
+
+  const ack = await targetClient.emitWithAck('player:leave', { actionId: 'act_leave', payload: {} });
+  assert.equal(ack.ok, true);
+
+  const changed = await host.waitFor('room:player-changed');
+  assert.deepEqual(changed.payload, { playerCount: 2, delta: { type: 'leave', playerId: target.playerId } });
+
+  // In tegenstelling tot een kick: geen session:kicked, en dus geen geforceerde
+  // disconnect — een tweede aanroep op dezelfde socket moet nog gewoon lukken.
+  await settle();
+  assert.equal(targetClient.eventsNamed('session:kicked').length, 0);
+  const secondAck = await targetClient.emitWithAck('game:lock', { actionId: 'act_x', payload: { locked: true } });
+  assert.equal(secondAck.ok, false, 'geen host-rol, dus afgewezen — maar de socket verwerkt de aanroep nog wél');
+});
+
+test('een tweede player:leave van dezelfde speler zendt geen tweede room:player-changed uit', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness);
+  const target = await seedPlayer(harness, room, 'Vertrekker');
+
+  const host = await harness.connect(authFor(room));
+  const targetClient = await harness.connect(authFor(target));
+
+  assert.equal((await targetClient.emitWithAck('player:leave', { actionId: 'act_leave_1', payload: {} })).ok, true);
+  await host.waitFor('room:player-changed');
+
+  assert.equal((await targetClient.emitWithAck('player:leave', { actionId: 'act_leave_2', payload: {} })).ok, true);
+  await settle();
+  assert.equal(host.eventsNamed('room:player-changed').length, 1);
+});
+
 test('broadcastPlayerChanged geeft de REST-laag een ingang voor room:player-changed', async (t) => {
   const harness = await makeHarness(t);
   const room = await seedRoom(harness);

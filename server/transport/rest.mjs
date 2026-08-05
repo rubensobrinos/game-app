@@ -56,9 +56,8 @@ import {
 import { validatePreviewRequest, validatePreviewResponse } from '../protocol/preview-endpoint.mjs';
 import { assertNoActiveRoundAnswerLeak, validateSnapshotShape } from '../protocol/snapshot-shape.mjs';
 import { verifySessionToken } from '../composition/context.mjs';
-import { createRoom, joinRoom, previewInvite } from '../composition/room-lifecycle.mjs';
+import { createRoom, joinRoom, leaveRoom, previewInvite } from '../composition/room-lifecycle.mjs';
 import { buildSnapshot } from '../composition/match-lifecycle.mjs';
-import { assertPlayerShape } from '../data/types/player.js';
 import { OUTCOME, classifyOutcome, createSafeLogger, errorLabel } from './safe-logger.mjs';
 import { NOOP_METRICS } from './metrics.mjs';
 
@@ -649,15 +648,10 @@ export default async function restRoutes(fastify, options) {
 
   // ── POST /api/v1/games/:code/leave ─────────────────────────────────────────
   //
-  // GAT — er bestaat geen `leaveRoom()` in server/composition/. Besluit 4
-  // ("vrijwillig verlaten zet `left: true` maar trekt het sessietoken niet in")
-  // is nergens als compositiefunctie gerealiseerd; `kickPlayer()` doet
-  // uitdrukkelijk iets anders (zet `kicked` én trekt de sessie in). Hieronder
-  // staat daarom de minimale bedrading die besluit 4 nakomt, met `roomId` uit
-  // de sessie en `assertPlayerShape` als vangnet. Zie het handoff-item: dit
-  // hoort in room-lifecycle.mjs te verhuizen, inclusief de TTL-verlenging
-  // (`touchRoom`) die hier nog ontbreekt. Het `room:player-changed`-event wordt
-  // hieronder wél verstuurd — dat is transportwerk en hoort hier.
+  // Fase 2 (agent 1): de mutatie zelf loopt via `leaveRoom()` in
+  // room-lifecycle.mjs (incl. TTL-verlenging via `touchRoom`) — dezelfde
+  // compositiefunctie die `player:leave` over de socket gebruikt. Deze route
+  // doet alleen nog auth/rolcheck en de REST-specifieke broadcast.
   fastify.post('/games/:code/leave', async (request, reply) => {
     const validated = validateLeaveGameRequestShape({
       code: request.params?.code,
@@ -684,17 +678,14 @@ export default async function restRoutes(fastify, options) {
       return sendError(request, reply, 'NOT_PLAYER', { roomId: located.value.id, sessionId: session.id });
     }
 
-    const player = await context.store.loadPlayer(located.value.id, session.playerId);
-    if (player === null) {
-      return sendError(request, reply, 'NOT_PLAYER', { roomId: located.value.id, sessionId: session.id });
+    const result = await leaveRoom(context, { roomId: located.value.id, playerId: session.playerId });
+    if (!result.ok) {
+      return sendError(request, reply, result.code, { roomId: located.value.id, sessionId: session.id });
     }
 
-    if (player.left !== true) {
-      const left = { ...player, left: true };
-      assertPlayerShape(left);
-      await context.store.savePlayer(left);
-      // Alleen bij een ECHTE overgang: een tweede `leave` van dezelfde speler
-      // verandert niets en hoort de room dus ook niets te melden.
+    // Alleen bij een ECHTE overgang: een tweede `leave` van dezelfde speler
+    // verandert niets en hoort de room dus ook niets te melden.
+    if (result.value.changed) {
       await broadcastPlayerChanged(request, located.value.id, {
         type: 'leave',
         playerId: session.playerId,
