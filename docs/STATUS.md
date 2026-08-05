@@ -3,8 +3,8 @@
 **Eigenaar:** regie (Claude). **Bijgewerkt bij elk meetmoment; historie hoort
 in git, niet hier.** Bij twijfel wint dit bestand van elk PROGRESS-bestand.
 
-_Laatst geverifieerd: 5 aug 2026 · stabilisatieronde stap 1–6 geland; 7–9 liggen
-bij de producteigenaar, 10 blokkeert op C-1/C-2._
+_Laatst geverifieerd: 5 aug 2026 · stabilisatieronde af, mobiele UX-ronde af en
+live (v1c28), ronde 3 loopt._
 
 ---
 
@@ -12,11 +12,12 @@ bij de producteigenaar, 10 blokkeert op C-1/C-2._
 
 | | Stand |
 | --- | --- |
-| Suite | **2963 groen · 0 rood · 0 skip** (~178 suites, ~11 s) |
-| Live op rounda.io | Werkende multiplayerketen: create/join/QR/rondes/pauze/rematch |
+| Suite | **3000+ groen · 0 rood** (telling van 5 aug: 2963; de UX-ronde heeft er tests bij gezet) |
+| Live op rounda.io | Werkende multiplayerketen: create/join/QR/rondes/pauze/rematch. Speelbaar op een telefoon: home, spel, tussenstand en podium passen in één scherm |
 | Speelbare games | **3 van de 4** — Raad de vlag, Echt of nep, Welke hoort er niet bij (alle drie verticaal bewezen). Raad het land (contour) resteert |
 | Git | schoon; alles gecommit en gepusht (zie onderaan) |
 | Grootste open risico | de pilot is nog niet gedraaid — alles is getest, niets is met echte mensen gespeeld |
+| Loopt nu | ronde 3: hostacties, spelinstellingen, betrouwbaarheid (`docs/agent-opdrachten/ronde-3/`) |
 
 De volledige analyse en volgorde staan in **`docs/PLAN-CONVERGENTIE.md`**. Dat
 document is leidend voor wat er nu gebeurt; dit bestand zegt waar we staan.
@@ -69,12 +70,27 @@ mock-pin die de afwijking vastlegde.
    gewicht, nieuwe gameType, renderer porten. Uitgeschreven in
    PLAN-CONVERGENTIE §"Wat Raad het land nog vraagt".
 
+### Mobiele UX-ronde — af
+
+De 58 punten van de producteigenaar plus acht uit een tweede feedbackronde:
+allemaal gebouwd, gereviewd en live. Verslag in
+`docs/agent-opdrachten/ronde-2/VOORTGANG.md`.
+
+### Ronde 3 — in uitvoering
+
+| Wie | Ronde 1 | Ronde 2 | Ronde 3 |
+| --- | --- | --- | --- |
+| agent 1 | antwoord automatisch tonen | speler die weggaat | host wijzigt naam/kleur ander |
+| agent 2 | continentfilter | home scrolt 13 px | — |
+| agent 3 | Redis keten-race (~1 op 7 flaky) | contrastcontrole op 1c-kleuren | solo overleeft reload |
+
+Dat sluit de vier punten die hier eerder als "blijvend open" stonden.
+
 ### Blijvend open, ongewijzigd
 
-- DT's keten-race onder Redis (matrixrij 13, ~1 op 7 flaky) — fixen vóór CI.
 - Timer + rangpijltjes bestaan dubbel (module én handgebouwd in schermen).
-- Host wijzigt naam/kleur van ánderen — ticket, serverwerk.
-- `player:leave` heeft nog geen compositiefunctie (`UNSUPPORTED_EVENT`).
+- `capitals_mc` en `higher_lower` zijn gebouwd en getest maar staan in geen
+  enkel scherm — weggooien of alsnog tonen is een productkeuze.
 
 ## Techniek in het kort
 
@@ -86,6 +102,9 @@ Mock zonder server: `/samen?mock=1`.
 **Valkuilen:** de build kopieert de wérkboom (nooit mid-sprint deployen);
 bind-mounts vragen `--force-recreate`, geen `restart`; cachebust `?v=1cX`
 ophogen in `frontend/index.html` bij CSS-wijzigingen.
+
+**Meten op een telefoonformaat:** `node tools/meet-viewport.mjs <url> <flow>`
+met flow `home|lobby|spel|tussenstand|podium`; referentie 390×650.
 
 **Deploy:** `cd ~/game-app && docker compose -f docker-compose.yml -f
 compose.tunnel.override.yml --profile tunnel up -d --build --force-recreate
