@@ -440,6 +440,16 @@ button {
   padding: 0 12px;
   max-width: 480px;
   margin: 0 auto var(--chrome-gap);
+}
+
+/* De achtergrond hoort bij de AANLEIDING, niet bij de balk (R2-1, 5 aug).
+   Tijdens een potje staat de chrome sticky en scrolt de inhoud eronderdoor —
+   zonder dekvlak schijnt die er zichtbaar doorheen (bevinding A-x1). Op home
+   valt er niets onderdoor te scrollen: dat scherm past en staat stil. Daar gaf
+   dezelfde achtergrond een zwarte band die dwars door de lime gloed sneed.
+   Vandaar de koppeling aan de codebalk: die bestaat alleen tijdens een sessie,
+   en dat is precies wanneer er iets af te dekken valt. */
+#app-header:has(.room-header) {
   background: var(--color-bg-canvas);
 }
 
