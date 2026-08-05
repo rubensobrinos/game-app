@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { socialHeadlineFor } from './social-headline.mjs';
+import { socialHeadlineFor, pickHeadlineVariantKey } from './social-headline.mjs';
 
 test('enige correct: alleen als jijzelf die ene correcte speler was', () => {
   const headline = socialHeadlineFor({
@@ -151,4 +151,31 @@ test('rommelige/ontbrekende invoer breekt niets', () => {
   assert.equal(socialHeadlineFor({}), null);
   assert.equal(socialHeadlineFor(null), null);
   assert.equal(socialHeadlineFor(undefined), null);
+});
+
+test('pickHeadlineVariantKey: kiest een volledige sleutel binnen het verwachte bereik', () => {
+  const key = pickHeadlineVariantKey('self-sole-correct', null, () => 0.5);
+  assert.equal(key, 'headline.selfSoleCorrect.4');
+});
+
+test('pickHeadlineVariantKey: dekt de volledige range van 0 tot count - 1', () => {
+  assert.equal(pickHeadlineVariantKey('comeback', null, () => 0), 'headline.comeback.0');
+  assert.equal(pickHeadlineVariantKey('comeback', null, () => 0.999), 'headline.comeback.8');
+});
+
+test('pickHeadlineVariantKey: nooit twee keer achter elkaar dezelfde variant', () => {
+  // random() geeft steeds dezelfde waarde als vorige keer, dus zonder de
+  // herhaal-check zou dit twee keer dezelfde sleutel opleveren.
+  const first = pickHeadlineVariantKey('streak', null, () => 0.5);
+  const second = pickHeadlineVariantKey('streak', first, () => 0.5);
+  assert.notEqual(second, first);
+});
+
+test('pickHeadlineVariantKey: onbekende situatie faalt duidelijk', () => {
+  assert.throws(() => pickHeadlineVariantKey('unknown-type', null, () => 0.5), RangeError);
+});
+
+test('pickHeadlineVariantKey: random() buiten [0, 1) faalt duidelijk', () => {
+  assert.throws(() => pickHeadlineVariantKey('streak', null, () => 1), RangeError);
+  assert.throws(() => pickHeadlineVariantKey('streak', null, () => -0.1), RangeError);
 });

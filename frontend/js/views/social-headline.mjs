@@ -98,6 +98,66 @@ export function socialHeadlineFor(input) {
   return null;
 }
 
+// Reactiezinnen (docs/openstaand/reactiezinnen.md, besluit 44): elke situatie
+// hieronder heeft negen varianten in locales/{nl,en,es}.mjs, sleutels
+// `headline.<stam>.0` t/m `.8`. `socialHeadlineFor` hierboven bewaakt al dat
+// er hooguit één situatie per ronde wint (besluit 44's "nooit twee tegelijk")
+// — wat híer bijkomt is alleen de keuze uit de varianten van díe ene
+// situatie, dus de eis "niet twee keer achter elkaar dezelfde variant".
+const HEADLINE_KEY_STEM = Object.freeze({
+  'self-sole-correct': 'headline.selfSoleCorrect',
+  'everyone-correct': 'headline.everyoneCorrect',
+  'everyone-wrong': 'headline.everyoneWrong',
+  'misleading-answer': 'headline.misleadingAnswer',
+  comeback: 'headline.comeback',
+  streak: 'headline.streak',
+});
+
+/** Aantal varianten per situatie — moet gelijk lopen met locales/*.mjs. */
+const HEADLINE_VARIANT_COUNT = Object.freeze({
+  'self-sole-correct': 9,
+  'everyone-correct': 9,
+  'everyone-wrong': 9,
+  'misleading-answer': 9,
+  comeback: 9,
+  streak: 9,
+});
+
+function nextRandom(random) {
+  const value = random();
+  if (!Number.isFinite(value) || value < 0 || value >= 1) {
+    throw new RangeError(`random() must return a finite number in [0, 1), got: ${value}`);
+  }
+  return value;
+}
+
+/**
+ * Kiest één variant-sleutel voor een headline-situatie. Puur, zelfde patroon
+ * als `server/rules/question-selection.js`: willekeur komt altijd binnen als
+ * een `random: () => number`-parameter (contract gelijk aan `Math.random`),
+ * nooit een eigen `Math.random()`-aanroep of bewaarde state.
+ *
+ * @param {'self-sole-correct'|'everyone-correct'|'everyone-wrong'|'misleading-answer'|'comeback'|'streak'} type
+ * @param {string | null | undefined} lastVariantKey de volledige sleutel die
+ *   de vorige keer vóór DEZELFDE situatie binnen deze partij getoond werd
+ *   (of null/undefined bij de eerste keer) — voorkomt dat een variant twee
+ *   keer achter elkaar verschijnt.
+ * @param {() => number} random
+ * @returns {string} volledige locale-sleutel, bv. `headline.comeback.4`
+ */
+export function pickHeadlineVariantKey(type, lastVariantKey, random) {
+  const stem = HEADLINE_KEY_STEM[type];
+  const count = HEADLINE_VARIANT_COUNT[type];
+  if (stem === undefined || count === undefined) {
+    throw new RangeError(`Onbekende headline-situatie: ${type}`);
+  }
+  let index = Math.floor(nextRandom(random) * count);
+  if (count > 1 && `${stem}.${index}` === lastVariantKey) {
+    index = (index + 1) % count;
+  }
+  return `${stem}.${index}`;
+}
+
 function biggestClimbFrom(movement) {
   if (!(movement instanceof Map) || movement.size === 0) {
     return null;

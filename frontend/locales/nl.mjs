@@ -164,6 +164,72 @@ export const nl = Object.freeze({
   // 11-verzoek (BOUWSPRINT doel 4): alleen vanaf 3 op een rij, nooit
   // vernederend voor wie geen streak heeft (dan simpelweg niets tonen).
   'headline.streak': '{n} op een rij! 🔥',
+
+  // Reactiezinnen (docs/openstaand/reactiezinnen.md, besluit 44): negen
+  // varianten per situatie zodat dezelfde situatie niet elke ronde dezelfde
+  // zin geeft. De sleutels hierboven (zonder indexcijfer) blijven bestaan als
+  // vast fallback-exemplaar voor bestaande aanroepers — de keuze uit de
+  // varianten hieronder gebeurt via `pickHeadlineVariantKey()` in
+  // `social-headline.mjs`. Nooit letterlijke vertalingen tussen nl/en/es.
+  'headline.selfSoleCorrect.0': 'Jij was de enige met het juiste antwoord! ⭐',
+  'headline.selfSoleCorrect.1': 'Solo goed dit keer — chapeau! 🏆',
+  'headline.selfSoleCorrect.2': 'Niemand anders had het, jij wel. 😎',
+  'headline.selfSoleCorrect.3': 'Eén tegen de rest — en jij wint. ⭐',
+  'headline.selfSoleCorrect.4': 'Jij zag het als enige goed. 👀',
+  'headline.selfSoleCorrect.5': 'Alleen jij trapte er niet in!',
+  'headline.selfSoleCorrect.6': 'Los van de groep — en helemaal goed. 🎯',
+  'headline.selfSoleCorrect.7': 'Jij blinkt uit, de rest niet. ✨',
+  'headline.selfSoleCorrect.8': 'De enige met het juiste antwoord: jij!',
+
+  'headline.everyoneCorrect.0': 'Iedereen had het goed! 🎉',
+  'headline.everyoneCorrect.1': 'Voltreffer voor de hele groep! 🎯',
+  'headline.everyoneCorrect.2': 'Niemand liet zich foppen. 👏',
+  'headline.everyoneCorrect.3': 'Deze was voor iedereen een makkie!',
+  'headline.everyoneCorrect.4': 'De hele kamer wist het! 🙌',
+  'headline.everyoneCorrect.5': 'Knap gedaan, allemaal goed!',
+  'headline.everyoneCorrect.6': 'Geen enkele fout in de zaal. ✅',
+  'headline.everyoneCorrect.7': 'Iedereen scoort deze ronde!',
+  'headline.everyoneCorrect.8': 'Slim volk hier — allemaal raak!',
+
+  'headline.everyoneWrong.0': 'Niemand had het goed deze ronde!',
+  'headline.everyoneWrong.1': 'Deze ging iedereen mis. 🙈',
+  'headline.everyoneWrong.2': "Lastige! Niemand trapte 'm.",
+  'headline.everyoneWrong.3': 'Zelfs de slimsten misten deze.',
+  'headline.everyoneWrong.4': 'Een echte strikvraag, bleek wel.',
+  'headline.everyoneWrong.5': 'Nul goede antwoorden — pittig!',
+  'headline.everyoneWrong.6': 'Deze had iedereen te pakken. 😅',
+  'headline.everyoneWrong.7': 'Foutje bedankt, voor de hele groep.',
+  'headline.everyoneWrong.8': 'Niemand wist het — tja, lastige vraag.',
+
+  'headline.misleadingAnswer.0': 'Veel spelers dachten dat het {country} was!',
+  'headline.misleadingAnswer.1': '{country} was de grote misleider.',
+  'headline.misleadingAnswer.2': 'Bijna iedereen tipte {country}.',
+  'headline.misleadingAnswer.3': '{country} pakte een hoop stemmen.',
+  'headline.misleadingAnswer.4': 'De val van {country} werkte goed.',
+  'headline.misleadingAnswer.5': '{country} klonk logisch — maar nee.',
+  'headline.misleadingAnswer.6': 'Slim geprobeerd: {country}. Toch fout.',
+  'headline.misleadingAnswer.7': '{country} verleidde de meesten.',
+  'headline.misleadingAnswer.8': 'De meeste foute stemmen: {country}.',
+
+  'headline.comeback.0': '{naam} klimt {n} plaatsen! 📈',
+  'headline.comeback.1': '{naam} stormt {n} plekken omhoog! 🚀',
+  'headline.comeback.2': 'Kijk {naam} eens klimmen: +{n}!',
+  'headline.comeback.3': '{naam} maakt indruk: {n} plaatsen erbij.',
+  'headline.comeback.4': 'Comeback van de ronde: {naam}, +{n}.',
+  'headline.comeback.5': 'Ligt {naam} maar hoger nu: {n} omhoog!',
+  'headline.comeback.6': '+{n} voor {naam} — daar gaan we!',
+  'headline.comeback.7': '{naam} klimt keihard: {n} plekken hoger.',
+  'headline.comeback.8': 'Wie stopt {naam}? {n} plaatsen erbij!',
+
+  'headline.streak.0': '{n} op een rij! 🔥',
+  'headline.streak.1': '{n} keer goed, zonder te haperen! 🔥',
+  'headline.streak.2': 'Op dreef: {n} op rij!',
+  'headline.streak.3': 'Niet te stoppen — {n} achter elkaar!',
+  'headline.streak.4': '{n} in serie — knap volgehouden.',
+  'headline.streak.5': 'Reeks van {n} — wie durft te stoppen?',
+  'headline.streak.6': '{n} op rij en tellen door!',
+  'headline.streak.7': 'Lekker bezig: {n} achter elkaar goed.',
+  'headline.streak.8': 'Vlammend: {n} keer raak op rij! 🔥',
   // Scherm 5 (besluit 40): reveal + tussenstand als één scherm.
   'reveal.correctLabel': 'Het goede antwoord',
   'reveal.countCorrect': '{n} van {m} zaten goed',
