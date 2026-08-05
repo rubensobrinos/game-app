@@ -33,14 +33,8 @@ Peildatum: 6 aug 2026.
 
 ## Refactor — de rem op parallel werken
 
-| Wat | Status |
-| --- | --- |
-| [`base.css` + `components.css` opsplitsen](refactor-css.md) | klaar om te starten |
-| [`analytics`, `redis/data-store`, `index.mjs` opsplitsen](refactor-server-adapters.md) | klaar om te starten |
-
-De overige grote bestanden (`match-lifecycle`, `socket`, `transport-mock`,
-`rounda-1c.css`, `room-lifecycle`, `lobby`, `session-shell`) zijn nu in gebruik
-en komen later aan de beurt.
+Acht opdrachten, één bestand per opdracht, volgorde en status in
+[refactor/README.md](refactor/README.md).
 
 ## Aanzetten
 
