@@ -528,6 +528,13 @@ export default async function restRoutes(fastify, options) {
       || !hostParticipatesInvariantHolds(validated.value, body)) {
       return sendInternalError(request, reply, 'response_validation_failed', { roomId: created.value.roomId });
     }
+    // Fase 3 (agent 1, F1/F2): vóór deze fase logde de container in totaal
+    // ÉÉN regel over een hele incidentperiode — een gemelde storing was
+    // daardoor niet na te trekken. `sendError` hierboven logt al elke
+    // afwijzing (dus ook `GAME_NOT_FOUND`/"room verlopen" en elke geweigerde
+    // hostactie, via dezelfde functie resp. `socket.mjs`'s `reject()`); wat
+    // ontbrak was het GESLAAGDE pad — hier en bij `POST /games/join`.
+    logSafe('info', 'room aangemaakt', { requestId: String(request.id), roomId: created.value.roomId, method: request.method });
     return reply.code(201).send(body);
   });
 
@@ -586,6 +593,7 @@ export default async function restRoutes(fastify, options) {
       effectiveName: joined.value.effectiveName,
       state,
     };
+    logSafe('info', 'speler joint', { requestId: String(request.id), roomId: joined.value.roomId, method: request.method });
     return sendValidatedResponse(request, reply, 200, body, validateJoinGameResponse);
   });
 

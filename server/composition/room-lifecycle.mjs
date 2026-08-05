@@ -709,10 +709,10 @@ export async function joinRoom(context, {
 }
 
 /**
- * Schrijft `lastActivityAt` bij. Aparte functie omdat het een read-modify-
- * write over het HELE Room-document is: de poort kent geen partiële update.
- * Zie de handoff-notitie — tegen een echte, gelijktijdige store kan dit een
- * concurrent `phase`-update overschrijven.
+ * Schrijft `lastActivityAt` (en desgewenst andere velden) bij. Aparte functie
+ * omdat het een read-modify-write over het HELE Room-document is: de poort
+ * kent geen partiële update. Zie de handoff-notitie — tegen een echte,
+ * gelijktijdige store kan dit een concurrent `phase`-update overschrijven.
  *
  * Dit is óók het TTL-refreshpad, en dus de plek waar `refreshRoomLocators`
  * hoort (INT-1 §4): zonder die aanroep verlopen `room:code:{code}` en
@@ -730,9 +730,25 @@ export async function joinRoom(context, {
  * deze room) wordt NIET weggeslikt. Dat betekent dat de code of de invite
  * inmiddels naar een andere room wijst, en dan is doorgaan met joinen erger dan
  * falen.
+ *
+ * GEËXPORTEERD sinds fase 3 (agent 1, F1/F2): `match-lifecycle.mjs` had geen
+ * enkel TTL-verlengpad tijdens het spelen — alleen lobby-acties in DIT bestand
+ * riepen hem aan. Een room die druk speelt maar geen lobby-actie meer ziet
+ * (join/leave/kick/lock/hernoemen/instellingen), verloor zo zijn code- en
+ * invite-locator na vier uur, ook middenin een potje. `extraFields` laat een
+ * aanroeper die toch al het hele document herschrijft (bv. `currentMatchId`
+ * bij `startMatch`/`rematch`) dat in dezelfde write meenemen i.p.v. tweemaal
+ * te schrijven.
+ *
+ * @param {import('./context.mjs').Context} context
+ * @param {import('../data/types/room.js').Room} room
+ * @param {number} at
+ * @param {Record<string, unknown>} [extraFields]
  */
-async function touchRoom(context, room, at) {
-  await context.store.saveRoom({ ...room, lastActivityAt: at });
+export async function touchRoom(context, room, at, extraFields = {}) {
+  const updated = { ...room, ...extraFields, lastActivityAt: at };
+  assertRoomShape(updated);
+  await context.store.saveRoom(updated);
   if (typeof room.inviteHash === 'string' && room.inviteHash.length > 0) {
     await context.store.refreshRoomLocators({
       roomId: room.id,
@@ -741,6 +757,7 @@ async function touchRoom(context, room, at) {
       ttlSeconds: ROOM_TTL_SECONDS,
     });
   }
+  return updated;
 }
 
 /**

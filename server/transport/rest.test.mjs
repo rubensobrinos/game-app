@@ -1069,7 +1069,7 @@ test('een onverwachte exception logt een stabiele foutklasse, geen message en ge
   assert.ok(!raw.includes('stack'), 'geen stacktrace, ook niet onder een andere sleutel');
 });
 
-test('een geslaagd verzoek levert GEEN logregel op — dat zou de echte signalen begraven', async (t) => {
+test('een routine-verzoek (state ophalen) levert GEEN logregel op — dat zou de echte signalen begraven', async (t) => {
   const server = await makeLoggingServer();
   t.after(() => server.fastify.close());
 
@@ -1079,9 +1079,42 @@ test('een geslaagd verzoek levert GEEN logregel op — dat zou de echte signalen
     url: `/api/v1/games/${created.gameCode}/state`,
     headers: bearer(created.sessionToken),
   });
-  // OPZETCONTROLE: deze twee verzoeken moeten echt geslaagd zijn, anders
-  // bewijst "geen logregels" alleen dat er niets gebeurde.
+  // OPZETCONTROLE: dit verzoek moet echt geslaagd zijn, anders bewijst "geen
+  // logregel" alleen dat er niets gebeurde.
   assert.equal(state.statusCode, 200, state.body);
 
-  assert.deepEqual(server.records(), [], 'geen enkele logregel voor twee geslaagde verzoeken');
+  const fromStateFetch = server.records().filter((record) => record.msg !== 'room aangemaakt');
+  assert.deepEqual(fromStateFetch, [], 'een geslaagde state-fetch (hoogfrequent, routine) logt niets');
+});
+
+// Fase 3 (agent 1, F1/F2 — INT4a wordt hiermee ingelopen): "geslaagd" was
+// vóór deze fase gelijk aan "geen logregel", punt. Dat maakte de twee
+// milestone-gebeurtenissen die een incident daadwerkelijk na te trekken maken
+// — een room ontstaat, een speler komt binnen — even onzichtbaar als een
+// routine state-poll. Onderscheid: MIJLPALEN (create/join, laag-frequent,
+// één per room-/spelerleven) loggen wél op info; ROUTINEVERZOEKEN
+// (state-fetch, hoogfrequent, kan tientallen keren per sessie) niet — dat is
+// precies het onderscheid dat de test hierboven nu bewaakt.
+test('room aanmaken en joinen loggen elk precies één info-regel met hun roomId', async (t) => {
+  const server = await makeLoggingServer();
+  t.after(() => server.fastify.close());
+
+  const created = await createGameOverHttp(server.fastify);
+  const joinResponse = await server.fastify.inject({
+    method: 'POST',
+    url: '/api/v1/games/join',
+    payload: { gameCode: created.gameCode, displayName: null, joinSource: 'code' },
+  });
+  assert.equal(joinResponse.statusCode, 200, joinResponse.body);
+
+  const createdLines = server.records().filter((record) => record.msg === 'room aangemaakt');
+  assert.equal(createdLines.length, 1);
+  assert.equal(createdLines[0].roomId, created.roomId);
+  assert.equal(createdLines[0].layer, 'rest');
+  assert.match(createdLines[0].requestId, /^req-\d+$/);
+
+  const joinedLines = server.records().filter((record) => record.msg === 'speler joint');
+  assert.equal(joinedLines.length, 1);
+  assert.equal(joinedLines[0].roomId, created.roomId);
+  assert.equal(joinedLines[0].layer, 'rest');
 });

@@ -26,7 +26,7 @@ import { validateRoundEndedPayload } from '../protocol/server-events-scoring.mjs
 import { assertNoActiveRoundAnswerLeak, validateSnapshotShape } from '../protocol/snapshot-shape.mjs';
 import { ALL_ERROR_CODES } from '../protocol/error-codes.mjs';
 import { createContext, createId, createSessionToken } from './context.mjs';
-import { joinRoom, leaveRoom, resolveGameConfiguration } from './room-lifecycle.mjs';
+import { createRoom, joinRoom, leaveRoom, resolveGameConfiguration } from './room-lifecycle.mjs';
 import {
   advancePhase,
   buildSnapshot,
@@ -1306,6 +1306,96 @@ test('fase 2 (agent 1): een speler die na zijn antwoord vertrekt, houdt zijn beh
   const standing = finished.value.standings.find((entry) => entry.playerId === players[1].playerId);
   assert.ok(standing !== undefined, 'de vertrokken speler moet in de eindstand blijven staan (GAME-FLOW.md §11)');
   assert.equal(standing.score, 100, 'hij behoudt de punten die hij vóór zijn vertrek verdiende');
+});
+
+test('fase 3 (agent 1, F1/F2): drieënhalf uur spelen zonder één lobby-actie verlengt de room-locator-TTL toch', async () => {
+  // GEEN `makeHarness()`/`seedRoom()` hier: die bouwt de room handmatig op
+  // zonder `inviteHash` (een tijdelijke fixture van vóór DM10/DM11, zie de
+  // JSDoc bij `seedRoom` hierboven) — `touchRoom()` slaat de locator-refresh
+  // dan stilzwijgend over en deze test zou niets bewijzen. Hier dus de ECHTE
+  // `createRoom()`, met een eigen store die `refreshRoomLocators` afluistert.
+  const clock = makeClock();
+  const rawStore = createInMemoryStore();
+  const refreshCalls = [];
+  const store = {
+    ...rawStore,
+    async refreshRoomLocators(params) {
+      refreshCalls.push({ ...params, at: clock.value });
+      return rawStore.refreshRoomLocators(params);
+    },
+  };
+  const context = createContext({
+    store,
+    now: clock.now,
+    config: {
+      tokenPeppers: TOKEN_PEPPERS,
+      publicAppUrl: APP_URL,
+      contentVersion: CONTENT_VERSION,
+      rendererVersion: RENDERER_VERSION,
+      random: seededRandom(7),
+    },
+  });
+
+  const created = await createRoom(context, {
+    hostParticipates: false,
+    // Twintig minuten "nadenktijd" per ronde: een ver overdreven vraagduur,
+    // maar dat is precies het punt — de klok simuleert een hele speelavond
+    // zonder dat de test zelf iets hoeft te wachten.
+    config: { totalRounds: 12, questionSeconds: 20 * 60, resultSeconds: 5, scoreboardSeconds: 5, speedBonus: false },
+  });
+  assert.equal(created.ok, true, JSON.stringify(created));
+  const { roomId, gameCode } = created.value;
+  assert.equal(typeof created.value.inviteHash, 'string');
+
+  const joined = await joinRoom(context, { gameCode, displayName: 'Speler', joinSource: 'code' });
+  assert.equal(joined.ok, true, JSON.stringify(joined));
+
+  const harness = { context, clock, store };
+  const started = await startMatch(context, { roomId });
+  assert.equal(started.ok, true, JSON.stringify(started));
+  assert.ok(refreshCalls.length >= 1, 'startMatch moet de locators al één keer verlengen');
+
+  const THREE_AND_HALF_HOURS_MS = 3.5 * 60 * 60 * 1000;
+  const roomConfig = (await store.loadRoom(roomId)).config;
+  let roundNumber = 0;
+  // Puur doorspelen — GEEN join/leave/kick/lock/hernoemen/instellingen: dat
+  // is precies het scenario uit de bugmelding ("hoe druk er ook gespeeld
+  // wordt"). Stopt zodra de match eindigt of de 3,5 uur gehaald zijn.
+  while (clock.value - FIXED_NOW < THREE_AND_HALF_HOURS_MS && roundNumber < roomConfig.totalRounds) {
+    roundNumber += 1;
+    const played = await playRound(harness, {
+      roomId,
+      matchId: started.value.matchId,
+      players: [{ playerId: joined.value.playerId }],
+      answerFor: () => undefined,
+    });
+    assert.equal(played.started.roundNumber, roundNumber);
+    const next = await leaveResultPhase(harness, roomId, roomConfig);
+    if (next.phase === 'FINISHED') break;
+  }
+
+  assert.ok(
+    clock.value - FIXED_NOW >= THREE_AND_HALF_HOURS_MS,
+    `testopzet moet minstens 3,5 uur simuleren, kwam tot ${(clock.value - FIXED_NOW) / 3_600_000}u — verhoog totalRounds`,
+  );
+  assert.ok(refreshCalls.length > 5, 'gameplay moet de locator-TTL herhaaldelijk verlengen, niet alleen bij startMatch');
+
+  // DE KERNBEWERING. Zonder de fase-3-fix (touchRoom binnen applyTransition)
+  // gebeurt de laatste locator-refresh bij `startMatch` en daarna nooit meer
+  // tijdens het spelen: `room:code:{code}` en `room:invite:{inviteHash}`
+  // zouden dan `ROOM_TTL_SECONDS` na die ene aanroep verlopen, middenin een
+  // sessie die nog uren doorspeelt. Met de fix ligt er op geen enkel moment
+  // meer dan de TTL tussen twee opeenvolgende verlengingen.
+  for (let i = 1; i < refreshCalls.length; i += 1) {
+    const gapMs = refreshCalls[i].at - refreshCalls[i - 1].at;
+    assert.ok(
+      gapMs <= ROOM_TTL_SECONDS * 1000,
+      `gat van ${gapMs / 1000}s tussen twee locator-verlengingen overschrijdt de TTL van ${ROOM_TTL_SECONDS}s`,
+    );
+    assert.equal(refreshCalls[i].roomId, roomId);
+    assert.equal(refreshCalls[i].code, gameCode);
+    assert.equal(refreshCalls[i].ttlSeconds, ROOM_TTL_SECONDS);
+  }
 });
 
 // ─── Vraagselectie en gepinde versies ───────────────────────────────────────

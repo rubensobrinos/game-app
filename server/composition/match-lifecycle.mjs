@@ -45,16 +45,12 @@
 // POORTVERSIE. Dit bestand gebruikt de poort ZOALS DIE NU IS, inclusief de
 // room-scoping van DM11: `saveRound(roomId, round)`,
 // `loadAnswer(roomId, matchId, roundId, playerId)` en
-// `loadActionCacheEntry(roomId, actionId)`. `server/composition/
-// room-lifecycle.mjs` loopt nog op de oude signatuur (`loadRoomByInviteId`) en
-// is daardoor sinds DM10 stuk; dat bestand valt buiten deze opdracht en is als
-// handoff-item gemeld.
+// `loadActionCacheEntry(roomId, actionId)`.
 
 import { ERROR_CODES as STATE_MACHINE_ERROR_CODES, EVENT_TYPES, PHASES, transition } from '../architecture/state-machine.js';
 import { resolveAnswer } from '../data/answer-flow.js';
 import { assertMatchShape } from '../data/types/match.js';
 import { assertPlayerShape } from '../data/types/player.js';
-import { assertRoomShape } from '../data/types/room.js';
 import { assertRoundShape, toActiveRoundSnapshot } from '../data/types/round.js';
 import { computeAnswerDistribution } from '../rules/answer-distribution.js';
 import { computeEligibleFromRound, isEligibleForRound } from '../rules/eligibility.js';
@@ -62,7 +58,7 @@ import { rankPlayers } from '../../shared/rules/ranking.mjs';
 import { ALL_ERROR_CODES } from '../protocol/error-codes.mjs';
 import { createContentSource } from './content-source.mjs';
 import { createId } from './context.mjs';
-import { buildJoinUrl } from './room-lifecycle.mjs';
+import { buildJoinUrl, touchRoom } from './room-lifecycle.mjs';
 
 /**
  * De foutcodes die deze module kan retourneren. Geen losse stringliterals:
@@ -434,27 +430,6 @@ async function loadRoomAndMatch(context, roomId, { requireMatch = true } = {}) {
   return succeed({ room, match });
 }
 
-/**
- * Schrijft `lastActivityAt`/`currentMatchId` bij. Zie HANDOFF INT-7: de poort
- * kent geen partiële update, dus dit is een heel-document-write die tegen een
- * echte, gelijktijdige store een concurrent `phase`-update kan overschrijven.
- * `phase` wordt hier NOOIT gewijzigd — dat pad loopt uitsluitend via
- * `setRoomAndMatchPhaseAtomically`.
- *
- * RESTGAT (INT-7, niet opgelost door DM19). Dat "nooit gewijzigd" geldt ten
- * opzichte van de `room` die de AANROEPER heeft ingelezen. Verzet iemand anders
- * tussendoor de fase, dan schrijft deze functie de oude fase terug. De CAS
- * hieronder beschermt de fase-overgang zelf, niet deze bijschrijving; daarom
- * roept elke aanroeper hem aan met een room die zo vers mogelijk is en staat
- * hij nooit ná de atomaire operatie zonder herlaadstap.
- */
-async function saveRoomFields(context, room, fields) {
-  const updated = { ...room, ...fields, phase: room.phase };
-  assertRoomShape(updated);
-  await context.store.saveRoom(updated);
-  return updated;
-}
-
 /** Toont deze ronde een tussenstand? */
 function showsScoreboard(config, roundNumber) {
   const frequency = String(config.scoreboardFrequency);
@@ -641,6 +616,23 @@ async function applyTransition(context, { room, match, event, extraPatch = {} })
     return phaseConflict(event.type, match.phase, applied.actualPhase);
   }
 
+  // Fase 3 (agent 1, F1/F2 — "de room mag niet doodgaan tijdens het
+  // spelen"). DIT IS DE ENE PLEK die de room-TTL tijdens een lopende match
+  // verlengt: `applyTransition` is de enige weg naar een fase-overgang
+  // (`startMatch`, `startRound`, `endRound`, `advancePhase`/pauzeren/
+  // hervatten, `finishMatch`, `recoverRoom` lopen er allemaal doorheen), en
+  // een fase-overgang gebeurt een handvol keer per ronde — niet honderd keer
+  // zoals bij een schrijfactie per binnenkomend antwoord. `submitAnswer` roept
+  // dit daarom bewust NIET aan.
+  //
+  // `room` is de kopie die de AANROEPER vóór de transitie inlas — dus nog met
+  // de OUDE fase. `touchRoom` doet een heel-document-write (INT-7): zonder
+  // correctie zou die de fase die de CAS hierboven zojuist atomair heeft
+  // gezet, terugschrijven naar de oude waarde. Vandaar expliciet `phase:
+  // nextPhase` in `extraFields` — dezelfde fase die `setRoomAndMatchPhaseAtomically`
+  // net heeft vastgelegd, niet een herleiding.
+  await touchRoom(context, room, now, { phase: nextPhase });
+
   return succeed({ match: committed, previousPhase: match.phase });
 }
 
@@ -719,7 +711,7 @@ export async function startMatch(context, { roomId } = {}) {
   if (!loaded.ok) {
     return loaded;
   }
-  const { room } = loaded.value;
+  let { room } = loaded.value;
   let match = loaded.value.match;
 
   if (match !== null && match.phase !== PHASES.LOBBY) {
@@ -760,9 +752,12 @@ export async function startMatch(context, { roomId } = {}) {
     };
     assertMatchShape(match);
     await context.store.saveMatch(match);
-    await saveRoomFields(context, room, { currentMatchId: match.id, lastActivityAt: now });
+    // `room` hierna bijwerken: `applyTransition` hieronder doet zelf ook een
+    // `touchRoom`-aanroep (fase 3) en zou anders, met de nog-oude `room` in
+    // scope, het net gezette `currentMatchId` weer overschrijven.
+    room = await touchRoom(context, room, now, { currentMatchId: match.id });
   } else {
-    await saveRoomFields(context, room, { lastActivityAt: now });
+    room = await touchRoom(context, room, now);
   }
 
   const started = await applyTransition(context, {
@@ -1385,9 +1380,10 @@ export async function finishMatch(context, { roomId } = {}) {
  * match laten wijzen terwijl de winnaar `Room.phase` al op LOBBY heeft gezet —
  * een room die daarna nergens meer uit komt.
  *
- * `saveRoomFields` schrijft het hele Room-document en zou de zojuist gezette
- * fase overschrijven met de fase uit de al ingelezen kopie; het herlaadt de
- * room daarom eerst (zie ook de waarschuwing bij `saveRoomFields` zelf).
+ * `touchRoom` schrijft het hele Room-document en zou de zojuist gezette fase
+ * overschrijven met de fase uit de al ingelezen kopie; het herlaadt de room
+ * daarom eerst (zie ook de waarschuwing bij `touchRoom` zelf, in
+ * room-lifecycle.mjs).
  *
  * @param {import('./context.mjs').Context} context
  * @param {{ roomId: string }} params
@@ -1440,9 +1436,9 @@ export async function rematch(context, { roomId } = {}) {
   }
 
   // Herladen: de room in `loaded` draagt nog de fase van vóór de atomaire
-  // operatie, en `saveRoomFields` schrijft het hele document.
+  // operatie, en `touchRoom` schrijft het hele document.
   const flipped = await context.store.loadRoom(roomId);
-  await saveRoomFields(context, flipped, { currentMatchId: next.id, lastActivityAt: now });
+  await touchRoom(context, flipped, now, { currentMatchId: next.id });
 
   const players = await context.store.listPlayers(roomId);
   const reset = [];

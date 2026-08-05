@@ -77,6 +77,13 @@ const RECONNECT_FALLBACK_MS = 9000;
 // T5-9: venster waarbinnen opeenvolgende room:player-changed-deltas worden
 // samengevoegd tot één render. `07` §9's eigen suggestie ("bv. 500 ms").
 const PLAYER_CHANGED_BATCH_MS = 500;
+// Fase 3 (agent 1, F1/F2): begrensde retry voor `requestFreshSnapshot()` bij
+// een niet-terminale fout (vrijwel altijd `NETWORK_ERROR` — zie de toelichting
+// daar). Zonder deze retry liet één netwerkhapering op precies déze aanroep
+// het scherm permanent leeg staan: de socket zelf verbond soms gewoon in één
+// keer, dus `reconnect.status` bleef 'connected' en er kwam nooit een nieuwe
+// aanleiding om het opnieuw te proberen.
+const SNAPSHOT_RETRY_DELAYS_MS = [1000, 2000, 4000];
 
 // Codes waarbij een opgeslagen sessie principieel niet meer bruikbaar is —
 // verder proberen (reconnect, opnieuw snapshot ophalen) heeft geen zin, de
@@ -395,7 +402,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     showingRecoveredMessage = false;
   }
 
-  async function requestFreshSnapshot() {
+  async function requestFreshSnapshot(attempt = 0) {
     try {
       const snapshot = await transport.fetchState(code, session.sessionToken);
       handleEvent({ event: 'room:state', payload: snapshot });
@@ -410,7 +417,25 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       // dat herstelt zichzelf via de eerstvolgende serverevent of reconnect.
       if (TERMINAL_SNAPSHOT_ERROR_CODES.has(err?.code)) {
         terminate(t(`error.${messageForErrorCode(err.code)}`));
+        return;
       }
+      // Fase 3 (agent 1, F1/F2): "stil, want dat herstelt zichzelf" klopte
+      // niet voor DEZE aanroep — dit is de allereerste `fetchState()` na
+      // mount (zie de aanroep verderop), vóór er ooit een socketverbinding
+      // heeft gestaan. Eén `NETWORK_ERROR` hier (bv. de server herstartte net
+      // op het moment van F5) liet het scherm zonder enige nieuwe aanleiding
+      // permanent leeg staan. Begrensde retry i.p.v. één poging; blijft de
+      // fout hangen, dan lost een latere, écht geslaagde (re)connect het via
+      // `handleStatus` alsnog op — precies zoals de bovenstaande aanname al
+      // veronderstelde.
+      if (terminated || attempt >= SNAPSHOT_RETRY_DELAYS_MS.length) {
+        return;
+      }
+      setTimeout(() => {
+        if (!terminated) {
+          requestFreshSnapshot(attempt + 1);
+        }
+      }, SNAPSHOT_RETRY_DELAYS_MS[attempt]);
     }
   }
 
