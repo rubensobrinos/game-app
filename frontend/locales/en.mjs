@@ -76,6 +76,9 @@ export const en = Object.freeze({
   'game.flagAlt': 'Flag to guess',
   'game.questionPrompt': 'Which country does this flag belong to?',
   'game.countdownLabel': 'Question starts in',
+  // R2-8: how many players are in, above the counter.
+  'game.countdownPlayersReady.one': '{n} player ready',
+  'game.countdownPlayersReady.other': '{n} players ready',
   'game.round': 'Round',
   'game.secondsLeft': 'seconds left',
   'game.sending': 'Sending…',

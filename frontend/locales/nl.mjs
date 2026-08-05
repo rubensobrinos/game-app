@@ -105,6 +105,10 @@ export const nl = Object.freeze({
   // getal (session-shell.mjs), dus wordt bij elke tik samen met de nieuwe
   // waarde voorgelezen.
   'game.countdownLabel': 'Zo begint de vraag',
+  // R2-8 (producteigenaar, 5 aug): "dat iedereen echt klaar is". Boven de
+  // teller, telbaar — bij één speler zou "1 spelers klaar" er staan.
+  'game.countdownPlayersReady.one': '{n} speler klaar',
+  'game.countdownPlayersReady.other': '{n} spelers klaar',
   'game.round': 'Ronde',
   'game.secondsLeft': 'seconden te gaan',
   'game.sending': 'Versturen…',

@@ -27,13 +27,28 @@ const context = await browser.newContext({
   deviceScaleFactor: 2,
 });
 const page = await context.newPage();
-await page.goto(`${BASIS}/?mock=1`, { waitUntil: 'networkidle' });
+// MOCK=0 rijdt dezelfde weg over de échte server en socket.
+await page.goto(process.env.MOCK === '0' ? BASIS : `${BASIS}/?mock=1`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(400);
 await page.click('.home-quick-start');
 await page.waitForSelector('.lobby-screen', { timeout: 10_000 });
 await page.click('.lobby-start button, button.lobby-start');
-await page.waitForSelector('.gameplay-options .gameplay-option', { timeout: 20_000 });
-await page.waitForTimeout(800);
+
+// AFTELLEN=1 meet het aftelscherm (R2-8) i.p.v. de vraag: dat scherm bestaat
+// maar één keer per potje en is voorbij zodra de eerste ronde begint.
+if (process.env.AFTELLEN === '1') {
+  await page.waitForSelector('.gameplay-countdown:not([hidden])', { timeout: 20_000 });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'tools/shots/aftellen.png', fullPage: false });
+  const scherm = await page.evaluate(() => {
+    const cs = getComputedStyle(document.querySelector('.screen-top'));
+    return { justify: cs.justifyContent, minH: cs.minHeight, gap: cs.rowGap };
+  });
+  console.log(`[aftellen] justify-content=${scherm.justify} min-height=${scherm.minH} gap=${scherm.gap}`);
+} else {
+  await page.waitForSelector('.gameplay-options .gameplay-option', { timeout: 20_000 });
+  await page.waitForTimeout(800);
+}
 if (process.env.KLIK === '1') {
   await page.click('.gameplay-options .gameplay-option');
   await page.waitForTimeout(800);

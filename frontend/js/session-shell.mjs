@@ -880,7 +880,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       return;
     }
     if (viewName === 'gameplay') {
-      mountedView = createGameplayView({ root: phaseContainer, t, onAnswer: sendAnswer });
+      mountedView = createGameplayView({ root: phaseContainer, t, tCount, onAnswer: sendAnswer });
       startGameplayTicker();
       return;
     }
@@ -981,6 +981,11 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       // De streak zat hier ook, maar gameplay.mjs toont sinds besluit 40 geen
       // uitslag meer en las 'm dus nergens. Hij gaat nu mee naar scherm 5 —
       // zie de `scoreboard`-tak van `updateMountedView()`.
+      //
+      // R2-8: het aftelscherm zegt wél hoeveel spelers er meedoen ("5 spelers
+      // klaar"). Dezelfde teller die de lobby al toont — `game:started` en
+      // elke `room:state` houden 'm bij, dus hier alleen doorgeven.
+      playerCount,
     };
   }
 

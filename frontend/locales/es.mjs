@@ -74,6 +74,9 @@ export const es = Object.freeze({
   'game.flagAlt': 'Bandera a adivinar',
   'game.questionPrompt': '¿A qué país pertenece esta bandera?',
   'game.countdownLabel': 'La pregunta empieza en',
+  // R2-8: cuántos jugadores participan, encima del contador.
+  'game.countdownPlayersReady.one': '{n} jugador listo',
+  'game.countdownPlayersReady.other': '{n} jugadores listos',
   'game.round': 'Ronda',
   'game.secondsLeft': 'segundos restantes',
   'game.sending': 'Enviando…',

@@ -42,7 +42,7 @@ function selectedValueFor(model) {
   return model.selectedOptionId;
 }
 
-export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
+export function createGameplayView({ root, t, tCount = null, onAnswer, lang = 'nl' }) {
   root.textContent = '';
 
   // Screenreader-only titel: dit scherm heeft geen zichtbare <h1>/<h2> (de
@@ -58,13 +58,20 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
   const countdown = el('p', 'gameplay-countdown');
   countdown.setAttribute('aria-live', 'polite');
   countdown.hidden = true;
+  // R2-8 (producteigenaar, 5 aug): "dat iedereen echt klaar is". Sinds §A2 is
+  // dit scherm alleen nog de OPENING van de match — tussen rondes telt de
+  // server niet meer af. Het gebeurt dus één keer per potje, en dan is het
+  // startsein van een groep belangrijker dan het cijfer: wie er meedoet staat
+  // bovenaan, het cijfer eronder.
+  const countdownPlayers = el('span', 'gameplay-countdown-players');
+  countdownPlayers.hidden = true;
   // BOUWSPRINT: kaal getal had geen enkele tekst errond — voor een
   // screenreader zijn "5… 4… 3…" losse getallen zonder context. Label +
   // getal als aparte spans zodat de tick-animatie (hieronder) alleen op het
   // getal blijft werken, niet op de hele regel.
   const countdownLabel = el('span', 'gameplay-countdown-label');
   const countdownValue = el('span', 'gameplay-countdown-value');
-  countdown.append(countdownLabel, countdownValue);
+  countdown.append(countdownPlayers, countdownLabel, countdownValue);
 
   const header = el('div', 'gameplay-header');
   const roundWrap = el('p', 'gameplay-round');
@@ -254,7 +261,7 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     }
   }
 
-  function update(model, { secondsLeft = null, phase = null, countdownSecondsLeft = null } = {}) {
+  function update(model, { secondsLeft = null, phase = null, countdownSecondsLeft = null, playerCount = null } = {}) {
     // Reken het getal uit de resterende tijd (`secondsRemaining()` rondt al af
     // op hele seconden) — geen vaste `3`/`2`/`1`-reeks aannemen, want de
     // serverduur kan afwijken (zie 04-S07-countdown.md's HANDOFF-punt over
@@ -265,6 +272,14 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
     } else {
       countdownLabel.textContent = t('game.countdownLabel');
       countdownValue.textContent = countdownSecondsLeft === null ? '' : String(countdownSecondsLeft);
+      // R2-8: "5 spelers klaar" boven de teller. `tCount` is optioneel zodat
+      // een aanroeper die 'm niet doorgeeft (of een room zonder telling) een
+      // regel minder krijgt in plaats van "1 spelers" of een sleutelnaam.
+      const toonSpelers = typeof playerCount === 'number' && playerCount > 0 && tCount !== null;
+      countdownPlayers.hidden = !toonSpelers;
+      if (toonSpelers) {
+        countdownPlayers.textContent = tCount('game.countdownPlayersReady', playerCount);
+      }
       // BOUWSPRINT/E04: "zachte tick per cijfer" (06 §4) — een puls per
       // wisselend cijfer, niet per render-tick. Klasse verwijderen+
       // terugzetten (forceer reflow) om de animatie telkens opnieuw te
@@ -279,19 +294,29 @@ export function createGameplayView({ root, t, onAnswer, lang = 'nl' }) {
 
     const state = displayState(model);
 
-    if (state === 'empty') {
+    // R2-8, punt 1: het aftellen krijgt het scherm voor zichzelf. Tot nu toe
+    // bleef de vlag-`<img>` staan zónder `src` — een browser tekent dan het
+    // kader plus de alt-tekst, dus stond er een leeg vak met "Te raden vlag"
+    // in. Dat leest als een kapot scherm, en het is bovendien onwaar: er ís
+    // nog geen vraag. Dit gebeurt bij élke COUNTDOWN, niet alleen bij een leeg
+    // model — hervatten na een pauze telt ook af terwijl `roundModel` nog de
+    // vorige ronde draagt (§A2).
+    if (!countdown.hidden || state === 'empty') {
       roundLabel.textContent = '';
       headerProgress.hidden = true;
       timer.update({ secondsLeft: null, totalSeconds: null });
       timer.reset();
       questionPrompt.hidden = true;
       flag.removeAttribute('src');
-      flag.hidden = false;
+      flag.hidden = true;
       flagFallback.hidden = true;
       flagCanvas.hidden = true;
       options.textContent = '';
       status.textContent = '';
       progress.textContent = '';
+      // Op `null` zodat de vraag ná het aftellen opnieuw wordt opgebouwd: de
+      // opties zijn hierboven gewist, dus een gelijk gebleven `roundId` mag
+      // niet betekenen "er staat al iets".
       renderedRoundId = null;
       return;
     }

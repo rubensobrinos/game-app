@@ -1480,6 +1480,78 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
    vult, komt het gewoon terug. */
 .gameplay-result:empty { display: none; }
 
+/* ── R2-8: het aftelscherm ────────────────────────────────────────────────
+   "Eerste startpagina voor de eerste ronde is wel beetje vaag man, mag
+   veeeeel enthousiaster, dat iedereen echt klaar is, counter van 3 naar 0."
+   (producteigenaar, 5 aug)
+
+   Sinds §A2 telt de server alleen nog af bij de OPENING van de match en bij
+   hervatten — tussen rondes begint de volgende vraag direct. Dit scherm komt
+   dus één keer per potje voorbij, en dat rechtvaardigt de volle hoogte in
+   plaats van een regel tekst met een cijfertje eronder.
+
+   `gameplay.mjs` verbergt tijdens het aftellen al alles eronder (de vlag-
+   `<img>` stond er zonder `src`: een leeg kader met de alt-tekst "Te raden
+   vlag" erin), dus dit blok hoeft alleen nog de ruimte te vullen. */
+.screen-top:has(.gameplay-countdown:not([hidden])) {
+  /* Vullen tot net onder de chrome — dit is het enige scherm van pakket D dat
+     zijn hoogte wél mag opeisen, want er staat verder niets. */
+  min-height: calc(100dvh - var(--chrome-h, 44px) - var(--chrome-gap, 16px));
+  justify-content: center;
+}
+
+/* GEMETEN, niet aangenomen: met alleen `justify-content: center` bleef het
+   aftellen bovenaan plakken. De lege `.gameplay-options` staat er tijdens het
+   aftellen nog wél als flex-item, en die heeft `margin-top: auto` (regel 451,
+   die de antwoorden in een ronde naar beneden duwt) — dus slokte een doos van
+   0 px alle vrije ruimte op. Deze drie zijn tijdens het aftellen sowieso leeg;
+   de sr-only schermtitel blijft bewust staan, die hoort in de
+   toegankelijkheidsboom. */
+.screen-top:has(.gameplay-countdown:not([hidden])) .gameplay-header,
+.screen-top:has(.gameplay-countdown:not([hidden])) .gameplay-options,
+.screen-top:has(.gameplay-countdown:not([hidden])) .gameplay-status {
+  display: none;
+}
+
+.gameplay-countdown {
+  margin: 0;
+  gap: 4px;
+  justify-content: center;
+}
+
+/* Volgorde van boven naar beneden: wie er meedoen, waar we op wachten, en
+   dan het getal dat het overneemt. */
+.gameplay-countdown-players {
+  font: 700 13px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rounda-lime, #d8ff3e);
+}
+
+.gameplay-countdown-label {
+  font: 500 15px/1.3 var(--font-body);
+  color: #8e8e9c;
+}
+
+/* Zo groot als de breedte toelaat: dit is het startsein, geen bijschrift. De
+   ring is het element zélf en niet een `::before` met een negatieve inset —
+   die werd een ellips (de doos van één cijfer is smal en hoog) en sneed dwars
+   door de regel erboven. `em` maakt hem hoe dan ook rond: breedte en hoogte
+   volgen dezelfde fontgrootte, ook als de `clamp()` een ander getal kiest. */
+.gameplay-countdown-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7em;
+  height: 1.7em;
+  margin-top: 10px;
+  font: 800 clamp(84px, 32vw, 132px)/1 var(--font-display);
+  color: var(--rounda-lime, #d8ff3e);
+  font-variant-numeric: tabular-nums;
+  border: 2px solid var(--rounda-row-border, #23232c);
+  border-radius: 50%;
+}
+
 /* ══ PAKKET B — bugs & functionele eisen (agent B) ══ */
 
 /* Punt 32 — de startknop bedekt de hostinstellingen. Sticky blijft sticky
