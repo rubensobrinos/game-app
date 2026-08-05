@@ -427,6 +427,7 @@ Een snapshot bevat nooit het correcte antwoord van een actieve ronde.
 | `game:pause` | host | `{ reason?: string }` | actieve game |
 | `game:resume` | host | `{}` | fase PAUSED |
 | `game:next` | host | `{}` | host-tempo en wachtfase |
+| `game:reveal` | host | `{}` | `autoReveal: false` en fase ROUND_RESULT |
 | `game:lock` | host | `{ locked: boolean }` | room bestaat |
 | `game:kick` | host | `{ playerId }` | speler bestaat, niet zichzelf als enige host |
 | `game:finish` | host | `{}` | niet reeds FINISHED |
@@ -441,6 +442,26 @@ Een snapshot bevat nooit het correcte antwoord van een actieve ronde.
 `share:opened.method` is gelijkgetrokken met de vier herkomsten uit
 `POST /games/join`'s `joinSource` (`DECISIONS.md`, punt 18): `qr`, `link`,
 `native` en `code` (handmatige codeweergave).
+
+### `game:reveal`
+
+De hostactie van besluit C (5 aug 2026). Staat `config.autoReveal` op `false`,
+dan krijgt `ROUND_RESULT` geen `phaseEndsAt`: de uitslag blijft staan tot de
+host hem afsluit met `game:reveal`. Daarna loopt de ronde normaal door naar de
+tussenstand of de volgende vraag.
+
+| | |
+| --- | --- |
+| Payload | `{}` — de server weet zelf welke ronde er loopt |
+| Fase | ROUND_RESULT |
+| Rol | host |
+| Voorwaarde | `config.autoReveal === false`; anders `INVALID_PHASE` |
+| Ack | `{ phase }`, de fase die erna geldt |
+
+**Er komt geen tweede hostknop bij** (`DECISIONS.md`, besluit 1: één hostactie
+per ronde). Bij `autoReveal: false` **verhuist** de hostactie van `SCOREBOARD`
+naar `ROUND_RESULT`: `game:next` is dan ongeldig, ook bij `pacing: "host"`, en
+de tussenstand loopt op zijn eigen timer door.
 
 ### `player:rename` en `player:recolor`
 
@@ -483,6 +504,7 @@ terugkomt — nooit wat hij zelf net verstuurde.
    | `difficulty` | string; dezelfde waarden die create accepteert |
    | `language` | `nl` \| `en` \| `es` |
    | `pacing` | `auto` \| `host` |
+   | `autoReveal` | boolean |
    | `speedBonus` | boolean |
    | `allowLateJoin` | boolean |
    | `gameTypes` | array met **exact één** speelbare gameType |
@@ -524,6 +546,7 @@ terugkomt — nooit wat hij zelf net verstuurde.
       "difficulty": "hard",
       "language": "nl",
       "pacing": "auto",
+      "autoReveal": true,
       "speedBonus": true,
       "allowLateJoin": true
     }
