@@ -1,4 +1,5 @@
-// contrast-1c.test.mjs — WCAG-contrastcontrole voor `rounda-1c.css` (ronde 3,
+// contrast-1c.test.mjs — WCAG-contrastcontrole voor de 1c-transplantatielaag
+// (ronde 3,
 // agent 3, fase 2). `contrast.test.mjs` dekt alleen de kleurtokens in
 // `base.css`/`components.css`; de hardgecodeerde 1c-kleuren daarbuiten hadden
 // geen enkele controle — zo kon een labelkleur op de magenta revealkaart
@@ -8,7 +9,7 @@
 // 1c-kleuren zijn geen tokens maar losse hex-waarden per selector, dus is er
 // geen generieke lijst "tekstkleuren × achtergrondkleuren" te draaien zonder
 // onzincombinaties te testen. In plaats daarvan leest elk paar hieronder de
-// écht gedeclareerde `color`/`background` uit `rounda-1c.css` zelf (en uit
+// écht gedeclareerde `color`/`background` uit de 1c-CSS zelf (en uit
 // `tokens.css` voor tokens) — geen losstaande kopie van wat de kleur "hoort" te
 // zijn. Zo faalt de test ook echt als iemand een van deze regels per ongeluk
 // terugdraait (geverifieerd door de fix tijdelijk te stashen: alle paren die
@@ -33,8 +34,18 @@ import { fileURLToPath } from 'node:url';
 
 const basePath = fileURLToPath(new URL('./tokens.css', import.meta.url));
 const baseCss = readFileSync(basePath, 'utf8');
-const oneCPath = fileURLToPath(new URL('./rounda-1c.css', import.meta.url));
-const oneCCss = readFileSync(oneCPath, 'utf8');
+const ONE_C_FILES = [
+  './1c-merk.css',
+  './1c-home.css',
+  './1c-chrome.css',
+  './1c-lobby.css',
+  './1c-spel.css',
+  './1c-uitslag.css',
+  './1c-licht.css',
+];
+const oneCCss = ONE_C_FILES
+  .map((path) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8'))
+  .join('');
 
 function extractBlock(source, startRegex) {
   const match = startRegex.exec(source);
@@ -284,7 +295,7 @@ test('WCAG AA — .reveal-card-why (ink met opacity op de lime kaart)', () => {
 // **1,15:1** uit. Onleesbaar, en geen enkele test die het merkte.
 //
 // Deze controle draait het om. In plaats van te toetsen wat we hebben
-// opgeschreven, leest hij ÉLKE regel in `rounda-1c.css` die lime als
+// opgeschreven, leest hij ÉLKE regel in de 1c-CSS die lime als
 // tekstkleur zet, en eist per regel een van tweeën:
 //
 //   1. een `:root[data-theme='light']`-tegenhanger voor diezelfde selector

@@ -21,7 +21,19 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const css = readFileSync(fileURLToPath(new URL('./rounda-1c.css', import.meta.url)), 'utf8');
+const ONE_C_FILES = [
+  './1c-merk.css',
+  './1c-home.css',
+  './1c-chrome.css',
+  './1c-lobby.css',
+  './1c-spel.css',
+  './1c-uitslag.css',
+  './1c-licht.css',
+];
+
+const css = ONE_C_FILES
+  .map((path) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8'))
+  .join('');
 // `base.css` is opgesplitst (refactor 1); `.lobby-start` woont sinds die
 // verhuizing in `lobby.css`. De regel zelf is ongewijzigd — alleen het adres.
 const base = readFileSync(fileURLToPath(new URL('./lobby.css', import.meta.url)), 'utf8');

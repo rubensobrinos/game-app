@@ -1,0 +1,35 @@
+/* ── Start: de lime hero-pil ── */
+.home-quick-start,
+.lobby-start,
+.podium-rematch {
+  border-radius: 999px;
+  font: 700 22px/1 var(--font-display);
+  letter-spacing: -0.03em;
+  padding: 22px 28px;
+  box-shadow: 0 0 0 1px rgba(216, 255, 62, 0.5), 0 18px 44px rgba(216, 255, 62, 0.2);
+}
+
+/* ── Code-invoer: mono machinerie in een eigen donkere kaart ── */
+.home-code-label { display: block; }
+.home-code-label .field-label-text,
+.room-header-code-label {
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+}
+.home-code-input {
+  background: #17171d;
+  border-radius: 10px;
+  font: 700 23px/1 var(--font-mono);
+  text-align: center;
+  letter-spacing: 0.45em;
+  color: var(--color-text-primary);
+}
+/* Zonder dit blijft de achtergrond hardcoded donker terwijl de tekstkleur wél
+   met het thema meeswitcht — in licht wordt --color-text-primary dan bijna
+   zwarte tekst op een bijna zwarte kaart (1,02:1, contrastcontrole T5-6b). */
+:root[data-theme='light'] .home-code-input {
+  background: var(--color-surface-2);
+}
+

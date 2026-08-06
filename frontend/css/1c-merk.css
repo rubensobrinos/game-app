@@ -1,0 +1,85 @@
+/* rounda-1c.css — DE TRANSPLANTATIELAAG (richting 1c "Nachtdienst").
+   Bron: rounda-1c.html van de producteigenaar (Claude Design, 3 aug 2026).
+   Laadt NÁ base.css en components.css en overschrijft gericht: dit bestand
+   bezit de compositie/look van de vier ontworpen schermen, de onderliggende
+   lagen houden layoutmechanica, states en toegankelijkheid.
+   Eigenaar: regie. Thema's schrijven hier niet in; zie STATUS.md
+   (verfkwasten-bevriezing) en NIVEAUS regel 0. */
+
+:root {
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Archivo', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+  --rounda-ink: #0a0a0c;
+  --rounda-lime: #d8ff3e;
+  --rounda-lime-dim: #3d4a10;
+  --rounda-magenta: #ff3ea5;
+  --rounda-cyan: #4ad2ff;
+  --rounda-orange: #ffa63e;
+  --rounda-row: #14141a;
+  --rounda-row-border: #23232c;
+}
+
+body { font-family: var(--font-body); }
+
+/* ── Merk: het rad vervangt de emoji (CSS-only, geen DOM-wijziging).
+   Het hele rad draait — inclusief de R (producteigenaar, 3 aug: "de R
+   draait mee"). Binnenin draait een halve gloed er even snel tegenin
+   (-720° conic per omwenteling van +360° transform = netto tegengesteld).
+   Reduced motion: stilstaand. ── */
+@property --rad-a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@property --rad-b { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+
+.app-logo {
+  font-size: 0;
+  width: 96px; /* feedback 4 aug (punt 3): groter */
+  height: 96px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: conic-gradient(from var(--rad-a), var(--rounda-lime) 0 25%, #17171d 25% 50%, var(--rounda-lime) 50% 75%, #17171d 75%);
+  position: relative;
+}
+.app-logo::before {
+  content: '';
+  position: absolute;
+  inset: 17px;
+  border-radius: 50%;
+  background:
+    conic-gradient(from var(--rad-b), transparent 0 50%, rgba(216, 255, 62, 0.16) 50% 100%),
+    var(--rounda-ink);
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* De R draait MEE met het rad (producteigenaar): het hele element
+     roteert. De halve gloed binnenin krijgt -720° per omwenteling — netto
+     draait die daardoor even snel de ándere kant op. */
+  .app-logo { animation: rad-draai 14s linear infinite; }
+  .app-logo::before { animation: rad-tegenin 14s linear infinite; }
+  @keyframes rad-draai { to { transform: rotate(360deg); } }
+  @keyframes rad-tegenin { to { --rad-b: -720deg; } }
+}
+.app-logo::after {
+  content: 'R';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 27px/1 var(--font-display);
+  color: var(--rounda-lime);
+}
+
+/* ── Koppen: wordmark-taal, geen gradient-inflatie ── */
+h1, h2 {
+  font-family: var(--font-display);
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: var(--color-text-primary);
+  letter-spacing: -0.03em;
+}
+.home-title {
+  text-transform: uppercase;
+  font-size: clamp(34px, 11.5vw, 53px); /* +15% (feedback 4 aug punt 4); clamp ivm 200%-zoom */
+  line-height: 0.95;
+  letter-spacing: -0.045em;
+}
+

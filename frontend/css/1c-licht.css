@@ -1,0 +1,1536 @@
+/* ── Licht thema: de 1c-look is donker-eerst; licht krijgt dezelfde vormen
+   met de licht-tokens uit base.css (geen aparte uitwerking hier — de
+   tokenlaag regelt kleur, dit bestand regelt vorm). ── */
+/* A1: `.room-header` is geen kaart meer (display: contents), dus de lichte
+   variant van die kaart is weg. De chromeknoppen erven hun kleur van de
+   codewaarde-tint, zodat lime dat op wit onleesbaar is nergens terugkomt. */
+:root[data-theme='light'] .room-header-code-value,
+:root[data-theme='light'] #app-header .room-header-qr,
+:root[data-theme='light'] #app-header .room-header-share,
+:root[data-theme='light'] #app-header .session-hostbar-icon,
+:root[data-theme='light'] #app-header .app-menu-trigger { color: #55731a; }
+:root[data-theme='light'] .lobby-player,
+:root[data-theme='light'] .gameplay-option,
+:root[data-theme='light'] .scoreboard-entry,
+:root[data-theme='light'] .podium-step { background: var(--color-surface-1); border-color: var(--color-border-subtle); }
+:root[data-theme='light'] .app-logo::before { background: var(--color-bg-canvas); }
+:root[data-theme='light'] .app-logo::after { color: #55731a; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .lobby-player-enter { animation: rounda-pop 0.5s ease-out; }
+  @keyframes rounda-pop {
+    0% { transform: translateY(14px) scale(0.94); opacity: 0; }
+    60% { transform: translateY(0) scale(1.03); opacity: 1; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   COMPOSITIE (3 aug, avond) — de posities uit de 1c-mockups, CSS-only.
+   Wat DOM vereist (sublabels, +N MEER-stapel, segmententimer, vraagregel)
+   staat op de transplantatie-backlog en hoort niet in dit blok.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Elk scherm is een telefooncanvas: smal, links uitgelijnd, volle hoogte,
+   met de belangrijkste actie onderaan in duimbereik (mockup-grondwet). */
+.screen {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 430px;
+  margin-inline: auto;
+  min-height: calc(100dvh - 140px);
+  text-align: left;
+}
+
+/* ── Start: merkblok linksboven, lucht in het midden, START onderaan ── */
+.home-screen .app-logo { margin: 14px 0 22px; } /* punt 3: ook wat hoger */
+.home-screen .home-title { text-align: left; margin: 0 0 10px; }
+/* `:not(.field-error)`: de twee foutalinea's zijn óók een directe `p` van dit
+   scherm, en kregen daardoor de 26ch van de tagline mee. De Nederlandse en
+   Engelse melding pasten daar net in, de Spaanse ("Introduce un código de 6
+   dígitos", 196px tekst in een doos van 208px) brak naar twee regels en duwde
+   home weer 20px voorbij de vouw. Ze mogen de volle breedte gebruiken. */
+.home-screen > p:not(.field-error), .home-screen .home-tagline { text-align: left; max-width: 26ch; }
+.home-quick-start { margin-top: auto; }
+.home-divider {
+  text-align: center;
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+}
+.home-host-setup-link { align-self: flex-end; }
+
+/* Solo (besluit C-1): tertiaire uitwijk onder het codeveld — samen spelen is
+   de belofte van dit scherm, dus deze knop concurreert nergens mee. */
+.home-solo-link {
+  align-self: center;
+  margin-top: 4px;
+  font: 700 11px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7c7c8b;
+}
+.home-solo-link:hover,
+.home-solo-link:focus-visible { color: var(--rounda-lime, #d8ff3e); }
+
+/* C-2: de uitlegregel onder het goede antwoord ("Drie uit Europa, één uit
+   Azië"). Bewust klein en rustig: het is een verantwoording, geen headline. */
+.reveal-card-why {
+  display: block;
+  margin-top: 6px;
+  font: 500 12px/1.4 var(--font-body, inherit);
+  color: #0a0a0c;
+  opacity: 0.72;
+}
+
+/* ── Sessieschermen: inhoud boven, primaire actie onderaan ── */
+.screen-top .lobby-start { margin-top: auto; }
+.screen-top:has(.gameplay-options) .gameplay-options { margin-top: auto; }
+.screen-top .gameplay-header {
+  align-items: center;
+  font: 700 12px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+}
+.gameplay-flag { max-width: 100%; }
+
+/* Tussenstand/podium: lijst vult, eigen regel + actie zakken mee */
+.screen-top .podium-action { margin-top: auto; }
+
+/* Uitnodigen-rij (delen/kopieer) als stille pillen naast elkaar */
+.lobby-share-row { display: flex; gap: 8px; }
+.lobby-share-row .btn-secondary {
+  border-radius: 999px;
+  background: var(--rounda-row);
+  border: none;
+  color: #b9b9c6;
+  font: 500 12.5px/1 var(--font-body);
+}
+
+/* Grote schermen: het canvas blijft een telefoon, gecentreerd op het doek —
+   het ontwerp ís portrait; een hostlaptop krijgt hetzelfde beeld, groter
+   ademend, niet uitgesmeerd. (De 1200px-wand van thema 5 voor tussenstand/
+   podium blijft werken: die selectors zijn specifieker.) */
+@media (min-width: 700px) {
+  .screen { min-height: calc(100dvh - 180px); }
+}
+
+/* ════ REVIEWFIXES (grote review, na bouwsprint) ════ */
+
+/* #5: lucht tussen uitnodigen-blok en de (sticky) startknop — geen overlap */
+.lobby-start { margin-top: 16px; }
+
+/* #6: permanente mini-QR in het paneel — scanbaar zonder tik */
+.room-header-qr-inline {
+  width: 84px;
+  height: 84px;
+  border-radius: 10px;
+  background: #f4f4f6;
+  padding: 5px;
+  flex: none;
+}
+
+/* #9: de solo-voetlink hoort alleen op de startpagina, niet midden in een
+   potje (afleiding + 17px-tikdoel). :has = zelfde support-lijn als de rest
+   van deze laag. */
+.app-footer { display: none; }
+body:has(.home-screen) .app-footer { display: block; }
+
+/* #10: de tegengloed-animatie binnenin het logo was een conic-repaint per
+   frame (renderer meetbaar bezig; batterij). De gloed blijft, statisch;
+   het rad zelf draait op transform = gecomposit, goedkoop. */
+.app-logo::before { animation: none !important; }
+
+/* Minigame in de lobby: compact, tussen lijst en uitnodigen */
+.lobby-rounda { margin-top: 14px; display: flex; justify-content: center; }
+
+/* Rounda-Flag ("Wave Run", producteigenaar 3 aug) — de lobbygame-kaart.
+   Zelfde kaarttaal als de mockup: 1px rand, 24px radius, donker vlak. */
+.rounda-flag-card {
+  position: relative;
+  width: 100%;
+  height: clamp(260px, 38vh, 360px);
+  overflow: hidden;
+  border: 1px solid var(--rounda-row-border);
+  border-radius: 24px;
+  background: #101016;
+}
+.rounda-flag-label {
+  position: absolute;
+  z-index: 2;
+  left: 18px;
+  top: 14px;
+  font: 700 11px/1 var(--font-mono);
+  letter-spacing: 0.24em;
+  color: #5c5c6b;
+  pointer-events: none;
+}
+.rounda-flag-score {
+  position: absolute;
+  z-index: 2;
+  right: 18px;
+  top: 12px;
+  font: 700 18px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--rounda-lime);
+  pointer-events: none;
+}
+.rounda-flag-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+.rounda-flag-hint {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  margin: 0;
+  text-align: center;
+  font: 400 11.5px/1.3 var(--font-body);
+  color: #5c5c6b;
+  pointer-events: none;
+}
+
+/* ════ SCHERM 5 (besluit 40): reveal + tussenstand als één scherm ════
+   Bron: rounda-screens.html (design-handoff, 3 aug 2026). Twee beats:
+   de lime antwoordkaart popt eerst, het eigen-resultaatpaneel volgt met
+   een kwart seconde vertraging; de tussenstand eronder is rustig. */
+
+.reveal-card {
+  position: relative;
+  border-radius: 22px;
+  background: var(--rounda-lime);
+  padding: 20px 22px 18px;
+  overflow: hidden;
+  box-shadow: 0 22px 55px rgba(216, 255, 62, 0.32);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.reveal-card-label {
+  font: 700 10px/1 var(--font-mono);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--rounda-lime-dim);
+}
+.reveal-card-answer {
+  font: 700 clamp(30px, 9vw, 42px)/1 var(--font-display);
+  color: var(--rounda-ink);
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere; /* lange landnamen (bv. "Equatoriaal-Guinea") */
+}
+.reveal-card-count {
+  font: 700 11px/1 var(--font-mono);
+  color: var(--rounda-lime-dim);
+  padding-top: 4px;
+}
+
+.reveal-self {
+  border-radius: 16px;
+  background: var(--rounda-row);
+  border: 1.5px solid rgba(216, 255, 62, 0.4);
+  padding: 14px 18px;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.reveal-self[data-state='wrong'] { border-color: var(--rounda-row-border); }
+.reveal-self[data-state='noanswer'] { border-color: var(--rounda-row-border); opacity: 0.85; }
+.reveal-self-icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--rounda-lime);
+  color: var(--rounda-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 13px/1 var(--font-display);
+}
+.reveal-self[data-state='wrong'] .reveal-self-icon { background: var(--rounda-magenta); color: var(--rounda-ink); }
+.reveal-self[data-state='noanswer'] .reveal-self-icon { background: var(--rounda-row-border); color: #b9b9c6; }
+.reveal-self-text {
+  flex: 1;
+  font: 700 15px/1.2 var(--font-display);
+}
+.reveal-self-points {
+  font: 700 28px/1 var(--font-mono);
+  color: var(--rounda-lime);
+}
+.reveal-self[data-state='wrong'] .reveal-self-points,
+.reveal-self[data-state='noanswer'] .reveal-self-points { color: #5c5c6b; }
+
+/* De tussenstand-kop wordt in dit samengestelde scherm een mono-label */
+.screen-top .scoreboard-title {
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+  margin: 18px 0 4px;
+}
+
+/* Voet: lopende balk (auto-pacing) of host-hint, onderaan in duimzicht */
+.reveal-next { margin-top: auto; padding-top: 12px; }
+.reveal-next-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: #17171d;
+  overflow: hidden;
+}
+.reveal-next-bar i {
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: 999px;
+  background: var(--rounda-lime);
+}
+.reveal-next-text {
+  font: 700 10px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+  text-align: center;
+  margin: 7px 0 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveal-card { animation: rounda-pop 0.55s cubic-bezier(0.2, 1.4, 0.4, 1); }
+  .reveal-self { animation: rounda-pop 0.55s 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) backwards; }
+  /* Geen secondenclaim uit het protocol → geen aftel-illusie; de balk
+     pendelt (transform-only, gecomposit — zelfde les als reviewfix #10). */
+  .reveal-next-bar i { animation: reveal-pendel 1.6s ease-in-out infinite alternate; }
+  @keyframes reveal-pendel { from { transform: translateX(0); } to { transform: translateX(150%); } }
+}
+
+:root[data-theme='light'] .reveal-self { background: var(--color-surface-1); }
+:root[data-theme='light'] .reveal-card-label,
+:root[data-theme='light'] .reveal-card-count { color: #55731a; }
+:root[data-theme='light'] .reveal-next-bar { background: var(--color-surface-1); }
+/* .reveal-self gaat hierboven al naar --color-surface-1 in licht; de score
+   erin bleef pure lime (1,15:1 op wit) — zelfde vervangkleur als de kaart. */
+:root[data-theme='light'] .reveal-self-points { color: #55731a; }
+
+/* ════ MOCK-REVIEWFIXES (3 aug, na doelbeeld v2-vergelijking) ════ */
+
+/* Producteigenaar: "de achtergrond klopt niet met de screenshot met
+   gradient" — mockup 1 (`.screen--glow`): lime-ademende radial bovenin het
+   startscherm. Eerste versie (::before met z-index -1) renderde als flauwe
+   band met een zichtbare rand — visueel gecheckt op 4 aug: als background
+   op body zelf is de gloed vol en egaal, zonder z-index-gedoe. Alleen
+   donker: op licht zou 14% lime als vlek ogen. */
+:root[data-theme='dark'] body:has(.home-screen) {
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(216, 255, 62, 0.14), transparent 70%) no-repeat,
+    var(--color-bg-canvas);
+}
+
+/* #4: startknop — label en subregel stonden als twee inline spans tegen
+   elkaar aan ("Start Roundaledereen mee?"). Zelfde opbouw als de mockup-
+   hero-pil: label groot, subregel mono eronder. */
+.lobby-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.lobby-start-sub {
+  font: 700 11px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rounda-lime-dim);
+}
+
+/* #5: de kick-knop was een volle-breedte joekel onder elke spelerrij —
+   mockup: stille rij. Nu een klein stil pilletje rechts in de rij. */
+.lobby-player { display: flex; align-items: center; gap: 10px; }
+.lobby-player .player-chip { flex: 1; min-width: 0; }
+.lobby-player .lobby-player-kick {
+  flex: none;
+  width: auto;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: none;
+  border: 1px solid var(--rounda-row-border);
+  color: #8e8e9c;
+  font: 500 12px/1 var(--font-body);
+  min-height: 44px; /* tikdoel-eis blijft staan, visueel toch klein */
+}
+
+/* Scherm 3 (besluit 40B): het JIJ-blok in de gastlobby — naamvoorstel,
+   "Typ zelf" en IK BEN KLAAR; na klaar de wachtpil. */
+.lobby-self { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.lobby-self-lead {
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+  margin: 0;
+}
+.lobby-self-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: var(--rounda-row);
+  border: 1px solid var(--rounda-row-border);
+}
+.lobby-self-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 700 17px/1.2 var(--font-display);
+  letter-spacing: -0.02em;
+}
+.lobby-self-rename, .lobby-self-save {
+  flex: none;
+  width: auto;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #17171d;
+  border: 1px solid var(--rounda-row-border);
+  color: #b9b9c6;
+  font: 500 12px/1 var(--font-body);
+  min-height: 44px;
+}
+.lobby-self-input { flex: 1; min-width: 0; }
+.lobby-ready {
+  border-radius: 999px;
+  font: 700 17px/1 var(--font-display);
+  letter-spacing: -0.02em;
+  padding: 16px 22px;
+}
+.lobby-ready-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 999px;
+  background: var(--rounda-row);
+  border: 1px solid var(--rounda-row-border);
+  padding: 16px 22px;
+}
+.lobby-ready-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rounda-lime);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lobby-ready-dot { animation: rounda-adem 1.4s infinite; }
+  @keyframes rounda-adem { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+}
+.lobby-ready-text { flex: 1; font: 700 14px/1.2 var(--font-display); color: #d4d4de; }
+.lobby-ready-name {
+  font: 700 10px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+}
+
+/* ════ A2 — de chrome per fase ═══════════════════════════════════════════
+   A1 maakte de balk in élke fase 44 px hoog; dat deel van #18 is daarmee al
+   binnen budget. Wat A2 doet is de andere helft: #35 — "vraag en antwoorden
+   primair, code en host secundair". Hoogte is niet hetzelfde als gewicht. Een
+   balk van 44 px met een felle lime code en vier lime iconen erin trekt nog
+   steeds de blik weg van een vraag die in gedempt grijs staat.
+
+   De haak is `body[data-rounda-fase]` (session-shell.mjs, mountView). Dit
+   verving `body:has(.gameplay-flag)` en `body:has(.scoreboard-list)`: die
+   gokten de fase uit een klasse die van het spéltype afhangt, en zouden dus
+   stilzwijgend stoppen met werken bij het eerste speltype zonder vlag. Nu is
+   er één bron en die weet het zeker. */
+
+/* Spel + reveal/eindstand. De code blijft leesbaar en voorleesbaar (D-018
+   eist zichtbaar, niet opvallend), maar hij is niet langer het felste ding op
+   het scherm: kleiner én in de gedempte tekstkleur, zodat lime alleen nog
+   betekenis draagt in de inhoud (timer, goed antwoord). `--color-text-muted`
+   en geen vaste hex, zodat het lichte thema meekomt. */
+body[data-rounda-fase='gameplay'] .room-header-code-value,
+body[data-rounda-fase='scoreboard'] .room-header-code-value {
+  font-size: 20px;
+  line-height: 1;
+  color: var(--color-text-muted);
+}
+body[data-rounda-fase='gameplay'] #app-header .room-header-qr,
+body[data-rounda-fase='gameplay'] #app-header .room-header-share,
+body[data-rounda-fase='gameplay'] #app-header .session-hostbar-icon,
+body[data-rounda-fase='gameplay'] #app-header .app-menu-trigger,
+body[data-rounda-fase='scoreboard'] #app-header .room-header-qr,
+body[data-rounda-fase='scoreboard'] #app-header .room-header-share,
+body[data-rounda-fase='scoreboard'] #app-header .session-hostbar-icon,
+body[data-rounda-fase='scoreboard'] #app-header .app-menu-trigger {
+  color: var(--color-text-muted);
+}
+
+/* A-x2 / #56 — het eindscherm. Dit is een bewuste, enige uitzondering op
+   D-018 ("code en QR blijven het hele potje zichtbaar"): een afgelópen potje
+   is geen potje meer. Er valt niets meer te joinen, de code opent geen deur
+   meer, en op het podium concurreerde hij met de uitslag — precies wat #56
+   aanwijst. Meedoen aan een vólgend potje loopt via Opnieuw/Nieuw spel, en
+   de uitslag delen kan met de eigen deelknop van het podium (`.podium-share`,
+   podium.mjs) — er verdwijnt dus geen enkele functie, alleen een balk.
+   De chromerij zelf blijft staan met het voorkeurenmenu erin; die hoort op
+   élk scherm bereikbaar te zijn. Levert het podium 44 px extra hoogte op. */
+body[data-rounda-fase='podium'] .room-header-slot {
+  display: none;
+}
+
+/* Zonder code is er niets meer dat de rij naar rechts duwt (die `flex: 1` zat
+   op de codewaarde), en dan blijft de host-⋯ als enige tegen de linkerrand
+   plakken terwijl het voorkeurenmenu rechts staat. Twee knoppen, één hoek. */
+body[data-rounda-fase='podium'] .session-hostbar {
+  margin-left: auto;
+}
+
+
+/* ════ FEEDBACKRONDE 4 aug (14 punten producteigenaar) ════ */
+
+/* #8+#9: "Game beëindigen" en "Room vergrendelen" domineren de lobby niet
+   meer — de hostbalk verdwijnt daar helemaal (start/kick zitten al in de
+   lobby zelf). Tijdens het spel blijft de balk (Pauzeer enz.) bestaan;
+   beëindigen verhuist op termijn naar een geavanceerd-menu.
+   A2: op dezelfde fasehaak als de rest, niet meer op `:has(.lobby-screen)`. */
+body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
+
+/* #14: het blok-formaat UITNODIGEN vervalt; delen = icoon in de codebalk */
+.lobby-share { display: none; }
+
+/* #11: Wave Run — score groot rechtsboven, record klein grijs linksonder */
+.rounda-flag-record {
+  position: absolute;
+  z-index: 2;
+  left: 18px;
+  bottom: 10px;
+  font: 700 10px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  color: #5c5c6b;
+  pointer-events: none;
+}
+.rounda-flag-hint { left: auto; right: 18px; text-align: right; }
+
+/* #12: de spelers-teller in mockup-stijl: "2 SPELERS" als mono-label */
+.lobby-count {
+  font: 700 11px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+}
+
+/* #2: bescheiden copyrightregel in de footer (alleen op home zichtbaar,
+   zie reviewfix #9) */
+.app-footer-copy {
+  display: block;
+  margin-top: 8px;
+  font: 400 11px/1.4 var(--font-body);
+  color: #5c5c6b;
+  text-align: center;
+}
+
+/* #punt 2 (4 aug, tweede ronde): hostbalk = pauze-icoon + evt. Volgende +
+   een ingeklapt ⋯-paneel. Geen rijen tekstpillen meer boven het spel.
+   A1: de maten van de icoonknoppen komen uit de gedeelde chromeregel boven
+   in dit bestand — hier alleen nog wat dáár niet staat. */
+.session-hostbar-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+/* A3 (#7/#8): de tweede ⋯. Twee identieke glyphs naast elkaar in de chrome
+   dwingen de gebruiker te raden welke hij nodig heeft — punt 7 in één beeld.
+   De knop blijft in de DOM (hostbar.mjs blijft 'm gebruiken als bron voor
+   "is er iets te tonen", zie `plaatsHostmenu()` in session-shell.mjs), maar
+   hij heeft niets meer te openen: zijn paneel hangt nu in het gedeelde menu.
+   Twee selectors, want twee plekken: in de chromerij moet hij het winnen van
+   de gedeelde chromeknopregel (die heeft `#app-header`-specificiteit), en
+   tijdens PAUSED staat de hostbalk in de pauzekaart — daar geldt de losse
+   klasse. Zonder de tweede zou de knop in de pauzekaart weer opduiken, zonder
+   iets te openen. */
+.session-hostbar-more,
+#app-header .session-hostbar-more {
+  display: none;
+}
+
+/* Het ⋯-paneel is geen zwevend menu meer maar een sectie ín het
+   voorkeurenmenu (#46). Daarmee vervallen zijn eigen kaart, schaduw en
+   positionering — die zitten nu één laag hoger, op `.app-menu`. Wat blijft is
+   de kolom met volle-breedte knoppen. */
+.session-hostbar-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* `>` en niet een gewone afstammingsselector. Dat was geen stijlkeuze maar een
+   bug: `.session-hostbar-panel .btn-secondary` (0,2,0) won van
+   `.session-hostbar-player-menu` (0,1,0), dus kreeg óók de ⋯-knop per speler
+   `width: 100%`. Die duwde de naam ernaast naar 0 px breed — in het paneel
+   stonden twee rijen met alleen een ⋯ en geen naam (gemeten: span 246 px
+   beschikbaar, 0 px toegekend). Alleen de knoppen die rechtstreeks in het
+   paneel staan horen volle breedte te zijn; wat D in een rij zet, bepaalt hij
+   zelf. */
+.session-hostbar-panel > .btn-secondary,
+.session-hostbar-panel > .btn-destructive { width: 100%; }
+.session-hostbar-players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+
+/* ════ SCHERM 2 (besluit 40): host-instellingen in de lobby ════ */
+
+.lobby-settings { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.lobby-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  cursor: pointer;
+  min-height: 44px;
+}
+.lobby-settings-title {
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+}
+.lobby-settings-chevron { font: 700 13px/1 var(--font-display); color: #8e8e9c; }
+.lobby-settings-body { display: flex; flex-direction: column; gap: 10px; }
+.lobby-settings-label {
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+  margin: 4px 0 0;
+}
+/* Het tandwiel-gamevlak uit de mockup: dikke lime as met ribbelranden */
+.lobby-gamecard {
+  position: relative;
+  height: 62px;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #e9ff8a, var(--rounda-lime) 34%, #b6da2d 82%, #90ae1e);
+  box-shadow: inset 0 -3px 0 rgba(10, 10, 12, 0.3), 0 8px 22px rgba(216, 255, 62, 0.16);
+}
+.lobby-gamecard::before,
+.lobby-gamecard::after { content: ''; position: absolute; top: 0; bottom: 0; width: 24%; }
+.lobby-gamecard::before { left: 0; background: repeating-linear-gradient(90deg, rgba(10, 10, 12, 0.32) 0 3px, transparent 3px 9px); }
+.lobby-gamecard::after { right: 0; background: repeating-linear-gradient(270deg, rgba(10, 10, 12, 0.32) 0 3px, transparent 3px 9px); }
+.lobby-gamecard-title { position: relative; font: 700 19px/1 var(--font-display); color: var(--rounda-ink); text-transform: uppercase; }
+.lobby-gamecard-sub { display: flex; justify-content: space-between; align-items: baseline; }
+.lobby-gamecard-desc { font: 400 12.5px/1.4 var(--font-body); color: #8e8e9c; }
+.lobby-gamecard-soon { font: 700 10px/1 var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: #5c5c6b; }
+/* Drie-stand segmentkiezers (mockup .seg) */
+.lobby-seg { display: flex; background: var(--rounda-row); border-radius: 999px; padding: 4px; }
+.lobby-seg-option {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  text-align: center;
+  font: 500 13px/1 var(--font-body);
+  color: #8e8e9c;
+  min-height: 44px;
+  cursor: pointer;
+}
+.lobby-seg-option.is-active { font-weight: 700; color: var(--rounda-ink); background: var(--rounda-lime); }
+.lobby-seg-option.is-soon { color: #4d4d5c; cursor: not-allowed; }
+/* Toggle-rij (mockup .toggle-row) */
+.lobby-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: var(--rounda-row);
+  border: 1px solid var(--rounda-row-border);
+}
+.lobby-toggle-label { font: 500 13px/1 var(--font-body); color: #d4d4de; }
+.lobby-toggle {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  background: var(--rounda-row-border);
+  cursor: pointer;
+}
+.lobby-toggle i {
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #5c5c6b;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.lobby-toggle.is-on { background: var(--rounda-lime); }
+.lobby-toggle.is-on i { transform: translateX(18px); background: var(--rounda-ink); }
+/* Kleurkiezer (feedback punt 13) */
+.lobby-self-colors { display: flex; gap: 8px; flex-wrap: wrap; }
+.lobby-self-color {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.lobby-self-color.is-active { border-color: #f4f4f6; box-shadow: 0 0 0 2px var(--rounda-ink); }
+.lobby-self-swatch { flex: none; width: 26px; height: 26px; border-radius: 8px; }
+
+/* ════ FEEDBACKRONDE 2 (4 aug) ════ */
+
+/* #8: base.css geeft buttons min-height/padding — daardoor werd de toggle
+   dubbeldik. Hard terug naar de mockup-maat. */
+.lobby-toggle {
+  min-height: 0;
+  height: 26px;
+  padding: 0;
+  flex: none;
+  box-shadow: none;
+}
+.lobby-toggle-row.is-soon { opacity: 0.55; }
+.lobby-toggle-soon {
+  font: 700 10px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+}
+
+/* #3 (5×5-glyph) en #4 (DEEL als woord) zijn vervangen door A1: de glyph
+   tekent nu de drie zoekvierkanten van een echte QR en delen is een symbool
+   geworden. Beide staan boven in de chrome-sectie; hier stond de oudere,
+   latere en dus winnende versie. */
+
+/* #5/#14: per-speler ⋯-menu (lobby en hostbar-paneel) */
+.lobby-player-menu, .session-hostbar-player-menu {
+  flex: none;
+  width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border-radius: 999px;
+  background: none;
+  border: 1px solid var(--rounda-row-border);
+  color: #8e8e9c;
+  font: 700 16px/1 var(--font-display);
+}
+.lobby-player-menu-panel { flex: none; }
+.lobby-player-menu-panel .lobby-player-kick,
+.session-hostbar-kick {
+  width: auto;
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  min-height: 44px;
+}
+.session-hostbar-player { display: flex; align-items: center; gap: 8px; }
+.session-hostbar-player span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* #6: carrouselrij met draaipijlen */
+.lobby-gamerow { display: flex; align-items: center; gap: 8px; }
+.lobby-gamerow .lobby-gamecard { flex: 1; }
+.lobby-gamearrow {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 12px;
+  background: var(--rounda-row);
+  border: 1px solid var(--rounda-row-border);
+  color: #b9b9c6;
+  font: 700 18px/1 var(--font-display);
+}
+.lobby-gamecard.is-soon { filter: saturate(0.35) brightness(0.8); }
+
+/* #10: Meer instellingen */
+.lobby-settings-more {
+  align-self: flex-end;
+  font: 500 11.5px/1 var(--font-body);
+  color: #8e8e9c;
+  min-height: 44px;
+}
+.lobby-settings-morebody { display: flex; flex-direction: column; gap: 10px; }
+
+/* #12: echte aflopende balk (duur komt uit de serverconfig, inline gezet) */
+@keyframes reveal-drain { from { width: 100%; } to { width: 0%; } }
+.reveal-next-bar i { width: 100%; }
+@media (prefers-reduced-motion: no-preference) {
+  /* de pendel vervalt: de drain-animatie wordt per ronde inline gezet */
+  .reveal-next-bar i { animation: none; }
+}
+
+/* ════ FEEDBACKRONDE 3 (4 aug): de vraag-kop uit mockup 4 ════ */
+
+.screen-top .gameplay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.gameplay-round { display: flex; align-items: center; gap: 8px; margin: 0; }
+.gameplay-round-dial {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+.gameplay-round-text { font: 700 13px/1 var(--font-mono); letter-spacing: 0.08em; }
+.gameplay-round-text strong { color: var(--color-text-primary); font-weight: 700; }
+.gameplay-round-text span { color: #5c5c6b; }
+.gameplay-inline-progress { display: flex; align-items: center; gap: 7px; margin: 0; }
+.gameplay-inline-progress-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rounda-lime);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gameplay-inline-progress-dot { animation: rounda-adem 1.4s infinite; }
+}
+.gameplay-inline-progress-text {
+  font: 700 12px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8e8e9c;
+}
+/* Segmentbalk: volle breedte op een eigen regel; het losse cijfer vervalt
+   (mockup 4 heeft alleen de segmenten — de screenreader-melding blijft). */
+.gameplay-timer-host { margin-top: 12px; }
+.gameplay-timer-host .timer-value { display: none; }
+.gameplay-timer-host .timer { display: block; }
+.gameplay-timer-host .timer-track { width: 100%; height: 8px; gap: 4px; }
+.gameplay-timer-host .timer-segment { border-radius: 999px; }
+/* De oude onderregel-voortgang is naar de kop verhuisd */
+.gameplay-progress { display: none; }
+
+/* ══ PAKKET C — home & lobby (agent C) ══ */
+
+/* C0 (punten 9/10) zette hier `padding-top: var(--chrome-gap)` zodat de
+   spelerslijst direct onder de codebalk begon. Weggehaald door de lead
+   (5 aug): A1 landde daarna met `.screen.screen-top { padding-top: 0 }` plús
+   16px `margin-bottom` op `#app-header`, en die twee telden op — de lobby
+   begon op y=76 en elk ander sessiescherm op 60. De titel en de tellerregel
+   zelf zijn `sr-only` en dat blijft zo (lobby.mjs). */
+
+/* ── C1: home binnen één viewport (punten 1 t/m 5) ──────────────────────────
+   Nulmeting met `tools/meet-viewport.mjs` op 390×650: 883px pagina, 233px te
+   veel, met "Meedoen met code" (y=662) en "Alleen spelen" (y=736) onder de
+   vouw. Het scherm was niet te lang door één uitschieter maar door een reeks
+   marges van 14 tot 22px bovenop een gap van 16px — daarom staat hier één
+   ritme (`--home-gap`) in plaats van zeven losse waarden. */
+.home-screen {
+  --home-gap: 12px;
+  gap: var(--home-gap);
+  /* De chrome levert zijn eigen ruimte eronder (`--chrome-gap`); de 2rem uit
+     `.screen` kwam daar nog eens bovenop. */
+  padding-top: 0;
+  padding-bottom: 16px;
+}
+
+/* Punt 5: het rad groeit (96 → 115px) — als enige element op dit scherm. Wat
+   het kost, komt uit de marges eromheen, niet uit de andere blokken. */
+.home-screen .app-logo {
+  width: 115px;
+  height: 115px;
+  margin: 0;
+}
+
+/* Eén ritme: de blokken hebben geen eigen ondermarge meer nodig, de `gap`
+   van de kolom doet het werk. Zonder dit telt elke marge er nog bovenop. */
+.home-screen .home-title,
+.home-screen .home-promise,
+.home-screen .home-divider,
+.home-screen .home-solo-link {
+  margin: 0;
+}
+
+/* De hero-pil blijft de hero (60px hoog, ruim boven de tikdoeleis), maar
+   22px padding boven én onder was op 650px scherm luxe die de Spaanse
+   tagline — die over drie regels loopt — niet meer overliet. */
+.home-screen .home-quick-start {
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+
+/* De twee foutalinea's (`.home-quick-start-error`, `.home-code-error`) staan
+   er altijd, meestal leeg. Nul pixels hoog, maar wél een flex-item: samen
+   kostten ze twee keer de `gap`. Leeg is dus geen item meer; zodra er een
+   fout in staat telt hij weer volledig mee. */
+.home-screen .field-error:empty {
+  display: none;
+}
+
+/* Fase 2 (K1): zodra de codefout verschijnt, wordt hij een volwaardig
+   flex-item en komt de kolom-`gap` er nóg een keer bovenop — bij een lege
+   melding was die gap er niet (display:none telt niet mee). Dat duwt home
+   663px op 390×650, 13px voorbij de vouw (`node tools/meet.mjs past home`).
+   De melding zelf (tekst, padding, achtergrond) blijft ongemoeid — alleen de
+   extra gap die er ontstaat door van 0 naar 1 zichtbare regel te gaan,
+   wordt teruggegeven aan de kolom. */
+.home-screen .field-error:not(:empty) {
+  margin-top: calc(var(--home-gap) * -1);
+}
+
+/* Punt 2: de zes cellen en Go op één rij. `align-items: end` houdt de knop
+   gelijk met de onderkant van de cellen, ook als het label erboven wegvalt. */
+.home-code-row {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.home-code-row .home-code-cells {
+  flex: 1;
+  min-width: 0;
+}
+
+.home-code-go {
+  flex: none;
+  width: 64px;
+  /* Even hoog als een cel (12px padding + 23px regel), en daarmee vanzelf
+     boven de 44px-tikdoeleis. */
+  align-self: stretch;
+  min-height: 47px;
+  margin-top: 0;
+  padding: 0;
+  border-radius: 10px;
+  font: 700 13px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  /* Lime tekst, verder dezelfde stille pil: zonder dit leest de knop als een
+     zevende, lege codecel in plaats van als de actie erachter. */
+  color: var(--rounda-lime);
+  border-color: rgba(216, 255, 62, 0.35);
+}
+
+/* Review fase 2: op licht is lime-op-wit 1,15:1 — de knop is dan letterlijk
+   onleesbaar. Zelfde reparatie als elders in dit bestand (#55731a). De
+   contrastcontrole van fase 2 zag dit niet: die leest `color` en `background`
+   per regel, en hier staat de achtergrond in de knopfamilie erboven. */
+:root[data-theme='light'] .home-code-go {
+  color: #55731a;
+  border-color: rgba(85, 115, 26, 0.35);
+}
+
+/* Zelfde review, zelfde patroon: lime tekst zonder lichte tegenhanger. Deze
+   drie staan níét op een donkere kaart maar op het lichte canvas of op de
+   lime knop zelf. Gevonden door de volledigheidscontrole in
+   `contrast-1c.test.mjs`, niet met het oog. */
+:root[data-theme='light'] .reveal-streak { color: #55731a; }            /* 4,97:1 */
+:root[data-theme='light'] .app-menu-prefs-toggle[aria-expanded='true'] { color: #55731a; }
+/* `.lobby-start-sub` staat op de lime startknop; daar helpt donkergroen niet.
+   De hiërarchie met het label erboven komt van formaat en gewicht, niet van
+   een kleur die je niet meer kunt lezen (was 2,71:1, nu 5,16:1). */
+:root[data-theme='light'] .lobby-start-sub { color: #14141f; }
+
+/* ── C2/C3: de lobby (punten 11, 19, 20, 21, 23, 24, 31 + R2-5) ────────────
+   Meting vooraf (390×650, host, één speler): pagina 1303px. Het JIJ-blok
+   kostte 205px waarvan 96 aan acht altijd-zichtbare kleurblokjes, en tussen
+   elk blok stond 20px `gap` én 14px `margin-top` — 34px, drie keer.
+
+   De warm-up blijft opengeklapt (besluit producteigenaar). De eis is dus niet
+   "alles op één scherm" maar: alles wat je nódig hebt staat boven de vouw —
+   codebalk, spelerslijst, JIJ-blok, hostinstellingen, startknop. De warm-up
+   is tijdverdrijf en mag eronder vallen. */
+
+/* Eén ritme in plaats van gap + losse marges die bij elkaar optelden. */
+.lobby-main-column {
+  gap: 14px;
+}
+
+.lobby-main-column > .lobby-self,
+.lobby-main-column > .lobby-settings,
+.lobby-main-column > .lobby-rounda {
+  margin-top: 0;
+}
+
+/* Hetzelfde ritme binnen de instellingen: 8px zoals de spelerslijst, en de
+   labels hebben hun eigen bovenmarge niet meer nodig. De knoppen zelf blijven
+   op hun maat — dat zijn tikdoelen, geen lucht (punten 26/28/29/30). */
+.lobby-settings,
+.lobby-settings-body,
+.lobby-settings-morebody {
+  gap: 8px;
+}
+
+.lobby-settings-label {
+  margin-top: 0;
+}
+
+/* Punten 19/20/21 (R2-6): het kleurvlakje is nu een knop — even hoog als een
+   tikdoel hoort, met een rand zodat het als bediening leest en niet als
+   decoratie. Het palet eronder verschijnt pas na een tik (lobby.mjs). */
+.lobby-self-swatch {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(244, 244, 246, 0.28);
+  cursor: pointer;
+}
+
+/* Zonder kleur van de server: leeg vlak dat nog steeds als knop leest. */
+.lobby-self-swatch.is-leeg {
+  border-style: dashed;
+}
+
+.lobby-self-swatch[aria-expanded='true'] {
+  border-color: #f4f4f6;
+  box-shadow: 0 0 0 2px var(--rounda-ink);
+}
+
+/* Het opengeklapte palet is een paneel bij de rij, niet een tweede blok in de
+   kolom. Sinds besluit 42 zestien kleuren: twee rijen van acht in een raster, zodat
+   de kolombreedte (en dus de vlakgrootte) niet van het aantal afhangt — één
+   rij van zestien zou vlakjes van 15px geven. Alleen zichtbaar zolang het
+   paneel openstaat; dicht blijft de lobby staan waar hij stond. */
+.lobby-self-colors {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--rounda-row);
+  border: 1px solid var(--rounda-row-border);
+}
+
+.lobby-self-colors .lobby-self-color {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  min-width: 0;
+}
+
+/* R2-5: "Meer instellingen" was een knop midden in de kolom. Het is een
+   bescheiden ingang naar wat je meestal niet nodig hebt, dus: een stille
+   regel onderin. Het tikgebied blijft 44px hoog (de regel is klein, het
+   doel niet). */
+.lobby-settings-more {
+  align-self: flex-start;
+  width: auto;
+  padding: 0;
+  background: none;
+  border: none;
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Punt 24: de pijlen blijven, maar als secundaire bediening — smaller dan de
+   44px-blokken die ze waren. Ze houden hun volle hoogte, dus het tikdoel
+   blijft ruim. */
+.lobby-gamearrow {
+  width: 34px;
+  height: 56px;
+  font-size: 15px;
+  color: #8e8e9c;
+}
+
+/* Punt 23: horizontaal vegen over de kaart draait de carrousel (lobby.mjs).
+   `pan-y` laat de pagina verticaal scrollen, maar geeft de horizontale
+   beweging aan de kaart — zonder dit vecht de browser-scroll met de veeg. */
+.lobby-gamecard {
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+/* Punt 31: "Start Rounda" plakte tegen de onderrand. Iets omhoog, zodat er
+   lucht onder de knop staat — hij blijft zweven (producteigenaar: "goud"). */
+.lobby-start {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+}
+
+/* ══ LEAD — losse punten (regie) ══════════════════════════════════════════ */
+
+/* #55 — Revanche is de primaire actie; de andere drie stonden even breed en
+   even hoog daaronder, waardoor het eindscherm vier gelijkwaardige knoppen
+   toonde in plaats van één keuze met alternatieven. Nieuw spel en Deel
+   uitslag delen nu één rij en zijn lager; Afsluiten blijft een stille regel.
+   De hero-pil van Revanche blijft ongemoeid (die deelt zijn regel met home en
+   lobby — daar zit pakket C in). */
+.podium-action {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+}
+.podium-rematch,
+.podium-close,
+.podium-wait,
+.podium-action > .lobby-rounda {
+  grid-column: 1 / -1;
+}
+.podium-new-game,
+.podium-share {
+  min-height: 44px;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+
+/* #54 — de eindstand was luchtiger dan de uitslag rechtvaardigt: bij één
+   speler vulde een enkele rij plus de eigen-regel bijna een half scherm. */
+.podium-steps { gap: 6px; }
+.podium-step { padding: 10px 14px; }
+.podium-self { margin-top: 8px; }
+.podium-action { margin-top: 14px; }
+
+/* ══ PAKKET D — spel, reveal, eindstand (agent D) ══ */
+
+/* D1 (punten 33/34/35). Gemeten met `tools/meet-viewport.mjs` op 390×650 —
+   de hoogte die een speler in Safari overhoudt.
+
+   VÓÓR: pagina 810 px, het vierde antwoord viel 51 px onder de vouw. De
+   285 px tussen het einde van de vraag (y=160) en de antwoorden (y=447) was
+   geen ontwerpkeuze maar een optelsom van vier posten:
+     - de vlag werd op volle breedte 229 px hoog, terwijl `--media-max-h`
+       200 px zegt;
+     - 26 px eigen marge boven+onder de vlag, bovenop de gap van `.screen`;
+     - 12 px marge boven de timer en 4 px boven de vraag, idem;
+     - zes keer `.screen`'s gap van 16 px (96 px) voor een scherm dat maar
+       zeven blokken heeft.
+   Geen van die posten stond in het budget van README §1; ze kwamen er
+   bovenop. Dit blok haalt ze weg en verandert geen enkel token. */
+
+/* Alleen het spelscherm: `.gameplay-options` bestaat nergens anders. De lobby
+   (C) en de tussenstand houden hun eigen lucht. */
+.screen-top:has(.gameplay-options) {
+  gap: 10px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+
+/* De vlag ís de vraag, dus hij mag zo groot als het budget toestaat — maar
+   niet groter. De HOOGTE is hier de gestuurde maat, niet de breedte: zo staat
+   de post uit het ruimtebudget letterlijk in de CSS en reserveert het vak zijn
+   plek ook vóórdat de afbeelding geladen is. `width: auto` laat de browser de
+   breedte uit de verhouding afleiden — dat werkt voor elke vlagratio (1:2 tot
+   2:3) zonder per land iets te weten, en het kader sluit om de vlag heen in
+   plaats van eromheen te gapen. `max-width` vangt de brede uitzonderingen op;
+   de browser herrekent de hoogte dan mee, dus de verhouding blijft kloppen. */
+.gameplay-flag {
+  width: auto;
+  max-width: 100%;
+  height: var(--media-max-h, 200px);
+  margin: 0 auto;
+}
+
+/* T5-4's fallback staat op exact dezelfde plek; kreeg hij zijn oude 3:2 op
+   volle breedte, dan zou een falende afbeelding het scherm alsnog buiten de
+   vouw duwen — precies de situatie waarin je dat het minst wil. */
+.gameplay-flag-fallback {
+  max-height: var(--media-max-h, 200px);
+  margin: 0 auto;
+}
+
+/* Deze twee marges kwamen bovenop de gap van `.screen`: dubbele lucht op een
+   scherm dat er geen had. */
+.gameplay-timer-host { margin-top: 0; }
+.gameplay-question { margin: 0; }
+
+/* De statusregel is tijdens het antwoorden leeg. De ruimte blijft wél
+   gereserveerd — verscheen "VERZONDEN" pas ná de tik, dan zou het hele
+   scherm onder je duim opschuiven — maar niet meer dan één mono-regel. */
+.gameplay-status {
+  margin: 0;
+  min-height: 14px;
+}
+
+/* Leeg is hier écht leeg: tijdens het antwoorden staat er geen uitslag, en
+   een flex-item van 0 px eet toch een gap op. Zodra `round:ended` het blok
+   vult, komt het gewoon terug. */
+.gameplay-result:empty { display: none; }
+
+/* ── R2-8: het aftelscherm ────────────────────────────────────────────────
+   "Eerste startpagina voor de eerste ronde is wel beetje vaag man, mag
+   veeeeel enthousiaster, dat iedereen echt klaar is, counter van 3 naar 0."
+   (producteigenaar, 5 aug)
+
+   Sinds §A2 telt de server alleen nog af bij de OPENING van de match en bij
+   hervatten — tussen rondes begint de volgende vraag direct. Dit scherm komt
+   dus één keer per potje voorbij, en dat rechtvaardigt de volle hoogte in
+   plaats van een regel tekst met een cijfertje eronder.
+
+   `gameplay.mjs` verbergt tijdens het aftellen al alles eronder (de vlag-
+   `<img>` stond er zonder `src`: een leeg kader met de alt-tekst "Te raden
+   vlag" erin), dus dit blok hoeft alleen nog de ruimte te vullen. */
+.screen-top:has(.gameplay-countdown:not([hidden])) {
+  /* Vullen tot net onder de chrome — dit is het enige scherm van pakket D dat
+     zijn hoogte wél mag opeisen, want er staat verder niets. */
+  min-height: calc(100dvh - var(--chrome-h, 44px) - var(--chrome-gap, 16px));
+  justify-content: center;
+}
+
+/* GEMETEN, niet aangenomen: met alleen `justify-content: center` bleef het
+   aftellen bovenaan plakken. De lege `.gameplay-options` staat er tijdens het
+   aftellen nog wél als flex-item, en die heeft `margin-top: auto` (regel 451,
+   die de antwoorden in een ronde naar beneden duwt) — dus slokte een doos van
+   0 px alle vrije ruimte op. Deze drie zijn tijdens het aftellen sowieso leeg;
+   de sr-only schermtitel blijft bewust staan, die hoort in de
+   toegankelijkheidsboom. */
+.screen-top:has(.gameplay-countdown:not([hidden])) .gameplay-header,
+.screen-top:has(.gameplay-countdown:not([hidden])) .gameplay-options,
+.screen-top:has(.gameplay-countdown:not([hidden])) .gameplay-status {
+  display: none;
+}
+
+.gameplay-countdown {
+  margin: 0;
+  gap: 4px;
+  justify-content: center;
+}
+
+/* Volgorde van boven naar beneden: wie er meedoen, waar we op wachten, en
+   dan het getal dat het overneemt. */
+.gameplay-countdown-players {
+  font: 700 13px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rounda-lime, #d8ff3e);
+}
+/* Staat los op het canvas (geen kaart eromheen) — in licht wordt dat bijna
+   wit, en pure lime daarop is 1,05:1. */
+:root[data-theme='light'] .gameplay-countdown-players { color: #55731a; }
+
+.gameplay-countdown-label {
+  font: 500 15px/1.3 var(--font-body);
+  color: #8e8e9c;
+}
+
+/* Zo groot als de breedte toelaat: dit is het startsein, geen bijschrift. De
+   ring is het element zélf en niet een `::before` met een negatieve inset —
+   die werd een ellips (de doos van één cijfer is smal en hoog) en sneed dwars
+   door de regel erboven. `em` maakt hem hoe dan ook rond: breedte en hoogte
+   volgen dezelfde fontgrootte, ook als de `clamp()` een ander getal kiest. */
+.gameplay-countdown-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7em;
+  height: 1.7em;
+  margin-top: 10px;
+  font: 800 clamp(84px, 32vw, 132px)/1 var(--font-display);
+  color: var(--rounda-lime, #d8ff3e);
+  font-variant-numeric: tabular-nums;
+  border: 2px solid var(--rounda-row-border, #23232c);
+  border-radius: 50%;
+}
+/* Zelfde reden als .gameplay-countdown-players hierboven: geen kaart, dus
+   licht canvas eronder — pure lime is daar 1,05:1. */
+:root[data-theme='light'] .gameplay-countdown-value { color: #55731a; }
+
+/* ── D3: het hostmenu ─────────────────────────────────────────────────────
+   Besluit producteigenaar: "Beëindigen moet in de hostinstellingen verstopt
+   zijn. Als je verkeerd klikt moet je weer opnieuw beginnen."
+
+   GEMETEN vóór (390×650, menu open tijdens een ronde): paneel 415 px hoog,
+   "Game beëindigen" als bovenste knop, rood omkaderd en volle breedte; het
+   paneel bedekte 80% van de vraag en 84% van de vlag. De volgorde en het
+   inklappen zitten in `hostbar.mjs`; dit blok regelt alleen dat de rangorde
+   ook te zien is. */
+
+/* De twee laden ("Spelers beheren", "Meer instellingen") zijn geen acties
+   maar wegwijzers: zelfde vorm als de andere menuknoppen, maar stiller, en
+   met een chevron die meedraait zodat je ziet dat er iets ónder zit. */
+.session-hostbar-lock,
+.session-hostbar-players-toggle,
+.session-hostbar-settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+}
+.session-hostbar-players-toggle,
+.session-hostbar-settings-toggle {
+  color: #b9b9c6;
+}
+.session-hostbar-players-toggle::after,
+.session-hostbar-settings-toggle::after {
+  content: '›';
+  font-size: 18px;
+  line-height: 1;
+  color: #5c5c6b;
+  transform: rotate(90deg);
+}
+.session-hostbar-players-toggle[aria-expanded='false']::after,
+.session-hostbar-settings-toggle[aria-expanded='false']::after {
+  transform: none;
+}
+
+.session-hostbar-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--rounda-row-border, #23232c);
+  border-radius: 12px;
+}
+
+/* Punt 49, letterlijk: niet dominant. De INGANG naar beëindigen is een stille
+   regel — geen rode omkadering, geen volle-breedte-knop die om een tik vraagt.
+   Rood is voorbehouden aan de bevestiging eronder, want dáár gebeurt het. */
+.session-hostbar-finish,
+.session-hostbar-kick {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: #9a9aa8;
+  font: 500 13px/1.3 var(--font-body);
+  text-align: left;
+}
+.session-hostbar-finish:hover,
+.session-hostbar-kick:hover,
+.session-hostbar-finish:focus-visible,
+.session-hostbar-kick:focus-visible {
+  color: var(--color-danger, #ff5470);
+  background: rgba(255, 84, 112, 0.08);
+}
+
+/* Stap 2. Pas hier krijgt de actie de rode vorm die er in stap 1 niet was —
+   en staat "Annuleren" er even groot naast, want dat is de uitweg. */
+.session-hostbar-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.session-hostbar-confirm-question {
+  margin: 0;
+  font: 600 13px/1.35 var(--font-body);
+  color: var(--color-text-primary, #f4f4f6);
+}
+.session-hostbar-confirm .btn-destructive,
+.session-hostbar-confirm .btn-secondary {
+  width: 100%;
+  min-height: 44px;
+}
+/* Een rij in de spelerslijst is smaller dan het paneel; daar staat de vraag
+   over de volle rij en vervangt hij de naam (die stáát al in de vraag). */
+.session-hostbar-confirm-row {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ══ PAKKET B — bugs & functionele eisen (agent B) ══ */
+
+/* Punt 32 — de startknop bedekt de hostinstellingen. Sticky blijft sticky
+   (productbesluit 5 aug); wat ontbrak is ruimte-reservering bij het scrollen.
+
+   GEMETEN met Playwright op 390×650, lobby met de hostinstellingen open
+   (`tools/meet-viewport.mjs`-patroon). De knop is 85 px hoog. Twee metingen,
+   want ze wijzen niet dezelfde kant op:
+
+   1. Visuele overlap tijdens het scrollen: op 13 van de 22 scrollposities
+      ligt de knop over aantikbare inhoud, ergste geval 52 px (de rij
+      Kiezen/Mix/Typen, al bij scrollTop 0). Bottom-padding onder de kolom
+      verandert dáár NIETS aan — het verlengt alleen de pagina (+101 px
+      scrollhoogte). Dat is inherent aan `position: sticky; bottom: 0` in de
+      normale paginastroom en is niet met CSS weg te nemen zolang de knop in
+      die stroom staat. Zie de handover: dat is een structuurkeuze, geen bug.
+
+   2. Focus: tab je met een toetsenbord naar een instelling, dan landde die
+      in 9 van de 16 gevallen áchter de knop (tot 44 px eronder) — dus
+      onbereikbaar, niet alleen lelijk. Mét `scroll-padding-bottom`: 0 van 16.
+
+   Daarom staat hier alleen (2). De pagina is de scroller, dus dit hoort op
+   `html` en nergens anders. Bewust géén bottom-padding: die kost 101 px
+   scrollhoogte in een scherm dat juist korter moet (README §1) en levert
+   blijkens meting 1 geen enkele pixel op. */
+html:has(.lobby-screen) {
+  scroll-padding-bottom: calc(85px + var(--chrome-gap, 16px));
+}
+
+/* Punt 25 (lead): Mix en Typen blijven uitgeschakeld (besluit 40D), maar de
+   reden stond in een `title` — op een telefoon bestaat die niet. Nu een klein
+   label ín de knop, zoals bij "Antwoord automatisch tonen". De tikbevestiging
+   op "Kiezen" is er omdat die knop anders dood aanvoelt: er valt vandaag maar
+   één vorm te kiezen, dus er verandert zichtbaar niets. */
+.lobby-seg-option { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.lobby-seg-soon {
+  font: 700 8px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.lobby-seg-option.is-tik { animation: lobby-seg-tik var(--motion-quick, 140ms) ease-out; }
+@keyframes lobby-seg-tik { from { transform: scale(0.96); } to { transform: scale(1); } }
+
+/* R2-2 (feedback op de deploy, 5 aug): de codebalk was uit elkaar gevallen in
+   drie losse knopjes met de code er los naast — "hoe lelijk nu, en hoe mooi
+   die eerst was". Dat is precies wat punt 14 juist wilde voorkomen: code, QR
+   en delen horen één samenhangend blok te zijn.
+
+   De kaart komt dus terug, maar nu bínnen de 44px chromerij in plaats van als
+   eigen rij: 38px hoog met een lime rand en een vleugje lime vulling. De ⋯
+   blijft er bewust búiten — dat is een menu, geen onderdeel van de code (zo
+   stond de hamburger er vroeger ook naast). De iconen in de kaart verliezen
+   hun eigen rand: twee kaders in elkaar is precies de ruis die het vaag maakte.
+   Cijfers een slag groter, ook op zijn verzoek. */
+#app-header .room-header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: auto;
+  min-width: 0;
+  height: 38px;
+  padding: 0 4px 0 11px;
+  border: 1px solid rgba(216, 255, 62, 0.32);
+  border-radius: 13px;
+  background: rgba(216, 255, 62, 0.045);
+}
+#app-header .room-header .room-header-qr,
+#app-header .room-header .room-header-share {
+  height: 30px;
+  width: 32px;
+  border-color: transparent;
+  border-radius: 8px;
+}
+#app-header .room-header-code-value { font-size: clamp(23px, 6.9vw, 30px); }
+
+/* Tijdens spel en tussenstand blijft de kaart gedempt (A2): de vraag is de
+   ster. Wel als blok herkenbaar, niet als aandachttrekker. */
+body[data-rounda-fase='spel'] #app-header .room-header,
+body[data-rounda-fase='tussenstand'] #app-header .room-header {
+  height: 34px;
+  border-color: var(--rounda-row-border);
+  background: none;
+}
+body[data-rounda-fase='spel'] #app-header .room-header-code-value,
+body[data-rounda-fase='tussenstand'] #app-header .room-header-code-value {
+  font-size: 21px;
+}
+
+/* ─── B3: het revealscherm (punten uit de producteigenaar-ronde + punt 42) ───
+
+   1. GOED OF FOUT ZIE JE AAN DE KLEUR. De kaart was altijd lime, ook als je
+      het antwoord miste — "Geen antwoord +0" onder een feestelijke groene
+      balk. Fout wordt magenta (de competitiekleur uit het 1c-palet), goed
+      blijft lime, geen antwoord wordt gedempt: je hebt niets fout gedaan,
+      je was er niet bij.
+
+      Kleur is hier nooit de énige drager (`08` §2.4 / `11` K): het icoon
+      (✓/✗/·) en de regel "Jij zat ernaast" zeggen in tekst hetzelfde.
+
+   2. DE VLAG TERUG, samen met het land. Zonder haar is een vlaggenspel een
+      woord op een scherm. Ze vult meteen de lege onderhelft van dit scherm
+      (punt 42) en blijft binnen `--media-max-h` van pakket A.
+
+   3. JE EIGEN ANTWOORD, klein, alleen als je ernaast zat.
+
+   Bewust géén uitlegregel erbij (expliciet besluit) — de enige uitleg die
+   blijft is die van "welke hoort er niet bij" (`.reveal-card-why`), en die
+   staat er om een andere reden: anders lijken meerdere antwoorden
+   verdedigbaar. */
+
+.reveal-card[data-state='wrong'] {
+  background: var(--rounda-magenta);
+  box-shadow: 0 22px 55px rgba(255, 62, 165, 0.32);
+}
+/* Op magenta is het lime-dim van de goede kaart onleesbaar; deze labels
+   krijgen een eigen, donkere variant van de kaartkleur. Nagerekend, want het
+   zijn 10-11px mono-labels en die vallen onder AA's 4,5:1 voor kleine tekst:
+   #3a001f op #ff3ea5 = 5,41:1. (Ter vergelijking: de lime kaart zit met
+   #3d4a10 op #d8ff3e op 8,37:1.) De eerste poging, #5c0035, haalde 4,30:1 en
+   zakte er dus nét doorheen — vandaar de test die dit vastzet. */
+.reveal-card[data-state='wrong'] .reveal-card-label,
+.reveal-card[data-state='wrong'] .reveal-card-count,
+.reveal-card[data-state='wrong'] .reveal-card-why { color: #3a001f; }
+
+.reveal-card[data-state='noanswer'] {
+  background: var(--rounda-row);
+  border: 1.5px solid var(--rounda-row-border);
+  box-shadow: none;
+}
+/* Vaste kleur, geen token: de kaart zelf blijft --rounda-row (donker) in
+   beide thema's — --color-text-primary volgt wél het thema en werd in licht
+   bijna-zwarte tekst op deze bijna-zwarte kaart (1,00:1). De buren hierboven
+   (label/count/why) gebruiken om diezelfde reden ook al een vaste hex. */
+.reveal-card[data-state='noanswer'] .reveal-card-answer { color: #f4f4f6; }
+.reveal-card[data-state='noanswer'] .reveal-card-label,
+.reveal-card[data-state='noanswer'] .reveal-card-count,
+.reveal-card[data-state='noanswer'] .reveal-card-why { color: #8e8e9c; }
+
+/* Vlag naast de landnaam: één blok "dit was het". De vlag krimpt mee als de
+   naam lang is (`min-width: 0` op de naam), zodat "Equatoriaal-Guinea" niet
+   uit de kaart loopt. */
+.reveal-card-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.reveal-card-flag {
+  flex: none;
+  width: clamp(64px, 22vw, 96px);
+  aspect-ratio: 8 / 5;
+  height: auto;
+  max-height: var(--media-max-h, 200px);
+  object-fit: cover;
+  border-radius: 8px;
+  /* Een lichte vlag op een lime kaart heeft een rand nodig om niet in de
+     achtergrond op te lossen (Japan, Polen). */
+  border: 1.5px solid rgba(10, 10, 12, 0.28);
+}
+.reveal-card[data-state='noanswer'] .reveal-card-flag { border-color: var(--rounda-row-border); }
+.reveal-card-main .reveal-card-answer {
+  min-width: 0;
+  /* Iets kleiner dan los op de kaart: de vlag neemt nu een deel van de
+     aandacht en de twee horen samen gelezen te worden. */
+  font-size: clamp(24px, 7.5vw, 34px);
+}
+
+/* Je eigen antwoord: stil, klein, ondergeschikt aan de uitslag erboven. */
+.reveal-mine {
+  margin: 8px 2px 0;
+  font: 500 13px/1.3 var(--font-body);
+  color: #8e8e9c;
+}
+
+/* De streakreactie (11-verzoek, BOUWSPRINT doel 4) staat op dezelfde regel-
+   positie als `.reveal-mine` — ze sluiten elkaar uit, zie scoreboard.mjs.
+   Zelfde maat en marge, zodat de kaart erboven de hoofdzaak blijft; alleen
+   lime en vet, want dit is het enige moment waarop het scherm jou een
+   complimentje maakt. */
+.reveal-streak {
+  margin: 8px 2px 0;
+  font: 700 13px/1.3 var(--font-body);
+  color: var(--rounda-lime);
+}
+
+/* Punt 51 (lead): het hostmenu bedekte de vraag omdat 267 van de 468 px taal,
+   thema en reactiezinnen waren — voorkeuren die je midden in een potje zelden
+   verzet. Ze klappen nu samen achter één regel zodra er hostacties zijn. */
+.app-menu-prefs-toggle {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--rounda-row-border);
+  border-radius: 12px;
+  background: none;
+  color: #8e8e9f;
+  font: 700 11px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: left;
+}
+.app-menu-prefs-toggle[aria-expanded='true'] { color: var(--rounda-lime); }
+.app-menu-prefs { display: flex; flex-direction: column; gap: 14px; }

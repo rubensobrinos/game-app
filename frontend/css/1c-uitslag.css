@@ -1,0 +1,20 @@
+/* ── Tussenstand & podium: mono-scores, rijkaarten ── */
+.scoreboard-entry, .podium-step {
+  border-radius: 12px;
+  background: #101015;
+  border: 1px solid var(--rounda-row-border);
+  font-family: var(--font-display);
+}
+.scoreboard-score, .podium-score {
+  font: 700 18px/1 var(--font-mono);
+  color: var(--rounda-lime);
+}
+/* .scoreboard-entry/.podium-step krijgen in licht --color-surface-1 (wit,
+   verderop in dit bestand) — pure lime tekst daarop is 1,15:1. Zelfde
+   vervangkleur als de chromeknoppen en het wordmark hieronder. */
+:root[data-theme='light'] .scoreboard-score,
+:root[data-theme='light'] .podium-score {
+  color: #55731a;
+}
+.podium-step-1 { border-color: var(--rounda-magenta); }
+
