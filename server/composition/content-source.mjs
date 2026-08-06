@@ -39,9 +39,22 @@ import {
   mapRoomDifficulty,
 } from '../../shared/content/index.mjs';
 import { generateFlagSpec } from '../../shared/content/flag-spec.mjs';
+import { SHAPE_ISO2S } from '../../shared/content/shapes-index.mjs';
 import { PLAYABLE_GAME_TYPES } from '../../shared/content/game-catalog.mjs';
 import { buildMatchQuestionPlan } from '../rules/question-selection.js';
 import { GOLF_1_GAME_TYPES } from '../data/types/game-types.js';
+
+// docs/openstaand/raad-het-land.md, opdracht A: `shapes-index.mjs` is met
+// opzet het ENIGE contourbestand dat hier binnenkomt — twee kilobyte aan
+// landcodes. `shapes.data.mjs` (234 KB tekenpaden) hoort nooit in het
+// geheugen van de server: die kiest een land voor de vraag, hij tekent
+// niets. `question-selection.js`'s `selectCountryShapeQuestion` raadpleegt
+// principieel geen data/shared content zelf (zie die moduledoc) en krijgt
+// deze lookup daarom geïnjecteerd als `hasShape`.
+const SHAPE_ISO2_SET = new Set(SHAPE_ISO2S);
+function hasShape(iso2) {
+  return SHAPE_ISO2_SET.has(iso2);
+}
 
 /**
  * @typedef {{ questionKey: string, publicQuestionPayload: object, correctAnswer: object, validOptionIds?: string[] }} BuiltQuestion
@@ -81,9 +94,17 @@ export { CONTENT_DIFFICULTIES, CONTENT_VERSION, mapRoomDifficulty };
  * losse, ketenbrede knop die de eigenaar van dat bestand omzet zodra ook het
  * spelscherm/mockpariteit-bewijs compleet is (zie de moduledoc daar) — deze
  * regel maakt de gameTypes alleen BOUWBAAR, niet automatisch KIESBAAR.
+ *
+ * `country_shape_mc` erbij (docs/openstaand/raad-het-land.md, opdracht A):
+ * "Raad het land" se vraagselectie (`selectCountryShapeQuestion`) en
+ * Round-vorm (`server/data/types/round.js`) stonden al klaar; deze bron kon
+ * de vraag alleen nog niet bouwen. Zelfde regel als hierboven: dit maakt de
+ * gameType BOUWBAAR, niet KIESBAAR — `PLAYABLE_GAME_TYPES` blijft bewust
+ * ongewijzigd tot ook het spelscherm, het uitslagscherm en de mock 'm
+ * aankunnen (opdrachten B/C/D).
  */
 const FILLED_GAME_TYPES = Object.freeze([
-  'flags_mc', 'real_or_fake_flag', 'odd_one_out', 'capitals_mc', 'higher_lower',
+  'flags_mc', 'real_or_fake_flag', 'odd_one_out', 'capitals_mc', 'higher_lower', 'country_shape_mc',
 ]);
 
 /**
@@ -205,6 +226,10 @@ export function createContentSource({
       // zonder): de seed-deterministische generator uit shared/content. Altijd
       // meegeven, ook voor andere types — de vraagselectie negeert 'm daar.
       generateFlagSpec,
+      // Verplicht voor `country_shape_mc` (question-selection.js werpt
+      // zonder): welke landen een contour hebben, uit shapes-index.mjs. Altijd
+      // meegeven, ook voor andere types — de vraagselectie negeert 'm daar.
+      hasShape,
       // Punt 7 (continentfilter.md): `undefined` als de aanroeper 'm weglaat —
       // `buildCandidatePool` filtert dan niet, exact het gedrag van vóór dit
       // veld bestond.

@@ -6,8 +6,10 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import { CONTENT_VERSION, getCountryPool, mapRoomDifficulty } from '../../shared/content/index.mjs';
+import { SHAPE_ISO2S } from '../../shared/content/shapes-index.mjs';
 import { assertRoundShape } from '../data/types/round.js';
 import * as contentSourceModule from './content-source.mjs';
 import { createContentSource } from './content-source.mjs';
@@ -77,7 +79,7 @@ test('CONTENT_VERSION komt ongewijzigd uit shared/content door', () => {
   assert.equal(makeSource().contentVersion, 'stub-content-1');
 });
 
-test('vijf gameTypes zijn gevuld; een onbekende gameType werpt zichtbaar', () => {
+test('zes gameTypes zijn gevuld; een onbekende gameType werpt zichtbaar', () => {
   const source = makeSource();
   assert.ok(source.poolSize('flags_mc') >= 16);
   // Stap 6 (5 aug 2026): `real_or_fake_flag` erbij — de CT-3-blokkade was
@@ -90,7 +92,67 @@ test('vijf gameTypes zijn gevuld; een onbekende gameType werpt zichtbaar', () =>
   // losse, bewust ongewijzigde knop), maar deze bron kan de vraag al bouwen.
   assert.ok(source.poolSize('capitals_mc') >= 16);
   assert.ok(source.poolSize('higher_lower') >= 16);
+  // docs/openstaand/raad-het-land.md, opdracht A: `country_shape_mc` erbij,
+  // zelfde niet-speelbaar-maar-wel-bouwbaar regel.
+  assert.ok(source.poolSize('country_shape_mc') >= 16);
   assert.throws(() => source.poolSize('typing_flags'), /onbekende gameType/);
+});
+
+// docs/openstaand/raad-het-land.md, opdracht A.
+test('country_shape_mc bouwt een vraag met dezelfde vorm als flags_mc, met een target dat een contour heeft', () => {
+  const source = makeSource();
+  const shapeIso2Set = new Set(SHAPE_ISO2S);
+
+  // Ruim genoeg trekkingen om te bewijzen dat de `hasShape`-bedrading écht
+  // aankomt bij question-selection.js — een vergeten injectie zou hier
+  // meteen een RangeError geven (zie question-selection.js), geen stille
+  // verkeerde target.
+  for (let poging = 0; poging < 15; poging += 1) {
+    const question = source.buildQuestion({ gameType: 'country_shape_mc' });
+
+    assert.match(question.questionKey, /^shape:[a-z]{2}$/);
+    assert.equal(typeof question.publicQuestionPayload.targetIso2, 'string');
+    assert.ok(Array.isArray(question.publicQuestionPayload.optionIso2s));
+    assert.equal(question.publicQuestionPayload.optionIso2s.length, 4);
+    assert.equal(typeof question.correctAnswer.optionId, 'string');
+    assert.ok(question.validOptionIds.includes(question.correctAnswer.optionId));
+    // Het ENIGE punt van `hasShape`: het land dat getekend moet worden heeft
+    // ook echt een contour. De afleiders (de andere drie optie-iso2's) hoeven
+    // dat niet — alleen de target wordt getekend.
+    assert.ok(shapeIso2Set.has(question.correctAnswer.optionId), `${question.correctAnswer.optionId} heeft geen contour`);
+
+    const round = {
+      id: 'round_1',
+      matchId: 'match_1',
+      gameType: 'country_shape_mc',
+      questionKey: question.questionKey,
+      publicQuestionPayload: question.publicQuestionPayload,
+      correctAnswer: question.correctAnswer,
+      validOptionIds: question.validOptionIds,
+      startsAt: 1_754_136_000_000,
+      endsAt: 1_754_136_015_000,
+      status: 'ACTIVE',
+    };
+    assertRoundShape(round);
+  }
+});
+
+test('country_shape_mc: shapes.data.mjs (de 234 KB tekenpaden) wordt door deze bron nooit geïmporteerd', () => {
+  // De server kiest een land, hij tekent niets — zie de moduledoc in
+  // content-source.mjs. Deze test bewijst het negatief op de ECHTE
+  // afhankelijkheid (een `import ... from`-regel), niet op elke tekstuele
+  // vermelding — deze test zelf en content-source.mjs se eigen kopnotitie
+  // noemen "shapes.data.mjs" nu eenmaal ter uitleg.
+  const bron = readFileSync(new URL('./content-source.mjs', import.meta.url), 'utf8');
+  const importRegels = bron.match(/^import .*from.*;$/gm) ?? [];
+  assert.ok(
+    !importRegels.some((regel) => regel.includes('shapes.data.mjs')),
+    'content-source.mjs mag shapes.data.mjs niet importeren',
+  );
+  assert.ok(
+    importRegels.some((regel) => regel.includes('shapes-index.mjs')),
+    'content-source.mjs moet shapes-index.mjs gebruiken',
+  );
 });
 
 test('capitals_mc bouwt een vraag met dezelfde vorm als flags_mc en past in het Round-document', () => {

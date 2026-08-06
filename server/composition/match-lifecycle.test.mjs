@@ -2032,22 +2032,25 @@ test('§A0: startRound met een gameType die de contentbron niet kan bouwen geeft
   const harness = makeHarness();
   const { context, store, clock } = harness;
 
-  // `country_shape_mc` is een geldige Golf-1-gameType maar staat niet in
-  // FILLED_GAME_TYPES — precies de situatie die op 4 aug via de carrousel voor
-  // `real_or_fake_flag` ontstond (en tot 6 aug 2026 ook voor `capitals_mc`
-  // gold, besluit 49 — zie docs/openstaand/hoger-lager-en-hoofdsteden.md;
-  // die twee zijn nu gevuld, `country_shape_mc` nog niet, zie
-  // docs/openstaand/raad-het-land.md). Sinds §A1 komt zo'n config niet meer
-  // door `resolveGameConfiguration`, dus die trechter wordt hier bewust
-  // omzeild: dit is de tweede verdedigingslinie, voor een room die er tóch
-  // staat (oude Redis-state, handmatige ingreep, een toekomstige schrijver
-  // die de trechter mist).
+  // Alle zes Golf-1-gameTypes zijn inmiddels gevuld (laatst `country_shape_mc`,
+  // docs/openstaand/raad-het-land.md, opdracht A) — er bestaat dus geen
+  // geldige-maar-ongevulde gameType meer om via `room.config.gameTypes` te
+  // simuleren, en `assertGameConfigurationShape` weigert bovendien elke
+  // waarde buiten die zes (een verzonnen gameType daar levert dus een fout
+  // vóórdat de test ooit bij `startRound` komt). `Match.gameType` kent geen
+  // zo'n gesloten enum (`assertMatchShape` toetst het veld niet) en
+  // `matchGameType()` leest 'm bij voorrang boven `room.config.gameTypes[0]`
+  // — vandaar dat híér gemuteerd wordt, ná een normale, geldige `startMatch`.
+  // Dat is realistischer dan de oude opzet ook: een toekomstige schrijver die
+  // de trechter mist, zet typisch een fout gameType op het Match-document
+  // zelf (bv. bij een handmatige Redis-ingreep), niet op de room-config die
+  // allang gevalideerd was toen de match begon.
   const { roomId } = await seedRoom(harness, { extraPlayers: 1 });
-  const seeded = await store.loadRoom(roomId);
-  await store.saveRoom({ ...seeded, config: { ...seeded.config, gameTypes: ['country_shape_mc'] } });
 
   const started = await startMatch(context, { roomId });
   assert.equal(started.ok, true, JSON.stringify(started));
+  const seededMatch = await store.loadMatch(roomId, started.value.matchId);
+  await store.saveMatch({ ...seededMatch, gameType: 'not_yet_filled_gametype' });
 
   clock.advance(COUNTDOWN_SECONDS * 1000);
   let result;
@@ -2057,7 +2060,7 @@ test('§A0: startRound met een gameType die de contentbron niet kan bouwen geeft
 
   assert.equal(result.ok, false);
   assert.equal(result.code, 'CONTENT_UNAVAILABLE');
-  assert.equal(result.contentFailure.gameType, 'country_shape_mc');
+  assert.equal(result.contentFailure.gameType, 'not_yet_filled_gametype');
   assert.equal(typeof result.contentFailure.reason, 'string');
   assert.ok(result.contentFailure.reason.length > 0, 'de reden hoort in de log te belanden, niet verloren te gaan');
 
