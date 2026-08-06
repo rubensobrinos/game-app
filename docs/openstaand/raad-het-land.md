@@ -135,3 +135,115 @@ Geen kaart, geen zoomen, geen slepen. Eén contour, vier namen, dezelfde
 rondestructuur als de andere drie games. De solo-versie (`btn-geo`) blijft
 staan zoals hij is; deze game is de multiplayerversie ernaast, niet een
 vervanging.
+
+---
+
+# De vier opdrachten
+
+De zes stappen hierboven zijn opgeknipt in vier opdrachten die elk op zichzelf
+iets opleveren dat werkt en te controleren is. **A en B kunnen tegelijk** — ze
+delen geen bestand. C wacht op allebei, D op C.
+
+| | Opdracht | Bestanden | Duur |
+| --- | --- | --- | --- |
+| **A** | De contourvraag bouwen | `content-source.mjs` | 2 uur |
+| **B** | De tekenaar | `shape-renderer.mjs` (nieuw) | 1 dag |
+| **C** | Spelscherm en uitslag | `gameplay.mjs`, `scoreboard.mjs`, `round-model.mjs` | 5 uur |
+| **D** | Mock, ketentest, aanzetten | `mock/questions.mjs`, `game-catalog.mjs` | 5 uur |
+
+---
+
+## A — De contourvraag bouwen (server)
+
+`server/composition/content-source.mjs` weigert `country_shape_mc` op dit
+moment bewust: hij staat niet in `FILLED_GAME_TYPES`. Dat is het slot dat
+voorkomt dat een host een game kiest die daarna vastloopt.
+
+Jij maakt dat de contentbron de vraag écht kan bouwen. De vraagselectie bestaat
+al (`selectCountryShapeQuestion` in `server/rules/question-selection.js`); die
+verwacht een `hasShape(iso2)`-functie waarmee hij bepaalt welke landen als
+vraag mogen dienen — niet elk land heeft een contour.
+
+**Gebruik `shared/content/shapes-index.mjs`, niet `shapes.data.mjs`.** Die
+eerste is twee kilobyte met alleen de landcodes. De tweede is 234 KB aan
+tekenpaden en die hoort nooit in het geheugen van de server: die kiest een land,
+hij tekent niets.
+
+Klaar als: de contentbron een geldige contourvraag oplevert met een target en
+drie afleiders, met tests. `country_shape_mc` gaat nog **niet** in
+`PLAYABLE_GAME_TYPES` — dat is opdracht D.
+
+> **Prompt A** — Je werkt in de repo `game-app` (Rounda). Controleer dat `npm test` draait. Lees `docs/openstaand/raad-het-land.md`, opdracht A. Zorg dat `server/composition/content-source.mjs` een `country_shape_mc`-vraag kan bouwen: `FILLED_GAME_TYPES` uitbreiden en `buildQuestion` de contourvraag laten maken via de bestaande `selectCountryShapeQuestion`. Gebruik `shared/content/shapes-index.mjs` (2 KB, alleen landcodes) — `shapes.data.mjs` (234 KB tekenpaden) hoort nooit in het geheugen van de server. Zet `country_shape_mc` NIET in `PLAYABLE_GAME_TYPES`; dat gebeurt pas als de hele keten er is. Blijf uit `frontend/`. Nederlands. Er werken meer agents in deze map: stage en commit alleen je eigen bestanden, nooit `git add -A`. `devkit check-autonomy --staged` vóór elke commit. Niet pushen. Stop als je klaar bent en lever op.
+
+---
+
+## B — De tekenaar (client)
+
+Het enige echt nieuwe werk. Een module die een landcontour op het scherm zet.
+
+**Lees eerst `frontend/js/views/flag-renderer.mjs`** — 180 regels, en hij doet
+voor vlaggen precies wat jij voor vormen moet doen. Eén export, canvas, geen
+state. Bouw zijn tegenhanger, geen afwijkend eigen ding.
+
+De data staat in `shared/content/shapes.data.mjs`: per iso2 een SVG-pad in een
+100×100-coördinatenstelsel.
+
+**Het gewicht is de hele reden dat dit een eigen opdracht is.** 234 KB rauw,
+85 KB gzip — tien keer de rest van de contentpool. Dat mag nooit meeliften met
+een gewoon potje "Raad de vlag". Dus: dynamisch importeren, alleen wanneer deze
+game gekozen is. Laat in je oplevering zien dat een potje flags_mc die 234 KB
+niet ophaalt.
+
+Klaar als: je een testpagina hebt waarop tien landen herkenbaar getekend staan,
+met een schermafdruk erbij, en de import aantoonbaar pas gebeurt als je hem
+nodig hebt.
+
+> **Prompt B** — Je werkt in de repo `game-app` (Rounda). Controleer dat `npm test` draait. Lees `docs/openstaand/raad-het-land.md`, opdracht B, en bouw `frontend/js/views/shape-renderer.mjs`: een module die een landcontour uit `shared/content/shapes.data.mjs` tekent. Lees eerst `frontend/js/views/flag-renderer.mjs` — dat is het model, bouw zijn tegenhanger. De 234 KB contourdata moet dynamisch geladen worden en mag nooit meeliften met een gewoon potje; toon in je oplevering dat een potje `flags_mc` die data niet ophaalt. Lever een schermafdruk waarop tien landen herkenbaar getekend staan. Raak `gameplay.mjs`, `scoreboard.mjs` en `server/` niet aan — dat is een volgende opdracht. Nederlands. Er werken meer agents in deze map: stage en commit alleen je eigen bestanden, nooit `git add -A`. `devkit check-autonomy --staged` vóór elke commit. Niet pushen. Stop als je klaar bent en lever op.
+
+---
+
+## C — Spelscherm en uitslag
+
+**Pas beginnen als A en B klaar zijn.**
+
+De contour moet nu op het spelscherm verschijnen met vier landnamen eronder, en
+op het uitslagscherm bij het goede antwoord. Beide schermen hebben al een tak
+voor vlaggen; dit is er een naast.
+
+Let op het ruimtebudget: het spelscherm past nu precies binnen 390×650. Een
+contour is vierkanter dan een vlag, dus dat gaat niet vanzelf goed. Meet met
+`node tools/meet.mjs past spel`.
+
+Klaar als: je in de mock een contourvraag ziet, kunt antwoorden, en op het
+uitslagscherm het goede antwoord mét contour terugkrijgt — zonder dat het
+scherm gaat scrollen.
+
+> **Prompt C** — Je werkt in de repo `game-app` (Rounda). Controleer dat `npm test` draait. Lees `docs/openstaand/raad-het-land.md`, opdracht C. Voeg in `frontend/js/views/gameplay.mjs` een rendertak toe voor `country_shape_mc` (contour boven, vier landnamen eronder) en in `frontend/js/views/scoreboard.mjs` plus `round-model.mjs` de uitslagkant. Gebruik `shape-renderer.mjs` uit opdracht B; bouw geen tweede tekenaar. Het spelscherm past nu precies binnen 390×650 en een contour is vierkanter dan een vlag — meet met `node tools/meet.mjs past spel` en zorg dat het blijft passen. Blijf uit `server/` en `frontend/js/mock/`. Nederlands. Er werken meer agents in deze map: stage en commit alleen je eigen bestanden, nooit `git add -A`. `devkit check-autonomy --staged` vóór elke commit. Niet pushen. Stop als je klaar bent en lever op.
+
+---
+
+## D — Mock, ketentest en aanzetten
+
+**Pas beginnen als C klaar is.** Dit is de opdracht die de game daadwerkelijk
+speelbaar maakt.
+
+De mock (`frontend/js/mock/questions.mjs`) moet dezelfde contourvraag kunnen
+bouwen als de server, anders is de game solo niet te spelen en niet te
+demonstreren.
+
+Daarna de ketentest: speel een volledige partij met alleen deze game, van lobby
+tot podium, in de mock én tegen de echte server. Pas als dat werkt gaat
+`country_shape_mc` in `PLAYABLE_GAME_TYPES` en verdwijnt BINNENKORT uit de
+carrousel.
+
+**Die volgorde is niet vrijblijvend.** Op 4 augustus zette de lobbylijst een
+game op speelbaar terwijl de contentbron hem niet kon bouwen: starten liet de
+room stil in COUNTDOWN staan, zonder foutmelding, tot de TTL verliep. Dat is de
+reden dat `game-catalog.mjs` als laatste aan de beurt is en niet als eerste.
+
+Klaar als: je "Raad het land" in de carrousel kunt kiezen, een partij van vijf
+rondes uitspeelt, en op het podium eindigt — zowel solo als met twee browsers
+tegen de echte server.
+
+> **Prompt D** — Je werkt in de repo `game-app` (Rounda). Controleer dat `npm test` draait. Lees `docs/openstaand/raad-het-land.md`, opdracht D. Laat `frontend/js/mock/questions.mjs` dezelfde contourvraag bouwen als de server, speel daarna een volledige partij met alleen `country_shape_mc` — solo in de mock én met twee browsers tegen de echte server — en zet hem pas dán in `PLAYABLE_GAME_TYPES` in `shared/content/game-catalog.mjs`. Die volgorde is niet vrijblijvend: op 4 augustus stond een game op speelbaar terwijl de contentbron hem niet kon bouwen, en toen bleef de room stil in COUNTDOWN hangen tot de TTL verliep. Lever de partij op met schermafdrukken van lobby, spelscherm, uitslag en podium. Nederlands. Er werken meer agents in deze map: stage en commit alleen je eigen bestanden, nooit `git add -A`. `devkit check-autonomy --staged` vóór elke commit. Niet pushen. Stop als je klaar bent en lever op.
+
