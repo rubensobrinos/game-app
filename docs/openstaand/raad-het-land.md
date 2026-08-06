@@ -64,19 +64,59 @@ Twee regels die niet mogen sneuvelen:
 Met die twee is 80 KB acceptabel en hoeft er niets gesplitst te worden. Kiest
 iemand later toch voor een lichtere start: easy+medium halveert het.
 
-## Wat er gebouwd moet worden
+## Wat er al staat (6 aug 2026)
 
-| Stap | Wat | Duur |
-| --- | --- | --- |
-| 1 | Migratie: `shared/content/shapes.data.mjs`, gesleuteld op iso2, met de vijf aliassen en een weggeschreven lijst van wat afvalt. Generator ernaast, net als `build-content.mjs` | halve dag |
-| 2 | GameType `country_shape_mc`: `game-catalog.mjs`, `GOLF_1_GAME_TYPES`, protocolvalidatie | halve dag |
-| 3 | Vraagselectie: target + drie afleiders met dezelfde continentvoorkeur als `flags_mc`; `assertRoundShape` met verplichte `validOptionIds` | halve dag |
-| 4 | `shape-renderer.mjs` in de client, naar het model van `flag-renderer.mjs`. Dynamische import | 1 dag |
-| 5 | Mock, spelscherm, revealscherm | 1 dag |
-| 6 | Verticale ketentest, daarna pas in `PLAYABLE_GAME_TYPES` | halve dag |
+Stap 1 t/m 3 zijn gebouwd en gecommit:
 
-**Vier dagen**, waarvan stap 4 het enige echt nieuwe werk is. De rest volgt het
-pad dat `odd_one_out` en `real_or_fake_flag` al hebben uitgesleten.
+| Wat | Waar |
+| --- | --- |
+| Contourdata, 225 landen gekoppeld op iso2 | `shared/content/shapes.data.mjs` (234 KB) |
+| Alleen de landcodes, voor de server | `shared/content/shapes-index.mjs` (2 KB) |
+| Generator die de koppeling reproduceert | `shared/content/build-shapes.mjs` |
+| GameType `country_shape_mc` in protocol en validatie | `server/data/types/round.js` |
+| Vraagselectie: target + drie afleiders | `server/rules/question-selection.js` |
+
+Daarom staat "Raad het land" in de lobby als BINNENKORT: je kunt hem zien maar
+niet kiezen. Dat is expres — de contentbron weigert hem, dus een host kan de
+room er niet op laten vastlopen.
+
+## Wat er nog moet gebeuren — twee en een halve dag
+
+| # | Wat | Waar | Duur |
+| --- | --- | --- | --- |
+| 1 | De contourvraag bouwen: welk land wordt het, welke drie afleiders komen erbij | `server/composition/content-source.mjs` | 2 uur |
+| 2 | De tekenaar: de contour op het scherm zetten, dynamisch geladen | `frontend/js/views/shape-renderer.mjs` (nieuw) | 1 dag |
+| 3 | Spelscherm: een rendertak voor de contour naast die voor de vlag | `frontend/js/views/gameplay.mjs` | 3 uur |
+| 4 | Uitslagscherm: het goede antwoord mét contour | `frontend/js/views/scoreboard.mjs`, `round-model.mjs` | 2 uur |
+| 5 | Mock: dezelfde vraag nabouwen, anders is hij solo niet te spelen | `frontend/js/mock/questions.mjs` | 3 uur |
+| 6 | Verticale ketentest, daarna pas in `PLAYABLE_GAME_TYPES` | `shared/content/game-catalog.mjs` | 2 uur |
+
+**Alleen stap 2 is echt nieuw werk.** De rest volgt het pad dat `odd_one_out`,
+`capitals_mc` en `higher_lower` al hebben uitgesleten.
+
+### Twee dingen die de tekenaar bijzonder maken
+
+**Het gewicht.** De contouren zijn 234 KB rauw, 85 KB gzip — tien keer de rest
+van de contentpool. Die mogen nooit meeliften met een gewoon potje "Raad de
+vlag". Dus: dynamisch importeren, alleen als deze game gekozen is.
+
+**De server hoeft de tekening helemaal niet.** Die kiest een land en drie
+afleiders; het tekenen gebeurt op de telefoon van de speler. Daarom ligt er
+naast `shapes.data.mjs` een `shapes-index.mjs` van twee kilobyte met alleen de
+landcodes — dat is wat de server nodig heeft, en de paden blijven uit zijn
+geheugen.
+
+**Het model om naar te bouwen** is `frontend/js/views/flag-renderer.mjs`: 180
+regels, en hij doet voor vlaggen precies wat de contourtekenaar voor vormen
+moet doen. Lees hem eerst.
+
+### Wat dit oplevert naast de game zelf
+
+Zodra de tekenaar bestaat, is het **paspoort** (besluit 53) bijna gratis: een
+wereldkaart waarin de landen die je gezien hebt ingekleurd staan, is dezelfde
+module 47 keer aangeroepen met een andere kleur. Zonder de tekenaar blijft het
+paspoort een rij vlaggen — wat werkt, maar de kaart is het plaatje dat mensen
+aan elkaar laten zien.
 
 ## De regel die je niet mag overslaan
 
