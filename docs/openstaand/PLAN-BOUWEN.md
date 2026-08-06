@@ -4,11 +4,16 @@ Peildatum 6 aug 2026. Naast de refactors (`refactor/`) en de punten uit de
 marktvergelijking (`uit-de-marktvergelijking.md`) staan er nog drie echte
 bouwklussen open. Dit is de volgorde die ik zou aanhouden en waarom.
 
-| # | Wat | Omvang | Wanneer |
+| # | Wat | Maat | Wanneer |
 | --- | --- | --- | --- |
-| 1 | Spelersidentiteit stap 4–6 | 2 dagen | nu |
-| 2 | Donut-gamekeuze | 1 dag | als er ruimte is |
-| 3 | Typed answers | 6–7 dagen | **pas ná de pilot** |
+| 1 | Spelersidentiteit stap 4–6 | M | nu |
+| 2 | Donut-gamekeuze | M | als er ruimte is |
+| 3 | Typed answers | XL | **pas ná de pilot** |
+
+Maten: XS is een handeling van een paar regels, S past in één commit, M is een
+paar bestanden met tests, L raakt meerdere lagen, XL vraagt eigen besluiten
+onderweg. Bewust geen uren of dagen — die zijn voor een agent niet te
+voorspellen en gaan altijd mis.
 
 ---
 
@@ -23,11 +28,11 @@ Wat ontbreekt is de koppeling. Het land gaat nog niet over de lijn, dus je ziet
 
 **De stappen**
 
-| Stap | Wat | Duur |
+| Stap | Wat | Maat |
 | --- | --- | --- |
-| 4 | Identiteit als paar (land + woord) in het datamodel en over het protocol; uniciteit op het paar in plaats van op de gerenderde tekst | 1 dag |
-| 5 | Client rendert in de eigen app-taal, met vlag — lobby, tussenstand, reveal, podium | halve dag |
-| 6 | Migratie: rooms die al in Redis leven hebben geen paar; die houden hun `effectiveName` | halve dag |
+| 4 | Identiteit als paar (land + woord) in het datamodel en over het protocol; uniciteit op het paar in plaats van op de gerenderde tekst | M |
+| 5 | Client rendert in de eigen app-taal, met vlag — lobby, tussenstand, reveal, podium | S |
+| 6 | Migratie: rooms die al in Redis leven hebben geen paar; die houden hun `effectiveName` | S |
 
 **Waarom eerst.** Er wachten vier dingen op deze klus:
 
@@ -40,7 +45,7 @@ Wat ontbreekt is de koppeling. Het land gaat nog niet over de lijn, dus je ziet
 - **De lege onderhelft van het uitslagscherm** — besluit 50 heeft die ruimte
   vrijgespeeld; identiteit is wat er in hoort.
 
-Dat is vier keer waarde uit één klus van twee dagen. Geen van de andere twee
+Dat is vier keer waarde uit één klus van maat M. Geen van de andere twee
 komt daar in de buurt.
 
 **De valkuil.** Uniciteit gaat over het páár, niet over de tekst.
@@ -60,7 +65,7 @@ games op de rand.
 het verandert niets aan of mensen willen blijven spelen, en het deblokkeert
 niets anders.
 
-**Waarom niet later.** Het is één dag, en het is het eerste wat een host ziet
+**Waarom niet later.** Het is klein, en het is het eerste wat een host ziet
 als hij een game kiest. Zodra er ruimte is, is dit een goedkope indruk.
 
 **Nog te beslissen bij de bouw:** het merkteken heeft vier segmenten, maar met
@@ -76,7 +81,7 @@ De spec is compleet, het scorebesluit is genomen (besluit 46: intypen levert
 150 punten in plaats van 100), en `Mix` en `Typen` staan al zichtbaar-maar-uit
 in de lobby. Het kán dus meteen.
 
-**Toch niet nu.** Dit is zes tot zeven dagen — meer dan de andere twee samen —
+**Toch niet nu.** Dit is XL — meer dan de andere twee samen —
 en niemand heeft ooit gevraagd om te typen. De aanname is dat intypen leuker of
 uitdagender is dan kiezen. Dat kan kloppen, maar het is een aanname.
 
@@ -88,20 +93,19 @@ Eén avond met echte mensen beantwoordt hem gratis:
   welke game ze nog eens willen?
 
 **Als de pilot zegt dat het moet**, ligt alles klaar: de spec, het besluit, en
-de plek in de lobby. Het is dan zes dagen bouwen aan iets waarvan je wéét dat
+de plek in de lobby. Je bouwt dan aan iets waarvan je wéét dat
 het gewild is.
 
-**Als de pilot iets anders zegt**, heb je zes dagen gewonnen.
+**Als de pilot iets anders zegt**, heb je de grootste klus op de lijst uitgespaard.
 
 ---
 
 ## De onderliggende regel
 
-Van deze drie is er één die vier andere dingen deblokkeert, één die een dag
-kost en niets blokkeert, en één die zes dagen kost en op een onbewezen aanname
-rust. Dat is de hele volgorde.
+Van deze drie is er één die vier andere dingen deblokkeert, één die klein is en
+niets blokkeert, en één die groot is en op een onbewezen aanname rust. Dat is de hele volgorde.
 
-En het geldt breder: er wordt nu twee dagen doorgebouwd zonder dat er één keer
+En het geldt breder: er wordt nu al een tijd doorgebouwd zonder dat er één keer
 met echte mensen gespeeld is. Elke schatting hierboven — inclusief de mijne —
 is een gok zolang dat zo blijft. Het draaiboek staat klaar in
 `../pilot-b-draaiboek.md`.

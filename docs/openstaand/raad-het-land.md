@@ -40,7 +40,7 @@ Guantanamo Bay*. Die horen niet in een quiz en vallen bewust af. **Ze vallen
 niet stilzwijgend af: de migratie schrijft de lijst weg**, zodat de keuze
 zichtbaar blijft.
 
-Daarmee is stap 1 uit PLAN-CONVERGENTIE geen risico meer, maar een uurtje werk.
+Daarmee is stap 1 uit PLAN-CONVERGENTIE geen risico meer, maar routinewerk.
 
 ## Gewicht — hier zit de echte beslissing
 
@@ -80,16 +80,16 @@ Daarom staat "Raad het land" in de lobby als BINNENKORT: je kunt hem zien maar
 niet kiezen. Dat is expres — de contentbron weigert hem, dus een host kan de
 room er niet op laten vastlopen.
 
-## Wat er nog moet gebeuren — twee en een halve dag
+## Wat er nog moet gebeuren
 
-| # | Wat | Waar | Duur |
+| # | Wat | Waar | Maat |
 | --- | --- | --- | --- |
-| 1 | De contourvraag bouwen: welk land wordt het, welke drie afleiders komen erbij | `server/composition/content-source.mjs` | 2 uur |
-| 2 | De tekenaar: de contour op het scherm zetten, dynamisch geladen | `frontend/js/views/shape-renderer.mjs` (nieuw) | 1 dag |
-| 3 | Spelscherm: een rendertak voor de contour naast die voor de vlag | `frontend/js/views/gameplay.mjs` | 3 uur |
-| 4 | Uitslagscherm: het goede antwoord mét contour | `frontend/js/views/scoreboard.mjs`, `round-model.mjs` | 2 uur |
-| 5 | Mock: dezelfde vraag nabouwen, anders is hij solo niet te spelen | `frontend/js/mock/questions.mjs` | 3 uur |
-| 6 | Verticale ketentest, daarna pas in `PLAYABLE_GAME_TYPES` | `shared/content/game-catalog.mjs` | 2 uur |
+| 1 | De contourvraag bouwen: welk land wordt het, welke drie afleiders komen erbij | `server/composition/content-source.mjs` | S |
+| 2 | De tekenaar: de contour op het scherm zetten, dynamisch geladen | `frontend/js/views/shape-renderer.mjs` (nieuw) | L |
+| 3 | Spelscherm: een rendertak voor de contour naast die voor de vlag | `frontend/js/views/gameplay.mjs` | S |
+| 4 | Uitslagscherm: het goede antwoord mét contour | `frontend/js/views/scoreboard.mjs`, `round-model.mjs` | S |
+| 5 | Mock: dezelfde vraag nabouwen, anders is hij solo niet te spelen | `frontend/js/mock/questions.mjs` | S |
+| 6 | Verticale ketentest, daarna pas in `PLAYABLE_GAME_TYPES` | `shared/content/game-catalog.mjs` | S |
 
 **Alleen stap 2 is echt nieuw werk.** De rest volgt het pad dat `odd_one_out`,
 `capitals_mc` en `higher_lower` al hebben uitgesleten.
@@ -144,12 +144,12 @@ De zes stappen hierboven zijn opgeknipt in vier opdrachten die elk op zichzelf
 iets opleveren dat werkt en te controleren is. **A en B kunnen tegelijk** — ze
 delen geen bestand. C wacht op allebei, D op C.
 
-| | Opdracht | Bestanden | Duur |
+| | Opdracht | Bestanden | Maat |
 | --- | --- | --- | --- |
-| **A** | De contourvraag bouwen | `content-source.mjs` | 2 uur |
-| **B** | De tekenaar | `shape-renderer.mjs` (nieuw) | 1 dag |
-| **C** | Spelscherm en uitslag | `gameplay.mjs`, `scoreboard.mjs`, `round-model.mjs` | 5 uur |
-| **D** | Mock, ketentest, aanzetten | `mock/questions.mjs`, `game-catalog.mjs` | 5 uur |
+| **A** | De contourvraag bouwen | `content-source.mjs` | S |
+| **B** | De tekenaar | `shape-renderer.mjs` (nieuw) | L |
+| **C** | Spelscherm en uitslag | `gameplay.mjs`, `scoreboard.mjs`, `round-model.mjs` | M |
+| **D** | Mock, ketentest, aanzetten | `mock/questions.mjs`, `game-catalog.mjs` | M |
 
 ---
 
