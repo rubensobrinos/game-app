@@ -31,11 +31,15 @@ export const SCOREBOARD_TOP_LIMIT = 5;
  *
  * @param {Array<object>} players - de volledige spelerslijst uit de store
  * @param {number} limit
- * @returns {Array<{ playerId: string, effectiveName: string | null, score: number, rank: number }>}
+ * @returns {Array<{ playerId: string, effectiveName: string | null, identity: {country: string, word: string} | null, score: number, rank: number }>}
  */
 export function buildRankedTop(players, limit) {
   const rankable = rankablePlayers(players);
   const nameById = new Map(rankable.map((player) => [player.id, player.effectiveName]));
+  // docs/openstaand/spelersidentiteit.md, stap 4/5: dezelfde reden als
+  // snapshot.mjs's buildParticipants — de tussenstand toont net zo goed
+  // spelersnamen, dus reist het paar hier ook mee. `?? null` dekt stap 6.
+  const identityById = new Map(rankable.map((player) => [player.id, player.identity ?? null]));
   const ranked = rankPlayers(rankable.map((player) => ({
     id: player.id,
     score: player.score,
@@ -45,6 +49,7 @@ export function buildRankedTop(players, limit) {
   return ranked.slice(0, limit).map((entry) => ({
     playerId: entry.id,
     effectiveName: nameById.get(entry.id) ?? null,
+    identity: identityById.get(entry.id) ?? null,
     score: entry.score,
     rank: entry.position,
   }));

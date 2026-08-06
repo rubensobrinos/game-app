@@ -331,6 +331,11 @@ export async function endRound(context, { roomId } = {}) {
     results.push({
       playerId: player.id,
       effectiveName: player.effectiveName,
+      // docs/openstaand/spelersidentiteit.md, stap 4/5: "Wie had het goed"
+      // rijker tonen hangt hieraan (zie het bouwplan, "Wat dit meteen
+      // oplost") — zonder het paar kan de reveal niet meer laten zien dan de
+      // servertalige naam. `?? null` dekt stap 6.
+      identity: player.identity ?? null,
       eligible,
       answered: stored !== null,
       correct: stored === null ? false : stored.correct,

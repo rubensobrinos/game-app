@@ -171,6 +171,11 @@ export async function finishMatch(context, { roomId } = {}) {
     return {
       playerId: entry.id,
       effectiveName: player.effectiveName,
+      // docs/openstaand/spelersidentiteit.md, stap 4/5: dit landt via
+      // `podium` (hieronder, `standings.filter(...)`) en `personal.self`
+      // (fasepomp.mjs) daadwerkelijk over de lijn — het podium is een van de
+      // vier plekken die het bouwplan expliciet noemt. `?? null` dekt stap 6.
+      identity: player.identity ?? null,
       score: entry.score,
       correctCount: entry.correctCount,
       correctResponseTimeMsTotal: entry.correctResponseTimeMsTotal,

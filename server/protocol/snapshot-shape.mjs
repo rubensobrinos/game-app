@@ -117,18 +117,38 @@ function validateSnapshotRoom(room) {
  * @returns {ValidationResult}
  */
 /**
+ * Vorm van `identity` (docs/openstaand/spelersidentiteit.md, stap 4): `null`
+ * (zelfgekozen naam, of een speler van vóór de migratie — stap 6) of een
+ * `{ country, word }`-paar van twee niet-lege strings. Nooit gerenderde
+ * tekst — zie identity-processing.js voor waarom dat de valkuil is.
+ * @param {unknown} identity
+ * @returns {boolean}
+ */
+function isValidIdentity(identity) {
+  if (identity === null) return true;
+  if (!isPlainObject(identity)) return false;
+  const keys = Object.keys(identity);
+  if (keys.length !== 2 || !keys.includes('country') || !keys.includes('word')) return false;
+  return (
+    typeof identity.country === 'string' && identity.country.length > 0 &&
+    typeof identity.word === 'string' && identity.word.length > 0
+  );
+}
+
+/**
  * Valideert `snapshot.participants` tegen §State-snapshot: een array met per
- * deelnemer exact `playerId`, `effectiveName` en `roles`.
+ * deelnemer exact `playerId`, `effectiveName`, `identity` en `roles`.
  *
  * De sleutelcontrole is EXACT en niet "bevat minimaal". Dat is hier het hele
  * punt: deze lijst gaat over iedereen in de room, dus een veld dat er per
  * ongeluk bij komt — `sessionId`, `tokenHash`, een score — lekt over de wire
- * naar alle deelnemers tegelijk. `PROTOCOL.md` somt de drie velden daarom
+ * naar alle deelnemers tegelijk. `PROTOCOL.md` somt de velden daarom
  * uitputtend op, en deze functie houdt dat vast.
  *
  * `effectiveName` moet gevuld zijn: `PRODUCT.md` stelt dat iedere speler een
  * zichtbare naam heeft, en een lege naam is precies het lobbygat waarvoor deze
- * lijst bestaat.
+ * lijst bestaat. `identity` mag wél `null` zijn — niet elke speler heeft een
+ * gegenereerd paar (spelersidentiteit.md punt 2/stap 6).
  * @param {unknown} participants
  * @returns {ValidationResult}
  */
@@ -139,14 +159,15 @@ function validateSnapshotParticipants(participants) {
     if (!isPlainObject(participant)) return { ok: false, code: null };
 
     const keys = Object.keys(participant);
-    const expectedKeys = ['playerId', 'effectiveName', 'roles'];
+    const expectedKeys = ['playerId', 'effectiveName', 'identity', 'roles'];
     if (keys.length !== expectedKeys.length || !expectedKeys.every((key) => keys.includes(key))) {
       return { ok: false, code: null };
     }
 
-    const { playerId, effectiveName, roles } = participant;
+    const { playerId, effectiveName, identity, roles } = participant;
     if (typeof playerId !== 'string' || playerId.length === 0) return { ok: false, code: null };
     if (typeof effectiveName !== 'string' || effectiveName.length === 0) return { ok: false, code: null };
+    if (!isValidIdentity(identity)) return { ok: false, code: null };
     if (!Array.isArray(roles) || roles.length === 0) return { ok: false, code: null };
     for (const role of roles) {
       if (role !== 'host' && role !== 'player') return { ok: false, code: null };

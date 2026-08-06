@@ -617,7 +617,9 @@ test('game:rename-player: de host hernoemt een ander, óók ná diens eigen eenm
   const changed = await host.waitFor('room:player-changed', (envelope) => envelope.payload.delta.effectiveName === 'Door host hernoemd');
   assert.deepEqual(changed.payload, {
     playerCount: 2,
-    delta: { type: 'rename', playerId: target.playerId, effectiveName: 'Door host hernoemd' },
+    // Elke geslaagde rename levert nameSource 'chosen' op -> identity: null
+    // (docs/openstaand/spelersidentiteit.md, punt 2).
+    delta: { type: 'rename', playerId: target.playerId, effectiveName: 'Door host hernoemd', identity: null },
   });
 });
 

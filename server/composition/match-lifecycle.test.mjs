@@ -1607,7 +1607,7 @@ test('een host die NIET meespeelt staat niet in participants — de lijst gaat o
   }
 });
 
-test('participants lekt geen sessiegegevens: exact drie velden, en geen token of sessionId in de JSON', async () => {
+test('participants lekt geen sessiegegevens: exact vier velden, en geen token of sessionId in de JSON', async () => {
   const harness = makeHarness();
   const { context, store } = harness;
   const { roomId, players } = await seedRoom(harness, { extraPlayers: 2 });
@@ -1615,7 +1615,10 @@ test('participants lekt geen sessiegegevens: exact drie velden, en geen token of
   const snapshot = await buildSnapshot(context, { roomId, sessionId: players[0].sessionId });
 
   for (const participant of snapshot.value.participants) {
-    assert.deepEqual(Object.keys(participant).sort(), ['effectiveName', 'playerId', 'roles']);
+    // 'identity' erbij (docs/openstaand/spelersidentiteit.md, stap 4) — het
+    // land+woord-paar achter een gegenereerde naam, `null` voor een
+    // zelfgekozen naam. Nog steeds geen sessiegegevens, zie de check hieronder.
+    assert.deepEqual(Object.keys(participant).sort(), ['effectiveName', 'identity', 'playerId', 'roles']);
   }
 
   // Niet alleen de sleutels tellen, maar zoeken naar de échte geheimen in de
@@ -1627,6 +1630,39 @@ test('participants lekt geen sessiegegevens: exact drie velden, en geen token of
     assert.equal(serialized.includes(session.tokenHash), false, 'tokenHash lekt in participants');
     assert.equal(serialized.includes(session.id), false, 'sessionId lekt in participants');
   }
+});
+
+// docs/openstaand/spelersidentiteit.md, stap 6 (migratie): een Player die vóór
+// deze stap in Redis is opgeslagen heeft de sleutel `identity` niet — geen
+// `null`, gewoon afwezig (oude JSON). `seedRoom`'s hostspeler hierboven is
+// zo'n fixture bij toeval al (geschreven vóórdat dit veld bestond) — dít is
+// de test die daar bewust op leunt in plaats van het toevallig zo te laten.
+test('stap 6 — migratie: een Player zonder identity-sleutel breekt nergens en houdt zijn effectiveName', async () => {
+  const harness = makeHarness();
+  const { context, store } = harness;
+  const { roomId, room } = await seedRoom(harness, { extraPlayers: 0, hostParticipates: true });
+
+  const players = await store.listPlayers(roomId);
+  const legacyPlayer = players[0];
+  assert.ok(!('identity' in legacyPlayer), "seedRoom's hostspeler hoort geen identity-sleutel te hebben (dat is precies de fixture die we willen)");
+  assert.equal(legacyPlayer.effectiveName, 'Host');
+
+  // Geen throw bij het opnieuw opslaan van een verder ongewijzigde, oude speler
+  // (bv. een score-update, een kick) — assertPlayerShape mag dit niet weigeren.
+  assert.doesNotThrow(() => assertPlayerShape(legacyPlayer));
+
+  const snapshot = await buildSnapshot(context, { roomId, sessionId: room.sessionId });
+  assert.equal(snapshot.ok, true);
+  assert.equal(snapshot.value.self.effectiveName, 'Host');
+  assert.equal(snapshot.value.self.identity, null);
+
+  const participant = snapshot.value.participants.find((p) => p.playerId === legacyPlayer.id);
+  assert.equal(participant.effectiveName, 'Host');
+  assert.equal(participant.identity, null);
+
+  // De snapshot zelf blijft geldig volgens het protocol — geen `undefined`
+  // over de wire, dat zou geen valide JSON-veld zijn.
+  assert.deepEqual(validateSnapshotShape(snapshot.value), { ok: true });
 });
 
 test('participants volgt dezelfde verzameling als playerCount: gekickt en vertrokken vallen af', async () => {

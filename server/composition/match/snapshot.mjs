@@ -85,6 +85,12 @@ async function buildParticipants(context, room, present) {
   const participants = ordered.slice(0, PARTICIPANTS_LIMIT).map((player) => ({
     playerId: player.id,
     effectiveName: player.effectiveName,
+    // docs/openstaand/spelersidentiteit.md, stap 4/5: het land+woord-paar
+    // achter een gegenereerde naam, zodat elke client 'm in zijn eigen
+    // apptaal kan renderen i.p.v. te vertrouwen op `effectiveName` (die staat
+    // altijd in de taal van de ROOM). `?? null`: stap 6, een speler van vóór
+    // deze migratie heeft de sleutel niet — geen `undefined` over de wire.
+    identity: player.identity ?? null,
     roles: hostPlayerIds.has(player.id) ? ['host', 'player'] : ['player'],
   }));
 
@@ -163,6 +169,9 @@ export async function buildSnapshot(context, { roomId, sessionId = null } = {}) 
     roles: session === null ? [] : [...session.roles],
     playerId: selfPlayer === null ? null : selfPlayer.id,
     effectiveName: selfPlayer === null ? null : selfPlayer.effectiveName,
+    // docs/openstaand/spelersidentiteit.md, stap 4/5 — zie buildParticipants
+    // hierboven voor dezelfde redenering (`?? null` dekt stap 6).
+    identity: selfPlayer === null ? null : (selfPlayer.identity ?? null),
     // Feedbackronde 4 aug (kleurkeuze): de eigen kleur reist mee in de
     // snapshot — de join-broadcast mist de joiner zelf (die hangt dan nog
     // niet aan de socket), dus dit is zijn enige betrouwbare bron.

@@ -54,6 +54,26 @@ function isPlainObject(value) {
 }
 
 /**
+ * docs/openstaand/spelersidentiteit.md, stap 4 — zelfde vorm/reden als
+ * `snapshot-shape.mjs`'s `isValidIdentity` (lokaal herhaald, geen gedeelde
+ * validator-module in dit bestand, zelfde afweging als `isPlainObject`
+ * hierboven): `null` of een `{ country, word }`-paar van twee niet-lege
+ * strings, nooit gerenderde tekst.
+ * @param {unknown} identity
+ * @returns {boolean}
+ */
+function isValidIdentity(identity) {
+  if (identity === null) return true;
+  if (!isPlainObject(identity)) return false;
+  const keys = Object.keys(identity);
+  if (keys.length !== 2 || !keys.includes('country') || !keys.includes('word')) return false;
+  return (
+    typeof identity.country === 'string' && identity.country.length > 0 &&
+    typeof identity.word === 'string' && identity.word.length > 0
+  );
+}
+
+/**
  * Zelfde syntactische vorm als het `{code}` path-parameter elders in
  * `rest-games` (exact zes ASCII-cijfers, `/^[0-9]{6}$/`) — hier lokaal
  * herhaald omdat die validator (`validateGetStateRequestShape`) in een ander
@@ -148,6 +168,7 @@ export function validateCreateGameRequest(body) {
  *   roomId: string, gameCode: string, inviteId: string, joinUrl: string,
  *   sessionToken: string, roles: Array<'host' | 'player'>,
  *   playerId: string | null, effectiveName: string | null,
+ *   identity: {country: string, word: string} | null,
  *   state: Record<string, unknown>,
  * }>}
  */
@@ -155,7 +176,7 @@ export function validateCreateGameResponse(body) {
   if (!isPlainObject(body)) {
     return { ok: false, code: INVITE_INVALID };
   }
-  const { roomId, gameCode, inviteId, joinUrl, sessionToken, roles, playerId, effectiveName, state } = body;
+  const { roomId, gameCode, inviteId, joinUrl, sessionToken, roles, playerId, effectiveName, identity, state } = body;
 
   if (typeof roomId !== 'string' || roomId.length === 0) {
     return { ok: false, code: INVITE_INVALID };
@@ -182,6 +203,9 @@ export function validateCreateGameResponse(body) {
   if (effectiveName !== null && typeof effectiveName !== 'string') {
     return { ok: false, code: INVITE_INVALID };
   }
+  if (!isValidIdentity(identity)) {
+    return { ok: false, code: INVITE_INVALID };
+  }
   if (!isPlainObject(state)) {
     return { ok: false, code: INVITE_INVALID };
   }
@@ -197,6 +221,7 @@ export function validateCreateGameResponse(body) {
       roles: [...roles],
       playerId,
       effectiveName,
+      identity,
       state,
     },
   };
@@ -276,6 +301,7 @@ export function validateJoinGameRequest(body) {
  * @returns {ValidationResult<{
  *   roomId: string, gameCode: string, sessionToken: string,
  *   roles: ['player'], playerId: string, effectiveName: string,
+ *   identity: {country: string, word: string} | null,
  *   state: Record<string, unknown>,
  * }>}
  */
@@ -283,7 +309,7 @@ export function validateJoinGameResponse(body) {
   if (!isPlainObject(body)) {
     return { ok: false, code: INVITE_INVALID };
   }
-  const { roomId, gameCode, sessionToken, roles, playerId, effectiveName, state } = body;
+  const { roomId, gameCode, sessionToken, roles, playerId, effectiveName, identity, state } = body;
 
   if (typeof roomId !== 'string' || roomId.length === 0) {
     return { ok: false, code: INVITE_INVALID };
@@ -303,12 +329,15 @@ export function validateJoinGameResponse(body) {
   if (typeof effectiveName !== 'string' || effectiveName.length === 0) {
     return { ok: false, code: INVITE_INVALID };
   }
+  if (!isValidIdentity(identity)) {
+    return { ok: false, code: INVITE_INVALID };
+  }
   if (!isPlainObject(state)) {
     return { ok: false, code: INVITE_INVALID };
   }
 
   return {
     ok: true,
-    value: { roomId, gameCode, sessionToken, roles: ['player'], playerId, effectiveName, state },
+    value: { roomId, gameCode, sessionToken, roles: ['player'], playerId, effectiveName, identity, state },
   };
 }

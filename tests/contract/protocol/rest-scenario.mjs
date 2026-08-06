@@ -48,6 +48,8 @@ export function runRestEndpointScenario(fastify, restGamesModule) {
       roles: requestResult.value.hostParticipates ? ['host', 'player'] : ['host'],
       playerId: requestResult.value.hostParticipates ? 'p_a1b2c3' : null,
       effectiveName: requestResult.value.hostParticipates ? 'Vlugge Vos' : null,
+      // docs/openstaand/spelersidentiteit.md, stap 4.
+      identity: requestResult.value.hostParticipates ? { country: 'bg', word: 'cow' } : null,
       state: {},
     };
     const responseResult = validateCreateGameResponse(responseBody);
@@ -71,6 +73,9 @@ export function runRestEndpointScenario(fastify, restGamesModule) {
         roles: ['player'],
         playerId: 'p_8f42d1',
         effectiveName: requestResult.value.displayName ?? 'Speler',
+        // Zelfgekozen naam -> null; anders (geen displayName) een gegenereerd
+        // paar (spelersidentiteit.md).
+        identity: requestResult.value.displayName ? null : { country: 'bg', word: 'cow' },
         state: {},
       },
     };

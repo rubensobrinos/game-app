@@ -29,6 +29,8 @@ const CREATE_GAME_RESPONSE_FIXTURE = {
   roles: ['host', 'player'],
   playerId: 'p_a1b2c3',
   effectiveName: 'Vlugge Vos',
+  // docs/openstaand/spelersidentiteit.md, stap 4.
+  identity: { country: 'bg', word: 'cow' },
   state: {},
 };
 
@@ -51,6 +53,8 @@ const JOIN_GAME_RESPONSE_FIXTURE = {
   roles: ['player'],
   playerId: 'p_8f42d1',
   effectiveName: 'Ruben',
+  // docs/openstaand/spelersidentiteit.md, stap 4.
+  identity: null,
   state: {},
 };
 
@@ -119,6 +123,7 @@ test('validateCreateGameResponse: exacte fixture-response -> ok: true', () => {
       roles: ['host', 'player'],
       playerId: 'p_a1b2c3',
       effectiveName: 'Vlugge Vos',
+      identity: { country: 'bg', word: 'cow' },
       state: {},
     },
   });
@@ -133,6 +138,7 @@ test('validateCreateGameResponse + hostParticipatesInvariantHolds: hostParticipa
     roles: ['host'],
     playerId: null,
     effectiveName: null,
+    identity: null,
   };
   const validation = validateCreateGameResponse(response);
   assert.equal(validation.ok, true);
@@ -249,6 +255,7 @@ test('validateJoinGameResponse: exacte fixture-response -> ok: true', () => {
       roles: ['player'],
       playerId: 'p_8f42d1',
       effectiveName: 'Ruben',
+      identity: null,
       state: {},
     },
   });

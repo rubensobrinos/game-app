@@ -522,6 +522,8 @@ export default async function restRoutes(fastify, options) {
       roles: created.value.roles,
       playerId: created.value.playerId,
       effectiveName: created.value.effectiveName,
+      // docs/openstaand/spelersidentiteit.md, stap 4/5.
+      identity: created.value.identity,
       state,
     };
 
@@ -577,6 +579,10 @@ export default async function restRoutes(fastify, options) {
       type: 'join',
       playerId: joined.value.playerId,
       effectiveName: joined.value.effectiveName,
+      // docs/openstaand/spelersidentiteit.md, stap 4/5: dezelfde reden als de
+      // naam/kleur hierboven — zonder dit ziet de rest van de room een
+      // nieuwe speler zonder identiteit tot de eerstvolgende snapshot.
+      identity: joined.value.identity,
       color: joined.value.color,
     });
 
@@ -594,6 +600,7 @@ export default async function restRoutes(fastify, options) {
       roles: joined.value.roles,
       playerId: joined.value.playerId,
       effectiveName: joined.value.effectiveName,
+      identity: joined.value.identity,
       state,
     };
     logSafe('info', 'speler joint', { requestId: String(request.id), roomId: joined.value.roomId, method: request.method });

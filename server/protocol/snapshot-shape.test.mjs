@@ -31,8 +31,8 @@ function buildLiteralSnapshot() {
     },
     currentRound: {},
     participants: [
-      { playerId: 'p_8f42d1', effectiveName: 'Ruben', roles: ['host', 'player'] },
-      { playerId: 'p_a1b2c3', effectiveName: 'Vlugge Vos', roles: ['player'] },
+      { playerId: 'p_8f42d1', effectiveName: 'Ruben', identity: null, roles: ['host', 'player'] },
+      { playerId: 'p_a1b2c3', effectiveName: 'Vlugge Vos', identity: { country: 'bg', word: 'cow' }, roles: ['player'] },
     ],
     participantsTruncated: false,
     scoreboard: {
@@ -246,4 +246,36 @@ test('assertNoActiveRoundAnswerLeak: extra correctOptionId-sleutel → afgewezen
 test('assertNoActiveRoundAnswerLeak: phase SCOREBOARD (geen actieve ronde) → ok:true', () => {
   const snapshot = { room: { phase: 'SCOREBOARD' }, currentRound: {} };
   assert.deepEqual(assertNoActiveRoundAnswerLeak(snapshot), { ok: true });
+});
+
+// ── docs/openstaand/spelersidentiteit.md, stap 4: participants[].identity ──
+
+test('validateSnapshotShape: participants[].identity ontbreekt → afgewezen (exacte sleutelcontrole)', () => {
+  const snapshot = buildLiteralSnapshot();
+  delete snapshot.participants[0].identity;
+  assert.deepEqual(validateSnapshotShape(snapshot), { ok: false, code: null });
+});
+
+test('validateSnapshotShape: participants[].identity is een welgevormd { country, word }-paar → ok:true', () => {
+  const snapshot = buildLiteralSnapshot();
+  snapshot.participants[0].identity = { country: 'nl', word: 'rabbit' };
+  assert.deepEqual(validateSnapshotShape(snapshot), { ok: true });
+});
+
+test('validateSnapshotShape: participants[].identity met een extra sleutel → afgewezen', () => {
+  const snapshot = buildLiteralSnapshot();
+  snapshot.participants[0].identity = { country: 'nl', word: 'rabbit', gender: 'het' };
+  assert.deepEqual(validateSnapshotShape(snapshot), { ok: false, code: null });
+});
+
+test('validateSnapshotShape: participants[].identity met een lege country/word → afgewezen', () => {
+  const snapshot = buildLiteralSnapshot();
+  snapshot.participants[0].identity = { country: '', word: 'rabbit' };
+  assert.deepEqual(validateSnapshotShape(snapshot), { ok: false, code: null });
+});
+
+test('validateSnapshotShape: participants[].identity als gerenderde tekst (string) → afgewezen (moet het paar zijn, geen tekst)', () => {
+  const snapshot = buildLiteralSnapshot();
+  snapshot.participants[0].identity = 'Bulgaarse Koe';
+  assert.deepEqual(validateSnapshotShape(snapshot), { ok: false, code: null });
 });

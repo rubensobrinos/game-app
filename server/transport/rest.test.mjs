@@ -133,12 +133,15 @@ test('POST /api/v1/games — happy path levert 201 en exact de PROTOCOL.md-respo
   const body = response.json();
   assert.deepEqual(
     Object.keys(body).sort(),
-    ['effectiveName', 'gameCode', 'inviteId', 'joinUrl', 'playerId', 'roles', 'roomId', 'sessionToken', 'state'],
+    ['effectiveName', 'gameCode', 'identity', 'inviteId', 'joinUrl', 'playerId', 'roles', 'roomId', 'sessionToken', 'state'],
   );
   assert.match(body.gameCode, /^[0-9]{6}$/);
   assert.equal(body.joinUrl, `https://play.aseso.nl/j/${body.inviteId}`);
   assert.deepEqual(body.roles, ['host', 'player']);
   assert.equal(body.effectiveName, 'Host');
+  // Zelfgekozen naam (displayName: 'Host' in createRequest hierboven) —
+  // identiteit vervangt alleen een gegenereerde naam (spelersidentiteit.md).
+  assert.equal(body.identity, null);
   assert.equal(body.state.room.code, body.gameCode);
   assert.equal(body.state.serverTime, FIXED_NOW);
 });
@@ -229,10 +232,12 @@ test('POST /api/v1/games/join — happy path via gameCode levert 200 en een spel
   const body = response.json();
   assert.deepEqual(
     Object.keys(body).sort(),
-    ['effectiveName', 'gameCode', 'playerId', 'roles', 'roomId', 'sessionToken', 'state'],
+    ['effectiveName', 'gameCode', 'identity', 'playerId', 'roles', 'roomId', 'sessionToken', 'state'],
   );
   assert.deepEqual(body.roles, ['player']);
   assert.equal(body.effectiveName, 'Ruben');
+  // Zelfgekozen naam ('Ruben' hierboven) — geen identiteit.
+  assert.equal(body.identity, null);
   assert.notEqual(body.sessionToken, created.sessionToken);
   assert.equal(body.state.self.playerId, body.playerId);
 });
@@ -297,6 +302,8 @@ test('POST /api/v1/games/join — meldt de room de nieuwe speler via de socketla
       type: 'join',
       playerId: response.json().playerId,
       effectiveName: 'Ruben',
+      // Zelfgekozen naam ('Ruben') — geen identiteit.
+      identity: null,
       color: sockets.broadcasts[0]?.delta?.color,
     },
   }]);
@@ -606,7 +613,15 @@ test('GET /api/v1/games/{code}/state — in de lobby: 200 met matchId en matchSe
   // dat een meespelende host beide rollen draagt en dat de lijst even lang is
   // als `playerCount`.
   assert.deepEqual(body.participants, [
-    { playerId: created.playerId, effectiveName: body.self.effectiveName, roles: ['host', 'player'] },
+    {
+      playerId: created.playerId,
+      effectiveName: body.self.effectiveName,
+      // docs/openstaand/spelersidentiteit.md, stap 4 — meegemeten i.p.v.
+      // hardgecodeerd: welk paar de host krijgt is willekeur, self draagt 'm
+      // al (zelfde bron, zie snapshot.mjs).
+      identity: body.self.identity,
+      roles: ['host', 'player'],
+    },
   ]);
   assert.equal(body.participantsTruncated, false);
   assert.equal(body.protocolVersion, 'v1');

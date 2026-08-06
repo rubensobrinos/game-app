@@ -414,12 +414,21 @@ export function createClientEvents({
         if (!result.ok) return result;
         return {
           ok: true,
-          value: { playerId: payload.playerId, effectiveName: result.value.effectiveName },
+          value: { playerId: payload.playerId, effectiveName: result.value.effectiveName, identity: result.value.identity },
           after: async () => publish('room:player-changed', {
             roomId,
             payload: {
               playerCount: await playerCountOf(roomId),
-              delta: { type: 'rename', playerId: payload.playerId, effectiveName: result.value.effectiveName },
+              // identity erbij (spelersidentiteit.md, punt 2): een rename
+              // wist een eerder toegekende identiteit altijd — zonder dit in
+              // de delta blijft andermans lobby de oude "Bulgaarse Koe" tonen
+              // tot de eerstvolgende volledige snapshot.
+              delta: {
+                type: 'rename',
+                playerId: payload.playerId,
+                effectiveName: result.value.effectiveName,
+                identity: result.value.identity,
+              },
             },
           }),
         };
@@ -532,12 +541,19 @@ export function createClientEvents({
         if (!result.ok) return result;
         return {
           ok: true,
-          value: { effectiveName: result.value.effectiveName },
+          value: { effectiveName: result.value.effectiveName, identity: result.value.identity },
           after: async () => publish('room:player-changed', {
             roomId,
             payload: {
               playerCount: await playerCountOf(roomId),
-              delta: { type: 'rename', playerId, effectiveName: result.value.effectiveName },
+              // Zelfde reden als game:rename-player hierboven: een rename
+              // wist een eerder toegekende identiteit altijd.
+              delta: {
+                type: 'rename',
+                playerId,
+                effectiveName: result.value.effectiveName,
+                identity: result.value.identity,
+              },
             },
           }),
         };
