@@ -171,6 +171,7 @@ async function releaseLocators(context, { roomId, code, inviteHash }) {
  *   roomId: string, gameCode: string, inviteId: string, inviteHash: string,
  *   joinUrl: string, sessionToken: string, sessionId: string,
  *   roles: string[], playerId: string|null, effectiveName: string|null,
+ *   identity: {country: string, word: string}|null,
  * } }>}
  */
 export async function createRoom(context, { config, hostParticipates, displayName = null } = {}) {
@@ -216,10 +217,14 @@ export async function createRoom(context, { config, hostParticipates, displayNam
 
     let player = null;
     if (hostParticipates) {
+      // existingIdentities: [] — de meespelende host is per definitie de
+      // eerste speler in een gloednieuwe room, er is nog niemand om een paar
+      // tegen te botsen (docs/openstaand/spelersidentiteit.md, stap 4).
       const names = resolveNames(context, {
         displayName,
         language: gameConfiguration.language,
         existingEffectiveNames: [],
+        existingIdentities: [],
       });
       player = {
         id: createId(context, 'p'),
@@ -229,6 +234,7 @@ export async function createRoom(context, { config, hostParticipates, displayNam
         generatedName: names.generatedName,
         effectiveName: names.effectiveName,
         nameSource: names.nameSource,
+        identity: names.identity,
         teamId: null,
         score: 0,
         correctCount: 0,
@@ -280,6 +286,7 @@ export async function createRoom(context, { config, hostParticipates, displayNam
       roles: [...session.roles],
       playerId: session.playerId,
       effectiveName: player === null ? null : player.effectiveName,
+      identity: player === null ? null : player.identity,
     });
   } catch (error) {
     if (!roomPersisted) {

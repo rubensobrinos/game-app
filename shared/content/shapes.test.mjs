@@ -51,6 +51,109 @@ test('iso2 is uniek, lowercase, en komt overeen met de pool-conventie', () => {
   }
 });
 
+// ─── De vervorming (opdracht E) ────────────────────────────────────────────
+
+/** De omhullende van een pad, rechtstreeks uit de padstring — niet uit `box`. */
+function meet(shape) {
+  const t = (shape.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+  const xs = [];
+  const ys = [];
+  for (let i = 0; i + 1 < t.length; i += 2) {
+    xs.push(t[i]);
+    ys.push(t[i + 1]);
+  }
+  const w = Math.max(...xs) - Math.min(...xs);
+  const h = Math.max(...ys) - Math.min(...ys);
+  return { x: Math.min(...xs), y: Math.min(...ys), w, h, aspect: w / h };
+}
+
+const proportioneel = SHAPE_ENTRIES.filter((e) => e.stretched !== true);
+const uitgerekt = SHAPE_ENTRIES.filter((e) => e.stretched === true);
+
+test('landen zijn niet langer allemaal even vierkant', () => {
+  // Vóór opdracht E lag de verhouding van ALLE 225 tussen 0,80 en 1,25 — elk
+  // land was uitgerekt tot het zijn eigen vak vulde. Nu spreidt het.
+  const verhoudingen = proportioneel.map((e) => meet(e.shape).aspect);
+  assert.ok(Math.min(...verhoudingen) < 0.35, 'er hoort minstens één duidelijk smal land te zijn (Chili)');
+  assert.ok(Math.max(...verhoudingen) > 2, 'er hoort minstens één duidelijk breed land te zijn (Rusland)');
+
+  const bijnaVierkant = verhoudingen.filter((r) => r > 0.8 && r < 1.25).length;
+  assert.ok(
+    bijnaVierkant < proportioneel.length * 0.5,
+    `${bijnaVierkant} van ${proportioneel.length} is nog bijna vierkant — dat riekt naar de oude uitrekking`,
+  );
+});
+
+test('de vijf landen uit het bouwplan hebben hun echte verhouding terug', () => {
+  // Marges ruim genomen: dit bewaakt de ORDE van grootte, niet het cijfer.
+  // De waarden liggen wat hoger dan de "in werkelijkheid"-kolom van het
+  // bouwplan, omdat dit de omhullende is inclusief de brede noordkant én met
+  // de cos(breedtegraad)-correctie erin — niet de kaal geschatte lengte/breedte.
+  const verwacht = { cl: [0.1, 0.3], ru: [1.8, 2.5], lu: [0.4, 0.7], no: [0.3, 0.6], fr: [0.85, 1.15] };
+  for (const [iso2, [min, max]] of Object.entries(verwacht)) {
+    const entry = SHAPE_ENTRIES.find((e) => e.iso2 === iso2);
+    assert.ok(entry !== undefined, `${iso2} ontbreekt`);
+    assert.equal(entry.stretched, undefined, `${iso2} hoort een proportionele contour te hebben`);
+    const r = meet(entry.shape).aspect;
+    assert.ok(r >= min && r <= max, `${iso2}: verhouding ${r.toFixed(3)} valt buiten [${min}, ${max}]`);
+  }
+});
+
+test('elk land vult precies één richting van het vak en staat gecentreerd', () => {
+  for (const entry of proportioneel) {
+    const m = meet(entry.shape);
+    const langste = Math.max(m.w, m.h);
+    assert.ok(langste > 80, `${entry.iso2} vult geen enkele richting (langste zijde ${langste.toFixed(1)})`);
+    assert.ok(langste <= 100, `${entry.iso2} loopt buiten het vak (${langste.toFixed(1)})`);
+    // Gecentreerd: evenveel ruimte links als rechts, boven als onder.
+    const marge = 1.5; // afronding op één decimaal in de brondata
+    assert.ok(Math.abs(m.x - (100 - m.x - m.w)) < marge, `${entry.iso2} staat niet horizontaal gecentreerd`);
+    assert.ok(Math.abs(m.y - (100 - m.y - m.h)) < marge, `${entry.iso2} staat niet verticaal gecentreerd`);
+  }
+});
+
+test('box en aspect beschrijven het pad dat er staat', () => {
+  for (const entry of SHAPE_ENTRIES) {
+    const m = meet(entry.shape);
+    const [x, y, w, h] = entry.box;
+    assert.ok(Math.abs(x - m.x) < 0.11, `${entry.iso2}: box.x wijkt af`);
+    assert.ok(Math.abs(y - m.y) < 0.11, `${entry.iso2}: box.y wijkt af`);
+    assert.ok(Math.abs(w - m.w) < 0.11, `${entry.iso2}: box.breedte wijkt af`);
+    assert.ok(Math.abs(h - m.h) < 0.11, `${entry.iso2}: box.hoogte wijkt af`);
+    assert.ok(Math.abs(entry.aspect - m.aspect) < 0.01, `${entry.iso2}: aspect wijkt af`);
+  }
+});
+
+test('center is een echte lat/lon uit de brondata — het anker voor de wereldkaart', () => {
+  for (const entry of SHAPE_ENTRIES) {
+    assert.ok(Array.isArray(entry.center) && entry.center.length === 2, `${entry.iso2} mist center`);
+    const [lon, lat] = entry.center;
+    assert.ok(Number.isFinite(lon) && lon >= -180 && lon <= 180, `${entry.iso2}: lon ${lon} is geen lengtegraad`);
+    assert.ok(Number.isFinite(lat) && lat >= -90 && lat <= 90, `${entry.iso2}: lat ${lat} is geen breedtegraad`);
+  }
+  // Steekproef: de centroïde hoort in het juiste werelddeel te liggen.
+  const nl = SHAPE_ENTRIES.find((e) => e.iso2 === 'nl');
+  assert.ok(nl.center[0] > 3 && nl.center[0] < 8, 'Nederland ligt niet op zijn lengtegraad');
+  assert.ok(nl.center[1] > 50 && nl.center[1] < 54, 'Nederland ligt niet op zijn breedtegraad');
+});
+
+test('de uitgerekte rest draagt een vlag en is de bekende uitzonderingslijst', () => {
+  // Voor deze landen bestaat in deze repo geen proportionele bron
+  // (build/world.geo.json is nooit gecommit). Ze mogen bestaan, maar niet
+  // stilzwijgend: `stretched: true` maakt ze vindbaar, hier én in de header
+  // van shapes.data.mjs.
+  assert.ok(uitgerekt.length > 0 && uitgerekt.length < 60, `onverwacht aantal uitgerekte landen: ${uitgerekt.length}`);
+  for (const entry of uitgerekt) {
+    const r = meet(entry.shape).aspect;
+    assert.ok(r > 0.7 && r < 1.4, `${entry.iso2} draagt stretched maar is niet bijna vierkant (${r.toFixed(2)})`);
+  }
+  // Geen enkel `easy`-land mag erbij zitten: dat zijn de landen die een speler
+  // op hun omtrek hoort te herkennen.
+  const easy = new Set(COUNTRY_ENTRIES.filter((e) => e.difficulty === 'easy').map((e) => e.iso2));
+  const easyUitgerekt = uitgerekt.filter((e) => easy.has(e.iso2)).map((e) => e.iso2);
+  assert.deepEqual(easyUitgerekt, [], 'een easy-land met een uitgerekte contour is niet te herkennen');
+});
+
 test('elke shape is een niet-lege SVG-padstring binnen de gedeclareerde viewBox, geen markup-restjes', () => {
   assert.equal(SHAPE_VIEWBOX, '0 0 100 100');
   for (const { iso2, shape } of SHAPE_ENTRIES) {

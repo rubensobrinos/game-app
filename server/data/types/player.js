@@ -11,6 +11,8 @@
 // eist van elke aanroeper (via rankPlayers()) — dezelfde grens hier overnemen.
 
 /**
+ * @typedef {{ country: string, word: string }} PlayerIdentity
+ *
  * @typedef {{
  *   id: string,
  *   roomId: string,
@@ -19,6 +21,7 @@
  *   generatedName: string,
  *   effectiveName: string,
  *   nameSource: string,
+ *   identity: PlayerIdentity | null,
  *   teamId: string | null,
  *   score: number,
  *   correctCount: number,
@@ -52,6 +55,34 @@ function assertNonNegativeInteger(value, fieldName) {
 }
 
 /**
+ * `identity` (docs/openstaand/spelersidentiteit.md, stap 4): het
+ * `{ country, word }`-paar achter een GEGENEREERDE naam — nooit gerenderde
+ * tekst, zie identity-processing.js voor waarom. `null` voor een zelfgekozen
+ * naam (nameSource 'chosen'): de identiteit vervangt alleen de gegenereerde
+ * naam, nooit een getypte.
+ *
+ * `undefined` wordt hier BEWUST hetzelfde behandeld als `null` — stap 6, de
+ * migratie: een Player die vóór deze stap in Redis is opgeslagen heeft de
+ * sleutel `identity` helemaal niet (oude JSON, geen leeg veld). Zonder deze
+ * gelijkstelling zou elke `savePlayer()`-aanroep op zo'n bestaande speler
+ * (een kick, een score-update, noem het op) alsnog werpen — een speler die
+ * niets fout deed zou zijn room breken. Lezers elders behandelen een
+ * ontbrekend/`null`-veld identiek: `player.identity ?? null`, nooit een
+ * losse "bestaat de sleutel"-tak.
+ * @param {unknown} value
+ */
+function assertIdentityShape(value) {
+  if (value === null || value === undefined) {
+    return;
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError(`identity must be null or an { country, word } object, got: ${JSON.stringify(value)}`);
+  }
+  assertNonEmptyString(value.country, 'identity.country');
+  assertNonEmptyString(value.word, 'identity.word');
+}
+
+/**
  * Werpt TypeError/RangeError als value niet aan de Player-vorm voldoet.
  * `nameSource` wordt uitsluitend gecontroleerd op "niet-lege string" — geen
  * gesloten enum. Alleen "generated" is ooit als letterlijke waarde getoond in
@@ -75,6 +106,7 @@ function assertPlayerShape(value) {
   assertNonEmptyString(value.generatedName, 'generatedName');
   assertNonEmptyString(value.effectiveName, 'effectiveName');
   assertNonEmptyString(value.nameSource, 'nameSource');
+  assertIdentityShape(value.identity);
 
   if (value.teamId !== null) {
     assertNonEmptyString(value.teamId, 'teamId');

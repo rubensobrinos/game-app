@@ -42,6 +42,8 @@ import {
 } from './transport/safe-logger.mjs';
 import { CONTENT_VERSION } from '../shared/content/index.mjs';
 import { nameWordLists } from './data/name-word-lists.js';
+import { countryAdjectives } from './data/country-adjectives.js';
+import { identityWords } from '../shared/content/identity-word-lists.mjs';
 import {
   readTokenPeppers,
   readConfigFromEnvironment,
@@ -136,6 +138,13 @@ export async function buildServer(options = {}) {
         // terug op "Speler {n}" — de woordenlijst zelf is contentbeslissing,
         // niet iets wat deze module kiest (zie name-word-lists.js/bevinding 14).
         nameWordLists: config.nameWordLists ?? nameWordLists,
+        // Stap 4, spelersidentiteit.md: het land+woord-paar achter een
+        // gegenereerde naam ("Bulgaarse Koe"). Beide contentbeslissingen,
+        // dezelfde reden als nameWordLists hierboven —
+        // server/composition/room/deelnemers.mjs kiest of kent zelf geen
+        // landen/woorden.
+        countryAdjectives: config.countryAdjectives ?? countryAdjectives,
+        identityWords: config.identityWords ?? identityWords,
       },
     });
   } catch (error) {

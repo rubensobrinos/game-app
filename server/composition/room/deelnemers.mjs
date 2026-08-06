@@ -15,15 +15,86 @@
 
 import { isValidGameCode, isValidInviteId } from '../../architecture/room-codes.js';
 import { generateName, isProfane, processChosenName } from '../../data/name-processing.js';
+import { pickIdentity } from '../../../shared/rules/identity-processing.mjs';
+import { renderIdentityNl, renderIdentityEn, renderIdentityEs } from '../../data/identity-render.js';
 import { assertPlayerShape } from '../../data/types/player.js';
 import { assertSessionShape } from '../../data/types/session.js';
 import { PLAYER_COLORS } from '../../protocol/client-events-dispatch.mjs';
+import { getCountryPool } from '../../../shared/content/index.mjs';
 import { createId, createSessionToken } from '../context.mjs';
 import { CODES, activePlayers, colorForArrival, fail, findRoomByInviteId, succeed } from './gedeeld.mjs';
 import { touchRoom } from './levensduur.mjs';
 
 /** `joinSource`: `qr | shared_link | code | unknown` (PROTOCOL.md §REST-endpoints). */
 const JOIN_SOURCES = Object.freeze(['qr', 'shared_link', 'code', 'unknown']);
+
+/**
+ * docs/openstaand/spelersidentiteit.md, stap 4. Drie losse rendermodules
+ * (identity-render.js) i.p.v. één dispatcher — dit is de ENE plek die ze op
+ * taalcode selecteert, precies zoals identity-render.js's eigen moduledoc
+ * voorschrijft.
+ */
+const RENDER_IDENTITY_BY_LANGUAGE = Object.freeze({
+  nl: renderIdentityNl,
+  en: renderIdentityEn,
+  es: renderIdentityEs,
+});
+
+/**
+ * Kale landnamen per iso2 (bv. "Bulgarije"), voor identity-render.js's
+ * "uit"-terugval — NIET dezelfde bron als de bijvoeglijke vorm
+ * (country-adjectives.js). Eén keer opgebouwd uit de gedeelde pool
+ * (`shared/content/`), niet per aanroep: 230 landen, geen hete pad.
+ */
+const COUNTRY_NAMES_BY_ISO2 = new Map(getCountryPool().map((entry) => [entry.iso2, entry.name]));
+
+/**
+ * Rendert één `{ country, word }`-paar naar tekst in `language`, voor
+ * `Player.generatedName`/`effectiveName` — de servertalige afdruk die overal
+ * blijft werken waar nog niet identiteitsbewust wordt gerenderd (kickbevestiging,
+ * logs, een oude client). Elke identiteitsbewuste client rendert `identity`
+ * zelf opnieuw in zijn EIGEN apptaal (stap 5) — dit hier is dus bewust alleen
+ * de servertalige afdruk, niet de bron van waarheid voor de weergave.
+ *
+ * `null` als er niets bruikbaars is (onbekende taal, land of woord ontbreekt
+ * in de content) — de aanroeper valt dan terug op de oudere generateName().
+ * @param {{country: string, word: string}} identity
+ * @param {string} language
+ * @param {Record<string, object>} countryAdjectives
+ * @param {Record<string, object>} identityWordsByKey
+ * @returns {string | null}
+ */
+function renderIdentityText(identity, language, countryAdjectives, identityWordsByKey) {
+  const render = RENDER_IDENTITY_BY_LANGUAGE[language];
+  const countryNames = COUNTRY_NAMES_BY_ISO2.get(identity.country);
+  const wordEntry = identityWordsByKey?.[identity.word]?.[language];
+  if (render === undefined || countryNames === undefined || wordEntry === undefined) {
+    return null;
+  }
+  try {
+    return render({
+      countryName: countryNames[language],
+      adjective: countryAdjectives?.[identity.country]?.[language],
+      word: wordEntry,
+    });
+  } catch {
+    // Vormfout in de content (bv. een leeg woord) — geen halve naam tonen,
+    // gewoon terugvallen als was er geen identiteit gevonden.
+    return null;
+  }
+}
+
+/**
+ * `existingIdentities` voor `pickIdentity`: de al toegekende paren van actieve
+ * spelers. `.filter(Boolean)` laat zowel `null` (zelfgekozen naam) als
+ * `undefined` (stap 6, een speler van vóór deze migratie) vallen — allebei
+ * "geen paar om tegen te botsen".
+ * @param {Array<{identity?: {country: string, word: string} | null}>} players
+ * @returns {Array<{country: string, word: string}>}
+ */
+export function identitiesOf(players) {
+  return players.map((player) => player.identity).filter(Boolean);
+}
 
 /**
  * KEUZE — `Player.nameSource` is in server/data/types/player.js bewust een
@@ -45,12 +116,25 @@ export const NAME_SOURCE_CHOSEN = 'chosen';
  * name-processing.js's eigen documentatie voorschrijft ("moet tot een nieuwe
  * generatie leiden, niet tot een throw midden in de pijplijn").
  *
+ * IDENTITEIT (docs/openstaand/spelersidentiteit.md, stap 4): een GEGENEREERDE
+ * naam krijgt er, als de content het toelaat, een `{ country, word }`-paar
+ * bij — `identity`. Een ZELFGEKOZEN naam nooit: "de identiteit vervangt
+ * alleen de gegenereerde naam" (spelersidentiteit.md, punt 2). De
+ * uniciteitscontrole op het paar gebeurt in `pickIdentity`, VÓÓR er iets
+ * gerenderd wordt (`existingIdentities`, structureel vergeleken) — dat is de
+ * valkuil die dit bestand niet mag herhalen: `existingEffectiveNames`
+ * hieronder blijft uitsluitend voor de OUDE, tekstgebaseerde generator
+ * (`generateName`, de terugval als er geen identiteit beschikbaar is).
+ *
  * @param {import('../context.mjs').Context} context
- * @param {{ displayName: unknown, language: string, existingEffectiveNames: string[] }} params
+ * @param {{
+ *   displayName: unknown, language: string,
+ *   existingEffectiveNames: string[],
+ *   existingIdentities?: Array<{country: string, word: string}>,
+ * }} params
  */
-export function resolveNames(context, { displayName, language, existingEffectiveNames }) {
-  const { nameWordLists, profanityWords } = context.config;
-  const generatedName = generateName(language, nameWordLists, existingEffectiveNames);
+export function resolveNames(context, { displayName, language, existingEffectiveNames, existingIdentities = [] }) {
+  const { nameWordLists, profanityWords, countryAdjectives, identityWords } = context.config;
 
   const raw = typeof displayName === 'string' ? displayName : '';
   let chosen = raw.length > 0 ? processChosenName(raw, language, existingEffectiveNames) : '';
@@ -58,19 +142,36 @@ export function resolveNames(context, { displayName, language, existingEffective
     chosen = '';
   }
 
-  if (chosen.length === 0) {
+  if (chosen.length > 0) {
     return {
-      displayName: null,
-      generatedName,
-      effectiveName: generatedName,
-      nameSource: NAME_SOURCE_GENERATED,
+      displayName: raw,
+      generatedName: generateName(language, nameWordLists, existingEffectiveNames),
+      effectiveName: chosen,
+      nameSource: NAME_SOURCE_CHOSEN,
+      identity: null,
     };
   }
+
+  const identity = pickIdentity(
+    Object.keys(countryAdjectives ?? {}),
+    Object.keys(identityWords ?? {}),
+    existingIdentities,
+  );
+  // De servertalige afdruk: identiteit gerenderd in `language` als die er is
+  // (bewust GEEN eigen makeUniqueInRoom-cijfer erachter — het paar is al
+  // structureel uniek, zie pickIdentity, en elk woord in identityWords heeft
+  // een eigen tekst per taal, dus twee verschillende paren renderen ook nooit
+  // toevallig naar dezelfde tekst). Zonder bruikbare identiteit blijft de
+  // oudere generator de terugval.
+  const identityText = identity === null ? null : renderIdentityText(identity, language, countryAdjectives, identityWords);
+  const generatedName = identityText ?? generateName(language, nameWordLists, existingEffectiveNames);
+
   return {
-    displayName: raw,
+    displayName: null,
     generatedName,
-    effectiveName: chosen,
-    nameSource: NAME_SOURCE_CHOSEN,
+    effectiveName: generatedName,
+    nameSource: NAME_SOURCE_GENERATED,
+    identity: identityText === null ? null : identity,
   };
 }
 
@@ -170,6 +271,7 @@ export async function joinRoom(context, {
     displayName,
     language: room.config.language,
     existingEffectiveNames: players.map((player) => player.effectiveName),
+    existingIdentities: identitiesOf(players),
   });
 
   const sessionId = createId(context, 'sess');
@@ -185,6 +287,7 @@ export async function joinRoom(context, {
     generatedName: names.generatedName,
     effectiveName: names.effectiveName,
     nameSource: names.nameSource,
+    identity: names.identity,
     teamId: null,
     score: 0,
     correctCount: 0,
@@ -225,6 +328,7 @@ export async function joinRoom(context, {
     roles: ['player'],
     playerId,
     effectiveName: player.effectiveName,
+    identity: player.identity,
     color: player.color,
     joinSource,
   });
@@ -354,6 +458,7 @@ export async function renamePlayer(context, { roomId, playerId, displayName, byp
     displayName,
     language: room.config.language,
     existingEffectiveNames: others.map((entry) => entry.effectiveName),
+    existingIdentities: identitiesOf(others),
   });
   if (names.nameSource !== NAME_SOURCE_CHOSEN) {
     // Na normalisatie bleef er niets bruikbaars over (leeg/profaan) — dat is
@@ -367,12 +472,17 @@ export async function renamePlayer(context, { roomId, playerId, displayName, byp
     displayName: names.displayName,
     effectiveName: names.effectiveName,
     nameSource: names.nameSource,
+    // Een geslaagde rename komt hier altijd met nameSource CHOSEN uit
+    // resolveNames (zie de throw hierboven), dus names.identity is altijd
+    // null — een zelfgekozen naam wist een eerder toegekende identiteit
+    // (spelersidentiteit.md, punt 2: "vervangt alleen de gegenereerde naam").
+    identity: names.identity,
   };
   assertPlayerShape(renamed);
   await context.store.savePlayer(renamed);
   await touchRoom(context, room, at);
 
-  return succeed({ roomId, playerId, effectiveName: renamed.effectiveName });
+  return succeed({ roomId, playerId, effectiveName: renamed.effectiveName, identity: renamed.identity });
 }
 
 /**
