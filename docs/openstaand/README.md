@@ -5,6 +5,8 @@ hier niet meer terug — anders wordt elk statusoverzicht ruis.
 
 Peildatum: 6 aug 2026.
 
+**Volgorde en afweging van de drie bouwklussen: [PLAN-BOUWEN.md](PLAN-BOUWEN.md).**
+
 ## Klein — uren
 
 | Wat | Status |
