@@ -46,6 +46,10 @@ const NAME_MAX_GRAPHEMES = 20;
 // metrics als de echte server (question-selection.js's VALID_METRICS).
 const HIGHER_LOWER_METRICS = ['population', 'area', 'gdp'];
 
+// Punt 7 / besluit 52 (docs/openstaand/continentfilter.md): zelfde zes
+// waarden als CONTINENT_VALUES in server/data/types/game-configuration.js.
+const MOCK_CONTINENTS = Object.freeze(['Europe', 'Asia', 'Africa', 'North America', 'South America', 'Oceania']);
+
 // `joinSource` enum uit PROTOCOL.md, §`POST /api/v1/games/join`.
 const JOIN_SOURCES = new Set(['qr', 'shared_link', 'code', 'unknown']);
 
@@ -909,7 +913,12 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
     if (target.phase !== 'LOBBY') {
       throw new ProtocolError('INVALID_PHASE', 'game:update-config only allowed in LOBBY.');
     }
-    const allowed = ['totalRounds', 'difficulty', 'language', 'pacing', 'autoReveal', 'speedBonus', 'allowLateJoin', 'gameTypes'];
+    // `continents` staat op de ECHTE server nog niet in UPDATABLE_CONFIG_KEYS
+    // (server/protocol/client-events-dispatch.mjs) — besluit 52 markeert het
+    // create-only totdat die protocolkant meekomt. Hier wél toegestaan, zodat
+    // de lobbytoggle in solo (de enige manier om 'm nu in een browser te
+    // beproeven) iets doet in plaats van in de void te schrijven.
+    const allowed = ['totalRounds', 'difficulty', 'language', 'pacing', 'autoReveal', 'speedBonus', 'allowLateJoin', 'gameTypes', 'continents'];
     const safe = {};
     for (const key of allowed) {
       if (patch !== null && typeof patch === 'object' && key in patch) {
@@ -926,6 +935,14 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
       const list = safe.gameTypes;
       if (!Array.isArray(list) || list.length !== 1 || !isPlayableGameType(list[0])) {
         throw new ProtocolError('INVALID_REQUEST', 'gameTypes must hold exactly one playable game type.');
+      }
+    }
+    // Pariteit met assertGameConfigurationShape (game-configuration.js):
+    // niet-lege lijst uit de zes bekende continenten.
+    if ('continents' in safe) {
+      const list = safe.continents;
+      if (!Array.isArray(list) || list.length === 0 || !list.every((c) => MOCK_CONTINENTS.includes(c))) {
+        throw new ProtocolError('INVALID_REQUEST', 'continents must be a non-empty array of known continents.');
       }
     }
     Object.assign(target.config ?? (target.config = {}), safe);

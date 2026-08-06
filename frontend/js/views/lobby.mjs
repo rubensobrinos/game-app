@@ -29,6 +29,16 @@ import { createRoundaFlagView } from './rounda-flag.mjs';
 // spelers" wordt gebruikt.
 const RECENT_JOINS_COUNT = 5;
 
+// Punt 7 (continentfilter.md): dezelfde zes waarden als CONTINENT_VALUES in
+// server/data/types/game-configuration.js, hier lokaal getranscribeerd — de
+// frontend importeert niets uit server/ (zelfde afweging als PACING_VALUES
+// daar).
+const CONTINENTS = Object.freeze(['Europe', 'Asia', 'Africa', 'North America', 'South America', 'Oceania']);
+
+function continentLocaleKey(continent) {
+  return `lobby.continent_${continent.toLowerCase().replace(/ /g, '_')}`;
+}
+
 export function createLobbyView({
   root,
   t,
@@ -370,7 +380,44 @@ export function createLobbyView({
   let currentLate = true;
   lateToggle.addEventListener('click', () => pushConfig({ allowLateJoin: !currentLate }));
   lateRow.append(lateLabel, lateToggle);
-  moreBody.append(questionsLabel, questionsGroup, qLangLabel, qLangGroup, bonusRow, lateRow);
+
+  // Continenten (punt 7, docs/openstaand/continentfilter.md, besluit 52):
+  // geen aparte landenkeuze, alleen aan-/uitzetten per werelddeel. Standaard
+  // alle zes aan (serverdefault). Multi-select, dus GEEN segButton-exclusiviteit
+  // — elke knop toggelt zijn eigen lidmaatschap in `currentContinents`.
+  //
+  // Create-only (besluit 52): `continents` staat nog niet in
+  // `UPDATABLE_CONFIG_KEYS` (server/protocol/client-events-dispatch.mjs),
+  // dus deze rij werkt vandaag alleen tegen de mock. `pushConfig` slikt de
+  // afwijzing van een echte server stil — precies zoals elke andere toggle
+  // hier al doet als een update niet doorkomt.
+  const continentsLabel = settingsLabel('lobby-settings-continents-label');
+  const continentsGroup = segGroup();
+  const continentButtons = new Map();
+  let currentContinents = new Set(CONTINENTS);
+  for (const continent of CONTINENTS) {
+    const btn = segButton(continentsGroup, {
+      onPick: () => {
+        const volgende = new Set(currentContinents);
+        if (volgende.has(continent)) {
+          // Nooit de laatste overblijvende continent uitzetten (game-configuration.js
+          // eist minstens één) — geen rondje naar de server voor iets wat daar
+          // toch RangeError zou geven.
+          if (volgende.size <= 1) return;
+          volgende.delete(continent);
+        } else {
+          volgende.add(continent);
+        }
+        currentContinents = volgende;
+        for (const [c, b] of continentButtons) {
+          b.classList.toggle('is-active', volgende.has(c));
+        }
+        pushConfig({ continents: CONTINENTS.filter((c) => volgende.has(c)) });
+      },
+    });
+    continentButtons.set(continent, btn);
+  }
+  moreBody.append(questionsLabel, questionsGroup, qLangLabel, qLangGroup, bonusRow, lateRow, continentsLabel, continentsGroup);
 
   settingsBody.append(
     gameRow, gameCardSub,
@@ -658,6 +705,10 @@ export function createLobbyView({
     qLangLabel.textContent = t('lobby.questionLanguage');
     bonusLabel.textContent = t('lobby.speedBonus');
     lateLabel.textContent = t('lobby.lateJoin');
+    continentsLabel.textContent = t('lobby.continents');
+    for (const [continent, btn] of continentButtons) {
+      btn.textContent = t(continentLocaleKey(continent));
+    }
     answersLabel.textContent = t('lobby.answers');
     answersChoose.textContent = t('lobby.answersChoose');
     // Een `title` is op een telefoon onzichtbaar: de speler zag drie dode
@@ -989,6 +1040,14 @@ export function createLobbyView({
       lateToggle.classList.toggle('is-on', currentLate);
       lateToggle.setAttribute('aria-checked', String(currentLate));
       lateToggle.setAttribute('aria-label', t('lobby.lateJoin'));
+      // Ontbreekt config.continents (nog geen server geweest) dan is de
+      // serverdefault "alle zes" — zelfde als QUICK_START_CONFIG.
+      currentContinents = Array.isArray(config.continents) && config.continents.length > 0
+        ? new Set(config.continents)
+        : new Set(CONTINENTS);
+      for (const [continent, btn] of continentButtons) {
+        btn.classList.toggle('is-active', currentContinents.has(continent));
+      }
     }
   }
 

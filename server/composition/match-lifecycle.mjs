@@ -391,6 +391,11 @@ function contentSourceFor(context, room) {
     difficulty: room.config.difficulty,
     ...(rendererVersion === undefined ? {} : { rendererVersion }),
     ...(random === undefined ? {} : { random }),
+    // Punt 7 (continentfilter.md): `room.config.continents` is sinds
+    // besluit 52 verplicht op elke GameConfiguration (default: alle zes),
+    // dus dit is nooit `undefined` in een echte room — alleen fixtures uit
+    // vóór dat besluit zouden het veld kunnen missen.
+    continents: room.config.continents,
   });
 }
 

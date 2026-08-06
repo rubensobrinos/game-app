@@ -401,6 +401,41 @@ test('game:lock prevents subsequent joinGame with ROOM_LOCKED', async () => {
   assert.deepEqual(joined.roles, ['player']);
 });
 
+// Punt 7 / besluit 52 (docs/openstaand/continentfilter.md): `continents` is
+// create-only op de ECHTE server (protocol buiten scope deze sessie), maar
+// hier wél via game:update-config bereikbaar — anders is de lobbytoggle in
+// solo dood.
+test('game:update-config met continents: slaat de nieuwe lijst op en broadcast die', async () => {
+  const transport = createMockTransport();
+  const created = await transport.createGame({});
+  const conn = transport.connect(created.sessionToken, { onEvent: () => {} });
+
+  const ack = await conn.send('game:update-config', 'act_continents', { continents: ['Europe', 'Asia'] });
+  assert.deepEqual(ack.payload.config.continents, ['Europe', 'Asia']);
+});
+
+test('game:update-config weigert een lege continents-lijst (pariteit met assertGameConfigurationShape)', async () => {
+  const transport = createMockTransport();
+  const created = await transport.createGame({});
+  const conn = transport.connect(created.sessionToken, { onEvent: () => {} });
+
+  await assert.rejects(
+    () => conn.send('game:update-config', 'act_leeg', { continents: [] }),
+    (err) => err.code === 'INVALID_REQUEST',
+  );
+});
+
+test('game:update-config weigert een onbekende continentnaam', async () => {
+  const transport = createMockTransport();
+  const created = await transport.createGame({});
+  const conn = transport.connect(created.sessionToken, { onEvent: () => {} });
+
+  await assert.rejects(
+    () => conn.send('game:update-config', 'act_onbekend', { continents: ['Atlantis'] }),
+    (err) => err.code === 'INVALID_REQUEST',
+  );
+});
+
 test(
   'game:kick deactivates the player and their session can no longer answer',
   withFakeTimers(async () => {

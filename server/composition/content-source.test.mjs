@@ -257,3 +257,28 @@ test('createContentSource weigert een ontbrekende contentVersion of language', (
   assert.throws(() => createContentSource({ language: 'nl', difficulty: 'normal' }), /contentVersion/);
   assert.throws(() => createContentSource({ contentVersion: 'v1', difficulty: 'normal' }), /language/);
 });
+
+// Punt 7 / besluit 52 (docs/openstaand/continentfilter.md): `continents`
+// bereikt hier `buildMatchQuestionPlan` — de daadwerkelijke filtering zit in
+// `question-selection.js`'s `buildCandidatePool` en is daar al uitputtend
+// getest. Dit bewijst alleen de BEDRADING: een gebouwde vraag blijft binnen
+// het opgegeven continent, en zonder het veld verandert er niets.
+test('continents: een gebouwde flags_mc-vraag blijft binnen het opgegeven continent', () => {
+  const source = makeSource({ continents: ['Europe'] });
+  const pool = getCountryPool();
+  const europeIso2s = new Set(pool.filter((e) => e.continent === 'Europe').map((e) => e.iso2));
+  for (let i = 0; i < 15; i++) {
+    const built = source.buildQuestion({ gameType: 'flags_mc' });
+    for (const iso2 of built.publicQuestionPayload.optionIso2s) {
+      assert.ok(europeIso2s.has(iso2.toLowerCase()), `${iso2} hoort niet bij Europe`);
+    }
+  }
+});
+
+test('continents weglaten filtert niet — zelfde gedrag als vóór dit veld bestond', () => {
+  const zonderFilter = makeSource();
+  const metOnderscheid = makeSource({ continents: undefined });
+  const a = zonderFilter.buildQuestion({ gameType: 'flags_mc' });
+  const b = metOnderscheid.buildQuestion({ gameType: 'flags_mc' });
+  assert.deepEqual(a, b);
+});

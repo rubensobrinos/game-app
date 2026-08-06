@@ -407,6 +407,16 @@ export const nl = Object.freeze({
   'lobby.questionLanguage': 'Vraagtaal',
   'lobby.speedBonus': 'Snelheidsbonus',
   'lobby.lateJoin': 'Later meedoen toestaan',
+  // Punt 7 (continentfilter.md): standaard alle zes aan; een host mag
+  // uitzetten, maar niet de laatste — vandaar geen aparte "geen continenten"
+  // tekst nodig.
+  'lobby.continents': 'Continenten',
+  'lobby.continent_europe': 'Europa',
+  'lobby.continent_asia': 'Azië',
+  'lobby.continent_africa': 'Afrika',
+  'lobby.continent_north_america': 'Noord-Amerika',
+  'lobby.continent_south_america': 'Zuid-Amerika',
+  'lobby.continent_oceania': 'Oceanië',
   'lobby.playerOptions': 'Opties voor',
   'lobby.selfNameLead': 'Zo heet je vanavond:',
   'lobby.selfRename': 'Typ zelf',

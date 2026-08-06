@@ -391,3 +391,49 @@ test('besluit 51: ontbrekend autoReveal in de config (oudere snapshot) leest als
   const autoRevealToggle = vindAlle(root, 'lobby-toggle')[1];
   assert.equal(autoRevealToggle.classList.contains('is-on'), true);
 });
+
+// Punt 7 / besluit 52 (continentfilter.md): de continenttoggles zijn de
+// laatste zes 'lobby-seg-option'-knoppen (na antwoorden/niveau/vragen/
+// vraagtaal, telkens 3), MULTI-select — geen exclusiviteit zoals bij die
+// andere segGroups.
+function continentKnoppen(root) {
+  return vindAlle(root, 'lobby-seg-option').slice(-6);
+}
+
+test('besluit 52: standaard staan alle zes continenten aan (ontbrekend config.continents)', async () => {
+  const { root } = await maakLobby();
+  const knoppen = continentKnoppen(root);
+  assert.equal(knoppen.length, 6);
+  assert.ok(knoppen.every((btn) => btn.classList.contains('is-active')));
+});
+
+test('besluit 52: een continent uitzetten stuurt de resterende vijf via game:update-config', async () => {
+  const { root, patches } = await maakLobby();
+  const [eersteContinent] = continentKnoppen(root);
+
+  klik(eersteContinent);
+  assert.equal(patches.length, 1);
+  assert.equal(patches[0].continents.length, 5, 'Europe (eerste knop) valt weg, vijf blijven over');
+  assert.ok(!patches[0].continents.includes('Europe'));
+  assert.equal(eersteContinent.classList.contains('is-active'), false);
+});
+
+test('besluit 52: de laatste overgebleven continent kan niet worden uitgezet', async () => {
+  const { root, patches } = await maakLobby();
+  const knoppen = continentKnoppen(root);
+  // Zet er vijf uit, houd Oceania (de laatste knop) over.
+  for (const btn of knoppen.slice(0, 5)) klik(btn);
+  patches.length = 0;
+
+  klik(knoppen[5]);
+  assert.equal(patches.length, 0, 'geen update-config voor een lege continentenlijst');
+  assert.equal(knoppen[5].classList.contains('is-active'), true, 'blijft aan staan');
+});
+
+test('besluit 52: de continentknoppen volgen de serverconfig', async () => {
+  const { root, view } = await maakLobby();
+  view.update({ ...BASIS_MODEL, config: { ...BASIS_MODEL.config, continents: ['Europe', 'Asia'] } });
+  const knoppen = continentKnoppen(root);
+  // Volgorde is CONTINENTS: Europe, Asia, Africa, North America, South America, Oceania.
+  assert.deepEqual(knoppen.map((btn) => btn.classList.contains('is-active')), [true, true, false, false, false, false]);
+});

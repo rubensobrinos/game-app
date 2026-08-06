@@ -122,6 +122,7 @@ for (const gameType of PLAYABLE_GAME_TYPES) {
  *   difficulty: string,
  *   rendererVersion?: string,
  *   random?: () => number,
+ *   continents?: string[],
  * }} params
  * @returns {ContentSource}
  */
@@ -131,6 +132,7 @@ export function createContentSource({
   difficulty,
   rendererVersion = 'stub-renderer-0',
   random = Math.random,
+  continents,
 } = {}) {
   if (typeof contentVersion !== 'string' || contentVersion.length === 0) {
     throw new TypeError(`createContentSource: contentVersion moet een niet-lege string zijn, kreeg: ${JSON.stringify(contentVersion)}`);
@@ -203,6 +205,10 @@ export function createContentSource({
       // zonder): de seed-deterministische generator uit shared/content. Altijd
       // meegeven, ook voor andere types — de vraagselectie negeert 'm daar.
       generateFlagSpec,
+      // Punt 7 (continentfilter.md): `undefined` als de aanroeper 'm weglaat —
+      // `buildCandidatePool` filtert dan niet, exact het gedrag van vóór dit
+      // veld bestond.
+      continents,
     });
 
     // ADDITIEF T.O.V. content-interface-request.md — `validOptionIds` staat

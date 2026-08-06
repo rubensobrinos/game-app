@@ -14,6 +14,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { generateGameCode, generateInviteId, hashInviteId } from '../architecture/room-codes.js';
+import { getCountryPool } from '../../shared/content/index.mjs';
 import { createInMemoryStore } from '../data/in-memory-store.js';
 import { ROOM_TTL_SECONDS } from '../data/ttl.js';
 import { assertMatchShape } from '../data/types/match.js';
@@ -1399,6 +1400,24 @@ test('fase 3 (agent 1, F1/F2): drieënhalf uur spelen zonder één lobby-actie v
 });
 
 // ─── Vraagselectie en gepinde versies ───────────────────────────────────────
+
+test('startRound respecteert room.config.continents (punt 7, besluit 52)', async () => {
+  const harness = makeHarness();
+  const { context } = harness;
+  const europeIso2s = new Set(
+    getCountryPool().filter((e) => e.continent === 'Europe').map((e) => e.iso2),
+  );
+  const { roomId } = await seedRoom(harness, { extraPlayers: 1, roomConfig: { continents: ['Europe'] } });
+
+  await startMatch(context, { roomId });
+  const round = await startRound(context, { roomId });
+  assert.equal(round.ok, true);
+  const payload = round.value.question;
+  assert.ok(europeIso2s.has(payload.targetIso2));
+  for (const iso2 of payload.optionIso2s) {
+    assert.ok(europeIso2s.has(iso2), `${iso2} hoort niet bij Europe`);
+  }
+});
 
 test('startRound sluit de vragen van deze match én van de vorige match uit', async () => {
   const harness = makeHarness();
