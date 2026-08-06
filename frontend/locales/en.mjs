@@ -119,6 +119,8 @@ export const en = Object.freeze({
   'game.metric.gdp': 'GDP',
   'game.capitalsPrompt': 'What is the capital of {country}?',
   'game.capitalsReversePrompt': '{capital} belongs to which country?',
+  'game.shapePrompt': 'Which country is this?',
+  'game.shapeAlt': 'Country outline to guess',
   'headline.selfSoleCorrect': 'You were the only one who got it right! ⭐',
   'headline.everyoneCorrect': 'Everyone got it right! 🎉',
   'headline.everyoneWrong': 'Nobody got it right this round!',

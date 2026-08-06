@@ -163,6 +163,10 @@ export const nl = Object.freeze({
   // gewone — zie country-names.mjs's `capitalsQuestionDirection`.
   'game.capitalsPrompt': 'Wat is de hoofdstad van {country}?',
   'game.capitalsReversePrompt': '{capital} hoort bij welk land?',
+  // Besluit C-2 ("Raad het land"). Geen landnaam hierin — zelfde
+  // anti-afkijkregel als game.flagAlt.
+  'game.shapePrompt': 'Welk land is dit?',
+  'game.shapeAlt': 'Te raden landcontour',
   // S14: sociale headline, hooguit één per ronde (gameplay.mjs) / stand
   // (scoreboard.mjs) — zie social-headline.mjs voor de selectielogica.
   'headline.selfSoleCorrect': 'Jij was de enige met het juiste antwoord! ⭐',

@@ -32,6 +32,7 @@
 import { countryName, capitalName, capitalsQuestionDirection, flagAssetPath } from './country-names.mjs';
 import { displayState, optionsLocked } from './round-model.mjs';
 import { renderFlagSpec } from './flag-renderer.mjs';
+import { loadCountryShape, renderCountryShape } from './shape-renderer.mjs';
 import { createTimerBar } from '../timer-bar.mjs';
 
 /** Waarde die de speler net gekozen heeft, ongeacht gameType. */
@@ -263,6 +264,49 @@ export function createGameplayView({ root, t, tCount = null, onAnswer, lang = 'n
         btn.type = 'button';
         btn.className = 'gameplay-option';
         btn.textContent = direction === 'ask-capital' ? capitalName(iso2, lang) : countryName(iso2, lang);
+        btn.setAttribute('aria-pressed', 'false');
+        btn.addEventListener('click', () => onAnswer(iso2));
+        optionButtons.set(iso2, btn);
+        options.appendChild(btn);
+      }
+      return;
+    }
+
+    if (model.gameType === 'country_shape_mc') {
+      // "Raad het land" (besluit C-2). Contour boven, vier landnamen eronder —
+      // zelfde payloadvorm als flags_mc/capitals_mc (`targetIso2`+
+      // `optionIso2s`, `optionId` als antwoord), dus geen wijziging nodig in
+      // round-model.mjs. Hergebruikt de bestaande vlag-canvas (`flagCanvas`,
+      // al `hidden` gereset bovenaan deze functie) i.p.v. een derde
+      // mediaslot: exact hetzelfde budget (`--media-max-h`, 200px) geeft een
+      // vierkante contour precies zo veel ruimte als een 3:2-vlag, zonder
+      // eigen CSS.
+      questionPrompt.textContent = t('game.shapePrompt');
+      flagCanvas.hidden = false;
+      flagCanvas.setAttribute('aria-label', t('game.shapeAlt'));
+      const shapeCtx = flagCanvas.getContext('2d');
+      shapeCtx?.clearRect(0, 0, flagCanvas.width, flagCanvas.height); // geen vorige contour tonen tijdens het laden
+
+      // shape-renderer.mjs importeert de 234 KB contourdata pas bij deze
+      // aanroep, en alleen dan (zie de moduledoc daar) — een potje
+      // flags_mc/capitals_mc/... roept dit nooit aan en haalt dus nooit op.
+      // Asynchroon, dus: de vraag (en de antwoordknoppen) staan meteen, de
+      // contour komt zodra hij binnen is. `roundIdBijStart` bewaakt dat een
+      // trage download niet alsnog op een inmiddels andere ronde tekent.
+      const { targetIso2, optionIso2s } = model.question;
+      const roundIdBijStart = model.roundId;
+      loadCountryShape(targetIso2).then((shape) => {
+        if (renderedRoundId !== roundIdBijStart) {
+          return;
+        }
+        renderCountryShape(flagCanvas, shape);
+      });
+
+      for (const iso2 of optionIso2s) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'gameplay-option';
+        btn.textContent = countryName(iso2, lang);
         btn.setAttribute('aria-pressed', 'false');
         btn.addEventListener('click', () => onAnswer(iso2));
         optionButtons.set(iso2, btn);

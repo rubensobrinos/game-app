@@ -42,7 +42,18 @@ function stubDom() {
       querySelectorAll: () => [],
       remove: () => { el._verwijderd = true; },
       getBoundingClientRect: () => ({ top: 0, left: 0, width: 0, height: 0 }),
-      getContext: () => new Proxy({}, { get: () => () => {}, set: () => true }),
+      // C-2 ("Raad het land"): `renderCountryShape` tekent asynchroon, ná een
+      // `await loadCountryShape(...)`. Deze stub blijft een no-op canvas
+      // (geen pixels), maar logt elke aanroep/toewijzing op `_ctxCalls` zodat
+      // een test kan bewijzen dát er getekend is, zonder een echte
+      // canvas-implementatie nodig te hebben.
+      getContext: () => {
+        el._ctxCalls = el._ctxCalls ?? [];
+        return new Proxy({}, {
+          get: (_t, prop) => (...args) => { el._ctxCalls.push([prop, ...args]); },
+          set: (_t, prop, value) => { el._ctxCalls.push([`set:${String(prop)}`, value]); return true; },
+        });
+      },
       style: {},
       offsetHeight: 0,
       offsetWidth: 0,
@@ -286,6 +297,64 @@ test('besluit 49: capitals_mc — de gewone richting (ask-capital) toont hoofdst
   assert.equal(vind(root, 'gameplay-question').textContent, 'game.capitalsPrompt');
   const opties = vindAlle(root, 'gameplay-option');
   assert.deepEqual(opties.map((o) => o.textContent), question.optionIso2s.map((iso2) => capitalName(iso2, 'nl')));
+});
+
+test('besluit C-2: country_shape_mc toont geen vlag maar wél de contour-canvas, met vier landknoppen', async () => {
+  const antwoorden = [];
+  const { root, view } = await maakView(antwoorden);
+  const { countryName } = await import('./country-names.mjs');
+  const { loadCountryShape } = await import('./shape-renderer.mjs');
+
+  const question = { targetIso2: 'fr', optionIso2s: ['fr', 'de', 'es', 'it'] };
+  view.update(actiefModel({ gameType: 'country_shape_mc', question }), { phase: 'ROUND_ACTIVE', secondsLeft: 12 });
+
+  assert.equal(vind(root, 'gameplay-flag').hidden, true, 'geen <img>-vlag bij een contourvraag');
+  const canvas = vind(root, 'gameplay-flag-canvas');
+  assert.equal(canvas.hidden, false, 'de vlag-canvas wordt hergebruikt voor de contour');
+  assert.equal(canvas.getAttribute('aria-label'), 'game.shapeAlt', 'geen landnaam in de aria-label (anti-afkijkregel)');
+  assert.equal(vind(root, 'gameplay-question').textContent, 'game.shapePrompt');
+
+  const opties = vindAlle(root, 'gameplay-option');
+  assert.deepEqual(opties.map((o) => o.textContent), question.optionIso2s.map((iso2) => countryName(iso2, 'nl')));
+
+  opties[1]._listeners.get('click')?.();
+  assert.deepEqual(antwoorden, ['de'], 'de knop geeft de iso2 door');
+
+  // De contour laadt asynchroon (234 KB, pas nu opgehaald) — wachten tot
+  // dezelfde onderliggende belofte (gecachet in shape-renderer.mjs) is
+  // afgehandeld, óók voor gameplay.mjs's eigen `.then()`.
+  await loadCountryShape('fr');
+  await Promise.resolve();
+  assert.ok(canvas._ctxCalls?.some(([methode]) => methode === 'fill'), 'de contour is daadwerkelijk getekend (ctx.fill aangeroepen)');
+});
+
+test('besluit C-2: een tweede ronde die binnenkomt vóórdat de eerste contour klaar is, tekent de eerste niet meer na', async () => {
+  const antwoorden = [];
+  const { root, view } = await maakView(antwoorden);
+  const { loadCountryShape } = await import('./shape-renderer.mjs');
+
+  const ronde1 = { targetIso2: 'fr', optionIso2s: ['fr', 'es', 'it', 'pt'] };
+  view.update(actiefModel({ roundId: 'r1', gameType: 'country_shape_mc', question: ronde1 }), { phase: 'ROUND_ACTIVE' });
+  const canvas = vind(root, 'gameplay-flag-canvas');
+
+  // Meteen door naar een nieuwe ronde, vóórdat ronde 1's contour ooit kan
+  // zijn opgehaald (geen enkele await ertussen) — precies het scenario dat
+  // `roundIdBijStart` in gameplay.mjs moet opvangen. Beide `loadCountryShape`-
+  // aanroepen delen dezelfde onderliggende (gecachete) databelofte, dus
+  // ronde 1's callback maakt evengoed kans om als eerste te vuren zodra die
+  // belofte binnenkomt — de guard moet 'm dan alsnog tegenhouden.
+  const ronde2 = { targetIso2: 'de', optionIso2s: ['de', 'nl', 'be', 'lu'] };
+  view.update(actiefModel({ roundId: 'r2', gameType: 'country_shape_mc', question: ronde2 }), { phase: 'ROUND_ACTIVE' });
+
+  await loadCountryShape('fr');
+  await loadCountryShape('de');
+  await Promise.resolve();
+  await Promise.resolve();
+
+  // Zonder de guard zouden hier twee tekenbeurten staan (ronde 1 én ronde 2);
+  // mét de guard telt alleen de nog-actuele ronde 2 mee.
+  const vulBeurten = (canvas._ctxCalls ?? []).filter(([methode]) => methode === 'fill').length;
+  assert.equal(vulBeurten, 1, `ronde 1's contour had de guard moeten missen; kreeg ${vulBeurten} fill-aanroepen`);
 });
 
 test('§A5: een lege ronde laat niets van de vorige staan', async () => {
