@@ -45,6 +45,7 @@ Acht opdrachten, één bestand per opdracht, volgorde en status in
 | Wat | |
 | --- | --- |
 | [Uit de marktvergelijking](uit-de-marktvergelijking.md) | vijf punten om op te pakken, vier bewust niet |
+| [Het paspoort](paspoort.md) | welke landen je al gehad hebt, per apparaat — nog te besluiten |
 
 ## Aanzetten
 
