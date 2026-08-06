@@ -934,6 +934,21 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         onRename: (displayName) => socket.send('player:rename', randomActionId(), { displayName }),
         // Feedbackronde punt 13: kleurkeuze — server broadcast de recolor-delta.
         onRecolor: (color) => socket.send('player:recolor', randomActionId(), { color }),
+        // De host mag ook een ánder hernoemen of verkleuren. Bewust NIET via
+        // `sendHostAction`: die slikt fouten, en juist hier moet de host de
+        // reden zien (te lange naam, verkeerde fase) — net als bij zijn eigen
+        // naam hierboven. `hostActionRequest` blijft wel de poortwachter: hij
+        // levert `null` als je geen host bent of de fase het niet toestaat.
+        onHostRenamePlayer: async (playerId, displayName) => {
+          const request = hostActionRequest('rename-player', buildHostContext(), { playerId, displayName });
+          if (request === null) return;
+          await socket.send(request.event, randomActionId(), request.payload);
+        },
+        onHostRecolorPlayer: async (playerId, color) => {
+          const request = hostActionRequest('recolor-player', buildHostContext(), { playerId, color });
+          if (request === null) return;
+          await socket.send(request.event, randomActionId(), request.payload);
+        },
         // Besluit 40 (scherm 2): host stelt bij; room:config-changed komt terug.
         onConfigChange: (patch) => socket.send('game:update-config', randomActionId(), patch),
       });
