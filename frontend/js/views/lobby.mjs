@@ -9,7 +9,7 @@
 // GEEN gedragsverandering bij die splitsing: elk onderdeel bouwt precies
 // dezelfde DOM-knopen als voorheen, en dit bestand plakt ze in dezelfde
 // platte volgorde terug onder `.lobby-main-column`/`.lobby-screen` —
-// bewust GEEN extra wrapper-divs, want `lobby.css`/`1c-licht.css` stylen
+// bewust GEEN extra wrapper-divs, want `lobby.css`/`1c-overrides.css` stylen
 // sommige van die knopen via `.lobby-main-column > .lobby-self` e.d.
 // (flex-`gap`-ritme + margin-reset op directe kinderen); een tussenlaag zou
 // dat ritme stilzwijgend verschuiven.

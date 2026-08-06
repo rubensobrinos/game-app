@@ -28,7 +28,7 @@ const ONE_C_FILES = [
   './1c-lobby.css',
   './1c-spel.css',
   './1c-uitslag.css',
-  './1c-licht.css',
+  './1c-overrides.css',
 ];
 
 const css = ONE_C_FILES

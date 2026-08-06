@@ -1,3 +1,24 @@
+/* 1c-overrides.css — LET OP: de volgorde in dit bestand is dragend.
+   ═════════════════════════════════════════════════════════════════════════
+   Dit is geen thematisch bestand. Het is de chronologische staart van
+   `rounda-1c.css`: het lichte thema, gevolgd door elke reviewronde en
+   feedbackronde die daarna kwam ("REVIEWFIXES", "FEEDBACKRONDE 4 aug",
+   "PAKKET B/C/D", …). Elke ronde overschrijft bewust regels uit een eerdere.
+
+   WAAROM HET NIET VERDER GESPLITST IS (lead, 6 aug 2026). De voor de hand
+   liggende opdeling — home, lobby, spel, uitslag — is gemeten en botst op
+   ZEVEN plekken: dan wisselen twee regels van volgorde en wint ineens de
+   andere. Bijvoorbeeld `.lobby-start` (regel 119 vs 942),
+   `.lobby-gamearrow`/`.lobby-settings-more` (695 vs 942),
+   `.session-hostbar-kick` (695 vs 1240) en drie
+   `prefers-reduced-motion`-blokken.
+
+   Splitsen kan dus pas ná het platslaan van die overschrijvingen: de latere
+   regel in de eerdere verwerken, zodat er per selector nog één plek is. Dat
+   is een gedragsverandering en hoort een eigen opdracht te zijn, mét visuele
+   verificatie. Tot die tijd: hier bijschrijven aan het EIND, nooit ertussen.
+   ═════════════════════════════════════════════════════════════════════════ */
+
 /* ── Licht thema: de 1c-look is donker-eerst; licht krijgt dezelfde vormen
    met de licht-tokens uit base.css (geen aparte uitwerking hier — de
    tokenlaag regelt kleur, dit bestand regelt vorm). ── */

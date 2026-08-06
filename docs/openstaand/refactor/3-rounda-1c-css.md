@@ -23,7 +23,7 @@ opdracht is ze **per scherm of onderdeel** te hergroeperen:
 | `1c-lobby.css` | spelerslijst, hostinstellingen, gamekeuze |
 | `1c-spel.css` | vraag, vlag, antwoordpillen, aftellen |
 | `1c-uitslag.css` | scherm 5: reveal, tussenstand, podium |
-| `1c-licht.css` | het lichte thema |
+| `1c-overrides.css` | het lichte thema |
 
 Bepaal zelf wat klopt als je het bestand leest; dit is de verwachting, geen
 voorschrift.
