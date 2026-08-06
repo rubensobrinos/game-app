@@ -146,7 +146,9 @@ export function updateRoomConfig(target, patch, ctx) {
   // create-only totdat die protocolkant meekomt. Hier wél toegestaan, zodat
   // de lobbytoggle in solo (de enige manier om 'm nu in een browser te
   // beproeven) iets doet in plaats van in de void te schrijven.
-  const allowed = ['totalRounds', 'difficulty', 'language', 'pacing', 'autoReveal', 'speedBonus', 'allowLateJoin', 'gameTypes', 'continents'];
+  const allowed = ['totalRounds', 'difficulty', 'language', 'pacing', 'autoReveal', 'speedBonus', 'allowLateJoin', 'gameTypes', 'continents',
+    // Besluit 55: tijd per vraag, zelfde drie standen als de lobby aanbiedt.
+    'questionSeconds'];
   const safe = {};
   for (const key of allowed) {
     if (patch !== null && typeof patch === 'object' && key in patch) {

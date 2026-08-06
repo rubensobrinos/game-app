@@ -317,6 +317,10 @@ export const en = Object.freeze({
   'lobby.level_medium': 'Medium',
   'lobby.level_hard': 'Hard',
   'lobby.questions': 'Questions',
+  'lobby.questionTime': 'Time per question',
+  'lobby.questionTime_calm': 'Relaxed',
+  'lobby.questionTime_normal': 'Normal',
+  'lobby.questionTime_fast': 'Fast',
   'lobby.autoNext': 'Automatically next question',
   'lobby.colorLabel': 'Pick your colour',
   // Feedbackronde 2 (4 aug): carrousel, meer-instellingen, spelersmenu.

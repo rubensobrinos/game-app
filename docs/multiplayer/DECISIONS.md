@@ -516,7 +516,7 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
     regel in `GAME-RULES.md`.
 
 55. **Tijd per vraag wordt instelbaar** (producteigenaar, 6 aug 2026).
-    NOG NIET GEBOUWD.
+    GEBOUWD.
 
     Staat vast op 15 seconden en de host kan er niets aan veranderen. Gemeten
     op de live-app: precies 15,08 seconden van vraag tot uitslag, met een

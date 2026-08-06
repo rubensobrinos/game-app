@@ -121,6 +121,18 @@ export function createInstellingenView({ t, isHost, onConfigChange, gamekeuzeEle
     questionButtons.set(n, btn);
   }
 
+  // TIJD PER VRAAG → questionSeconds (besluit 55). Zelfde vorm als het
+  // niveau: drie knoppen in plaats van een getal, zodat niemand hoeft te
+  // typen en de standaard blijft wat hij was.
+  const tijdLabel = settingsLabel('lobby-settings-time-label');
+  const tijdGroup = segGroup();
+  const tijdButtons = new Map();
+  for (const [sleutel, seconden] of [['calm', 25], ['normal', 15], ['fast', 10]]) {
+    const btn = segButton(tijdGroup, { onPick: () => pushConfig({ questionSeconds: seconden }) });
+    btn.dataset.timeKey = sleutel;
+    tijdButtons.set(seconden, btn);
+  }
+
   // Toggle: automatisch volgende vraag (aan = pacing auto, uit = host)
   const autoNextRow = document.createElement('div');
   autoNextRow.className = 'lobby-toggle-row';
@@ -248,6 +260,7 @@ export function createInstellingenView({ t, isHost, onConfigChange, gamekeuzeEle
     ...gamekeuzeElements,
     answersLabel, answersGroup,
     levelLabel, levelGroup,
+    tijdLabel, tijdGroup,
     autoNextRow, autoRevealRow,
     moreToggle, moreBody,
   );
@@ -298,6 +311,10 @@ export function createInstellingenView({ t, isHost, onConfigChange, gamekeuzeEle
       btn.textContent = t(`lobby.level_${btn.dataset.levelKey}`);
     }
     questionsLabel.textContent = t('lobby.questions');
+    tijdLabel.textContent = t('lobby.questionTime');
+    for (const [, btn] of tijdButtons) {
+      btn.textContent = t(`lobby.questionTime_${btn.dataset.timeKey}`);
+    }
     autoNextLabel.textContent = t('lobby.autoNext');
   }
 
@@ -316,6 +333,9 @@ export function createInstellingenView({ t, isHost, onConfigChange, gamekeuzeEle
     }
     for (const [n, btn] of questionButtons) {
       btn.classList.toggle('is-active', config.totalRounds === n);
+    }
+    for (const [seconden, btn] of tijdButtons) {
+      btn.classList.toggle('is-active', config.questionSeconds === seconden);
     }
     currentPacing = config.pacing === 'host' ? 'host' : 'auto';
     autoNextToggle.classList.toggle('is-on', currentPacing === 'auto');

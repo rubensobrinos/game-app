@@ -193,7 +193,16 @@ export function validateGameRecolorPlayerPayload(payload) {
  */
 export const UPDATABLE_CONFIG_KEYS = Object.freeze([
   'totalRounds', 'difficulty', 'language', 'pacing', 'autoReveal', 'speedBonus', 'allowLateJoin', 'gameTypes',
+  // Besluit 55 (6 aug 2026): tijd per vraag stond vast op 15 seconden en de
+  // host kon er niets aan veranderen. Gemeten op de live-app: precies 15,08 s
+  // van vraag tot uitslag, dus de klok liep goed — hij stond te kort.
+  'questionSeconds',
 ]);
+
+/** Besluit 55: de drie standen die de lobby aanbiedt. De validatie hieronder
+ *  laat alleen deze drie toe: een vrij getal zou een host een ronde van één
+ *  seconde of van een uur laten instellen, en daar is geen scherm op gebouwd. */
+export const QUESTION_SECONDS_VALUES = Object.freeze([25, 15, 10]);
 
 /**
  * De speltypen die een host live mag kiezen. GEEN eigen lijst meer (5 aug,
@@ -216,8 +225,7 @@ const UPDATE_PACING_VALUES = new Set(['auto', 'host']);
 /**
  * Valideert de payload van `game:update-config` (besluit 40 + feedbackronde,
  * 4 aug 2026): een NIET-LEGE subset van `UPDATABLE_CONFIG_KEYS`. Onbekende
- * sleutels — waaronder expliciet `questionSeconds` en `hostParticipates` —
- * zijn een vormfout (de transportlaag vertaalt `code: null` naar haar
+ * sleutels — waaronder expliciet `hostParticipates` — zijn een vormfout (de transportlaag vertaalt `code: null` naar haar
  * `MALFORMED_PAYLOAD_CODE`, net als bij elk ander vormprobleem).
  *
  * Grenzen per veld volgen de create-validatie
@@ -252,6 +260,10 @@ export function validateGameUpdateConfigPayload(payload) {
     return { ok: false, code: null };
   }
   if ('speedBonus' in payload && typeof payload.speedBonus !== 'boolean') {
+    return { ok: false, code: null };
+  }
+  // Besluit 55: alleen de drie standen die de lobby aanbiedt.
+  if ('questionSeconds' in payload && !QUESTION_SECONDS_VALUES.includes(payload.questionSeconds)) {
     return { ok: false, code: null };
   }
   if ('allowLateJoin' in payload && typeof payload.allowLateJoin !== 'boolean') {
