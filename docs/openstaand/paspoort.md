@@ -1,7 +1,6 @@
 # Het paspoort — welke landen heb je al gehad
 
-Idee van de producteigenaar, 6 aug 2026. **Nog niet besloten, nog niet
-gebouwd.**
+**Besluit 53** (producteigenaar, 6 aug 2026). Nog niet gebouwd.
 
 > Aan het einde zie je een soort paspoort: welke landen jullie hebben gehad.
 > Dat wordt opgeslagen, en een volgende keer onthoudt hij dat — "jullie hebben
@@ -44,24 +43,28 @@ groep is nooit twee keer dezelfde, jouw telefoon wel.
 | Tonen | op het podium, na de eindstand: *"Je hebt 47 van de 230 landen gezien."* |
 | Groter | een wereldkaart waarin die 47 ingekleurd zijn, getekend met de contouren die er al liggen |
 
-## Wat er nog beslist moet worden
+## De besluiten (6 aug 2026)
 
-1. **Tellen alleen goede antwoorden mee, of elk land dat je gezien hebt?**
-   "Gezien" is vriendelijker en maakt het paspoort een reisverslag. "Goed" maakt
-   het een prestatie. Het eerste past beter bij een feestje, het tweede geeft
-   meer reden om terug te komen.
-2. **Tellen de afleiders ook mee?** Bij "Raad de vlag" zie je vier landen maar
-   gaat de vraag over één. Alleen de vraag tellen is eerlijker; alle vier
-   tellen vult de kaart sneller.
-3. **Wat gebeurt er als de kaart vol is?** 230 landen is veel, maar niet
-   oneindig. Een tweede laag ("hoofdsteden gehad", "vlaggen goed geraden") kan,
-   maar dat is een besluit voor later.
+| Vraag | Besluit |
+| --- | --- |
+| Alleen goed geraden, of elk land dat je zag? | **Elk land dat je zag.** Het is een reisverslag, geen cijferlijst |
+| Tellen de afleiders mee? | **Nee.** Alleen het land waar de vraag over ging |
+| Wat als de kaart vol is? | **Een verrassing.** Wat die is, is nog niet bepaald — en dat hoeft ook niet vóór de bouw |
+
+Dat eerste besluit maakt het bouwen bovendien eenvoudiger: je hoeft niet te
+weten of iemand het goed had, alleen wélk land de vraag was. Dat staat al in
+elke `round:ended`.
 
 ## Wat het niet moet worden
 
 Geen profiel, geen account, geen ranglijst tussen apparaten. Zodra het paspoort
 iets wordt dat je kunt verliezen of moet beschermen, botst het met de reden dat
 deze app in tien seconden te starten is.
+
+Dit is geen tijdelijke oplossing in afwachting van accounts. De producteigenaar
+wijst erop dat die stap omslachtig is en dat we niet eens weten of gebruikers
+accounts wíllen — dus het paspoort per apparaat ís het antwoord, niet de
+goedkope versie ervan.
 
 ## Verwant
 

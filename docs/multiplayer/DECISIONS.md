@@ -443,3 +443,32 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
     `pushConfig`-route aan als de andere instellingen en werkt in solo via de
     mock — maar bereikt een echte server pas als `continents` ook in
     `UPDATABLE_CONFIG_KEYS` (of de create-payload) staat.
+
+53. **Het paspoort: elk land dat je zag, per apparaat** (producteigenaar,
+    6 aug 2026). NOG NIET GEBOUWD.
+
+    Aan het einde van een partij zie je welke landen je al gehad hebt, en dat
+    onthoudt je telefoon voor de volgende keer.
+
+    | Vraag | Besluit |
+    | --- | --- |
+    | Alleen goed geraden, of elk land dat je zag? | **Elk land dat je zag** — het is een reisverslag, geen cijferlijst |
+    | Tellen de afleiders mee? | **Nee.** Alleen het land waar de vraag over ging |
+    | Wat als de kaart vol is? | Een verrassing. Wat die is, is nog niet bepaald |
+
+    **Op het apparaat, niet op de server.** Het oorspronkelijke voorstel was
+    "in de sessie", maar een room leeft vier uur en verdwijnt dan — het
+    paspoort zou precies verdwijnen op het moment dat het interessant wordt.
+    Het staat daarom in `localStorage`, naast de bestaande sessiesleutels.
+
+    **En dat blijft zo.** De producteigenaar wijst er expliciet op dat de stap
+    van geen-accounts naar wel-accounts omslachtig is, en dat we niet eens
+    weten of gebruikers accounts wíllen. Een paspoort dat per apparaat leeft
+    is daarom niet de goedkope versie van iets beters — het is het antwoord.
+    Zodra het iets wordt dat je kunt verliezen of moet beschermen, botst het
+    met de reden dat deze app in tien seconden te starten is.
+
+    De contouren van 225 landen liggen sinds 6 aug in `shapes.data.mjs`
+    (gemigreerd voor "Raad het land"), dus een ingekleurde wereldkaart komt er
+    bijna gratis bij zodra die renderer bestaat.
+
