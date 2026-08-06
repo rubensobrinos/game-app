@@ -235,6 +235,10 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     // snapshot); aparte Map naast de namen zodat bestaande afnemers van
     // `participants` (hostbar, scoreboard) ongewijzigd blijven.
     participantColors: new Map(),
+    // spelersidentiteit.md, stap 5: `{country, word}` per playerId, of `null`
+    // voor een zelfgekozen naam — parallelle Map naast `participantColors`,
+    // zelfde reden (bestaande afnemers van `participants` ongewijzigd).
+    participantIdentities: new Map(),
     // Besluit 40 (scherm 2): de volledige actuele config — gevoed door
     // room:state en room:config-changed; de lobby-instellingen lezen hieruit.
     roomConfig: null,
@@ -544,6 +548,12 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         selfColor: state.selfInfo?.color ?? null,
         selfIsPlayer: typeof state.selfInfo?.playerId === 'string',
         participantColors: state.participantColors,
+        // spelersidentiteit.md, stap 5: paar + apptaal, niet gerenderde tekst
+        // — spelers.mjs/zelf.mjs roepen zelf identityText()/identityFlagUrl()
+        // aan (identity-display.mjs), zodat elke client zijn eigen taal toont.
+        participantIdentities: state.participantIdentities,
+        selfIdentity: state.selfInfo?.identity ?? null,
+        lang: getLang(),
         config: state.roomConfig,
         capabilities,
         joinUrl: state.joinUrl,
@@ -588,7 +598,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       return;
     }
     if (viewName === 'podium') {
-      state.mountedView.update(standingsFrom(state.standingsPayload ?? {}));
+      state.mountedView.update(standingsFrom(state.standingsPayload ?? {}), { lang: getLang() });
     }
   }
 

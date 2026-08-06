@@ -16,6 +16,7 @@
 import { socialHeadlineFor, pickHeadlineVariantKey } from './social-headline.mjs';
 import { countryName, capitalName, capitalsQuestionDirection, flagAssetPath } from './country-names.mjs';
 import { renderFlagSpec } from './flag-renderer.mjs';
+import { identityText, identityFlagUrl } from './identity-display.mjs';
 
 // 11-verzoek (BOUWSPRINT doel 4): een streak van 1 of 2 is geen "reactie"
 // waard. Dezelfde grens als het origineel in gameplay.mjs — GAME-RULES.md
@@ -476,7 +477,26 @@ export function createScoreboardView({ root, t, tCount }) {
       rank.textContent = `#${entry.position}`;
       const name = document.createElement('span');
       name.className = 'scoreboard-name';
-      name.textContent = entry.effectiveName;
+      // spelersidentiteit.md, stap 5: `identity` (paar) wint van `effectiveName`
+      // (servertalige afdruk) — elke client rendert 'm in zijn eigen apptaal;
+      // `null` (zelfgekozen naam, of pre-stap-6 speler) valt terug op de naam.
+      // Eigen kindspan voor de tekst (zelfde patroon als player-chip.mjs's
+      // mark+naam): zo blijft de vlag een los kind i.p.v. dat een latere
+      // `textContent`-toewijzing 'm weer zou wegvegen.
+      const nameLabel = document.createElement('span');
+      nameLabel.className = 'scoreboard-name-label';
+      const identityLabel = identityText(entry.identity, lang);
+      nameLabel.textContent = identityLabel ?? entry.effectiveName;
+      const identityFlagSrc = identityFlagUrl(entry.identity);
+      if (identityFlagSrc !== null) {
+        const identityFlag = document.createElement('img');
+        identityFlag.className = 'scoreboard-name-flag';
+        identityFlag.src = identityFlagSrc;
+        identityFlag.alt = '';
+        name.append(identityFlag, nameLabel);
+      } else {
+        name.append(nameLabel);
+      }
       const move = el('span', 'scoreboard-move');
       const diff = movement.get(entry.playerId);
       if (typeof diff === 'number') {

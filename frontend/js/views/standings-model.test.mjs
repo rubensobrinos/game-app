@@ -40,6 +40,23 @@ test('host zonder spelersrol (self: null) en rommelige rijen breken niets', () =
   assert.equal(empty.self, null);
 });
 
+test('spelersidentiteit.md stap 5: identity reist mee als paar, niet als gerenderde tekst', () => {
+  const rows = [
+    { playerId: 'p1', effectiveName: 'Bulgaarse Koe', identity: { country: 'bg', word: 'cow' }, score: 1200 },
+    { playerId: 'p2', effectiveName: 'Ruben', identity: null, score: 1100 },
+  ];
+  const s = standingsFrom({ top: rows, self: { playerId: 'p1', effectiveName: 'Bulgaarse Koe', identity: { country: 'bg', word: 'cow' }, score: 1200 } });
+  assert.deepEqual(s.entries[0].identity, { country: 'bg', word: 'cow' });
+  assert.equal(s.entries[1].identity, null);
+  assert.deepEqual(s.self.identity, { country: 'bg', word: 'cow' });
+});
+
+test('een rij zonder identity-veld (oudere server) krijgt null, geen crash', () => {
+  const s = standingsFrom({ top: TOP, self: { playerId: 'p2', effectiveName: 'Ruben', score: 1100 } });
+  assert.equal(s.entries[0].identity, null);
+  assert.equal(s.self.identity, null);
+});
+
 test('geen eigen ranking: volgorde van de payload wordt nooit hersorteerd', () => {
   const shuffled = [TOP[2], TOP[0], TOP[1]];
   const s = standingsFrom({ top: shuffled, self: null });

@@ -9,6 +9,7 @@
 
 import { podiumTop3 } from './standings-model.mjs';
 import { createRoundaView } from './rounda.mjs';
+import { identityText, identityFlagUrl } from './identity-display.mjs';
 
 // S20 (04): "korte, overslaanbare 3→2→1-opbouw". Geen motion-tokens (thema 3
 // levert die pas) — een vaste vertraging in dezelfde orde als de andere
@@ -163,7 +164,7 @@ export function createPodiumView({ root, t, isHost, capabilities, onRematch, onN
     return t('podium.shareResult').replace('{score}', String(self.score));
   }
 
-  function update(standings) {
+  function update(standings, { lang = 'nl' } = {}) {
     currentStandings = standings;
     clearRevealTimers();
     clearTimeout(confettiTimer);
@@ -193,7 +194,24 @@ export function createPodiumView({ root, t, isHost, capabilities, onRematch, onN
       label.setAttribute('aria-hidden', 'true');
       const name = document.createElement('span');
       name.className = 'podium-name';
-      name.textContent = entry.effectiveName;
+      // spelersidentiteit.md, stap 5: zelfde regel als scoreboard.mjs — het
+      // paar wint, gerenderd in de eigen apptaal, `effectiveName` is de terugval.
+      // Zelfde nameLabel-constructie als scoreboard.mjs: de vlag blijft een
+      // los kind i.p.v. dat een latere `textContent`-toewijzing 'm wegveegt.
+      const nameLabel = document.createElement('span');
+      nameLabel.className = 'podium-name-label';
+      const identityLabel = identityText(entry.identity, lang);
+      nameLabel.textContent = identityLabel ?? entry.effectiveName;
+      const identityFlagSrc = identityFlagUrl(entry.identity);
+      if (identityFlagSrc !== null) {
+        const identityFlag = document.createElement('img');
+        identityFlag.className = 'podium-name-flag';
+        identityFlag.src = identityFlagSrc;
+        identityFlag.alt = '';
+        name.append(identityFlag, nameLabel);
+      } else {
+        name.append(nameLabel);
+      }
       const score = document.createElement('span');
       score.className = 'podium-score';
       score.textContent = String(entry.score);

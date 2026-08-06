@@ -312,3 +312,18 @@
   text-align: center;
 }
 
+/* spelersidentiteit.md, stap 5: vlag vóór de eigen naam in het JIJ-blok
+   (zelf.mjs), alleen zichtbaar bij een gegenereerde identiteit. `.lobby-
+   self-row`/`.lobby-self-swatch` staan in 1c-overrides.css (visueel domein
+   van een andere agent, hier niet aangeraakt) — deze regel voegt alleen de
+   nieuwe klasse toe, zonder bestaande af te wijken. 34px/10px is
+   `.lobby-self-swatch`'s eigen maat/radius (1c-overrides.css), zodat de
+   vlag ernaast optisch bij het kleurvlakje aansluit. */
+.lobby-self-flag {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+

@@ -61,14 +61,39 @@
 
 .scoreboard-name,
 .podium-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   /* S15: nu drie kinderen in de rij (naam, beweging, score) i.p.v. twee —
      zonder dit neemt de naam z'n intrinsieke breedte en verdringt de
      bewegingsbadge, i.p.v. zelf af te knippen. */
+  display: flex;
+  align-items: center;
   flex: 1;
   min-width: 0;
+}
+
+/* spelersidentiteit.md, stap 5: de vlag is sinds dat werk een los kind naast
+   de tekst (`.scoreboard-name-label`) i.p.v. dat `.scoreboard-name` zelf de
+   tekst draagt — de ellipsis verhuist dus mee naar het label. */
+.scoreboard-name-label,
+.podium-name-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Vlag vóór de gerenderde identiteitsnaam ("Bulgaarse Koe") — puur
+   decoratief, `alt=""` (identity-display.mjs kiest het pad, de tekst
+   ernaast draagt de betekenis, zelfde regel als player-chip.mjs's
+   vorm-vlakje). */
+.scoreboard-name-flag,
+.podium-name-flag {
+  flex: none;
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 0.35em;
+  object-fit: cover;
+  border-radius: 2px;
 }
 
 /* S15: bewegingsbadge (↑2/↓1/—) tussen naam en score. Geen eigen kleurrol

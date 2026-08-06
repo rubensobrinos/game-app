@@ -195,6 +195,11 @@ export function createEventController({ state, roomHeader, renderBanner, renderP
     if (typeof payload.self.color === 'string') {
       state.participantColors.set(payload.self.playerId, payload.self.color);
     }
+    // spelersidentiteit.md, stap 5: `identity` reist mee als apart veld naast
+    // `effectiveName` (zelfde patroon als `participantColors` hierboven) —
+    // de view rendert 'm zelf in de apptaal (identity-display.mjs), leest
+    // hier dus nooit gerenderde tekst.
+    state.participantIdentities.set(payload.self.playerId, payload.self.identity ?? null);
   } else if (payload?.self) {
     state.selfInfo = payload.self; // host zonder spelersrol: roles wel bekend, playerId null
   }
@@ -223,17 +228,22 @@ export function createEventController({ state, roomHeader, renderBanner, renderP
       if (typeof delta.color === 'string') {
         state.participantColors.set(delta.playerId, delta.color);
       }
+      // spelersidentiteit.md, stap 5: `identity` mee met dezelfde twee delta's
+      // als de naam hierboven — een rename wist 'm altijd (`delta.identity`
+      // is dan al `null`, server bepaalt dat), een join zet 'm.
+      state.participantIdentities.set(delta.playerId, delta.identity ?? null);
       // Scherm 3 (40B): een rename van jezélf moet ook `state.selfInfo` verversen
       // — daar leest de lobby (`selfName`) uit, en die werd tot nu toe
       // alleen bij `room:state` gezet.
       if (delta.type === 'rename' && state.selfInfo?.playerId === delta.playerId) {
-        state.selfInfo = { ...state.selfInfo, effectiveName: delta.effectiveName ?? state.selfInfo.effectiveName };
+        state.selfInfo = { ...state.selfInfo, effectiveName: delta.effectiveName ?? state.selfInfo.effectiveName, identity: delta.identity ?? null };
       }
     }
   } else if (delta.type === 'leave' || delta.type === 'kick') {
     if (typeof delta.playerId === 'string') {
       state.participants.delete(delta.playerId);
       state.participantColors.delete(delta.playerId);
+      state.participantIdentities.delete(delta.playerId);
     }
   }
 }

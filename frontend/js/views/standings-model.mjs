@@ -34,6 +34,10 @@ export function standingsFrom(payload) {
       position: serverPosition(row) ?? index + 1,
       playerId: row.playerId,
       effectiveName: typeof row.effectiveName === 'string' ? row.effectiveName : '',
+      // spelersidentiteit.md, stap 5: het paar, niet gerenderde tekst — de
+      // view rendert 'm zelf in de apptaal (identity-display.mjs) en valt
+      // terug op `effectiveName` als deze `null` is.
+      identity: row.identity ?? null,
       score: typeof row.score === 'number' ? row.score : 0,
       isSelf: row.playerId === selfId,
     }));
@@ -46,6 +50,7 @@ export function standingsFrom(payload) {
           // valt); die wint van wat er toevallig in de toplijst staat.
           position: serverPosition(payload.self) ?? (selfInTop !== null ? selfInTop.position : null),
           effectiveName: typeof payload.self.effectiveName === 'string' ? payload.self.effectiveName : '',
+          identity: payload.self.identity ?? null,
           score: typeof payload.self.score === 'number' ? payload.self.score : 0,
         })
       : null;

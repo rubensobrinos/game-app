@@ -15,6 +15,7 @@
 
 import { participantPresentationFor } from '../participant-presentation.mjs';
 import { createPlayerChip, SERVER_KLEUREN } from '../../player-chip.mjs';
+import { identityText, identityFlagUrl } from '../identity-display.mjs';
 
 // T5-9: hoeveel van de meest recente joins zichtbaar blijven in de
 // samengevouwen 'aggregate'-weergave (36+ spelers) vóórdat "Bekijk alle
@@ -93,7 +94,7 @@ export function createSpelersView({ t, tCount, isHost, onKickPlayer, onHostRenam
 
   render();
 
-  /** @param {{ playerCount: number, participants: Map<string,string>, canKick?: boolean, participantColors?: Map<string,string> }} model */
+  /** @param {{ playerCount: number, participants: Map<string,string>, canKick?: boolean, participantColors?: Map<string,string>, participantIdentities?: Map<string,{country:string,word:string}|null>, lang?: string }} model */
   function update(model) {
     lastModel = model;
     render();
@@ -149,13 +150,29 @@ export function createSpelersView({ t, tCount, isHost, onKickPlayer, onHostRenam
       }
     }
     for (const [playerId, name] of model.participants) {
+      // spelersidentiteit.md, stap 5: `identity` (paar) wint van de kale
+      // naam, gerenderd in de eigen apptaal — `null` (zelfgekozen naam, of
+      // een speler van vóór stap 6) valt terug op `name`.
+      const identity = model.participantIdentities?.get(playerId) ?? null;
+      const displayName = identityText(identity, model.lang ?? 'nl') ?? name;
+      const flagSrc = identityFlagUrl(identity);
       const existing = renderedRows.get(playerId);
-      if (existing !== undefined) {
+      if (existing !== undefined && existing.hasFlag === (flagSrc !== null)) {
         // Rename-delta: naam (en kickknop-label) bijwerken zonder de rij
         // opnieuw te animeren.
-        existing.label.textContent = name;
-        existing.kickButton?.setAttribute('aria-label', `${t('hostbar.kick')} ${name}`);
+        existing.label.textContent = displayName;
+        existing.kickButton?.setAttribute('aria-label', `${t('hostbar.kick')} ${displayName}`);
         continue;
+      }
+      if (existing !== undefined) {
+        // player:rename wist een eerder toegekende identiteit altijd (nooit
+        // andersom, zie de toelichting bij `finalizeIdentity` in het
+        // servercompositie- en mockpad) — de rij heeft dan een vlag-DOM-node
+        // die niet meer klopt. Dat gebeurt hooguit één keer per speler, dus
+        // eenvoudiger om de rij opnieuw op te bouwen dan losse insert/remove-
+        // logica voor een overgang die maar één kant op gaat.
+        existing.item.remove();
+        renderedRows.delete(playerId);
       }
       const item = document.createElement('li');
       item.className = 'lobby-player lobby-player-enter';
@@ -167,7 +184,12 @@ export function createSpelersView({ t, tCount, isHost, onKickPlayer, onHostRenam
       // namen kunnen dubbel zijn. Wie jij bent staat al in de eigen regel
       // ("Je speelt als …") — een tweede markering op naam zou de verkeerde
       // rij kunnen raken.
-      const chip = createPlayerChip({ name, playerId, color: model.participantColors?.get(playerId) ?? null });
+      const chip = createPlayerChip({
+        name: displayName,
+        playerId,
+        color: model.participantColors?.get(playerId) ?? null,
+        flagUrl: flagSrc,
+      });
       const label = chip.querySelector('.player-chip-name');
       item.appendChild(chip);
       let kickButton;
@@ -288,7 +310,7 @@ export function createSpelersView({ t, tCount, isHost, onKickPlayer, onHostRenam
         item.append(rowMenuButton, rowMenu);
       }
       list.appendChild(item);
-      renderedRows.set(playerId, { item, label, kickButton });
+      renderedRows.set(playerId, { item, label, kickButton, hasFlag: flagSrc !== null });
     }
 
     // T5-9: in de samengevouwen 'aggregate'-weergave alleen de meest

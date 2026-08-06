@@ -551,3 +551,30 @@ test('streak: zonder uitslag (herladen middenin de stand) staat er niets', async
   view.update(standings, { round: { result: null }, pacing: null, streak: 7 });
   assert.equal(vind(root, 'reveal-streak').hidden, true);
 });
+
+// spelersidentiteit.md, stap 5: `identity` (paar) wint van `effectiveName`,
+// gerenderd in de eigen apptaal — en NIET in de servertalige `effectiveName`
+// die hier expliciet op NL-tekst staat om dat verschil zichtbaar te maken.
+test('spelersidentiteit stap 5: tussenstand toont de identiteit gerenderd in de apptaal, met vlag', async () => {
+  stubDom();
+  const { createScoreboardView } = await import('./scoreboard.mjs?identity-nl');
+  const root = document.createElement('div');
+  const view = createScoreboardView({ root, t, tCount });
+  const standingsMetIdentity = {
+    entries: [
+      { position: 1, playerId: 'p1', effectiveName: 'Bulgaarse Koe', identity: { country: 'bg', word: 'cow' }, score: 6240, isSelf: false },
+      { position: 2, playerId: 'p2', effectiveName: 'Jij', identity: null, score: 4120, isSelf: true },
+    ],
+    self: { position: 2, playerId: 'p2', effectiveName: 'Jij', identity: null, score: 4120 },
+  };
+  view.update(standingsMetIdentity, { round: { result: null }, pacing: null, lang: 'es' });
+
+  const rijen = root.children.find((k) => k.className === 'scoreboard-list').children;
+  const eersteNaam = vind(rijen[0], 'scoreboard-name-label');
+  assert.equal(eersteNaam.textContent, 'vaca búlgara');
+  assert.equal(vind(rijen[0], 'scoreboard-name-flag').src, 'flags/bg.png');
+  // Zonder identity (zelfgekozen naam): gewoon `effectiveName`, geen vlag.
+  const tweedeNaam = vind(rijen[1], 'scoreboard-name-label');
+  assert.equal(tweedeNaam.textContent, 'Jij');
+  assert.equal(vind(rijen[1], 'scoreboard-name-flag'), null);
+});

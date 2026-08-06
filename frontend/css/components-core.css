@@ -353,6 +353,16 @@ button.is-loading::after {
   /* Achtergrondkleur komt inline; hier alleen de vorm en de maat. */
 }
 
+/* spelersidentiteit.md, stap 5: vlag naast het vorm-vlakje, alleen bij een
+   gegenereerde identiteit (`createPlayerChip`'s optionele `flagUrl`). */
+.player-chip-flag {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  object-fit: cover;
+  border-radius: 2px;
+}
+
 .player-chip-name {
   /* `min-width: 0` moet óók op het flex-item zelf, niet alleen op de
      container: een flex-item krimpt standaard niet onder zijn inhoudsbreedte,

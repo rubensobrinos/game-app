@@ -107,10 +107,10 @@ export const SERVER_KLEUREN = Object.freeze({
 });
 
 /**
- * @param {{ name: string, playerId: string, isSelf?: boolean, color?: string | null }} speler
+ * @param {{ name: string, playerId: string, isSelf?: boolean, color?: string | null, flagUrl?: string | null }} speler
  * @returns {HTMLElement}
  */
-export function createPlayerChip({ name, playerId, isSelf = false, color = null }) {
+export function createPlayerChip({ name, playerId, isSelf = false, color = null, flagUrl = null }) {
   const chip = document.createElement('span');
   chip.className = isSelf ? 'player-chip is-self' : 'player-chip';
 
@@ -126,6 +126,19 @@ export function createPlayerChip({ name, playerId, isSelf = false, color = null 
   // mag nooit de enige drager zijn, en dat is hij hier ook niet.
   merk.setAttribute('aria-hidden', 'true');
 
+  chip.append(merk);
+
+  // spelersidentiteit.md, stap 5: vlag bij een gegenereerde identiteit
+  // ("Bulgaarse Koe") — `null` bij een zelfgekozen naam, dus dan blijft dit
+  // gewoon weg i.p.v. een lege plek te reserveren.
+  if (typeof flagUrl === 'string') {
+    const flag = document.createElement('img');
+    flag.className = 'player-chip-flag';
+    flag.src = flagUrl;
+    flag.alt = '';
+    chip.append(flag);
+  }
+
   const label = document.createElement('span');
   label.className = 'player-chip-name';
   // Altijd `textContent`: dit is gebruikersinvoer.
@@ -134,6 +147,6 @@ export function createPlayerChip({ name, playerId, isSelf = false, color = null 
   // screenreader en als tooltip — `05` §8.
   label.title = name;
 
-  chip.append(merk, label);
+  chip.append(label);
   return chip;
 }

@@ -40,14 +40,34 @@ function stubDom() {
       removeAttribute: (k) => el._attrs.delete(k),
       addEventListener: (soort, fn) => el._listeners.set(soort, fn),
       removeEventListener: (soort) => el._listeners.delete(soort),
-      append: (...k) => el.children.push(...k),
-      appendChild: (k) => (el.children.push(k), k),
-      insertBefore: (k) => (el.children.unshift(k), k),
-      querySelector: () => null,
+      append: (...k) => { k.forEach((kind) => { kind.parentNode = el; }); el.children.push(...k); },
+      appendChild: (k) => { k.parentNode = el; el.children.push(k); return k; },
+      insertBefore: (k) => { k.parentNode = el; el.children.unshift(k); return k; },
+      // spelers.mjs leest `chip.querySelector('.player-chip-name')` (echt
+      // DOM-gedrag: alleen afstammelingen, nooit `el` zelf) — hergebruikt
+      // `vind()` hieronder (functiedeclaraties zijn hoisted).
+      querySelector: (sel) => {
+        if (typeof sel === 'string' && sel.startsWith('.')) {
+          for (const kind of el.children) {
+            const raak = vind(kind, sel.slice(1));
+            if (raak !== null) return raak;
+          }
+        }
+        return null;
+      },
       querySelectorAll: () => [],
       focus: () => {},
       select: () => {},
-      remove: () => { el._verwijderd = true; },
+      // Echt DOM-gedrag: uit de children-array van de ouder halen, niet
+      // alleen markeren — anders vindt `vind()`/`querySelector` een
+      // "verwijderde" rij nog gewoon terug (spelersidentiteit.md stap 5's
+      // rebuild-pad in spelers.mjs leunt hierop).
+      remove: () => {
+        el._verwijderd = true;
+        if (el.parentNode?.children) {
+          el.parentNode.children = el.parentNode.children.filter((kind) => kind !== el);
+        }
+      },
       style: {},
       offsetWidth: 0,
     };
@@ -159,6 +179,38 @@ test('spelers.mjs staat op zichzelf: lege staat, dan een rij per deelnemer, met 
   assert.deepEqual(gekickt, ['p_1']);
 });
 
+test('spelersidentiteit stap 5: spelers.mjs toont de identiteit gerenderd in de apptaal, met vlag; een rename wist hem weer', async () => {
+  stubDom();
+  const { createSpelersView } = await import(`./spelers.mjs?t=${Math.random()}`);
+  const view = createSpelersView({
+    t, tCount, isHost: false,
+    onKickPlayer: () => {},
+    onHostRenamePlayer: () => {},
+    onHostRecolorPlayer: () => {},
+  });
+
+  view.update({
+    playerCount: 1,
+    participants: new Map([['p_1', 'Bulgaarse Koe']]),
+    participantIdentities: new Map([['p_1', { country: 'bg', word: 'cow' }]]),
+    lang: 'es',
+  });
+  let rij = vind(view.list, 'lobby-player');
+  assert.equal(vind(rij, 'player-chip-name').textContent, 'vaca búlgara');
+  assert.equal(vind(rij, 'player-chip-flag').src, 'flags/bg.png');
+
+  // player:rename wist de identiteit altijd — de rij valt terug op de kale naam.
+  view.update({
+    playerCount: 1,
+    participants: new Map([['p_1', 'Nieuwe naam']]),
+    participantIdentities: new Map([['p_1', null]]),
+    lang: 'es',
+  });
+  rij = vind(view.list, 'lobby-player');
+  assert.equal(vind(rij, 'player-chip-name').textContent, 'Nieuwe naam');
+  assert.equal(vind(rij, 'player-chip-flag'), null);
+});
+
 // ── zelf.mjs ─────────────────────────────────────────────────────────────
 
 test('zelf.mjs staat op zichzelf: selfSection verschijnt alleen voor een speler, hernoemen roept onRename aan', async () => {
@@ -180,6 +232,28 @@ test('zelf.mjs staat op zichzelf: selfSection verschijnt alleen voor een speler,
   klik(vind(view.selfSection, 'lobby-self-save'));
   await Promise.resolve();
   assert.deepEqual(hernoemd, ['Nieuwe naam']);
+});
+
+test('spelersidentiteit stap 5: zelf.mjs toont de eigen identiteit gerenderd in de apptaal, met vlag', async () => {
+  stubDom();
+  const { createZelfView } = await import(`./zelf.mjs?t=${Math.random()}`);
+  const view = createZelfView({ t, isHost: false, onRename: () => {}, onRecolor: () => {} });
+
+  view.update({
+    selfIsPlayer: true,
+    selfName: 'Bulgaarse Koe',
+    selfColor: 'orange',
+    selfIdentity: { country: 'bg', word: 'cow' },
+    lang: 'en',
+  });
+  assert.equal(vind(view.selfSection, 'lobby-self-name').textContent, 'Bulgarian Cow');
+  assert.equal(vind(view.selfSection, 'lobby-self-flag').hidden, false);
+  assert.equal(vind(view.selfSection, 'lobby-self-flag').src, 'flags/bg.png');
+
+  // Zelfgekozen naam (identity: null): kale naam, vlag verborgen.
+  view.update({ selfIsPlayer: true, selfName: 'Ruben', selfColor: 'orange', selfIdentity: null, lang: 'en' });
+  assert.equal(vind(view.selfSection, 'lobby-self-name').textContent, 'Ruben');
+  assert.equal(vind(view.selfSection, 'lobby-self-flag').hidden, true);
 });
 
 // ── instellingen.mjs ─────────────────────────────────────────────────────

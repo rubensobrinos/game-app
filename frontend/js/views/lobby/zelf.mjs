@@ -10,6 +10,7 @@
 // nog een element.
 
 import { SERVER_KLEUREN } from '../../player-chip.mjs';
+import { identityText, identityFlagUrl } from '../identity-display.mjs';
 
 export function createZelfView({ t, isHost, onRename, onRecolor }) {
   // Spelerslobby-copy (09 §6) — additief naast de host-kant, geen vervanging:
@@ -49,6 +50,13 @@ export function createZelfView({ t, isHost, onRename, onRecolor }) {
   selfLead.className = 'lobby-self-lead';
   const selfRow = document.createElement('div');
   selfRow.className = 'lobby-self-row';
+  // spelersidentiteit.md, stap 5: vlag vóór de eigen naam, alleen zichtbaar
+  // bij een gegenereerde identiteit — zelfde `identityFlagUrl()` als
+  // spelers.mjs/scoreboard.mjs/podium.mjs, geen eigen logica.
+  const selfFlag = document.createElement('img');
+  selfFlag.className = 'lobby-self-flag';
+  selfFlag.alt = '';
+  selfFlag.hidden = true;
   const selfName = document.createElement('span');
   selfName.className = 'lobby-self-name';
   const renameButton = document.createElement('button');
@@ -83,7 +91,7 @@ export function createZelfView({ t, isHost, onRename, onRecolor }) {
     colorsOpen = !colorsOpen;
     renderSelfSection();
   });
-  selfRow.append(selfSwatch, selfName, renameButton, renameInput, renameSave);
+  selfRow.append(selfSwatch, selfFlag, selfName, renameButton, renameInput, renameSave);
   // Feedback punt 13: kleurkiezer — acht tikbare stippen, serverpalet.
   const colorRow = document.createElement('div');
   colorRow.className = 'lobby-self-colors';
@@ -220,7 +228,7 @@ export function createZelfView({ t, isHost, onRename, onRecolor }) {
 
   render();
 
-  /** @param {{ selfIsPlayer?: boolean, selfName?: string|null, selfColor?: string|null }} model */
+  /** @param {{ selfIsPlayer?: boolean, selfName?: string|null, selfColor?: string|null, selfIdentity?: {country:string,word:string}|null, lang?: string }} model */
   function update(model) {
     // Scherm 3 (40B) + feedback 4 aug: het JIJ-blok is de plek voor naam,
     // kleur en wachtstand — voor iedereen mét spelersrol, ook de meespelende
@@ -228,7 +236,15 @@ export function createZelfView({ t, isHost, onRename, onRecolor }) {
     playerSelf.hidden = true;
     playerWaitingForHost.hidden = true;
     selfIsPlayer = model.selfIsPlayer === true;
-    selfName.textContent = model.selfName ?? '';
+    // spelersidentiteit.md, stap 5: `identity` wint van `selfName`, gerenderd
+    // in de eigen apptaal — `null` (zelfgekozen naam) valt terug op de kale naam.
+    const identityLabel = identityText(model.selfIdentity ?? null, model.lang ?? 'nl');
+    selfName.textContent = identityLabel ?? (model.selfName ?? '');
+    const selfFlagSrc = identityFlagUrl(model.selfIdentity ?? null);
+    selfFlag.hidden = selfFlagSrc === null;
+    if (selfFlagSrc !== null) {
+      selfFlag.src = selfFlagSrc;
+    }
     const selfHex = model.selfColor && model.selfColor in SERVER_KLEUREN ? SERVER_KLEUREN[model.selfColor] : null;
     selfSwatch.style.backgroundColor = selfHex ?? 'transparent';
     // Blijft staan zonder kleur: het vlakje is sinds C2 de enige ingang naar
