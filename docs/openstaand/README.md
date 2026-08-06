@@ -38,6 +38,12 @@ Acht opdrachten, één bestand per opdracht, volgorde en status in
 
 | [Verlopen room vs. onbekende code](verlopen-vs-onbekend.md) | klaar om te starten |
 
+## Ideeën
+
+| Wat | |
+| --- | --- |
+| [Uit de marktvergelijking](uit-de-marktvergelijking.md) | vijf punten om op te pakken, vier bewust niet |
+
 ## Aanzetten
 
 | Wat | Wie |
