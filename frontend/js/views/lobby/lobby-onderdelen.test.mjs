@@ -179,7 +179,7 @@ test('spelers.mjs staat op zichzelf: lege staat, dan een rij per deelnemer, met 
   assert.deepEqual(gekickt, ['p_1']);
 });
 
-test('spelersidentiteit stap 5: spelers.mjs toont de identiteit gerenderd in de apptaal, met vlag; een rename wist hem weer', async () => {
+test('spelersidentiteit stap 5: spelers.mjs toont de identiteit gerenderd in de apptaal; een rename wist hem weer', async () => {
   stubDom();
   const { createSpelersView } = await import(`./spelers.mjs?t=${Math.random()}`);
   const view = createSpelersView({
@@ -197,7 +197,10 @@ test('spelersidentiteit stap 5: spelers.mjs toont de identiteit gerenderd in de 
   });
   let rij = vind(view.list, 'lobby-player');
   assert.equal(vind(rij, 'player-chip-name').textContent, 'vaca búlgara');
-  assert.equal(vind(rij, 'player-chip-flag').src, 'flags/bg.png');
+  // Besluit producteigenaar (6 aug 2026): geen landvlag meer naast een
+  // speler in de lobby — de kleur is het enige merkteken, de landnaam zit
+  // al in de identiteit.
+  assert.equal(vind(rij, 'player-chip-flag'), null);
 
   // player:rename wist de identiteit altijd — de rij valt terug op de kale naam.
   view.update({
@@ -234,7 +237,7 @@ test('zelf.mjs staat op zichzelf: selfSection verschijnt alleen voor een speler,
   assert.deepEqual(hernoemd, ['Nieuwe naam']);
 });
 
-test('spelersidentiteit stap 5: zelf.mjs toont de eigen identiteit gerenderd in de apptaal, met vlag', async () => {
+test('spelersidentiteit stap 5: zelf.mjs toont de eigen identiteit gerenderd in de apptaal', async () => {
   stubDom();
   const { createZelfView } = await import(`./zelf.mjs?t=${Math.random()}`);
   const view = createZelfView({ t, isHost: false, onRename: () => {}, onRecolor: () => {} });
@@ -247,13 +250,15 @@ test('spelersidentiteit stap 5: zelf.mjs toont de eigen identiteit gerenderd in 
     lang: 'en',
   });
   assert.equal(vind(view.selfSection, 'lobby-self-name').textContent, 'Bulgarian Cow');
-  assert.equal(vind(view.selfSection, 'lobby-self-flag').hidden, false);
-  assert.equal(vind(view.selfSection, 'lobby-self-flag').src, 'flags/bg.png');
+  // Besluit producteigenaar (6 aug 2026): geen landvlag meer in het
+  // JIJ-blok — de kleur blijft het enige merkteken, en de vrijgekomen
+  // ruimte gaat naar de naam (die anders kon afkappen).
+  assert.equal(vind(view.selfSection, 'lobby-self-flag'), null);
 
-  // Zelfgekozen naam (identity: null): kale naam, vlag verborgen.
+  // Zelfgekozen naam (identity: null): kale naam.
   view.update({ selfIsPlayer: true, selfName: 'Ruben', selfColor: 'orange', selfIdentity: null, lang: 'en' });
   assert.equal(vind(view.selfSection, 'lobby-self-name').textContent, 'Ruben');
-  assert.equal(vind(view.selfSection, 'lobby-self-flag').hidden, true);
+  assert.equal(vind(view.selfSection, 'lobby-self-flag'), null);
 });
 
 // ── instellingen.mjs ─────────────────────────────────────────────────────
