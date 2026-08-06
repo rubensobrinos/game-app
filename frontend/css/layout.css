@@ -41,8 +41,14 @@
    zou de pagina er langs de zijkanten alsnog doorheen scrollen. Deze laag
    loopt door tot de volledige viewportbreedte en ligt (z-index: -1, binnen de
    stapelcontext die #app-header zelf al maakt) achter de knoppen maar vóór de
-   pagina. */
-#app-header::before {
+   pagina.
+
+   `:has(.room-header)` staat hier óók, en dat ontbrak (producteigenaar,
+   6 aug 2026: "die zwarte balk is er nog steeds"). De regel hierboven werd wél
+   aan een lopende sessie gekoppeld, deze doortrekkende laag niet — dus op home
+   schilderde hij alsnog een vol zwart vlak van 44px over de lime gloed heen.
+   Precies de band die de koppeling hierboven had moeten wegnemen. */
+#app-header:has(.room-header)::before {
   content: '';
   position: absolute;
   z-index: -1;
