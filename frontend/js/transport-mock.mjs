@@ -50,7 +50,7 @@ import { isPlayableGameType } from '../../shared/content/game-catalog.mjs';
 
 import { ProtocolError } from './mock/protocol-error.mjs';
 import { randomToken, randomId } from './mock/ids.mjs';
-import { normalizeDisplayName, generateSuggestedName, finalizeName } from './mock/names.mjs';
+import { normalizeDisplayName, generateSuggestedName, finalizeName, finalizeIdentity } from './mock/names.mjs';
 import {
   DEFAULT_GAME_TYPE,
   RENDERER_VERSION,
@@ -172,11 +172,13 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
     const roles = hostParticipates ? ['host', 'player'] : ['host'];
     let playerId = null;
     let effectiveName = null;
+    let identity = null;
 
     if (hostParticipates) {
       playerId = randomId('p');
       effectiveName = finalizeName(requestedDisplayName);
-      addPlayer(ctx.room, playerId, effectiveName);
+      identity = finalizeIdentity(requestedDisplayName);
+      addPlayer(ctx.room, playerId, effectiveName, identity);
     }
 
     ctx.room.sessions.set(sessionToken, { roles, playerId, actionCache: new Map() });
@@ -190,6 +192,7 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
       roles,
       playerId,
       effectiveName,
+      identity,
       state: buildSnapshot(ctx.room, sessionToken),
     };
   }
@@ -231,15 +234,17 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
     }
 
     const playerId = randomId('p');
-    const effectiveName = finalizeName(normalizeDisplayName(safeRequest.displayName), target);
-    addPlayer(target, playerId, effectiveName);
+    const normalizedDisplayName = normalizeDisplayName(safeRequest.displayName);
+    const effectiveName = finalizeName(normalizedDisplayName, target);
+    const identity = finalizeIdentity(normalizedDisplayName, target);
+    addPlayer(target, playerId, effectiveName, identity);
 
     const sessionToken = randomToken();
     target.sessions.set(sessionToken, { roles: ['player'], playerId, actionCache: new Map() });
 
     broadcast(target, 'room:player-changed', {
       playerCount: countActivePlayers(target),
-      delta: { type: 'join', playerId, effectiveName, color: target.players.get(playerId)?.color },
+      delta: { type: 'join', playerId, effectiveName, identity, color: target.players.get(playerId)?.color },
     }, ctx);
 
     return {
@@ -249,6 +254,7 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
       roles: ['player'],
       playerId,
       effectiveName,
+      identity,
       state: buildSnapshot(target, sessionToken),
     };
   }
@@ -574,6 +580,8 @@ function buildSnapshot(room, sessionToken, sessionArg) {
             roles: session.roles,
             playerId: session.playerId,
             effectiveName: player?.effectiveName ?? null,
+            // spelersidentiteit.md, stap 4/5.
+            identity: player?.identity ?? null,
             color: player?.color ?? null,
             score: player?.score ?? 0,
             position: player !== undefined ? (findRanked(ranked, session.playerId)?.rank ?? null) : null,

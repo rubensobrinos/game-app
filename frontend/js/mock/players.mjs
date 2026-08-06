@@ -21,10 +21,14 @@ export const MOCK_PLAYER_COLORS = Object.freeze([
   'blue', 'teal', 'indigo', 'violet', 'rose', 'moss', 'rust', 'slate',
 ]);
 
-export function addPlayer(room, playerId, effectiveName) {
+export function addPlayer(room, playerId, effectiveName, identity = null) {
   room.players.set(playerId, {
     playerId,
     effectiveName,
+    // spelersidentiteit.md, stap 4/5: `null` bij een zelfgekozen naam, of een
+    // paar zonder gerenderde tekst — elke client rendert het zelf in zijn
+    // eigen apptaal (frontend/js/views/identity-display.mjs).
+    identity,
     color: MOCK_PLAYER_COLORS[room.players.size % MOCK_PLAYER_COLORS.length],
     score: 0,
     // §A3: de gedeelde rangschikker (shared/rules/ranking.mjs) heeft deze twee
@@ -87,6 +91,7 @@ export function toScoreboardEntry(player) {
   return {
     playerId: player.playerId,
     effectiveName: player.effectiveName,
+    identity: player.identity ?? null,
     score: player.score,
     rank: player.rank,
   };

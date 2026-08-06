@@ -899,6 +899,90 @@ test('besluit 42: de mock kent exact hetzelfde gesloten kleurenpalet als de serv
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// docs/openstaand/spelersidentiteit.md, stap 4/5: solo/mock moet hetzelfde
+// identiteitsgedrag tonen als de echte server (server/composition/room/
+// deelnemers.test-equivalenten) — anders bewijst een mockdoorloop het
+// verkeerde, zelfde reden als besluit 42 hierboven.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('createGame zonder displayName geeft de meespelende host een identiteitspaar', async () => {
+  const transport = createMockTransport();
+  const created = await transport.createGame({ config: {}, hostParticipates: true, displayName: null });
+  assert.equal(typeof created.identity?.country, 'string');
+  assert.equal(typeof created.identity?.word, 'string');
+  assert.equal(created.state.self.identity?.country, created.identity.country);
+});
+
+test('createGame MET displayName geeft geen identiteit — die vervangt alleen een gegenereerde naam', async () => {
+  const transport = createMockTransport();
+  const created = await transport.createGame({ config: {}, hostParticipates: true, displayName: 'Ruben' });
+  assert.equal(created.effectiveName, 'Ruben');
+  assert.equal(created.identity, null);
+  assert.equal(created.state.self.identity, null);
+});
+
+test('createGame met hostParticipates: false geeft geen identiteit (geen Player, dus ook geen paar)', async () => {
+  const transport = createMockTransport();
+  const created = await transport.createGame({ hostParticipates: false });
+  assert.equal(created.playerId, null);
+  assert.equal(created.identity, null);
+});
+
+test('joinGame zonder displayName krijgt een uniek paar, nooit hetzelfde als een reeds aanwezige speler', async () => {
+  const transport = createMockTransport();
+  const host = await transport.createGame({ config: {}, hostParticipates: true, displayName: null });
+  assert.notEqual(host.identity, null);
+
+  const joined = await transport.joinGame({ gameCode: host.gameCode, displayName: null, joinSource: 'code' });
+  assert.notEqual(joined.identity, null);
+  // DE VALKUIL: vergelijk het PAAR, niet de gerenderde tekst (zie
+  // shared/rules/identity-processing.mjs).
+  assert.notDeepEqual(joined.identity, host.identity);
+});
+
+test('joinGame MET displayName geeft geen identiteit', async () => {
+  const transport = createMockTransport();
+  const host = await transport.createGame({ config: {}, hostParticipates: true, displayName: null });
+  const joined = await transport.joinGame({ gameCode: host.gameCode, displayName: 'Sanne', joinSource: 'code' });
+  assert.equal(joined.effectiveName, 'Sanne');
+  assert.equal(joined.identity, null);
+});
+
+test('player:rename wist een eerder toegekende identiteit', async () => {
+  const transport = createMockTransport();
+  const created = await transport.createGame({ config: {}, hostParticipates: true, displayName: null });
+  assert.notEqual(created.identity, null);
+
+  const conn = transport.connect(created.sessionToken, { onEvent: () => {} });
+  await Promise.resolve();
+  const ack = await conn.send('player:rename', 'act_rename', { displayName: 'Nieuwe naam' });
+  assert.equal(ack.payload.effectiveName, 'Nieuwe naam');
+  assert.equal(ack.payload.identity, null);
+
+  const state = await transport.fetchState(created.gameCode, created.sessionToken);
+  assert.equal(state.self.identity, null);
+});
+
+test('room:player-changed draagt identity mee bij join en rename (net als de echte server)', async () => {
+  const transport = createMockTransport();
+  const host = await transport.createGame({ config: {}, hostParticipates: true, displayName: null });
+  const events = [];
+  const hostConn = transport.connect(host.sessionToken, { onEvent: (e) => events.push(e) });
+  await Promise.resolve();
+
+  const joined = await transport.joinGame({ gameCode: host.gameCode, displayName: null, joinSource: 'code' });
+  const joinEvent = events.find((e) => e.event === 'room:player-changed' && e.payload.delta.type === 'join');
+  assert.deepEqual(joinEvent.payload.delta.identity, joined.identity);
+
+  const joinedConn = transport.connect(joined.sessionToken, { onEvent: () => {} });
+  await Promise.resolve();
+  await joinedConn.send('player:rename', 'act_rename', { displayName: 'Nieuwe naam' });
+  const renameEvent = events.find((e) => e.event === 'room:player-changed' && e.payload.delta.type === 'rename');
+  assert.equal(renameEvent.payload.delta.identity, null);
+  void hostConn;
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Ronde 3, fase 3 — "solo overleeft reload": `createMockTransport` kan een
 // eerder opgeslagen snapshot terugkrijgen (`restoreState`) en meldt elke
 // gebeurtenis die een verbonden sessie ziet aan `onStateChange`. Deze tests

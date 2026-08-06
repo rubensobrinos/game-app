@@ -107,11 +107,15 @@ export function renamePlayer(target, playerId, displayName, bypassRenameLimit = 
   }
   player.effectiveName = finalizeName(normalizeDisplayName(displayName), target);
   player.hasRenamed = true;
+  // spelersidentiteit.md, punt 2: player:rename is altijd een zelfgekozen
+  // naam in deze mock (er is geen lege/profane-terugval-tak zoals bij de
+  // echte server) — een eerder toegekende identiteit vervalt dus altijd.
+  player.identity = null;
   broadcast(target, 'room:player-changed', {
     playerCount: countActivePlayers(target),
-    delta: { type: 'rename', playerId, effectiveName: player.effectiveName },
+    delta: { type: 'rename', playerId, effectiveName: player.effectiveName, identity: null },
   }, ctx);
-  return { effectiveName: player.effectiveName };
+  return { effectiveName: player.effectiveName, identity: null };
 }
 
 export function recolorPlayer(target, playerId, color, ctx) {
