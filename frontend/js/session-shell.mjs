@@ -22,40 +22,17 @@
 // opgevraagd moet worden ná een geslaagde reconnect (`nextActionFor` →
 // `request-snapshot`, PROTOCOL.md §Reconnect punt 5 — snapshot boven events).
 
-import { initialMatchPhaseState, applyServerEvent } from '../../client/flow/match-phase-state.mjs';
-import {
-  initialReconnectState,
-  transition as reconnectTransition,
-  nextActionFor as reconnectNextAction,
-} from '../../client/flow/reconnect-state.mjs';
+import { initialMatchPhaseState } from '../../client/flow/match-phase-state.mjs';
+import { initialReconnectState } from '../../client/flow/reconnect-state.mjs';
 import { availableHostActions, hostActionRequest } from '../../client/flow/host-controls-state.mjs';
-import {
-  messageForConnectionStatus,
-  messageForPauseReason,
-  messageForSessionTermination,
-  messageForErrorCode,
-} from '../../client/flow/edge-case-messaging.mjs';
+import { messageForErrorCode } from '../../client/flow/edge-case-messaging.mjs';
 import { clearSession } from '../../client/flow/session-store.mjs';
 import { createErrorState } from './state-message.mjs';
 import { shareOpenedMethodFor } from '../../client/flow/share-actions.mjs';
 import { viewFor } from './view-switcher.mjs';
 import { estimateServerOffset, secondsRemaining } from './server-time.mjs';
-import {
-  initialRoundModel,
-  applyRoundStarted,
-  applyRoundResumed,
-  hydrateFromSnapshot,
-  selectOption,
-  selectChoice,
-  selectSide,
-  selectCard,
-  answerPayloadFor,
-  applyAnswerAccepted,
-  applyAnswerRejected,
-  applyProgress,
-  applyRoundEnded,
-} from './views/round-model.mjs';
-import { initialStreakModel, applyRoundResult as applyStreakResult } from './views/streak-model.mjs';
+import { initialRoundModel, selectOption, selectChoice, selectSide, selectCard, answerPayloadFor, applyAnswerRejected } from './views/round-model.mjs';
+import { initialStreakModel } from './views/streak-model.mjs';
 import { loadReactionsEnabled } from './preferences.mjs';
 import { getLang } from './i18n.mjs';
 import { standingsFrom, rankMovementFrom } from './views/standings-model.mjs';
@@ -65,18 +42,12 @@ import { createGameplayView } from './views/gameplay.mjs';
 import { createScoreboardView } from './views/scoreboard.mjs';
 import { createPodiumView } from './views/podium.mjs';
 import { createHostBar } from './views/hostbar.mjs';
-import { hostActionSlot } from './app-menu.mjs';
-import { createRoundaView } from './views/rounda.mjs';
+import { createConnectionController } from './session/verbinding.mjs';
+import { createHostBarController } from './session/hostbalk.mjs';
+import { createOverlayController } from './session/overlays.mjs';
+import { createEventController } from './session/events.mjs';
 
 const GAMEPLAY_TICK_MS = 250;
-const RECOVERED_MESSAGE_MS = 3000;
-// S19: hoelang onafgebroken disconnected/reconnecting vóór de terugvalknop
-// verschijnt. Geen brondocumentwaarde hiervoor — 8-10s uit de prompt, 9s als
-// middelste keuze.
-const RECONNECT_FALLBACK_MS = 9000;
-// T5-9: venster waarbinnen opeenvolgende room:player-changed-deltas worden
-// samengevoegd tot één render. `07` §9's eigen suggestie ("bv. 500 ms").
-const PLAYER_CHANGED_BATCH_MS = 500;
 // Fase 3 (agent 1, F1/F2): begrensde retry voor `requestFreshSnapshot()` bij
 // een niet-terminale fout (vrijwel altijd `NETWORK_ERROR` — zie de toelichting
 // daar). Zonder deze retry liet één netwerkhapering op precies déze aanroep
@@ -136,7 +107,6 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   reconnectRoundaRoot.className = 'session-reconnect-rounda';
   reconnectRoundaRoot.hidden = true;
   reconnectRoundaRoot.setAttribute('aria-hidden', 'true');
-  let reconnectRoundaView = null;
 
   // Geruststelling naast (nooit in plaats van) de disconnected-tekst — eigen
   // element, want de twee kunnen tegelijk zichtbaar zijn.
@@ -235,7 +205,6 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   const pauseRoundaRoot = document.createElement('div');
   pauseRoundaRoot.className = 'session-pause-rounda';
   pauseRoundaRoot.hidden = true;
-  let pauseRoundaView = null;
   pauseCardWrap.append(pauseCard, pauseRoundaRoot);
   pauseOverlay.appendChild(pauseCardWrap);
   pauseOverlay.addEventListener('keydown', (event) => {
@@ -247,57 +216,111 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   });
 
   root.append(banner, reconnectRoundaRoot, answerSavedNote, duplicateTabNotice, reconnectFallbackButton, phaseContainer, pauseOverlay);
-  restoreHostBarPosition();
 
-  let matchPhase = initialMatchPhaseState();
-  let reconnect = initialReconnectState();
-  let roundModel = initialRoundModel();
-  // 11-verzoek (BOUWSPRINT doel 4): sessieniveau, zie de toelichting bij
-  // `round:ended` hieronder voor waarom dit niet in gameplay.mjs zelf kan.
-  let streakModel = initialStreakModel();
-  let countdownEndsAt = null; // S07: alleen relevant tijdens matchPhase.phase === 'COUNTDOWN'
-  let standingsPayload = null;
-  // S15/prompt 08: vorige `standingsFrom()`-uitkomst, voor `rankMovementFrom()`
-  // (gedeeld met 07-reveal-en-sociale-headline.md's comeback-detectie, zelfde
-  // vorige-versus-huidige-vergelijking). `null` tot de tweede stand binnenkomt.
-  let previousStandings = null;
-  let participants = new Map();
-  // Feedbackronde 4 aug: serverkleur per speler (join/recolor-delta's +
-  // snapshot); aparte Map naast de namen zodat bestaande afnemers van
-  // `participants` (hostbar, scoreboard) ongewijzigd blijven.
-  let participantColors = new Map();
-  // Besluit 40 (scherm 2): de volledige actuele config — gevoed door
-  // room:state en room:config-changed; de lobby-instellingen lezen hieruit.
-  let roomConfig = null;
-  let playerCount = 0;
-  let locked = false;
-  let pacing = 'auto';
-  let selfInfo = null; // { roles, playerId, effectiveName } uit room:state
-  let joinUrl = '';
-  let offsetMs = 0;
-  let mountedViewName = null;
-  let mountedView = null;
-  let gameplayTimer = null;
-  let terminated = false;
-  // Vóór `transport.connect()` gedeclareerd, niet verderop bij
-  // `showRecoveredMessage`: de mock roept `onStatus('connecting')` al
-  // synchroon aan tijdens `connect()` zelf, dus `renderBanner()` (via
-  // `handleStatus`) leest deze twee al vóórdat de rest van dit bestand is
-  // uitgevoerd — anders een TDZ-`ReferenceError`.
-  let recoveredMessageTimer = null;
-  let showingRecoveredMessage = false;
-  let reconnectFallbackTimer = null;
-  let reconnectFallbackVisible = false;
+  const state = {
+    matchPhase: initialMatchPhaseState(),
+    reconnect: initialReconnectState(),
+    roundModel: initialRoundModel(),
+    // 11-verzoek (BOUWSPRINT doel 4): sessieniveau, zie de toelichting bij
+    // `round:ended` hieronder voor waarom dit niet in gameplay.mjs zelf kan.
+    streakModel: initialStreakModel(),
+    countdownEndsAt: null, // S07: alleen relevant tijdens matchPhase.phase === 'COUNTDOWN'
+    standingsPayload: null,
+    // S15/prompt 08: vorige `standingsFrom()`-uitkomst, voor `rankMovementFrom()`
+    // (gedeeld met 07-reveal-en-sociale-headline.md's comeback-detectie, zelfde
+    // vorige-versus-huidige-vergelijking). `null` tot de tweede stand binnenkomt.
+    previousStandings: null,
+    participants: new Map(),
+    // Feedbackronde 4 aug: serverkleur per speler (join/recolor-delta's +
+    // snapshot); aparte Map naast de namen zodat bestaande afnemers van
+    // `participants` (hostbar, scoreboard) ongewijzigd blijven.
+    participantColors: new Map(),
+    // Besluit 40 (scherm 2): de volledige actuele config — gevoed door
+    // room:state en room:config-changed; de lobby-instellingen lezen hieruit.
+    roomConfig: null,
+    playerCount: 0,
+    locked: false,
+    pacing: 'auto',
+    selfInfo: null, // { roles, playerId, effectiveName } uit room:state
+    joinUrl: '',
+    offsetMs: 0,
+    mountedViewName: null,
+    mountedView: null,
+    gameplayTimer: null,
+    terminated: false,
+    // Vóór `transport.connect()` gedeclareerd, niet verderop bij
+    // `showRecoveredMessage`: de mock roept `onStatus('connecting')` al
+    // synchroon aan tijdens `connect()` zelf, dus `renderBanner()` (via
+    // `handleStatus`) leest deze twee al vóórdat de rest van dit bestand is
+    // uitgevoerd — anders een TDZ-`ReferenceError`.
+    recoveredMessageTimer: null,
+    showingRecoveredMessage: false,
+    reconnectFallbackTimer: null,
+    reconnectFallbackVisible: false,
+  };
 
   const capabilities = { nativeShareAvailable: typeof navigator !== 'undefined' && 'share' in navigator };
+  let socket = null;
+
+  const hostBarController = createHostBarController({
+    state,
+    root,
+    headerRoot,
+    phaseContainer,
+    roomHeaderRoot,
+    hostBarRoot,
+    hostBar,
+    isHost,
+  });
+  const { restoreHostBarPosition, buildHostContext, renderHostBar, ruimHostmenuOp } = hostBarController;
+  restoreHostBarPosition();
+
+  const overlayController = createOverlayController({
+    state,
+    pauseOverlay,
+    pauseCardWrap,
+    pauseCard,
+    pauseRoundaRoot,
+    hostBarRoot,
+    hostBar,
+    t,
+    isHost,
+    restoreHostBarPosition,
+  });
+  const { renderPauseOverlay } = overlayController;
+
+  const connectionController = createConnectionController({
+    state,
+    banner,
+    answerSavedNote,
+    reconnectRoundaRoot,
+    reconnectFallbackButton,
+    t,
+    tCount,
+    requestFreshSnapshot,
+  });
+  const { handleStatus, renderBanner, cancelRecoveredMessage, cancelReconnectFallback } = connectionController;
+
+  const eventController = createEventController({
+    state,
+    roomHeader,
+    renderBanner,
+    renderPauseOverlay,
+    renderHostBar,
+    routeToView,
+    onLeaveHome,
+    terminate,
+    isEmptyFinish,
+  });
+  const { handleEvent } = eventController;
 
   measureOffset();
-  const socket = transport.connect(session.sessionToken, {
+  socket = transport.connect(session.sessionToken, {
     onEvent: handleEvent,
     onStatus: handleStatus,
   });
   // EERSTE VERBINDING (fix 3 aug 2026, live-test producteigenaar): de
-  // reconnect-machine start als `connected` zonder `pendingSnapshotRequest`,
+  // state.reconnect-machine start als `connected` zonder `pendingSnapshotRequest`,
   // dus `nextActionFor` vraagt bij de allereerste verbinding NOOIT een
   // snapshot aan — die regel dekt alleen HER-verbindingen (PROTOCOL.md
   // §Reconnect stap 5). De server pusht ook geen snapshot bij connect, en de
@@ -316,92 +339,22 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         samples.push({ requestSentAt, serverTime, responseReceivedAt: Date.now() });
       } catch {
         // Servertijd is best-effort (server-time.mjs) — een mislukte meting
-        // laat offsetMs gewoon op zijn vorige (of standaard 0) waarde staan.
+        // laat state.offsetMs gewoon op zijn vorige (of standaard 0) waarde staan.
       }
     }
     if (samples.length > 0) {
-      offsetMs = estimateServerOffset(samples);
+      state.offsetMs = estimateServerOffset(samples);
     }
   }
 
   function isHost() {
-    return selfInfo?.roles?.includes('host') === true;
-  }
-
-  function handleStatus(status) {
-    // Vóór de transitie vastleggen: `reconnect.status` ná de transitie is bij
-    // 'connected' altijd 'connected', dus dat vertelt niet meer of dit de
-    // állereerste verbinding was of een herstel ná een echte disconnect.
-    const wasDown = reconnect.status === 'disconnected' || reconnect.status === 'reconnecting';
-
-    if (status === 'connecting') {
-      reconnect = reconnectTransition(reconnect, { type: 'RECONNECT_ATTEMPT_STARTED' });
-    } else if (status === 'connected') {
-      reconnect = reconnectTransition(reconnect, { type: 'RECONNECT_SUCCEEDED' });
-      if (wasDown) {
-        showRecoveredMessage();
-      }
-    } else if (status === 'disconnected') {
-      reconnect = reconnectTransition(reconnect, { type: 'DISCONNECTED' });
-      // Een nieuwe disconnect wint altijd van een nog zichtbare
-      // hersteld-melding van een vorige, kortstondige reconnect.
-      cancelRecoveredMessage();
-    }
-
-    // S19: terugvalroute. Start de klok zodra we niet (meer) `connected` zijn
-    // en er nog geen klok loopt of knop zichtbaar is; annuleer 'm zodra we
-    // weer `connected` zijn. Forceert zelf niets — de transportlaag blijft
-    // zelf de enige die opnieuw `connect()` aanroept.
-    if (reconnect.status === 'connected') {
-      cancelReconnectFallback();
-    } else if (reconnectFallbackTimer === null && !reconnectFallbackVisible) {
-      scheduleReconnectFallback();
-    }
-
-    renderBanner();
-
-    const action = reconnectNextAction(reconnect);
-    if (action?.type === 'request-snapshot') {
-      reconnect = reconnectTransition(reconnect, { type: 'SNAPSHOT_REQUEST_SENT' });
-      requestFreshSnapshot();
-    }
-  }
-
-  function scheduleReconnectFallback() {
-    reconnectFallbackTimer = setTimeout(() => {
-      reconnectFallbackTimer = null;
-      reconnectFallbackVisible = true;
-      renderBanner();
-    }, RECONNECT_FALLBACK_MS);
-  }
-
-  function cancelReconnectFallback() {
-    clearTimeout(reconnectFallbackTimer);
-    reconnectFallbackTimer = null;
-    reconnectFallbackVisible = false;
+    return state.selfInfo?.roles?.includes('host') === true;
   }
 
   // "We zijn weer verbonden." — alleen ná een écht herstel (nooit bij de
   // allereerste verbinding), 3s zichtbaar, en een lopende timer wordt altijd
   // eerst geannuleerd i.p.v. gestapeld (reviewfeedback T4-2 punt 5). State
   // hierboven bij de andere `let`s gedeclareerd (TDZ, zie die toelichting).
-  function showRecoveredMessage() {
-    clearTimeout(recoveredMessageTimer);
-    showingRecoveredMessage = true;
-    renderBanner();
-    recoveredMessageTimer = setTimeout(() => {
-      recoveredMessageTimer = null;
-      showingRecoveredMessage = false;
-      renderBanner();
-    }, RECOVERED_MESSAGE_MS);
-  }
-
-  function cancelRecoveredMessage() {
-    clearTimeout(recoveredMessageTimer);
-    recoveredMessageTimer = null;
-    showingRecoveredMessage = false;
-  }
-
   async function requestFreshSnapshot(attempt = 0) {
     try {
       const snapshot = await transport.fetchState(code, session.sessionToken);
@@ -414,7 +367,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       // permanent lege, onverklaarde staat: geen fout, geen weg terug (08 §6
       // "roomfouten", ontbrekend `S21`-scherm). Terminale codes krijgen nu
       // wél een bestemming; alles anders (netwerkhapering) blijft stil, want
-      // dat herstelt zichzelf via de eerstvolgende serverevent of reconnect.
+      // dat herstelt zichzelf via de eerstvolgende serverevent of state.reconnect.
       if (TERMINAL_SNAPSHOT_ERROR_CODES.has(err?.code)) {
         terminate(t(`error.${messageForErrorCode(err.code)}`));
         return;
@@ -428,439 +381,33 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       // fout hangen, dan lost een latere, écht geslaagde (re)connect het via
       // `handleStatus` alsnog op — precies zoals de bovenstaande aanname al
       // veronderstelde.
-      if (terminated || attempt >= SNAPSHOT_RETRY_DELAYS_MS.length) {
+      if (state.terminated || attempt >= SNAPSHOT_RETRY_DELAYS_MS.length) {
         return;
       }
       setTimeout(() => {
-        if (!terminated) {
+        if (!state.terminated) {
           requestFreshSnapshot(attempt + 1);
         }
       }, SNAPSHOT_RETRY_DELAYS_MS[attempt]);
     }
   }
 
-  function renderBanner() {
-    if (showingRecoveredMessage) {
-      banner.hidden = false;
-      banner.classList.remove('is-disconnected');
-      // M2/E15: korte, stille successtransitie i.p.v. een instante
-      // kleurwissel — "successcue klein", geen viering (06 §4 E15).
-      banner.classList.add('session-banner-success');
-      banner.textContent = t('connection.connected');
-    } else {
-      const key = messageForConnectionStatus(reconnect.status);
-      banner.hidden = key === null;
-      banner.classList.toggle('is-disconnected', reconnect.status === 'disconnected');
-      banner.classList.remove('session-banner-success');
-      if (key !== null) {
-        // M2/E15: voortgang tonen tijdens reconnecting — `reconnect.attempt`
-        // bestond al (reconnect-state.mjs) maar werd nergens getoond.
-        // Nieuwe, aparte sleutel (niet `connection.reconnecting` zelf
-        // gewijzigd, die is al door thema 4 uitgevoerd) — coördinatiepunt,
-        // zie PROGRESS.md.
-        banner.textContent =
-          reconnect.status === 'reconnecting' && reconnect.attempt >= 1
-            ? tCount('connection.reconnectingAttempt', reconnect.attempt)
-            : t(key);
-      }
-    }
-
-    // Geruststelling naast (niet in plaats van) de disconnected-tekst — en
-    // alleen als er ook echt een geaccepteerd antwoord is, niet zomaar op
-    // basis van de fase (reviewfeedback T4-2 punt 3: fase alleen bewijst
-    // niet dat dít antwoord is aangekomen).
-    answerSavedNote.hidden = !(reconnect.status === 'disconnected' && roundModel.answerStatus === 'accepted');
-    if (!answerSavedNote.hidden) {
-      answerSavedNote.textContent = t('connection.answerSaved');
-    }
-
-    // BOUWSPRINT/Rounda: reconnect is per definitie een wachtmoment, nooit
-    // tegelijk met een actieve ronde-interactie — mount/unmount lazily,
-    // de statustekst hierboven blijft de aria-live-bron.
-    const showReconnectRounda = !showingRecoveredMessage && (reconnect.status === 'disconnected' || reconnect.status === 'reconnecting');
-    reconnectRoundaRoot.hidden = !showReconnectRounda;
-    if (showReconnectRounda && reconnectRoundaView === null) {
-      reconnectRoundaView = createRoundaView({ root: reconnectRoundaRoot });
-    } else if (!showReconnectRounda && reconnectRoundaView !== null) {
-      reconnectRoundaView.destroy();
-      reconnectRoundaView = null;
-      reconnectRoundaRoot.textContent = '';
-    }
-
-    // S19: pas tonen als de klok echt is afgelopen (`reconnectFallbackVisible`)
-    // én we nog steeds niet verbonden zijn — een ondertussen geslaagd herstel
-    // annuleert de klok al in `handleStatus`, maar dit is de render-kant van
-    // diezelfde voorwaarde.
-    reconnectFallbackButton.hidden = !(reconnectFallbackVisible && reconnect.status !== 'connected');
-    if (!reconnectFallbackButton.hidden) {
-      reconnectFallbackButton.textContent = t('join.retry');
-    }
-  }
-
-  function renderPauseOverlay() {
-    if (matchPhase.phase !== 'PAUSED') {
-      pauseOverlay.hidden = true;
-      restoreHostBarPosition();
-      if (pauseRoundaView !== null) {
-        pauseRoundaView.destroy();
-        pauseRoundaView = null;
-        pauseRoundaRoot.textContent = '';
-      }
-      return;
-    }
-    const wasHidden = pauseOverlay.hidden;
-    const reasonText = t(messageForPauseReason(matchPhase.pausedState?.reason));
-    pauseOverlay.hidden = false;
-    // Host ziet een stempel i.p.v. de kalme spelerszin — geen aparte staat om
-    // te bouwen, alleen andere tekst op hetzelfde element (T4-5).
-    const hostText = t('pause.hostStamp');
-    const cardText = isHost() ? hostText : reasonText;
-    pauseOverlay.setAttribute('aria-label', cardText);
-    pauseCard.textContent = cardText;
-    pauseCard.classList.toggle('session-pause-card-host-stamp', isHost());
-    // BOUWSPRINT/Rounda: alleen voor de speler — de host heeft de hostbalk
-    // hier (zie hieronder), geen leeg wachtmoment.
-    pauseRoundaRoot.hidden = isHost();
-    if (!isHost() && pauseRoundaView === null) {
-      pauseRoundaView = createRoundaView({ root: pauseRoundaRoot });
-    } else if (isHost() && pauseRoundaView !== null) {
-      pauseRoundaView.destroy();
-      pauseRoundaView = null;
-      pauseRoundaRoot.textContent = '';
-    }
-    // S16: de overlay dekt het scherm (position: fixed, inset: 0) en zit vóór
-    // de hostbalk in de DOM — die is dus onbereikbaar zolang de overlay open
-    // is. In plaats van losse duplicaatknoppen voor lock/kick/finish (zoals
-    // eerder alleen voor hervatten) verplaatsen we de bestaande hostBar-node
-    // zelf ín de overlay: de host kan zo alles (pauzeren/hervatten,
-    // vergrendelen, verwijderen, beëindigen) blijven doen zonder eerst te
-    // hervatten. Een niet-host heeft sowieso geen hostbalk (bar.hidden), dus
-    // voor hen verandert er niets zichtbaars.
-    if (isHost()) {
-      pauseCardWrap.appendChild(hostBarRoot);
-    } else {
-      restoreHostBarPosition();
-    }
-    // Alleen bij het daadwerkelijk openen focus verplaatsen, niet bij elke
-    // her-render terwijl 'm al open staat (bv. een taalwissel tijdens pauze
-    // zou anders de focus steeds wegkapen).
-    if (wasHidden) {
-      pauseCardWrap.focus();
-    }
-  }
-
-  // hostBarRoot's vaste plek is sinds A1 ín de appheader, direct achter de
-  // codebalk — één chromerij i.p.v. een tweede rij erboven het scherm. Hier
-  // expliciet terugzetten zodra de pauze-overlay niet (meer) actief is voor
-  // deze speler (die overlay verplaatst de node zelf, zie renderPauseOverlay).
-  //
-  // Zonder appheader (een test of een pagina zonder `#app-header`) valt de
-  // balk terug op de oude plek vóór `phaseContainer` — anders zou de host daar
-  // helemaal geen bediening meer hebben.
-  function restoreHostBarPosition() {
-    if (headerRoot != null) {
-      if (hostBarRoot.previousSibling !== roomHeaderRoot) {
-        headerRoot.insertBefore(hostBarRoot, roomHeaderRoot.nextSibling);
-      }
-      return;
-    }
-    if (hostBarRoot.nextSibling !== phaseContainer) {
-      root.insertBefore(hostBarRoot, phaseContainer);
-    }
-  }
-
-  function buildHostContext() {
-    return {
-      phase: matchPhase.phase,
-      pacing,
-      autoReveal: roomConfig?.autoReveal,
-      // Fase 4 (autoReveal, besluit 51): puur lokaal — de server stuurt bij
-      // autoReveal:false bewust GEEN fasewissel zodra de tijd om is (dat is
-      // precies de fix), dus dit is het enige signaal dat "Toon antwoord" kan
-      // laten verschijnen. `renderHostBar()` moet daarom ook op de
-      // gameplay-ticker meelopen, niet alleen op serverevents (zie daar).
-      roundExpired: roundModel.endsAt !== null && secondsRemaining(roundModel.startsAt, roundModel.endsAt, offsetMs) === 0,
-      playerCount,
-      locked,
-    };
-  }
-
-  function renderHostBar() {
-    hostBar.update({
-      isHost: isHost(),
-      availableActions: availableHostActions(buildHostContext()),
-      participants,
-      phase: matchPhase.phase,
-    });
-    plaatsHostmenu();
-  }
-
-  /**
-   * A3 (#7/#8/#46): het ⋯-paneel van de hostbalk woont in de hostsectie van
-   * het gedeelde voorkeurenmenu — één ⋯ in de chrome in plaats van twee
-   * identieke naast elkaar.
-   *
-   * De zichtbaarheid komt van hostbar.mjs zelf (`menuButton.hidden` is diens
-   * `hasMore`), niet uit een tweede berekening hier: welke acties er zijn is
-   * één beslissing en die hoort op één plek te blijven. Een speler ziet de
-   * sectie dus nooit, en een host ziet 'm niet zolang er niets in staat.
-   */
-  function plaatsHostmenu() {
-    const slot = hostActionSlot();
-    if (slot === null) {
-      return; // geen appheader (test, of een pagina zonder menu) — niets te doen
-    }
-    if (hostBar.menuPanel.parentNode !== slot) {
-      slot.appendChild(hostBar.menuPanel);
-    }
-    const heeftHostmenu = isHost() && !hostBar.menuButton.hidden;
-    hostBar.menuPanel.hidden = !heeftHostmenu;
-    slot.hidden = !heeftHostmenu;
-  }
-
-  /**
-   * Het hostpaneel is het enige stuk van deze sessie dat buiten `root` én
-   * buiten `hostBarRoot` hangt — het zit in het menu, dat élke sessie
-   * overleeft. Blijft het staan, dan houdt de volgende speler een hostsectie
-   * over van een potje dat niet meer bestaat.
-   */
-  function ruimHostmenuOp() {
-    // D3: de hostbalk kijkt mee of het voorkeurenmenu sluit (om een half
-    // ingezette bevestiging terug te zetten). Die waarnemer hangt aan het
-    // menu, dat élke sessie overleeft — dus hier expliciet afkoppelen.
-    hostBar.destroy();
-    hostBar.menuPanel.remove();
-    const slot = hostActionSlot();
-    if (slot !== null) {
-      slot.hidden = true;
-    }
-  }
-
-  function handleEvent(envelope) {
-    if (terminated) {
-      return;
-    }
-
-    matchPhase = applyServerEvent(matchPhase, envelope);
-
-    // T5-9: bij een snelle reeks joins/leaves (bulktoetreding, of testen met
-    // veel spelers) zou elke losse `room:player-changed` anders zijn eigen
-    // volledige lobby-re-render triggeren — N events, N DOM-mutaties. Eerste
-    // wijziging in een rustig venster rendert meteen (geen kunstmatige
-    // vertraging voor de normale, geïsoleerde join); wat daarna binnen
-    // `PLAYER_CHANGED_BATCH_MS` bijkomt wordt samengevoegd tot één render aan
-    // het eind van het venster.
-    if (envelope.event === 'room:player-changed') {
-      applyPlayerChanged(envelope.payload);
-      scheduleBatchedRender();
-      return;
-    }
-
-    switch (envelope.event) {
-      case 'room:state':
-        applyRoomState(envelope.payload);
-        break;
-      case 'room:lock-changed':
-        locked = envelope.payload?.locked === true;
-        break;
-      case 'room:config-changed':
-        // Besluit 40 (scherm 2): iedereen hoort de nieuwe instellingen; de
-        // pacing-afgeleide blijft dezelfde bron gebruiken als room:state.
-        if (envelope.payload?.config && typeof envelope.payload.config === 'object') {
-          roomConfig = envelope.payload.config;
-          pacing = roomConfig.pacing === 'host' ? 'host' : 'auto';
-        }
-        break;
-      case 'game:started':
-        // S07: `countdownEndsAt` is de enige plek waar dit tijdstip binnenkomt
-        // — `match-phase-state.mjs` bewaart 'm bewust niet (net als rondedata),
-        // dus hier lokaal bijhouden, zelfde patroon als `roundModel`.
-        countdownEndsAt = typeof envelope.payload?.countdownEndsAt === 'number' ? envelope.payload.countdownEndsAt : null;
-        break;
-      case 'round:started':
-        countdownEndsAt = null;
-        roundModel = applyRoundStarted(envelope.payload);
-        break;
-      case 'game:resumed':
-        // R2-7: de server schuift de rondedeadline op met de pauzeduur. Zonder
-        // dit telt deze client door naar de oude tijd en staat de timer na het
-        // hervatten meteen op nul, terwijl er nog geantwoord kan worden.
-        roundModel = applyRoundResumed(roundModel, envelope.payload);
-        break;
-      case 'round:answer-accepted':
-        roundModel = applyAnswerAccepted(roundModel, envelope.payload);
-        break;
-      case 'round:progress':
-        roundModel = applyProgress(roundModel, envelope.payload);
-        break;
-      case 'round:ended':
-        roundModel = applyRoundEnded(roundModel, envelope.payload);
-        // 11-verzoek (BOUWSPRINT doel 4): op sessieniveau bijgehouden, niet in
-        // gameplay.mjs's eigen closure — die wordt elke ronde herbouwd zodra
-        // de tussenstand-fase ertussen zit (mountView()), en zou een lokale
-        // teller dus elke ronde verliezen. Precies één keer per round:ended,
-        // niet bij elke render.
-        streakModel = applyStreakResult(streakModel, roundModel.result?.selfCorrect === true);
-        break;
-      case 'scoreboard:updated':
-        // S15: de OUDE stand snapshotten vóórdat 'ie overschreven wordt —
-        // zo is er bij de volgende render iets om de nieuwe stand mee te
-        // vergelijken (`rankMovementFrom`). Bij de eerste stand ooit blijft
-        // `previousStandings` bewust `null` (niets om mee te vergelijken).
-        if (standingsPayload !== null) {
-          previousStandings = standingsFrom(standingsPayload);
-        }
-        standingsPayload = envelope.payload;
-        break;
-      case 'game:finished':
-        // S21 (gereproduceerd tegen transport-mock.mjs: `game:finish` vanuit
-        // een lege LOBBY levert `{podium: [], self: null}` op): een podium
-        // zonder één deelnemer is geen zinnig scherm — terug naar start
-        // i.p.v. dat leeg podium te mounten. Geen eigen S21-scherm nodig,
-        // dit dekt alleen dat ene randgeval.
-        if (isEmptyFinish(envelope.payload)) {
-          onLeaveHome();
-          return;
-        }
-        if (standingsPayload !== null) {
-          previousStandings = standingsFrom(standingsPayload);
-        }
-        standingsPayload = envelope.payload;
-        break;
-      case 'session:kicked':
-        terminate(messageForSessionTermination('kicked', envelope.payload?.reason));
-        return;
-      case 'session:revoked':
-        terminate(messageForSessionTermination('revoked', envelope.payload?.reason));
-        return;
-      default:
-        break;
-    }
-
-    renderAfterEvent();
-  }
-
-  function renderAfterEvent() {
-    renderBanner();
-    renderPauseOverlay();
-    renderHostBar();
-    routeToView();
-  }
-
-  let playerChangedBatchWindowOpen = false;
-  let playerChangedRenderPending = false;
-
-  function scheduleBatchedRender() {
-    if (!playerChangedBatchWindowOpen) {
-      playerChangedBatchWindowOpen = true;
-      renderAfterEvent();
-      setTimeout(() => {
-        playerChangedBatchWindowOpen = false;
-        if (playerChangedRenderPending) {
-          playerChangedRenderPending = false;
-          renderAfterEvent();
-        }
-      }, PLAYER_CHANGED_BATCH_MS);
-    } else {
-      playerChangedRenderPending = true;
-    }
-  }
-
-  function applyRoomState(payload) {
-    const room = payload?.room ?? {};
-    playerCount = typeof room.playerCount === 'number' ? room.playerCount : playerCount;
-    joinUrl = typeof room.joinUrl === 'string' ? room.joinUrl : joinUrl;
-    roomHeader.setJoinUrl(joinUrl);
-    locked = typeof room.locked === 'boolean' ? room.locked : locked;
-    pacing = room.config?.pacing === 'host' ? 'host' : 'auto';
-    if (room.config && typeof room.config === 'object') {
-      roomConfig = room.config;
-    }
-    // `room:state` komt alleen bij de eerste verbinding en ná een reconnect
-    // binnen (nooit tussendoor tijdens een stabiele sessie) — hydrateer
-    // `roundModel` daarom telkens opnieuw vanuit de snapshot. Zonder dit
-    // bleef een herladen/herverbonden client op `initialRoundModel()` staan
-    // terwijl er allang een ronde liep, en was `answerStatus` na een
-    // reconnect altijd `'idle'` ook als de server al een antwoord had
-    // geaccepteerd (reviewfeedback T4-3).
-    // `self.answeredValue` bestaat niet in PROTOCOL.md (de echte server kent
-    // het niet) — alleen transport-mock.mjs stuurt het mee, voor solo na een
-    // herlaadbeurt (docs/openstaand/solo-antwoordvolgorde.md, punt 2). Een
-    // reconnect tegen de echte server geeft hier gewoon `undefined` -> `null`,
-    // hydrateFromSnapshot's ongewijzigde oude gedrag.
-    roundModel = hydrateFromSnapshot(
-      payload?.currentRound,
-      payload?.self?.answeredCurrentRound === true,
-      typeof payload?.self?.answeredValue === 'string' ? payload.self.answeredValue : null,
-    );
-    // Zelfde reden als hierboven: `room:state` draagt `scoreboard: { top,
-    // self }` (PROTOCOL.md), maar dat werd tot nu toe genegeerd — een reload
-    // tijdens SCOREBOARD/FINISHED liet de tussenstand/eindstand dus leeg
-    // achter i.p.v. hem uit de snapshot te herstellen (T5-3, gemeten via
-    // Playwright tegen de echte server: eindstand verdween volledig ná reload).
-    if (payload?.scoreboard) {
-      standingsPayload = payload.scoreboard;
-    }
-    if (payload?.self && typeof payload.self.playerId === 'string') {
-      selfInfo = payload.self;
-      participants.set(payload.self.playerId, payload.self.effectiveName ?? '');
-      if (typeof payload.self.color === 'string') {
-        participantColors.set(payload.self.playerId, payload.self.color);
-      }
-    } else if (payload?.self) {
-      selfInfo = payload.self; // host zonder spelersrol: roles wel bekend, playerId null
-    }
-  }
-
-  function applyPlayerChanged(payload) {
-    if (typeof payload?.playerCount === 'number') {
-      playerCount = payload.playerCount;
-    }
-    const delta = payload?.delta;
-    if (delta === null || typeof delta !== 'object') {
-      return;
-    }
-    if (delta.type === 'recolor') {
-      if (typeof delta.playerId === 'string' && typeof delta.color === 'string') {
-        participantColors.set(delta.playerId, delta.color);
-        if (selfInfo?.playerId === delta.playerId) {
-          selfInfo = { ...selfInfo, color: delta.color };
-        }
-      }
-    } else if (delta.type === 'join' || delta.type === 'rename') {
-      if (typeof delta.playerId === 'string') {
-        participants.set(delta.playerId, delta.effectiveName ?? '');
-        if (typeof delta.color === 'string') {
-          participantColors.set(delta.playerId, delta.color);
-        }
-        // Scherm 3 (40B): een rename van jezélf moet ook `selfInfo` verversen
-        // — daar leest de lobby (`selfName`) uit, en die werd tot nu toe
-        // alleen bij `room:state` gezet.
-        if (delta.type === 'rename' && selfInfo?.playerId === delta.playerId) {
-          selfInfo = { ...selfInfo, effectiveName: delta.effectiveName ?? selfInfo.effectiveName };
-        }
-      }
-    } else if (delta.type === 'leave' || delta.type === 'kick') {
-      if (typeof delta.playerId === 'string') {
-        participants.delete(delta.playerId);
-        participantColors.delete(delta.playerId);
-      }
-    }
-  }
-
   function terminate(message) {
-    terminated = true;
+    state.terminated = true;
     stopGameplayTicker();
     cancelRecoveredMessage();
     cancelReconnectFallback();
     tabChannel?.close();
-    socket.close();
+    socket?.close();
     clearSession(storage, code);
     // D-018: code/QR verdwijnen pas als de sessie eindigt — dit IS dat moment.
     roomHeader.destroy();
     roomHeaderRoot.remove();
     hostBarRoot.remove(); // staat sinds A1 in de appheader, niet in `root`
     delete document.body.dataset.roundaFase; // A2: geen sessie, geen fase
+    connectionController.destroy();
+    overlayController.destroy();
+    eventController.destroy();
     ruimHostmenuOp(); // A3: het hostpaneel hangt buiten deze sessie, in het menu
     root.textContent = '';
     const screen = document.createElement('div');
@@ -882,16 +429,16 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   }
 
   function routeToView() {
-    if (terminated) {
+    if (state.terminated) {
       return;
     }
     const viewName = viewFor({
       route: isHostRoute ? 'host' : 'game',
-      phase: matchPhase.phase,
-      pausedState: matchPhase.pausedState,
+      phase: state.matchPhase.phase,
+      pausedState: state.matchPhase.pausedState,
     });
 
-    if (viewName !== mountedViewName) {
+    if (viewName !== state.mountedViewName) {
       mountView(viewName);
     }
     updateMountedView(viewName);
@@ -900,7 +447,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   function mountView(viewName) {
     stopGameplayTicker();
     phaseContainer.textContent = '';
-    mountedViewName = viewName;
+    state.mountedViewName = viewName;
     // T5-7/T5-8: lobby/tussenstand/podium krijgen op tabletbreedte (T5-7,
     // 768px) en op desktop/tv-breedte (T5-8, 1200px, zie base.css) meer
     // ruimte (`#app-root`'s `max-width` wordt hierdoor NIET globaal
@@ -921,7 +468,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     document.body.dataset.roundaFase = viewName;
 
     if (viewName === 'lobby') {
-      mountedView = createLobbyView({
+      state.mountedView = createLobbyView({
         root: phaseContainer,
         t,
         tCount,
@@ -955,16 +502,16 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       return;
     }
     if (viewName === 'gameplay') {
-      mountedView = createGameplayView({ root: phaseContainer, t, tCount, onAnswer: sendAnswer });
+      state.mountedView = createGameplayView({ root: phaseContainer, t, tCount, onAnswer: sendAnswer });
       startGameplayTicker();
       return;
     }
     if (viewName === 'scoreboard') {
-      mountedView = createScoreboardView({ root: phaseContainer, t, tCount });
+      state.mountedView = createScoreboardView({ root: phaseContainer, t, tCount });
       return;
     }
     if (viewName === 'podium') {
-      mountedView = createPodiumView({
+      state.mountedView = createPodiumView({
         root: phaseContainer,
         t,
         isHost: isHost(),
@@ -975,7 +522,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       });
       return;
     }
-    mountedView = null;
+    state.mountedView = null;
     const placeholder = document.createElement('p');
     placeholder.dataset.i18n = 'scaffold.ready';
     placeholder.textContent = t('scaffold.ready');
@@ -983,76 +530,76 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   }
 
   function updateMountedView(viewName) {
-    if (mountedView === null) {
+    if (state.mountedView === null) {
       return;
     }
     if (viewName === 'lobby') {
-      mountedView.update({
-        playerCount,
-        participants,
+      state.mountedView.update({
+        playerCount: state.playerCount,
+        participants: state.participants,
         canStart: availableHostActions(buildHostContext()).includes('start'),
         canKick: availableHostActions(buildHostContext()).includes('kick'),
-        locked,
-        selfName: selfInfo?.effectiveName ?? null,
-        selfColor: selfInfo?.color ?? null,
-        selfIsPlayer: typeof selfInfo?.playerId === 'string',
-        participantColors,
-        config: roomConfig,
+        locked: state.locked,
+        selfName: state.selfInfo?.effectiveName ?? null,
+        selfColor: state.selfInfo?.color ?? null,
+        selfIsPlayer: typeof state.selfInfo?.playerId === 'string',
+        participantColors: state.participantColors,
+        config: state.roomConfig,
         capabilities,
-        joinUrl,
+        joinUrl: state.joinUrl,
       });
       return;
     }
     if (viewName === 'gameplay') {
-      mountedView.update(roundModel, gameplayUpdateOptions());
+      state.mountedView.update(state.roundModel, gameplayUpdateOptions());
       return;
     }
     if (viewName === 'scoreboard') {
-      const currentStandings = standingsFrom(standingsPayload ?? {});
-      mountedView.update(currentStandings, {
-        movement: rankMovementFrom(previousStandings, currentStandings),
-        participants,
+      const currentStandings = standingsFrom(state.standingsPayload ?? {});
+      state.mountedView.update(currentStandings, {
+        movement: rankMovementFrom(state.previousStandings, currentStandings),
+        participants: state.participants,
         // Scherm 5 (besluit 40): de reveal-kaart bovenop de tussenstand leest
-        // het result van de zojuist geëindigde ronde. `roundModel` is hier
+        // het result van de zojuist geëindigde ronde. `state.roundModel` is hier
         // nog niet gereset (dat gebeurt pas bij de volgende round:started),
         // dus dit is precies de uitslag die bij deze stand hoort.
-        round: roundModel,
+        round: state.roundModel,
         lang: getLang(),
-        pacing,
+        pacing: state.pacing,
         // Beat 1/2 (besluit 40): ROUND_RESULT toont alleen de reveal,
         // SCOREBOARD voegt de (dan pas kloppende) tussenstand toe.
-        phase: matchPhase.phase,
-        scoreboardSeconds: typeof roomConfig?.scoreboardSeconds === 'number' ? roomConfig.scoreboardSeconds : null,
+        phase: state.matchPhase.phase,
+        scoreboardSeconds: typeof state.roomConfig?.scoreboardSeconds === 'number' ? state.roomConfig.scoreboardSeconds : null,
         // Punt 40 (B2): de aftelbalk op scherm 5 loopt over BEIDE beats, dus
         // heeft hij ook de duur van beat 1 nodig — zonder dit kon scoreboard.mjs
         // alleen de helft van de wachttijd tekenen.
-        resultSeconds: typeof roomConfig?.resultSeconds === 'number' ? roomConfig.resultSeconds : null,
+        resultSeconds: typeof state.roomConfig?.resultSeconds === 'number' ? state.roomConfig.resultSeconds : null,
         // 11-verzoek (BOUWSPRINT doel 4), hersteld na B3: de streakreactie
         // stond in gameplay.mjs's uitslagblok en was daarmee onzichtbaar sinds
-        // besluit 40 de reveal naar dit scherm verhuisde. `streakModel` is bij
+        // besluit 40 de reveal naar dit scherm verhuisde. `state.streakModel` is bij
         // `round:ended` al bijgewerkt, dus dit getal hoort bij déze ronde.
         //
         // Live gelezen (niet gesnapshot bij mount): het voorkeurenpaneel is op
         // elk scherm bereikbaar en kan dus mid-match om. `0` i.p.v. het echte
         // getal bij uitgezet — scoreboard.mjs hoeft de voorkeur niet te kennen,
         // alleen het getal dat 'm al dan niet over de drempel tilt.
-        streak: (loadReactionsEnabled(storage) ?? true) ? streakModel.current : 0,
+        streak: (loadReactionsEnabled(storage) ?? true) ? state.streakModel.current : 0,
       });
       return;
     }
     if (viewName === 'podium') {
-      mountedView.update(standingsFrom(standingsPayload ?? {}));
+      state.mountedView.update(standingsFrom(state.standingsPayload ?? {}));
     }
   }
 
-  // S07: tijdens `COUNTDOWN` heeft `gameplay.mjs` de fase nodig (roundModel is
-  // dan nog leeg) plus het afgeteld-getal, berekend uit `countdownEndsAt` —
-  // zelfde patroon (`secondsRemaining()` + `offsetMs`) als de rondetimer.
+  // S07: tijdens `COUNTDOWN` heeft `gameplay.mjs` de fase nodig (state.roundModel is
+  // dan nog leeg) plus het afgeteld-getal, berekend uit `state.countdownEndsAt` —
+  // zelfde patroon (`secondsRemaining()` + `state.offsetMs`) als de rondetimer.
   function gameplayUpdateOptions() {
     return {
-      secondsLeft: secondsRemaining(roundModel.startsAt, roundModel.endsAt, offsetMs),
-      phase: matchPhase.phase,
-      countdownSecondsLeft: countdownEndsAt === null ? null : secondsRemaining(0, countdownEndsAt, offsetMs),
+      secondsLeft: secondsRemaining(state.roundModel.startsAt, state.roundModel.endsAt, state.offsetMs),
+      phase: state.matchPhase.phase,
+      countdownSecondsLeft: state.countdownEndsAt === null ? null : secondsRemaining(0, state.countdownEndsAt, state.offsetMs),
       // De streak zat hier ook, maar gameplay.mjs toont sinds besluit 40 geen
       // uitslag meer en las 'm dus nergens. Hij gaat nu mee naar scherm 5 —
       // zie de `scoreboard`-tak van `updateMountedView()`.
@@ -1060,15 +607,15 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       // R2-8: het aftelscherm zegt wél hoeveel spelers er meedoen ("5 spelers
       // klaar"). Dezelfde teller die de lobby al toont — `game:started` en
       // elke `room:state` houden 'm bij, dus hier alleen doorgeven.
-      playerCount,
+      playerCount: state.playerCount,
     };
   }
 
   function startGameplayTicker() {
     stopGameplayTicker();
-    gameplayTimer = setInterval(() => {
-      if (mountedViewName === 'gameplay' && mountedView !== null) {
-        mountedView.update(roundModel, gameplayUpdateOptions());
+    state.gameplayTimer = setInterval(() => {
+      if (state.mountedViewName === 'gameplay' && state.mountedView !== null) {
+        state.mountedView.update(state.roundModel, gameplayUpdateOptions());
         // Fase 4 (autoReveal, besluit 51): "Toon antwoord" moet verschijnen
         // zodra de LOKALE timer 0 bereikt, niet pas bij het eerstvolgende
         // serverevent — bij autoReveal:false komt dat event immers pas ná de
@@ -1080,42 +627,42 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
   }
 
   function stopGameplayTicker() {
-    if (gameplayTimer !== null) {
-      clearInterval(gameplayTimer);
-      gameplayTimer = null;
+    if (state.gameplayTimer !== null) {
+      clearInterval(state.gameplayTimer);
+      state.gameplayTimer = null;
     }
   }
 
   // 14-S09-S10 + C-2: `value` is de iso2 (flags_mc), 'real'/'fake'
   // (real_or_fake_flag), 0/1 (higher_lower) of een kaartindex (odd_one_out) —
-  // welke van de vier hangt af van `roundModel.gameType`, dezelfde bron die
+  // welke van de vier hangt af van `state.roundModel.gameType`, dezelfde bron die
   // `answerPayloadFor` leest. gameplay.mjs kent die vorm zelf niet, roept
   // alleen `onAnswer(value)` aan.
   async function sendAnswer(value) {
-    if (roundModel.gameType === 'real_or_fake_flag') {
-      roundModel = selectChoice(roundModel, value);
-    } else if (roundModel.gameType === 'higher_lower') {
-      roundModel = selectSide(roundModel, value);
-    } else if (roundModel.gameType === 'odd_one_out') {
-      roundModel = selectCard(roundModel, value);
+    if (state.roundModel.gameType === 'real_or_fake_flag') {
+      state.roundModel = selectChoice(state.roundModel, value);
+    } else if (state.roundModel.gameType === 'higher_lower') {
+      state.roundModel = selectSide(state.roundModel, value);
+    } else if (state.roundModel.gameType === 'odd_one_out') {
+      state.roundModel = selectCard(state.roundModel, value);
     } else {
-      roundModel = selectOption(roundModel, value);
+      state.roundModel = selectOption(state.roundModel, value);
     }
     updateMountedView('gameplay');
-    const answer = answerPayloadFor(roundModel);
+    const answer = answerPayloadFor(state.roundModel);
     if (answer === null) {
       return; // ongeldige/no-op selectie (round-model.mjs wees 'm al af)
     }
     try {
       await socket.send('round:answer', randomActionId(), {
-        roundId: roundModel.roundId,
+        roundId: state.roundModel.roundId,
         answer,
         clientAnsweredAt: Date.now(),
       });
       // Acceptatie komt via het `round:answer-accepted`-event (handleEvent),
       // niet hier — dat voorkomt dat twee plekken dezelfde overgang doen.
     } catch (err) {
-      roundModel = applyAnswerRejected(roundModel, err?.code ?? messageForErrorCode(err?.code));
+      state.roundModel = applyAnswerRejected(state.roundModel, err?.code ?? messageForErrorCode(err?.code));
       updateMountedView('gameplay');
     }
   }
@@ -1142,7 +689,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       return;
     }
     // Analytics-only (PROTOCOL.md): mag falen zonder UX-effect, dus geen catch-UI nodig.
-    socket.send('share:opened', randomActionId(), { method }).catch(() => {});
+    socket?.send('share:opened', randomActionId(), { method }).catch(() => {});
   }
 
   return {
@@ -1150,24 +697,27 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
       renderBanner();
       renderPauseOverlay();
       renderHostBar();
-      if (mountedViewName !== null) {
-        mountView(mountedViewName);
-        updateMountedView(mountedViewName);
+      if (state.mountedViewName !== null) {
+        mountView(state.mountedViewName);
+        updateMountedView(state.mountedViewName);
       }
     },
     destroy() {
-      terminated = true;
+      state.terminated = true;
       stopGameplayTicker();
       cancelRecoveredMessage();
       cancelReconnectFallback();
       tabChannel?.close();
-      socket.close();
+      socket?.close();
       // D-018: verlaat de route (app.mjs mount een andere screen) → sessie
       // is voorbij voor déze client, dus ook de headercode verdwijnt.
       roomHeader.destroy();
       roomHeaderRoot.remove();
       hostBarRoot.remove(); // idem: buiten `root`, dus expliciet opruimen
       delete document.body.dataset.roundaFase;
+      connectionController.destroy();
+      overlayController.destroy();
+      eventController.destroy();
       ruimHostmenuOp();
     },
   };
