@@ -566,3 +566,119 @@ describe('country_shape_mc — "Raad het land" (stap 3)', () => {
     assert.ok(plan.every((q) => q.questionKey !== eerste.questionKey));
   });
 });
+
+// Punt 7 / besluit 52 (docs/openstaand/continentfilter.md): `continents`
+// filtert de kandidatenpool vóór elke spelvorm-specifieke selectie —
+// `buildCandidatePool` is de ENE plek waar dat gebeurt, dus deze tests lopen
+// via `buildMatchQuestionPlan` (het publieke pad) voor een representatieve
+// spelvorm per filtercategorie, niet voor alle zes exhaustief.
+describe('continents (punt 7, besluit 52) — buildCandidatePool filtert de pool', () => {
+  test('geen continents-argument -> geen filter, exact het bestaande gedrag', () => {
+    assert.doesNotThrow(() => buildMatchQuestionPlan(baseParams({ continents: undefined })));
+  });
+
+  test('alle zes continenten geeft hetzelfde resultaat als geen filter', () => {
+    const alle = ['Europe', 'Asia', 'Africa', 'North America', 'South America', 'Oceania'];
+    const zonderFilter = buildMatchQuestionPlan(baseParams({ random: counterRandom(0) }));
+    const metAlleZes = buildMatchQuestionPlan(baseParams({ random: counterRandom(0), continents: alle }));
+    assert.deepEqual(zonderFilter, metAlleZes);
+  });
+
+  test('continents is geen array -> TypeError', () => {
+    assert.throws(() => buildMatchQuestionPlan(baseParams({ continents: 'Europe' })), TypeError);
+  });
+
+  test('flags_mc: continents:["Europe"] kiest nooit een niet-Europees land', () => {
+    const plan = buildMatchQuestionPlan(baseParams({ continents: ['Europe'], totalRounds: 3, random: counterRandom(0) }));
+    const gezien = new Set(plan.flatMap((q) => q.publicQuestionPayload.optionIso2s));
+    assert.ok([...gezien].every((iso2) => ['fr', 'de', 'es', 'nl'].includes(iso2)));
+  });
+
+  test('flags_mc: continents:["Asia"] laat te weinig landen over voor vier opties -> RangeError', () => {
+    // easy/Asia is maar jp+cn: te weinig voor target + 3 afleiders, en de
+    // vroegere "rest" (andere continenten) is nu ook wegfilterd.
+    assert.throws(() => buildMatchQuestionPlan(baseParams({ gameType: 'flags_mc', continents: ['Asia'] })), RangeError);
+  });
+
+  test('capitals_mc: continents:["Europe"] blijft binnen Europa', () => {
+    const plan = buildMatchQuestionPlan(baseParams({ gameType: 'capitals_mc', continents: ['Europe'], random: counterRandom(0) }));
+    assert.ok(plan[0].publicQuestionPayload.optionIso2s.every((iso2) => ['fr', 'de', 'es', 'nl'].includes(iso2)));
+  });
+
+  test('capitals_mc: continents:["Asia"] heeft te weinig landen met hoofdstad -> RangeError', () => {
+    assert.throws(
+      () => buildMatchQuestionPlan(baseParams({ gameType: 'capitals_mc', continents: ['Asia'] })),
+      RangeError,
+    );
+  });
+
+  test('higher_lower: continents:["Asia"] vergelijkt alleen Aziatische landen', () => {
+    const [q] = buildMatchQuestionPlan(baseParams({ gameType: 'higher_lower', metricMode: 'population', continents: ['Asia'], random: counterRandom(0) }));
+    assert.ok(q.publicQuestionPayload.sides.every((side) => ['jp', 'cn'].includes(side.iso2)));
+  });
+
+  test('higher_lower: continents:["South America"] houdt maar één land over, geen paar mogelijk -> RangeError', () => {
+    assert.throws(
+      () => buildMatchQuestionPlan(baseParams({ gameType: 'higher_lower', metricMode: 'population', continents: ['South America'] })),
+      RangeError,
+    );
+  });
+
+  test('country_shape_mc: continents:["Europe"] blijft binnen Europa', () => {
+    const plan = buildMatchQuestionPlan(baseParams({ gameType: 'country_shape_mc', continents: ['Europe'], random: counterRandom(0) }));
+    assert.ok(plan[0].publicQuestionPayload.optionIso2s.every((iso2) => ['fr', 'de', 'es', 'nl'].includes(iso2)));
+  });
+
+  test('real_or_fake_flag: continents:["North America"] heeft geen enkele kandidaat in deze pool -> RangeError', () => {
+    // Geen enkel POOL-land is North America; forceert de "echt"-tak via een
+    // random die bij een lege uitsluiting altijd < 0.5 teruggeeft.
+    assert.throws(
+      () => buildMatchQuestionPlan(baseParams({ gameType: 'real_or_fake_flag', continents: ['North America'], random: counterRandom(0) })),
+      RangeError,
+    );
+  });
+
+  test('real_or_fake_flag: continents:["South America"] vindt het enige land (br) als echte kandidaat', () => {
+    assert.doesNotThrow(
+      () => buildMatchQuestionPlan(baseParams({ gameType: 'real_or_fake_flag', continents: ['South America'], random: counterRandom(0) })),
+    );
+  });
+});
+
+describe('continents (punt 7, besluit 52) — odd_one_out valt terug zonder foutmelding', () => {
+  test('één continent (geen meerderheid+buitenbeentje mogelijk) -> nooit de continentlogica, geen throw', () => {
+    const plan = buildMatchQuestionPlan(
+      baseParams({ gameType: 'odd_one_out', continents: ['Europe'], totalRounds: 20, random: counterRandom(0) }),
+    );
+    assert.equal(plan.length, 20);
+    for (const q of plan) {
+      assert.notEqual(q.resultDetails.logic, 'continent');
+      assert.ok(['fake_among_real', 'real_among_fake'].includes(q.resultDetails.logic));
+    }
+  });
+
+  test('zonder generateFlagSpec én zonder haalbare continentvariant -> alsnog een zichtbare RangeError (geen stille hang)', () => {
+    assert.throws(
+      () => buildMatchQuestionPlan(
+        baseParams({ gameType: 'odd_one_out', continents: ['Europe'], generateFlagSpec: undefined }),
+      ),
+      RangeError,
+    );
+  });
+
+  test('twee continenten met genoeg landen laten de continentlogica gewoon meedoen', () => {
+    // Onafhankelijke plannen van één ronde met echte willekeur (zoals
+    // `logicasOverRondes` hierboven) i.p.v. één plan van veel rondes: Europe
+    // (4)+Asia(2) heeft maar acht unieke continent-combinaties, dus één groot
+    // plan zou zelf tegen die uitputting aanlopen — dat is een aparte, bekende
+    // eigenschap (zie #19), niet wat deze test bewijst.
+    const logics = new Set();
+    for (let i = 0; i < 40; i++) {
+      const [q] = buildMatchQuestionPlan(
+        baseParams({ gameType: 'odd_one_out', continents: ['Europe', 'Asia'], totalRounds: 1, random: Math.random }),
+      );
+      logics.add(q.resultDetails.logic);
+    }
+    assert.ok(logics.has('continent'), 'continentlogica moet nog steeds kunnen voorkomen als hij haalbaar is');
+  });
+});

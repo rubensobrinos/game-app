@@ -96,6 +96,7 @@ function makeGameConfiguration(overrides = {}) {
     metricMode: 'punten',
     maxPlayers: 20,
     allowLateJoin: true,
+    continents: ['Europe', 'Asia', 'Africa', 'North America', 'South America', 'Oceania'],
     ...overrides,
   };
   assertGameConfigurationShape(config);

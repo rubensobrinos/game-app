@@ -40,7 +40,7 @@ import {
 } from '../architecture/room-codes.js';
 import { generateName, isProfane, processChosenName } from '../data/name-processing.js';
 import { ROOM_TTL_SECONDS } from '../data/ttl.js';
-import { assertGameConfigurationShape } from '../data/types/game-configuration.js';
+import { assertGameConfigurationShape, CONTINENT_VALUES } from '../data/types/game-configuration.js';
 import { assertPlayerShape } from '../data/types/player.js';
 import { assertRoomShape } from '../data/types/room.js';
 import { assertSessionShape } from '../data/types/session.js';
@@ -118,6 +118,10 @@ export const QUICK_START_CONFIG = Object.freeze({
   metricMode: 'mixed',
   maxPlayers: 100,
   allowLateJoin: true,
+  // Punt 7 (docs/openstaand/continentfilter.md): "standaard alle landen
+  // wereldwijd, geen configuratie" — dus alle zes continenten, tenzij de host
+  // onder "Meer instellingen" inperkt.
+  continents: CONTINENT_VALUES,
 });
 
 /** @param {string} code @returns {{ ok: false, code: string }} */
@@ -144,6 +148,7 @@ export function resolveGameConfiguration(partial) {
   const merged = { ...QUICK_START_CONFIG, ...(partial ?? {}) };
   merged.gameTypes = Array.isArray(merged.gameTypes) ? [...merged.gameTypes] : merged.gameTypes;
   merged.teamNames = [...merged.teamNames];
+  merged.continents = Array.isArray(merged.continents) ? [...merged.continents] : merged.continents;
   assertGameConfigurationShape(merged);
 
   // §A1 — EXACT ÉÉN SPEELBARE GAMETYPE, op de enige trechter waar room-configs

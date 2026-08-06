@@ -31,10 +31,18 @@
  *   metricMode: string,
  *   maxPlayers: number,
  *   allowLateJoin: boolean,
+ *   continents: string[],
  * }} GameConfiguration
  */
 
 const LANGUAGE_VALUES = Object.freeze(['nl', 'en', 'es']);
+
+// Punt 7 productspec (docs/openstaand/continentfilter.md): de zes continenten
+// van de contentpool (`shared/content/countries.data.mjs`'s `continent`-veld).
+// Gesloten enum — net als language/mode/gameTypes/pacing hierboven — zodat een
+// tikfout in een continentnaam bij creatie faalt, niet stil een lege pool
+// oplevert bij de eerste vraagselectie.
+const CONTINENT_VALUES = Object.freeze(['Europe', 'Asia', 'Africa', 'North America', 'South America', 'Oceania']);
 
 // `teams` staat wél in de typedef (DATA-MODEL.md kent het veld, en het komt
 // terug zodra teams gebouwd worden) maar wordt HIER GEWEIGERD zolang
@@ -123,8 +131,8 @@ function assertClosedEnum(value, fieldName, allowedValues) {
 
 /**
  * Werpt TypeError/RangeError als value niet aan de GameConfiguration-vorm
- * voldoet. Controleert aanwezigheid + primitief type voor alle 17 velden, plus
- * gesloten-enum-lidmaatschap voor language/mode/gameTypes/pacing.
+ * voldoet. Controleert aanwezigheid + primitief type voor alle 18 velden, plus
+ * gesloten-enum-lidmaatschap voor language/mode/gameTypes/pacing/continents.
  * @param {unknown} value
  */
 function assertGameConfigurationShape(value) {
@@ -163,6 +171,25 @@ function assertGameConfigurationShape(value) {
   assertString(value.metricMode, 'metricMode');
   assertNumber(value.maxPlayers, 'maxPlayers');
   assertBoolean(value.allowLateJoin, 'allowLateJoin');
+
+  // `continents` (punt 7, docs/openstaand/continentfilter.md): standaard alle
+  // zes (zie QUICK_START_CONFIG), maar een host mag inperken tot zelfs één.
+  // Wél altijd minstens één — een lege lijst levert bij elke moeilijkheids-
+  // graad een lege kandidatenpool op, geen speelbare room. Dat is geen
+  // productbesluit over een AANTAL (zoals gameTypes' "exact één", dat in
+  // room-lifecycle.mjs zit) maar een structurele ondergrens: "geen enkel
+  // continent" is nooit een geldige GameConfiguration.
+  assertStringArray(value.continents, 'continents');
+  if (value.continents.length === 0) {
+    throw new RangeError('continents must contain at least one continent');
+  }
+  for (const continent of value.continents) {
+    if (!CONTINENT_VALUES.includes(continent)) {
+      throw new RangeError(
+        `continents elements must be one of ${JSON.stringify(CONTINENT_VALUES)}, got: ${JSON.stringify(continent)}`
+      );
+    }
+  }
 }
 
 module.exports = {
@@ -172,4 +199,5 @@ module.exports = {
   MODE_VALUES,
   ACCEPTED_MODE_VALUES,
   PACING_VALUES,
+  CONTINENT_VALUES,
 };

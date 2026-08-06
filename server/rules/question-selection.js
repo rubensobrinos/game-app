@@ -69,18 +69,29 @@ function pairKey(isoA, isoB) {
 
 /**
  * @returns {ContentEntry[]} pool gefilterd op difficulty (en optioneel
- * geldige hoofdstad). `== null` (niet `===`) dekt zowel `capital: null` als
- * een ontbrekende `capital`-key — een contentbron die de key weglaat in
- * plaats van expliciet op `null` te zetten, mag capitals_mc niet stilzwijgend
- * als geschikt beschouwen.
+ * geldige hoofdstad, en optioneel continent). `== null` (niet `===`) dekt
+ * zowel `capital: null` als een ontbrekende `capital`-key — een contentbron
+ * die de key weglaat in plaats van expliciet op `null` te zetten, mag
+ * capitals_mc niet stilzwijgend als geschikt beschouwen.
+ *
+ * `continents` (punt 7, docs/openstaand/continentfilter.md): `undefined` doet
+ * geen filter (alle continenten, ook voor aanroepers die het argument nog
+ * niet meegeven); een array filtert op `e.continent`. Dit is de ENE plek waar
+ * die filtering gebeurt — alle zes spelvormen lopen hier doorheen, direct of
+ * via `buildHigherLowerCandidatePairs`.
  */
-function buildCandidatePool(pool, difficulty, requireCapital) {
-  return pool.filter((e) => e.difficulty === difficulty && (!requireCapital || e.capital != null));
+function buildCandidatePool(pool, difficulty, requireCapital, continents) {
+  return pool.filter(
+    (e) =>
+      e.difficulty === difficulty &&
+      (!requireCapital || e.capital != null) &&
+      (continents === undefined || continents.includes(e.continent))
+  );
 }
 
 /** @returns {Array<[ContentEntry, ContentEntry]>} alle paren met ongelijke, niet-null metriekwaarden. */
-function buildHigherLowerCandidatePairs(pool, difficulty, metric) {
-  const difficultyPool = buildCandidatePool(pool, difficulty, false);
+function buildHigherLowerCandidatePairs(pool, difficulty, metric, continents) {
+  const difficultyPool = buildCandidatePool(pool, difficulty, false, continents);
   const pairs = [];
   for (let i = 0; i < difficultyPool.length; i++) {
     for (let j = i + 1; j < difficultyPool.length; j++) {
@@ -141,8 +152,8 @@ function buildRealOrFakeAssignment(count, random) {
   return shuffle(assignment, random);
 }
 
-function selectFlagsMcQuestion(pool, difficulty, excludedKeys, random) {
-  const difficultyPool = buildCandidatePool(pool, difficulty, false);
+function selectFlagsMcQuestion(pool, difficulty, excludedKeys, random, continents) {
+  const difficultyPool = buildCandidatePool(pool, difficulty, false, continents);
   const targetCandidates = difficultyPool.filter((e) => !excludedKeys.has(`flags:${e.iso2}`));
   if (targetCandidates.length === 0) {
     throw new RangeError(`No available flags_mc target for difficulty "${difficulty}"`);
@@ -173,8 +184,8 @@ function selectFlagsMcQuestion(pool, difficulty, excludedKeys, random) {
   };
 }
 
-function selectCapitalsMcQuestion(pool, difficulty, excludedKeys, random) {
-  const difficultyPool = buildCandidatePool(pool, difficulty, true);
+function selectCapitalsMcQuestion(pool, difficulty, excludedKeys, random, continents) {
+  const difficultyPool = buildCandidatePool(pool, difficulty, true, continents);
   const targetCandidates = difficultyPool.filter((e) => !excludedKeys.has(`capitals:${e.iso2}`));
   if (targetCandidates.length === 0) {
     throw new RangeError(`No available capitals_mc target for difficulty "${difficulty}"`);
@@ -212,8 +223,8 @@ function selectCapitalsMcQuestion(pool, difficulty, excludedKeys, random) {
  * content zelf (zie de moduledoc bovenaan) — zelfde patroon als
  * `generateFlagSpec` voor real_or_fake_flag/odd_one_out.
  */
-function selectCountryShapeQuestion(pool, difficulty, excludedKeys, random, hasShape) {
-  const difficultyPool = buildCandidatePool(pool, difficulty, false);
+function selectCountryShapeQuestion(pool, difficulty, excludedKeys, random, hasShape, continents) {
+  const difficultyPool = buildCandidatePool(pool, difficulty, false, continents);
   const shapedPool = difficultyPool.filter((e) => hasShape(e.iso2));
   const targetCandidates = shapedPool.filter((e) => !excludedKeys.has(`shape:${e.iso2}`));
   if (targetCandidates.length === 0) {
@@ -247,9 +258,9 @@ function selectCountryShapeQuestion(pool, difficulty, excludedKeys, random, hasS
   };
 }
 
-function selectRealOrFakeFlagQuestion(pool, difficulty, isReal, excludedKeys, random, generateFlagSpec) {
+function selectRealOrFakeFlagQuestion(pool, difficulty, isReal, excludedKeys, random, generateFlagSpec, continents) {
   if (isReal) {
-    const candidates = buildCandidatePool(pool, difficulty, false).filter((e) => !excludedKeys.has(`rof:${e.iso2}`));
+    const candidates = buildCandidatePool(pool, difficulty, false, continents).filter((e) => !excludedKeys.has(`rof:${e.iso2}`));
     if (candidates.length === 0) {
       throw new RangeError(`No available real_or_fake_flag (real) target for difficulty "${difficulty}"`);
     }
@@ -279,8 +290,8 @@ function selectRealOrFakeFlagQuestion(pool, difficulty, isReal, excludedKeys, ra
   throw new RangeError('Could not generate a unique seed for a generated real_or_fake_flag round');
 }
 
-function selectHigherLowerQuestion(pool, difficulty, metric, excludedKeys, random) {
-  const pairs = buildHigherLowerCandidatePairs(pool, difficulty, metric).filter(
+function selectHigherLowerQuestion(pool, difficulty, metric, excludedKeys, random, continents) {
+  const pairs = buildHigherLowerCandidatePairs(pool, difficulty, metric, continents).filter(
     ([a, b]) => !excludedKeys.has(`higher_lower:${metric}:${pairKey(a.iso2, b.iso2)}`)
   );
   if (pairs.length === 0) {
@@ -336,8 +347,8 @@ const ODD_ONE_OUT_LOGICS = Object.freeze(['continent', 'fake_among_real', 'real_
  * optionele `spec`: een kaart mét spec is een gegenereerde vlag, een kaart
  * zonder is een echte. De client hoeft de logica niet te kennen.
  */
-function selectOddOneOutFlagAuthenticity(pool, difficulty, oddIsFake, excludedKeys, random, generateFlagSpec) {
-  const difficultyPool = buildCandidatePool(pool, difficulty, false);
+function selectOddOneOutFlagAuthenticity(pool, difficulty, oddIsFake, excludedKeys, random, generateFlagSpec, continents) {
+  const difficultyPool = buildCandidatePool(pool, difficulty, false, continents);
   if (difficultyPool.length < (oddIsFake ? 3 : 1)) {
     throw new RangeError(`Not enough countries for an odd_one_out authenticity round at difficulty "${difficulty}"`);
   }
@@ -384,8 +395,13 @@ function selectOddOneOutFlagAuthenticity(pool, difficulty, oddIsFake, excludedKe
   throw new RangeError('Could not generate a unique seed for an odd_one_out authenticity round');
 }
 
-function selectOddOneOutQuestion(pool, difficulty, excludedKeys, random) {
-  const difficultyPool = buildCandidatePool(pool, difficulty, false);
+/**
+ * @returns {Array<[string, ContentEntry[]]>} de continenten in `difficultyPool`
+ * die groot genoeg zijn om de "meerderheid" van een odd_one_out-continentronde
+ * te leveren (>=3 landen) én minstens één land elders overlaten voor het
+ * buitenbeentje.
+ */
+function continentMajorityGroups(difficultyPool) {
   const byContinent = new Map();
   for (const entry of difficultyPool) {
     if (!byContinent.has(entry.continent)) {
@@ -393,10 +409,27 @@ function selectOddOneOutQuestion(pool, difficulty, excludedKeys, random) {
     }
     byContinent.get(entry.continent).push(entry);
   }
-
-  const majorityCandidates = [...byContinent.entries()].filter(
+  return [...byContinent.entries()].filter(
     ([, entries]) => entries.length >= 3 && difficultyPool.length - entries.length >= 1
   );
+}
+
+/**
+ * Besluit 52 (punt 7, docs/openstaand/continentfilter.md): "Welke hoort er
+ * niet bij" heeft in zijn continentvariant minstens twee continenten nodig.
+ * Kiest een host er maar één (of laat een moeilijkheidsgraad te weinig landen
+ * over in de overige continenten), dan is die variant hier niet haalbaar —
+ * `selectRoundsForType` laat 'm dan buiten de logica-keuze, zonder foutmelding.
+ * @returns {boolean}
+ */
+function oddOneOutContinentVariantFeasible(pool, difficulty, continents) {
+  const difficultyPool = buildCandidatePool(pool, difficulty, false, continents);
+  return continentMajorityGroups(difficultyPool).length > 0;
+}
+
+function selectOddOneOutQuestion(pool, difficulty, excludedKeys, random, continents) {
+  const difficultyPool = buildCandidatePool(pool, difficulty, false, continents);
+  const majorityCandidates = continentMajorityGroups(difficultyPool);
   if (majorityCandidates.length === 0) {
     throw new RangeError(`No continent has enough countries to build an odd_one_out round for difficulty "${difficulty}"`);
   }
@@ -437,7 +470,7 @@ function assertValidPool(pool) {
   }
 }
 
-function selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode, excludedKeys, random, generateFlagSpec, hasShape) {
+function selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode, excludedKeys, random, generateFlagSpec, hasShape, continents) {
   const used = new Set();
   const results = [];
   const isRealAssignment = gameType === 'real_or_fake_flag' ? buildRealOrFakeAssignment(totalRounds, random) : null;
@@ -447,10 +480,10 @@ function selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode
     let question;
     switch (gameType) {
       case 'flags_mc':
-        question = selectFlagsMcQuestion(pool, difficulty, combinedExcluded, random);
+        question = selectFlagsMcQuestion(pool, difficulty, combinedExcluded, random, continents);
         break;
       case 'capitals_mc':
-        question = selectCapitalsMcQuestion(pool, difficulty, combinedExcluded, random);
+        question = selectCapitalsMcQuestion(pool, difficulty, combinedExcluded, random, continents);
         break;
       case 'real_or_fake_flag': {
         // Plan van één vraag (de compositie bouwt per ronde): balans afleiden
@@ -459,31 +492,40 @@ function selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode
         const isReal = totalRounds === 1
           ? nextRealOrFakeIsReal(combinedExcluded, random)
           : isRealAssignment[i];
-        question = selectRealOrFakeFlagQuestion(pool, difficulty, isReal, combinedExcluded, random, generateFlagSpec);
+        question = selectRealOrFakeFlagQuestion(pool, difficulty, isReal, combinedExcluded, random, generateFlagSpec, continents);
         break;
       }
       case 'higher_lower': {
         const metric =
           metricMode === 'mixed' ? VALID_METRICS[pickUniqueIndices(random, VALID_METRICS.length, 1)[0]] : metricMode;
-        question = selectHigherLowerQuestion(pool, difficulty, metric, combinedExcluded, random);
+        question = selectHigherLowerQuestion(pool, difficulty, metric, combinedExcluded, random, continents);
         break;
       }
       case 'odd_one_out': {
         // Punt 11: afwisselende afwijklogica. Zonder `generateFlagSpec` blijft
         // alleen de continentvariant over — dan draait deze game precies zoals
-        // vóór 5 aug, in plaats van te werpen.
-        const logic = typeof generateFlagSpec === 'function'
-          ? ODD_ONE_OUT_LOGICS[pickUniqueIndices(random, ODD_ONE_OUT_LOGICS.length, 1)[0]]
-          : 'continent';
+        // vóór 5 aug, in plaats van te werpen. Besluit 52: de continentvariant
+        // zelf valt weg zodra hij niet haalbaar is (host koos te weinig
+        // continenten) — geen foutmelding, gewoon een kleinere keuze.
+        const continentFeasible = oddOneOutContinentVariantFeasible(pool, difficulty, continents);
+        const eligibleLogics = typeof generateFlagSpec === 'function'
+          ? (continentFeasible ? ODD_ONE_OUT_LOGICS : ODD_ONE_OUT_LOGICS.filter((l) => l !== 'continent'))
+          : (continentFeasible ? ['continent'] : []);
+        if (eligibleLogics.length === 0) {
+          throw new RangeError(
+            `No odd_one_out logic available for difficulty "${difficulty}" with the selected continents`
+          );
+        }
+        const logic = eligibleLogics[pickUniqueIndices(random, eligibleLogics.length, 1)[0]];
         question = logic === 'continent'
-          ? selectOddOneOutQuestion(pool, difficulty, combinedExcluded, random)
+          ? selectOddOneOutQuestion(pool, difficulty, combinedExcluded, random, continents)
           : selectOddOneOutFlagAuthenticity(
-            pool, difficulty, logic === 'fake_among_real', combinedExcluded, random, generateFlagSpec,
+            pool, difficulty, logic === 'fake_among_real', combinedExcluded, random, generateFlagSpec, continents,
           );
         break;
       }
       case 'country_shape_mc':
-        question = selectCountryShapeQuestion(pool, difficulty, combinedExcluded, random, hasShape);
+        question = selectCountryShapeQuestion(pool, difficulty, combinedExcluded, random, hasShape, continents);
         break;
       default:
         throw new RangeError(`Unknown gameType: ${gameType}`);
@@ -501,11 +543,12 @@ function selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode
  *   previousMatchQuestionKeys: string[], random: () => number,
  *   generateFlagSpec?: (seed: string) => object,
  *   hasShape?: (iso2: string) => boolean,
+ *   continents?: string[],
  * }} params
  * @returns {SelectedQuestion[]}
  */
 function buildMatchQuestionPlan(params) {
-  const { pool, gameType, totalRounds, difficulty, metricMode, previousMatchQuestionKeys, random, generateFlagSpec, hasShape } =
+  const { pool, gameType, totalRounds, difficulty, metricMode, previousMatchQuestionKeys, random, generateFlagSpec, hasShape, continents } =
     params;
 
   if (!VALID_GAME_TYPES.includes(gameType)) {
@@ -530,18 +573,27 @@ function buildMatchQuestionPlan(params) {
   if (gameType === 'country_shape_mc' && typeof hasShape !== 'function') {
     throw new RangeError('hasShape is required when gameType is "country_shape_mc"');
   }
+  // `continents` (punt 7, continentfilter.md): welke waarden geldig zijn — de
+  // zes continenten van de contentpool — ligt vast in
+  // `server/data/types/game-configuration.js` en is daar al afgedwongen vóór
+  // een GameConfiguration kan bestaan; hier alleen de vorm bewaken (net als
+  // difficulty/metricMode hierboven, niet de inhoud van een gesloten enum
+  // waarvan de bron elders zit).
+  if (continents !== undefined && !Array.isArray(continents)) {
+    throw new TypeError(`continents must be an array of strings or undefined, got: ${JSON.stringify(continents)}`);
+  }
   assertValidPool(pool);
 
   const prefix = KEY_PREFIXES[gameType];
   const previousExcluded = new Set((previousMatchQuestionKeys || []).filter((key) => key.startsWith(prefix)));
 
   try {
-    return selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode, previousExcluded, random, generateFlagSpec, hasShape);
+    return selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode, previousExcluded, random, generateFlagSpec, hasShape, continents);
   } catch (err) {
     if (!(err instanceof RangeError) || previousExcluded.size === 0) {
       throw err;
     }
-    return selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode, new Set(), random, generateFlagSpec, hasShape);
+    return selectRoundsForType(pool, difficulty, gameType, totalRounds, metricMode, new Set(), random, generateFlagSpec, hasShape, continents);
   }
 }
 

@@ -24,6 +24,7 @@ const VALID_CONFIG = Object.freeze({
   metricMode: 'mixed',
   maxPlayers: 100,
   allowLateJoin: true,
+  continents: ['Europe', 'Asia', 'Africa', 'North America', 'South America', 'Oceania'],
 });
 
 describe('assertGameConfigurationShape — letterlijk spec-voorbeeld #1', () => {
@@ -32,7 +33,7 @@ describe('assertGameConfigurationShape — letterlijk spec-voorbeeld #1', () => 
   });
 });
 
-describe('assertGameConfigurationShape — ontbrekend verplicht veld #2-18', () => {
+describe('assertGameConfigurationShape — ontbrekend verplicht veld #2-20', () => {
   const fields = Object.keys(VALID_CONFIG);
   let n = 2;
   for (const field of fields) {
@@ -115,5 +116,27 @@ describe('assertGameConfigurationShape — autoReveal is een verplichte boolean 
 describe('assertGameConfigurationShape — preset slaagt op het voorbeeld, niet gesloten #27', () => {
   test('#27 preset met een andere waarde dan "group_battle" slaagt (geen gesloten enum)', () => {
     assert.doesNotThrow(() => assertGameConfigurationShape({ ...VALID_CONFIG, preset: 'custom_preset' }));
+  });
+});
+
+describe('assertGameConfigurationShape — continents (punt 7, continentfilter.md)', () => {
+  test('een enkel continent slaagt — geen ondergrens op het aantal', () => {
+    assert.doesNotThrow(() => assertGameConfigurationShape({ ...VALID_CONFIG, continents: ['Oceania'] }));
+  });
+
+  test('alle zes continenten (het standaardvoorbeeld) slaagt', () => {
+    assert.doesNotThrow(() => assertGameConfigurationShape(VALID_CONFIG));
+  });
+
+  test('een lege lijst -> RangeError (geen speelbare room zonder continent)', () => {
+    assert.throws(() => assertGameConfigurationShape({ ...VALID_CONFIG, continents: [] }), RangeError);
+  });
+
+  test('een onbekende continentnaam -> RangeError', () => {
+    assert.throws(() => assertGameConfigurationShape({ ...VALID_CONFIG, continents: ['Europe', 'Atlantis'] }), RangeError);
+  });
+
+  test('een niet-array -> TypeError', () => {
+    assert.throws(() => assertGameConfigurationShape({ ...VALID_CONFIG, continents: 'Europe' }), TypeError);
   });
 });

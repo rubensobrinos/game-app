@@ -54,7 +54,7 @@ test('elke factory produceert een document dat zijn eigen assert*Shape doorstaat
   assert.doesNotThrow(() => assertAnswerShape(makeAnswer()));
 });
 
-test('makeGameConfiguration() dekt exact de 17 velden uit GameConfiguration', () => {
+test('makeGameConfiguration() dekt exact de 18 velden uit GameConfiguration', () => {
   const expected = [
     'preset',
     'gameTypes',
@@ -74,6 +74,7 @@ test('makeGameConfiguration() dekt exact de 17 velden uit GameConfiguration', ()
     'metricMode',
     'maxPlayers',
     'allowLateJoin',
+    'continents',
   ].sort();
   assert.deepStrictEqual(keys(makeGameConfiguration()), expected);
 });

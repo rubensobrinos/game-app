@@ -62,12 +62,23 @@ autoritatieve fase voor een lopende game staat in `Match.phase`; updates gebeure
   "teamNames": [],
   "metricMode": "mixed",
   "maxPlayers": 100,
-  "allowLateJoin": true
+  "allowLateJoin": true,
+  "continents": ["Europe", "Asia", "Africa", "North America", "South America", "Oceania"]
 }
 ```
 
 Enums worden in implementatie en protocolschema gedeeld; vrije strings zijn niet
 toegestaan.
+
+### `continents`
+
+Niet-lege lijst uit `Europe`, `Asia`, `Africa`, `North America`,
+`South America`, `Oceania` (besluit 52, punt 7 productspec). Standaard alle
+zes. Filtert de kandidatenpool voor elke spelvorm (`buildCandidatePool`,
+`server/rules/question-selection.js`) — geen aparte landenkeuze, alleen
+continenten. Geen ondergrens op het aantal: kiest een host er één, dan valt
+"Welke hoort er niet bij" terug op zijn niet-continent-varianten in plaats
+van een foutmelding te geven.
 
 ### `gameTypes` bevat exact één waarde
 
@@ -90,8 +101,9 @@ verandert niet meer als de room-config daarna wijzigt.
 
 Alleen `totalRounds`, `difficulty`, `language`, `pacing`, `speedBonus`,
 `allowLateJoin` en `gameTypes` — via `game:update-config`, alleen in `LOBBY`,
-alleen door de host. `questionSeconds` en `hostParticipates` zijn bewust
-create-only. De volledige regels staan in `PROTOCOL.md` §`game:update-config`.
+alleen door de host. `questionSeconds`, `hostParticipates` en `continents`
+zijn bewust create-only. De volledige regels staan in `PROTOCOL.md`
+§`game:update-config`.
 
 ## Session
 

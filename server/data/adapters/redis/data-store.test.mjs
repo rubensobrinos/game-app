@@ -140,6 +140,7 @@ if (!probe.ok) {
       totalRounds: 10, questionSeconds: 15, resultSeconds: 5, scoreboardSeconds: 8,
       scoreboardFrequency: 'elke_ronde', pacing: 'auto', autoReveal: true, speedBonus: true, deadlineGraceMs: 250,
       mode: 'individual', teamNames: [], metricMode: 'punten', maxPlayers: 20, allowLateJoin: true,
+      continents: ['Europe', 'Asia', 'Africa', 'North America', 'South America', 'Oceania'],
     };
   }
 

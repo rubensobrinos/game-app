@@ -402,3 +402,33 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
     blijft dus intact zonder aparte uitzondering: het onthullen ís de ene
     hostactie van de ronde, er komt geen tweede knop "Volgende" bij).
 
+52. **Continentfilter: standaard alle landen, een host mag continenten
+    uit-/aanzetten, geen ondergrens op het aantal** (punt 7 productspec,
+    docs/openstaand/continentfilter.md). DEELS GEBOUWD.
+
+    `GameConfiguration.continents` (verplichte, niet-lege lijst uit de zes
+    continenten van de contentpool) filtert de kandidatenpool in
+    `buildCandidatePool` (`server/rules/question-selection.js`) — dezelfde
+    trechter die elke spelvorm al gebruikt, dus één filterplek voor alle zes
+    spelvormen. Standaard (`QUICK_START_CONFIG`) alle zes; geen configuratie
+    nodig voor het bestaande gedrag.
+
+    Kiest een host één continent, dan valt "Welke hoort er niet bij" terug op
+    `fake_among_real`/`real_among_fake` in plaats van zijn continentvariant —
+    zonder foutmelding, want die variant heeft per definitie minstens twee
+    continenten nodig. Een continent dat op een gekozen moeilijkheidsgraad te
+    weinig landen overhoudt voor vier antwoordopties (`flags_mc` e.a.) krijgt
+    bewust geen eigen vangnet: dat loopt via `startRound()`'s bestaande
+    `buildQuestion`-try/catch (`match-lifecycle.mjs`) naar `CONTENT_UNAVAILABLE`
+    — zichtbaar falen, geen stille hang.
+
+    NOG NIET GEBOUWD: het live bijstellen door de host. `continents` is
+    create-only (net als `questionSeconds`); zowel `POST /api/v1/games` als
+    `game:update-config` valideren hun payload in `server/protocol/` (resp.
+    `rest-games-create-join.mjs` en `client-events-dispatch.mjs`'s
+    `UPDATABLE_CONFIG_KEYS`), en dat bestandspad was deze sessie bewust
+    buiten scope (een andere agent werkte daar tegelijk aan iets anders). De
+    lobby-UI ("Meer instellingen" → continenttoggles) bestaat, roept dezelfde
+    `pushConfig`-route aan als de andere instellingen en werkt in solo via de
+    mock — maar bereikt een echte server pas als `continents` ook in
+    `UPDATABLE_CONFIG_KEYS` (of de create-payload) staat.

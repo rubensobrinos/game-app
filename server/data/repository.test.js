@@ -25,6 +25,7 @@ const VALID_CONFIG = Object.freeze({
   metricMode: 'mixed',
   maxPlayers: 100,
   allowLateJoin: true,
+  continents: ['Europe', 'Asia', 'Africa', 'North America', 'South America', 'Oceania'],
 });
 
 function makeRoom(overrides = {}) {
