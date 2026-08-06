@@ -47,8 +47,12 @@
 }
 
 /* ── Start: merkblok linksboven, lucht in het midden, START onderaan ── */
-.home-screen .app-logo { margin: 14px 0 22px; } /* punt 3: ook wat hoger */
-.home-screen .home-title { text-align: left; margin: 0 0 10px; }
+.home-screen .app-logo {
+  width: 115px;
+  height: 115px;
+  margin: 0;
+}
+.home-screen .home-title { text-align: left; margin: 0; }
 /* `:not(.field-error)`: de twee foutalinea's zijn óók een directe `p` van dit
    scherm, en kregen daardoor de 26ch van de tagline mee. De Nederlandse en
    Engelse melding pasten daar net in, de Spaanse ("Introduce un código de 6
@@ -92,7 +96,10 @@
 .screen-top .lobby-start { margin-top: auto; }
 .screen-top:has(.gameplay-options) .gameplay-options { margin-top: auto; }
 .screen-top .gameplay-header {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   font: 700 12px/1 var(--font-mono);
   letter-spacing: 0.08em;
 }
@@ -198,11 +205,11 @@ body:has(.home-screen) .app-footer { display: block; }
 .rounda-flag-hint {
   position: absolute;
   z-index: 2;
-  left: 0;
-  right: 0;
+  left: auto;
+  right: 18px;
   bottom: 10px;
   margin: 0;
-  text-align: center;
+  text-align: right;
   font: 400 11.5px/1.3 var(--font-body);
   color: #5c5c6b;
   pointer-events: none;
@@ -300,7 +307,7 @@ body:has(.home-screen) .app-footer { display: block; }
 .reveal-next-bar i {
   display: block;
   height: 100%;
-  width: 40%;
+  width: 100%;
   border-radius: 999px;
   background: var(--rounda-lime);
 }
@@ -512,8 +519,6 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   color: #5c5c6b;
   pointer-events: none;
 }
-.rounda-flag-hint { left: auto; right: 18px; text-align: right; }
-
 /* #12: de spelers-teller in mockup-stijl: "2 SPELERS" als mono-label */
 .lobby-count {
   font: 700 11px/1 var(--font-mono);
@@ -578,7 +583,7 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 
 /* ════ SCHERM 2 (besluit 40): host-instellingen in de lobby ════ */
 
-.lobby-settings { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.lobby-settings { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 .lobby-settings-header {
   display: flex;
   align-items: center;
@@ -596,13 +601,13 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   color: #5c5c6b;
 }
 .lobby-settings-chevron { font: 700 13px/1 var(--font-display); color: #8e8e9c; }
-.lobby-settings-body { display: flex; flex-direction: column; gap: 10px; }
+.lobby-settings-body { display: flex; flex-direction: column; gap: 8px; }
 .lobby-settings-label {
   font: 700 10.5px/1 var(--font-mono);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: #5c5c6b;
-  margin: 4px 0 0;
+  margin: 0;
 }
 /* Het tandwiel-gamevlak uit de mockup: dikke lime as met ribbelranden */
 .lobby-gamecard {
@@ -615,6 +620,8 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   justify-content: center;
   background: linear-gradient(180deg, #e9ff8a, var(--rounda-lime) 34%, #b6da2d 82%, #90ae1e);
   box-shadow: inset 0 -3px 0 rgba(10, 10, 12, 0.3), 0 8px 22px rgba(216, 255, 62, 0.16);
+  touch-action: pan-y;
+  cursor: grab;
 }
 .lobby-gamecard::before,
 .lobby-gamecard::after { content: ''; position: absolute; top: 0; bottom: 0; width: 24%; }
@@ -627,7 +634,11 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 /* Drie-stand segmentkiezers (mockup .seg) */
 .lobby-seg { display: flex; background: var(--rounda-row); border-radius: 999px; padding: 4px; }
 .lobby-seg-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   flex: 1;
+  gap: 2px;
   padding: 10px;
   border: none;
   border-radius: 999px;
@@ -655,9 +666,13 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   position: relative;
   width: 44px;
   height: 26px;
+  min-height: 0;
+  padding: 0;
+  flex: none;
   border-radius: 999px;
   border: none;
   background: var(--rounda-row-border);
+  box-shadow: none;
   cursor: pointer;
 }
 .lobby-toggle i {
@@ -673,7 +688,15 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 .lobby-toggle.is-on { background: var(--rounda-lime); }
 .lobby-toggle.is-on i { transform: translateX(18px); background: var(--rounda-ink); }
 /* Kleurkiezer (feedback punt 13) */
-.lobby-self-colors { display: flex; gap: 8px; flex-wrap: wrap; }
+.lobby-self-colors {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--rounda-row);
+  border: 1px solid var(--rounda-row-border);
+}
 .lobby-self-color {
   width: 34px;
   height: 34px;
@@ -683,19 +706,18 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   padding: 0;
 }
 .lobby-self-color.is-active { border-color: #f4f4f6; box-shadow: 0 0 0 2px var(--rounda-ink); }
-.lobby-self-swatch { flex: none; width: 26px; height: 26px; border-radius: 8px; }
+.lobby-self-swatch {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(244, 244, 246, 0.28);
+  cursor: pointer;
+}
 
 /* ════ FEEDBACKRONDE 2 (4 aug) ════ */
-
-/* #8: base.css geeft buttons min-height/padding — daardoor werd de toggle
-   dubbeldik. Hard terug naar de mockup-maat. */
-.lobby-toggle {
-  min-height: 0;
-  height: 26px;
-  padding: 0;
-  flex: none;
-  box-shadow: none;
-}
 .lobby-toggle-row.is-soon { opacity: 0.55; }
 .lobby-toggle-soon {
   font: 700 10px/1 var(--font-mono);
@@ -781,15 +803,8 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 
 /* #12: echte aflopende balk (duur komt uit de serverconfig, inline gezet) */
 @keyframes reveal-drain { from { width: 100%; } to { width: 0%; } }
-.reveal-next-bar i { width: 100%; }
 /* ════ FEEDBACKRONDE 3 (4 aug): de vraag-kop uit mockup 4 ════ */
 
-.screen-top .gameplay-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
 .gameplay-round { display: flex; align-items: center; gap: 8px; margin: 0; }
 .gameplay-round-dial {
   flex: none;
@@ -830,7 +845,7 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 }
 /* Segmentbalk: volle breedte op een eigen regel; het losse cijfer vervalt
    (mockup 4 heeft alleen de segmenten — de screenreader-melding blijft). */
-.gameplay-timer-host { margin-top: 12px; }
+.gameplay-timer-host { margin-top: 0; }
 .gameplay-timer-host .timer-value { display: none; }
 .gameplay-timer-host .timer { display: block; }
 .gameplay-timer-host .timer-track { width: 100%; height: 8px; gap: 4px; }
@@ -862,17 +877,8 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   padding-bottom: 16px;
 }
 
-/* Punt 5: het rad groeit (96 → 115px) — als enige element op dit scherm. Wat
-   het kost, komt uit de marges eromheen, niet uit de andere blokken. */
-.home-screen .app-logo {
-  width: 115px;
-  height: 115px;
-  margin: 0;
-}
-
 /* Eén ritme: de blokken hebben geen eigen ondermarge meer nodig, de `gap`
    van de kolom doet het werk. Zonder dit telt elke marge er nog bovenop. */
-.home-screen .home-title,
 .home-screen .home-promise,
 .home-screen .home-divider,
 .home-screen .home-solo-link {
@@ -982,29 +988,9 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 /* Hetzelfde ritme binnen de instellingen: 8px zoals de spelerslijst, en de
    labels hebben hun eigen bovenmarge niet meer nodig. De knoppen zelf blijven
    op hun maat — dat zijn tikdoelen, geen lucht (punten 26/28/29/30). */
-.lobby-settings,
-.lobby-settings-body {
-  gap: 8px;
-}
-
-.lobby-settings-label {
-  margin-top: 0;
-}
-
 /* Punten 19/20/21 (R2-6): het kleurvlakje is nu een knop — even hoog als een
    tikdoel hoort, met een rand zodat het als bediening leest en niet als
    decoratie. Het palet eronder verschijnt pas na een tik (lobby.mjs). */
-.lobby-self-swatch {
-  flex: none;
-  width: 34px;
-  height: 34px;
-  min-height: 0;
-  padding: 0;
-  border-radius: 10px;
-  border: 1px solid rgba(244, 244, 246, 0.28);
-  cursor: pointer;
-}
-
 /* Zonder kleur van de server: leeg vlak dat nog steeds als knop leest. */
 .lobby-self-swatch.is-leeg {
   border-style: dashed;
@@ -1015,34 +1001,11 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   box-shadow: 0 0 0 2px var(--rounda-ink);
 }
 
-/* Het opengeklapte palet is een paneel bij de rij, niet een tweede blok in de
-   kolom. Sinds besluit 42 zestien kleuren: twee rijen van acht in een raster, zodat
-   de kolombreedte (en dus de vlakgrootte) niet van het aantal afhangt — één
-   rij van zestien zou vlakjes van 15px geven. Alleen zichtbaar zolang het
-   paneel openstaat; dicht blijft de lobby staan waar hij stond. */
-.lobby-self-colors {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 6px;
-  padding: 8px;
-  border-radius: 12px;
-  background: var(--rounda-row);
-  border: 1px solid var(--rounda-row-border);
-}
-
 .lobby-self-colors .lobby-self-color {
   width: 100%;
   height: auto;
   aspect-ratio: 1;
   min-width: 0;
-}
-
-/* Punt 23: horizontaal vegen over de kaart draait de carrousel (lobby.mjs).
-   `pan-y` laat de pagina verticaal scrollen, maar geeft de horizontale
-   beweging aan de kaart — zonder dit vecht de browser-scroll met de veeg. */
-.lobby-gamecard {
-  touch-action: pan-y;
-  cursor: grab;
 }
 
 /* ══ LEAD — losse punten (regie) ══════════════════════════════════════════ */
@@ -1125,9 +1088,8 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   margin: 0 auto;
 }
 
-/* Deze twee marges kwamen bovenop de gap van `.screen`: dubbele lucht op een
-   scherm dat er geen had. */
-.gameplay-timer-host { margin-top: 0; }
+/* Deze marges kwamen bovenop de gap van `.screen`: dubbele lucht op een
+   scherm dat er geen had. De timerhost-marge staat bij zijn eerste selector. */
 .gameplay-question { margin: 0; }
 
 /* De statusregel is tijdens het antwoorden leeg. De ruimte blijft wél
@@ -1349,7 +1311,6 @@ html:has(.lobby-screen) {
    label ín de knop, zoals bij "Antwoord automatisch tonen". De tikbevestiging
    op "Kiezen" is er omdat die knop anders dood aanvoelt: er valt vandaag maar
    één vorm te kiezen, dus er verandert zichtbaar niets. */
-.lobby-seg-option { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .lobby-seg-soon {
   font: 700 8px/1 var(--font-mono);
   letter-spacing: 0.14em;
