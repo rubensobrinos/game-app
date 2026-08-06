@@ -99,6 +99,36 @@ test('de vijf landen uit het bouwplan hebben hun echte verhouding terug', () => 
   }
 });
 
+// ─── Punt 1.14 ("de 51 uitgerekte landen"): geoBoundaries.org als tweede bron ──
+
+test('45 van de 51 microstaten hebben nu ook een echte verhouding, via microstate-aspects.data.mjs', () => {
+  // Steekproef, niet uitputtend — de volledige lijst staat in de header van
+  // shapes.data.mjs. Marges ruim: dit bewaakt de orde van grootte (smal/breed/
+  // vierkant), niet het exacte cijfer.
+  const verwacht = {
+    va: [1.1, 1.5], // Vaticaanstad — bijna vierkant, was het al
+    mv: [0.3, 0.6], // Maldiven — smal lint van atollen
+    sg: [1.4, 2.0], // Singapore — breder dan hoog
+    to: [1.2, 1.7], // Tonga
+    ag: [1.0, 1.5], // Antigua en Barbuda
+    mu: [0.7, 1.0], // Mauritius — hoofdeiland, niet de volle spreiding met Rodrigues
+  };
+  for (const [iso2, [min, max]] of Object.entries(verwacht)) {
+    const entry = SHAPE_ENTRIES.find((e) => e.iso2 === iso2);
+    assert.ok(entry !== undefined, `${iso2} ontbreekt`);
+    assert.equal(entry.stretched, undefined, `${iso2} hoort niet meer uitgerekt te zijn`);
+    const r = meet(entry.shape).aspect;
+    assert.ok(r >= min && r <= max, `${iso2}: verhouding ${r.toFixed(3)} valt buiten [${min}, ${max}]`);
+  }
+});
+
+test('de resterende 6 uitgerekte landen zijn precies de landen die ook geoBoundaries.org niet kent', () => {
+  const namen = uitgerekt.map((e) => e.iso2).sort();
+  // Åland, Hongkong, Jersey, Macau, Saint-Pierre-en-Miquelon, Sint Maarten —
+  // staan niet in data/shapes.js én niet in microstate-aspects.data.mjs.
+  assert.deepEqual(namen, ['ax', 'hk', 'je', 'mo', 'pm', 'sx']);
+});
+
 test('elk land vult precies één richting van het vak en staat gecentreerd', () => {
   for (const entry of proportioneel) {
     const m = meet(entry.shape);

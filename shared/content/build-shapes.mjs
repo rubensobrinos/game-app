@@ -56,13 +56,20 @@
 // waarin je het land aan zijn omtrek herkent.
 //
 // DE UITZONDERING. `data/shapes.js` dekt 175 landen, deze set er 225. Voor de
-// 51 die alleen hier staan is de verhouding nergens bekend: `build-shapes.js`
-// leest `build/world.geo.json` en dat bestand is nooit gecommit. Die landen
-// behouden hun uitgerekte vorm en dragen `stretched: true`, zodat het
-// zichtbaar is in plaats van stilzwijgend. Ze staan met naam en al in de
-// header van shapes.data.mjs. Het zijn vrijwel allemaal microstaten en
-// eilandgebieden (`hard`/`extreme` in de pool) — geen land dat je op zijn
-// omtrek herkent.
+// resterende 51 kende `data/shapes.js` geen verhouding: `build-shapes.js`
+// leest `build/world.geo.json` en dat bestand is nooit gecommit.
+//
+// Punt 1.14 ("de 51 uitgerekte landen"): voor 45 van die 51 bestaat wél een
+// tweede bron — `microstate-aspects.data.mjs`, met volledige herkomst in zijn
+// eigen kop (geoBoundaries.org, per land het GROOTSTE landdeel — niet de
+// volledige soevereine spreiding, want elk van deze 51 staat hier als ÉÉN
+// ring, en anders drukt bv. Mauritius' Rodrigues (560 km verderop) het
+// hoofdeiland plat tot een streep). De resterende 6 (Åland, Hongkong, Jersey,
+// Macau, Saint-Pierre-en-Miquelon, Sint Maarten) staan ook daar niet in en
+// behouden hun uitgerekte vorm — dragen `stretched: true`, zodat het zichtbaar
+// is in plaats van stilzwijgend. Ze staan met naam en al in de header van
+// shapes.data.mjs. Het zijn allemaal microstaten en eilandgebieden
+// (`hard`/`extreme` in de pool) — geen land dat je op zijn omtrek herkent.
 //
 // BENADERING, GEEN EXACTHEID. Waar de twee bronnen een ander eilandenpakket
 // meenemen (Noorwegen met of zonder Spitsbergen) klopt de overgenomen
@@ -95,6 +102,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 
 import { COUNTRY_ENTRIES } from './countries.data.mjs';
+import { MICROSTATE_ASPECTS } from './microstate-aspects.data.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
@@ -273,12 +281,18 @@ for (const geo of geoCountries) {
   seenIso2.add(iso2);
 
   // De VORM komt uit geo-countries.js (het detail), de VERHOUDING uit
-  // data/shapes.js (de enige proportionele bron). Zie de kop.
+  // data/shapes.js — of, als die het land niet kent, uit
+  // microstate-aspects.data.mjs (punt 1.14, zie de kop). Pas als geen van
+  // beide iets weet blijft het land uitgerekt.
   const referentie = proportionalShapes[iso2];
-  const stretched = referentie === undefined;
-  const doelVerhouding = stretched
-    ? null
-    : (() => { const b = bbox(extractPathData(referentie, geo.name)); return b.w / b.h; })();
+  const microstateAspect = MICROSTATE_ASPECTS[iso2];
+  const doelVerhouding =
+    referentie !== undefined
+      ? (() => { const b = bbox(extractPathData(referentie, geo.name)); return b.w / b.h; })()
+      : typeof microstateAspect === 'number'
+        ? microstateAspect
+        : null;
+  const stretched = doelVerhouding === null;
   const shape = ontrek(extractPathData(geo.shape, geo.name), doelVerhouding);
   if (stretched) stretchedNames.push(`${geo.name} (${iso2})`);
 
@@ -324,15 +338,16 @@ const shapesBody = `${sharedHeader}//
 // betwiste gebieden, horen niet in een quiz, vallen bewust af:
 // ${droppedContours.slice().sort().join('; ')}
 //
-// PROPORTIONEEL, met één uitzonderingslijst (opdracht E). De vorm komt uit
-// data/geo-countries.js, de verhouding uit data/shapes.js, en het geheel is
-// met ÉÉN schaalfactor gecentreerd in het vak. Chili is daardoor een smalle
-// streep en Rusland een brede band — het 100x100-vak blijft vierkant, alleen
-// de inhoud vult nog maar één richting.
+// PROPORTIONEEL, met twee bronnen (opdracht E + punt 1.14). De vorm komt uit
+// data/geo-countries.js, de verhouding uit data/shapes.js of — als dat land
+// daar niet in staat — uit microstate-aspects.data.mjs (geoBoundaries.org,
+// zie die kop). Het geheel is met ÉÉN schaalfactor gecentreerd in het vak.
+// Chili is daardoor een smalle streep en Rusland een brede band — het
+// 100x100-vak blijft vierkant, alleen de inhoud vult nog maar één richting.
 //
-// UITGEREKT GEBLEVEN (${stretchedNames.length}) — voor deze landen kent data/shapes.js geen
-// verhouding en is er in deze repo geen andere proportionele bron
-// (build/world.geo.json is nooit gecommit). Ze dragen \`stretched: true\`; hun
+// UITGEREKT GEBLEVEN (${stretchedNames.length}) — voor deze landen kent geen van beide bronnen
+// een verhouding (build/world.geo.json is nooit gecommit, en ze staan ook
+// niet in microstate-aspects.data.mjs). Ze dragen \`stretched: true\`; hun
 // \`aspect\` staat rond de 1 en zegt niets:
 // ${stretchedNames.slice().sort().join('; ')}
 //
@@ -366,6 +381,6 @@ console.log(
 );
 console.log(
   `build-shapes: ${shapeEntries.length - stretchedNames.length} op verhouding gezet ` +
-    `(vorm uit geo-countries.js, verhouding uit data/shapes.js), ` +
-    `${stretchedNames.length} nog uitgerekt — daarvoor kent data/shapes.js geen verhouding.`,
+    `(vorm uit geo-countries.js, verhouding uit data/shapes.js of microstate-aspects.data.mjs), ` +
+    `${stretchedNames.length} nog uitgerekt — daarvoor kent geen van beide een verhouding.`,
 );
