@@ -18,10 +18,10 @@ herontwerp. Zie je onderweg iets dat beter kan — melden, niet meenemen.
 | [7](7-room-lifecycle.md) | `room-lifecycle.mjs` | 1057 | ná ronde 2 |
 | [8](8-match-lifecycle.md) | `match-lifecycle.mjs` | 1764 | **als laatste** |
 | [9](9-transport-client.md) | `transport.mjs` | 978 | ja |
-| [10](10-rest-test.md) | `rest.test.mjs` | 1120 | ja |
+| [10](10-rest-test.md) | `rest.test.mjs` | 1120 | **vervallen** |
 | [11](11-lobby.md) | `views/lobby.mjs` | 1090 | af |
-| [12](12-match-lifecycle-test.md) | `match-lifecycle.test.mjs` | 2337 | ná 8 |
-| [13](13-socket-test.md) | `socket.test.mjs` | 1158 | ná 6 |
+| [12](12-match-lifecycle-test.md) | `match-lifecycle.test.mjs` | 2337 | **vervallen** |
+| [13](13-socket-test.md) | `socket.test.mjs` | 1158 | **vervallen** |
 | [14](14-overrides-platslaan.md) | `1c-overrides.css` platslaan | 1609 | vóór 3 |
 
 Daarna nog, zodra ze vrij zijn: `match-lifecycle.test.mjs` (2337),
@@ -37,3 +37,21 @@ halverwege leegloopt en je met een half gesplitste boel achterblijft.
 **8 gaat als laatste.** Daar zitten fases, rondes, scoring en herstel in
 elkaar, met een testbestand van 2315 regels eromheen. Als er één verhuizing
 stil iets kan breken, is het die.
+
+## De testbestanden zijn geschrapt (producteigenaar, 6 aug 2026)
+
+Opdracht 10, 12 en 13 gaan niet door. De documenten blijven staan voor als het
+ooit alsnog nodig is, maar ze worden niet ingepland.
+
+**Waarom.** Een groot testbestand blokkeert parallel werk alleen als twee
+mensen tegelijk aan dezelfde bron werken — en dan is die bron de rem, niet de
+test. Bij `rest.test.mjs` komen twee agents elkaar vrijwel nooit tegen.
+Daarbij is elke verhuizing een kans om stil iets te breken; dat is in deze
+ronde twee keer bijna gebeurd, en beide keren vonden de tests het niet.
+
+En het maakt het product voor geen enkele speler beter. Het maakt óns sneller,
+en dat is alleen winst zolang we nog veel gaan bouwen.
+
+**Wanneer wél.** Zodra een testbestand daadwerkelijk in de weg zit: twee
+agents die er tegelijk in moeten, of een merge die erop stukloopt. Dan ligt de
+opdracht klaar.
