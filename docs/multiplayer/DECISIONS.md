@@ -492,3 +492,45 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
     **Wat vervalt:** het centreren en het krimpen. De kaart staat stil op 60px
     en het scherm vult zichzelf aan.
 
+54. **Je mag je antwoord wijzigen tot de tijd om is; de laatste tik telt**
+    (producteigenaar, 6 aug 2026). NOG NIET GEBOUWD.
+
+    Herziet `GAME-RULES.md`: *"één antwoord per speler per ronde; wijzigen is
+    niet toegestaan"*. Dat was er altijd al en de server dwong het af met
+    `ALREADY_ANSWERED`, maar het is nooit als besluit vastgelegd — en het is
+    niet wat een speler verwacht.
+
+    **De laatste tik telt, ook voor de snelheidsbonus.** Dat is de kern van de
+    keuze. Overwogen en niet gekozen:
+
+    | | Wat | Waarom niet |
+    | --- | --- | --- |
+    | B | Eerste tik telt voor de tijd | Dan wordt snel gokken en daarna corrigeren de beste strategie |
+    | C | Wisselen mag, geen snelheidsbonus | Verandert het hele spel |
+
+    Uit te leggen in één zin: *je tijd loopt tot je klaar bent.* Wie meteen
+    zeker is, wint nog steeds.
+
+    Raakt: de server (een tweede antwoord wordt een overschrijving in plaats
+    van `ALREADY_ANSWERED`, tot de deadline), het spelscherm, de mock, en de
+    regel in `GAME-RULES.md`.
+
+55. **Tijd per vraag wordt instelbaar** (producteigenaar, 6 aug 2026).
+    NOG NIET GEBOUWD.
+
+    Staat vast op 15 seconden en de host kan er niets aan veranderen. Gemeten
+    op de live-app: precies 15,08 seconden van vraag tot uitslag, met een
+    kloppende aftelling — de timer loopt dus niet te snel, hij staat te kort.
+
+    De host kan al aantal vragen, niveau, taal, continenten, snelheidsbonus,
+    later meedoen, automatisch volgende en automatisch tonen instellen. Tijd
+    per vraag hoort in datzelfde rijtje, in "Meer instellingen".
+
+    **Voorstel regie:** dezelfde vorm als het niveau — drie knoppen. Rustig
+    (25 s), normaal (15 s), snel (10 s). Dan hoeft niemand een getal te typen
+    en is de standaard nog steeds wat hij nu is.
+
+    Wat er níét mee opgelost wordt: dat 15 seconden voor "Raad het land" iets
+    anders betekent dan voor "Raad de vlag". Per gameType verschillende tijden
+    is denkbaar, maar dat is een tweede besluit — eerst laten instellen.
+
