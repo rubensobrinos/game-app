@@ -103,7 +103,8 @@
   font: 700 12px/1 var(--font-mono);
   letter-spacing: 0.08em;
 }
-.gameplay-flag { max-width: 100%; }
+/* `.gameplay-flag`'s `max-width: 100%` stond hier én verderop in het volledige
+   blok; de losse regel deed niets extra's en is opgeruimd (lead, 6 aug 2026). */
 
 /* Tussenstand/podium: lijst vult, eigen regel + actie zakken mee */
 .screen-top .podium-action { margin-top: auto; }
@@ -1020,6 +1021,13 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: start;
+  /* Stond verderop als losse `.podium-action { margin-top: 14px; }`. Die won
+     daar níét: `.screen-top .podium-action { margin-top: auto; }` hierboven is
+     specifieker en wint altijd, ongeacht volgorde. De 14px was dus al dood
+     toen hij geschreven werd. Hier staat hij als de waarde die geldt zodra
+     die `auto`-regel ooit verdwijnt (lead, 6 aug 2026, gemeten: vóór en ná
+     allebei margin-top 0px op het podium). */
+  margin-top: 14px;
 }
 .podium-rematch,
 .podium-close,
@@ -1039,7 +1047,6 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 .podium-steps { gap: 6px; }
 .podium-step { padding: 10px 14px; }
 .podium-self { margin-top: 8px; }
-.podium-action { margin-top: 14px; }
 
 /* ══ PAKKET D — spel, reveal, eindstand (agent D) ══ */
 
