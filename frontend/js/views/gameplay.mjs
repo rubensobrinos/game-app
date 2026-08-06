@@ -415,7 +415,20 @@ export function createGameplayView({ root, t, tCount = null, onAnswer, lang = 'n
     }
 
     // Vergrendeling + eigen selectie zichtbaar (géén goed/fout-kleur vóór ended)
-    const locked = optionsLocked(model);
+    //
+    // De timer telt óók mee (producteigenaar, 6 aug 2026). Tot besluit 51 viel
+    // dat samen: de ronde eindigde op de timer, dus zodra de tijd om was kwam
+    // de uitslag binnen en vergrendelde `optionsLocked` de knoppen. Sinds
+    // "antwoord automatisch tonen" uit kan staan, blijft het scherm ná de
+    // deadline staan wachten op de host — en bleven de knoppen al die tijd
+    // aantikbaar. De server weigert zo'n antwoord terecht (DEADLINE_PASSED),
+    // maar de speler zag zijn keuze oplichten en las even later "Geen
+    // antwoord". Gemeld met schermafdrukken uit een echte partij.
+    //
+    // Vergrendelen op de zichtbare teller, niet op `endsAt`: wat de speler
+    // ziet is wat er geldt. Staat de teller op 0, dan is tikken zinloos.
+    const tijdOp = typeof secondsLeft === 'number' && secondsLeft <= 0;
+    const locked = optionsLocked(model) || tijdOp;
     const selectedValue = selectedValueFor(model);
     // M2/E06: dimmen pas ná serverbevestiging (`accepted`), niet al tijdens
     // `sending` — dat zou een bevestiging suggereren die er nog niet is

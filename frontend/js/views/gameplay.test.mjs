@@ -469,3 +469,23 @@ test('besluit 51: zodra het echte resultaat er is, wint dat altijd van de wachtm
   );
   assert.equal(vind(root, 'gameplay-status').textContent, '');
 });
+
+// ── Besluit 51: de knoppen gaan op slot zodra de teller op 0 staat ──────────
+//
+// Vóór "antwoord automatisch tonen" viel dat samen met de uitslag: de ronde
+// eindigde op de timer, dus `optionsLocked` sloot de knoppen zodra `result`
+// binnenkwam. Staat automatisch tonen uit, dan blijft het scherm ná de
+// deadline wachten op de host — en bleven de knoppen aantikbaar. De server
+// weigert zo'n antwoord (DEADLINE_PASSED), maar de speler zag zijn keuze
+// oplichten en las even later "Geen antwoord".
+
+test('de antwoordknoppen zijn op slot zodra de teller nul is', async () => {
+  const { root, view } = await maakView();
+  view.update(actiefModel(), { secondsLeft: 4, phase: 'ROUND_ACTIVE' });
+  const knoppen = () => vindAlle(root, 'gameplay-option');
+  assert.equal(knoppen().length > 0, true, 'er staan antwoordknoppen');
+  assert.equal(knoppen().every((k) => k.disabled === false), true, 'met tijd over zijn ze open');
+
+  view.update(actiefModel(), { secondsLeft: 0, phase: 'ROUND_ACTIVE' });
+  assert.equal(knoppen().every((k) => k.disabled === true), true, 'op nul gaan ze op slot');
+});
