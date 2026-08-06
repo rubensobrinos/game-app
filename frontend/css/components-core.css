@@ -1,0 +1,393 @@
+/* components.css — de componentlaag die de multiplayer-schermen visueel
+   identiek maakt aan de singleplayer (style.css in de repo-root). Eén game,
+   één gezicht: zelfde donkere achtergrond, zelfde paarse accenten, zelfde
+   gradient-titel, zelfde kaart- en knopstijl.
+
+   Toegevoegd door CT/regie op verzoek van de producteigenaar ("het lijkt wel
+   twee werelden") — zie HANDOFF-UI. Gebruikt uitsluitend de tokens uit
+   base.css (die al gelijk zijn aan style.css). Viewspecifieke layout blijft
+   van de UI-agent; dit bestand stylet de gedeelde componentklassen. */
+
+/* `body` en `#app-root` stonden hier óók, met eigen waarden naast die van
+   base.css. Weggehaald, want ze liepen uit elkaar en dat was zichtbaar:
+   `#app-root { padding: 24px 20px 48px }` kwam bovenop `.screen`'s eigen
+   2rem/1.5rem (dubbele marge), en `min-height: 100vh` week af van base.css'
+   `100dvh` — juist op mobiel het verschil dat de adresbalk maakt.
+   base.css is eigenaar van reset + layout, dit bestand van de componenten;
+   die grens stond al in beide headers maar werd hier doorbroken. */
+
+/* Titels. D-017: gradient is uitsluitend voor de merknaam, niet voor elke
+   heading — dat was de "gradient-inflatie" uit de audit, en het maakte
+   `Lobby`, `Tussenstand` en `Eindstand` net zo luid als de productnaam zelf.
+   Dit beslecht ook UI-5 in HANDOFF-UI, dat het omgekeerde vroeg. */
+h1,
+h2 {
+  color: var(--color-text-primary);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+h1 { font-size: var(--type-heading-1); margin: 12px 0 20px; }
+h2 { font-size: var(--type-heading-2); margin: 8px 0 16px; }
+
+/* De merklock-up. 1c-besluit (producteigenaar, 3 aug): de wordmark is
+   EFFEN wit — geen gradient, nergens. Lime is schaars (actie/energie); het
+   rad draagt het lime in het merkbeeld, het woord blijft rustig. De klasse
+   blijft bestaan als haakje voor de lock-up, alleen de verf is anders. */
+.brand-title {
+  color: var(--color-text-primary);
+  -webkit-text-fill-color: currentColor;
+  background: none;
+}
+
+p { color: var(--color-text-muted); }
+
+/* ── Numerieke rol (05 §2.3) ───────────────────────────────────────────────
+   `tabular-nums` stond op negen losse plekken. Alles wat een getal toont dat
+   verandert of uitgelijnd moet blijven — code, score, rank, timer — hoort
+   hier bij te staan, niet zijn eigen regel te herhalen.
+
+   Waarom het ertoe doet: zonder tabulaire cijfers is een `1` smaller dan een
+   `8`, dus springt een aftellende timer of een oplopende score zijwaarts heen
+   en weer bij elke wijziging.
+
+   `.type-numeric` staat erbij voor nieuwe gebruikers die nog geen eigen
+   selector hebben. */
+.room-header-code-value,
+.room-qr-code,
+.lobby-code-reveal,
+.gameplay-timer,
+.timer-value,
+.scoreboard-rank,
+.scoreboard-score,
+.podium-score,
+.type-numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Knophiërarchie ───────────────────────────────────────────────────────
+   05-DESIGN-SYSTEM §15 waarschuwt letterlijk tegen "één gedeeld regelblok dat
+   hero, secondary, gameplay-option en podiumrematch identiek maakt" — precies
+   wat hier stond. Daardoor woog elke actie even zwaar, wat P1/P15 breekt: de
+   primaire actie moet domineren.
+
+   De rollen hieronder zijn gescheiden. Alleen de echt gedeelde eigenschappen
+   (vorm, tikgedrag) staan in `.btn`; kleur en gewicht volgen betekenis. */
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-quiet,
+.btn-destructive,
+.gameplay-option,
+.podium-rematch {
+  display: block;
+  width: 100%;
+  padding: 14px 20px;
+  /* Pil voor de hele familie, niet per knop (zie `--r-pill` in base.css).
+     Hiervóór was de vorm afhankelijk van wáár een knop stond: de startknop en
+     de antwoordpillen waren rond, `.btn-quiet` en een gewone `.btn-primary`
+     bleven rechthoekig. Dat leest als twee knopstelsels in één scherm. */
+  border-radius: var(--r-pill);
+  font: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--motion-instant) var(--ease-press),
+    box-shadow var(--motion-instant) var(--ease-press),
+    border-color var(--motion-instant) var(--ease-press),
+    background-color var(--motion-instant) var(--ease-press);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Primary — de ene dominante actie per scherm (Start Rounda, Meedoen). */
+.btn-primary,
+.podium-rematch {
+  background: var(--color-accent-primary);
+  color: #0a0a0c;
+  border: 1px solid var(--color-accent-primary);
+  font-weight: 700;
+}
+
+.btn-primary:active,
+.podium-rematch:active { transform: scale(0.98); }
+
+.btn-primary:hover,
+.podium-rematch:hover { box-shadow: 0 0 0 4px var(--color-accent-glow); }
+
+/* Secondary — een echt alternatief, zichtbaar maar niet dominant. */
+.btn-secondary {
+  background: var(--color-surface-1);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.btn-secondary:hover { border-color: var(--color-accent-primary-hover); }
+.btn-secondary:active { transform: scale(0.99); }
+
+/* Quiet — lage prioriteit (Delen, Voorkeuren, Spel aanpassen). Geen vlak,
+   geen rand: het mag gevonden worden, niet opvallen. */
+.btn-quiet {
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid transparent;
+  font-weight: 600;
+  font-size: var(--type-body-sm);
+}
+
+.btn-quiet:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-1);
+}
+
+/* M1/E01: `transform` zit al in de gedeelde `.btn`-transitionlijst
+   hierboven — alleen de :active-scale zelf ontbrak nog. */
+.btn-quiet:active { transform: scale(0.99); }
+
+/* Destructive — beëindigen, verwijderen. Rood is hier een rand en tekst, geen
+   permanent vol vlak: 05 §4.5 wil geen doorlopende alarmkleur in een normale
+   view, en het mag nooit op primary lijken. */
+.btn-destructive {
+  background: transparent;
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+}
+
+.btn-destructive:hover { background: var(--color-danger-surface); }
+.btn-destructive:active { transform: scale(0.99); }
+
+/* Gameplay option — géén secondary-knop (05 §5). Vorm blijft nu gelijk
+   (D-021 stelt letter/vorm-identiteit bewust uit), maar de regel staat apart
+   zodat die wijziging later niet de hele knoplaag meesleept. */
+.gameplay-option {
+  background: var(--color-surface-1);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-subtle);
+  text-align: left;
+}
+
+.gameplay-option:not(:disabled):hover { border-color: var(--color-accent-primary-hover); }
+.gameplay-option:not(:disabled):active { transform: scale(0.99); }
+
+/* Disabled — 05 §13 en de QA-checklist verbieden "alleen opacity 0.5":
+   daarmee zakt de tekst onder het contrastminimum en lijkt de knop kapot in
+   plaats van tijdelijk niet-beschikbaar. Nu: gedempt vlak, leesbare tekst. */
+button:disabled {
+  cursor: not-allowed;
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  border-color: var(--color-border-subtle);
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+}
+
+button:disabled:hover {
+  border-color: var(--color-border-subtle);
+  box-shadow: none;
+}
+
+/* Loading — 05 §4.1 ("bevat loadingvariant") en 06 E02. Staat ná
+   `button:disabled` omdat een ladende knop óók `disabled` is (tegen dubbele
+   taps, 05 §5), en er anders uitziet als kapot in plaats van bezig: bezig
+   houdt de accentkleur, uitgeschakeld niet.
+
+   De spinner is de aanvullende cue; 05 §13 is expliciet dat de tékst de
+   boodschap draagt. Wie geen label meegeeft krijgt dus alleen een draaiend
+   rondje en dat is te weinig. */
+button.is-loading {
+  cursor: progress;
+  position: relative;
+  padding-right: 44px;
+}
+
+button.is-loading.btn-primary,
+button.is-loading.podium-rematch {
+  background: var(--color-accent-primary);
+  color: #0a0a0c;
+  border-color: var(--color-accent-primary);
+}
+
+button.is-loading.btn-secondary,
+button.is-loading.btn-destructive {
+  background: var(--color-surface-1);
+  color: var(--color-text-primary);
+  border-color: var(--color-accent-primary-hover);
+}
+
+button.is-loading::after {
+  content: '';
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0.9;
+  animation: btn-spin var(--motion-stage) linear infinite;
+}
+
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Reduced motion: het vangnet in base.css zet de duur op 0,001ms, wat een
+   spinner in een flikkerend rondje verandert. Hier expliciet stilzetten — de
+   ring blijft staan als statische indicatie naast de tekst. */
+@media (prefers-reduced-motion: reduce) {
+  button.is-loading::after {
+    animation: none !important;
+    border-right-color: currentColor;
+    opacity: 0.45;
+  }
+}
+
+/* ── Lege en foutstaten (T2-11, 05 §13) ────────────────────────────────────
+   Twee staten, dezelfde opbouw: kop, uitleg, uitweg. Wat ze scheidt is de
+   betekenis — "er is nog niets" tegenover "er ging iets mis" — en die zit in
+   de kleur en de rand, niet in de vorm. */
+.state-empty,
+.state-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--r-sm);
+  text-align: center;
+}
+
+/* Leeg is rustig: geen rand, geen vlak. Het is geen probleem, er is alleen
+   nog niets — dat mag niet als storing lezen. */
+.state-empty {
+  padding: 20px 16px;
+  color: var(--color-text-muted);
+}
+
+.state-empty .state-title {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.state-hint {
+  font-size: var(--type-body-sm);
+  margin: 0;
+}
+
+/* Fout draagt wél kleur — maar als rand en tekst, niet als vol rood vlak
+   (05 §4.5's redenering geldt ook hier: geen doorlopende alarmkleur). */
+.state-error {
+  background: var(--color-danger-surface);
+  border: 1px solid var(--color-danger);
+  color: var(--color-danger);
+}
+
+.state-error.is-inline {
+  padding: 10px 14px;
+  font-size: var(--type-caption);
+}
+
+.state-error.is-page {
+  padding: 28px 20px;
+  gap: 12px;
+}
+
+.state-error.is-page .state-title {
+  font-size: var(--type-heading-3);
+  font-weight: 800;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+/* De tekst van een paginafout is leesbaar, niet alarmerend: rood is de rand
+   en de kop-accentuering, de uitleg zelf blijft gewone tekst. */
+.state-error.is-page .state-message {
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.state-error.is-inline .state-message {
+  margin: 0;
+  color: inherit;
+}
+
+/* De actie is onderdeel van de staat, dus hij hoort ook binnen de vorm te
+   passen — niet volle breedte zoals een schermknop. */
+.state-action {
+  width: auto;
+  margin-top: 4px;
+}
+
+.state-error.is-page .state-action {
+  width: 100%;
+  max-width: 320px;
+}
+
+/* T2-6's `.leaderboard-*` stond hier: een tweede, parallelle tussenstandrij
+   naast `.scoreboard-*`. Weg (UI-21, regel 0). Het scherm bouwt zijn rijen
+   zelf en is daar sindsdien overheen gegroeid — `data-playerId` voor de
+   FLIP-animatie, `.scoreboard-entry` gestyled in `rounda-1c.css`. De
+   component omhangen zou die twee moeten meeslepen zonder dat een speler er
+   iets van merkt. De rangkolom, de bewegingskolom en de eigen-rij-markering
+   die T2-6 opleverde staan nu in `.scoreboard-*` hieronder. */
+
+/* ── Spelerchip (T2-4, 05 §8, D-022) ───────────────────────────────────────
+   Naam plus een tijdelijke kleur/symboolidentiteit. De kleur staat inline
+   (berekend uit de playerId in player-chip.mjs); de vorm komt uit de klassen
+   hieronder.
+
+   Acht vormen als `clip-path`: geen SVG, geen emoji, geen extra assets — en
+   `05` §3 vraagt om geometrische vormen. */
+.player-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0; /* zonder dit kapt de naam niet af in een flex-ouder */
+}
+
+.player-chip-mark {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  /* Achtergrondkleur komt inline; hier alleen de vorm en de maat. */
+}
+
+.player-chip-name {
+  /* `min-width: 0` moet óók op het flex-item zelf, niet alleen op de
+     container: een flex-item krimpt standaard niet onder zijn inhoudsbreedte,
+     dus zonder deze regel duwt een lange naam de hele rij breder en scrollt de
+     pagina zijwaarts. Met een naam van 60 tekens (de invoerlimiet) op 320px
+     gemeten. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* De eigen rij mag opvallen — 05 §10 en 04 S06 vragen om herkenning van
+   jezelf in een lijst. */
+.player-chip.is-self .player-chip-name {
+  color: var(--color-accent-primary-hover);
+}
+
+.player-chip-mark.is-cirkel { border-radius: 50%; }
+.player-chip-mark.is-vierkant { border-radius: 3px; }
+.player-chip-mark.is-driehoek { clip-path: polygon(50% 0%, 100% 100%, 0% 100%); }
+.player-chip-mark.is-ruit { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
+.player-chip-mark.is-vijfhoek {
+  clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+}
+.player-chip-mark.is-zeshoek {
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+.player-chip-mark.is-ster {
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%,
+    50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
+.player-chip-mark.is-kruis {
+  clip-path: polygon(35% 0%, 65% 0%, 65% 35%, 100% 35%, 100% 65%,
+    65% 65%, 65% 100%, 35% 100%, 35% 65%, 0% 65%, 0% 35%, 35% 35%);
+}
+

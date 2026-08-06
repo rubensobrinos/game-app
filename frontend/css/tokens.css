@@ -1,0 +1,345 @@
+/* base.css — UI0/UI1. Mobile-first basis + tokens. Portret telefoonscherm is
+   het primaire doelwit. De kleurwáárden zijn bewust gelijk aan de root-app se
+   `style.css` — dit is dezelfde productfamilie, geen eigen visuele taal. De
+   namen lopen sinds T2-1 wél uiteen: hier semantische rollen (`05` §2.1,
+   `--color-bg-canvas`), in `style.css` nog de presentatieve namen (`--bg`).
+   Die hernoeming stopt bewust bij de multiplayer; de singleplayer heeft een
+   eigen levenscyclus en wordt niet meegesleept.
+
+   Componentstijl (btn-primary/secondary, field-input, gameplay-*,
+   scoreboard-*, podium-*) zit in `components.css` (CT/regie, HANDOFF-UI
+   UI-5) — dat hergebruikt uitsluitend de tokens hieronder. Dit bestand houdt
+   zich aan reset + layout + de dingen die components.css niet dekt (schermen,
+   formulierlabels, het hamburgermenu). Geen duplicaten hier van wat
+   components.css al stylet — dat raakt anders stilzwijgend uit sync. */
+
+/* Fase 3 (F4): zelf gehost i.p.v. Google Fonts — een storing bij Google (er
+   kwam een 503 voorbij) mag deze app niet meeslepen, en elke speler liet tot
+   nu toe zijn IP-adres bij Google achter vóórdat er ook maar één vraag was
+   geladen. Bestanden staan in `frontend/vendor/fonts/` (licentie:
+   `licenses/OFL-*.txt`, SIL Open Font License 1.1 — ongewijzigd overgenomen
+   uit google/fonts). Alleen de subsets `latin`/`latin-ext`: de UI heeft drie
+   talen (nl/en/es, zie `frontend/locales/`), geen cyrillisch/grieks/
+   vietnamees nodig. `font-display: swap` behouden — dezelfde reden als
+   hieronder bij `--font-display` (§7: een falende/tragere asset blokkeert de
+   game niet, de systeemfont toont meteen). */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/vendor/fonts/archivo-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/vendor/fonts/archivo-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url('/vendor/fonts/space-grotesk-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url('/vendor/fonts/space-grotesk-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/vendor/fonts/jetbrains-mono-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/vendor/fonts/jetbrains-mono-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  --color-bg-canvas: #0a0a0c;
+  --color-surface-1: #101015;
+  --color-surface-2: #17171e;
+  --color-border-subtle: #26262f;
+  --color-accent-primary: #d8ff3e;
+  /* T5-6-contrast.test.mjs vond dat de originele #a855f7 als tekst
+     (`.scoreboard-score`/`.podium-score`, `--color-surface-1`) op 4,49:1
+     uitkwam — net onder AA. Minimaal opgehelderd (#af62f8), zelfde toon. */
+  --color-accent-primary-hover: #e7ff78;
+  --color-accent-glow: rgba(216, 255, 62, 0.22);
+  --color-success: #22c55e;
+  --color-success-surface: rgba(34, 197, 94, 0.12);
+  /* Idem: als tekst (`.gameplay-option.is-wrong::after`'s "✕", op
+     `--color-surface-2`) kwam de originele #ef4444 op 4,30:1 uit. */
+  --color-danger: #f04d4d;
+  --color-danger-surface: rgba(239, 68, 68, 0.12);
+  --color-text-primary: #f4f4f6;
+  --color-text-muted: #8e8e9f;
+  --color-accent-competition: #ff3ea5;
+
+  /* Rollen uit 05 §2.1 die nog niet bestonden. Alleen die met een echte
+     toepassing — een ongebruikte rol nodigt uit tot verkeerd gebruik. */
+  --color-focus: #f1f5f9;              /* focusring; 05 §2.6 scheidt dit
+                                          nadrukkelijk van de decoratieve glow */
+  --color-warning: #f59e0b;            /* P12: tijd of aandacht, niet fout */
+  --color-overlay: rgba(0, 0, 0, 0.7); /* backdrop van modals */
+
+  /* ── Signaalpalet uit 1c ────────────────────────────────────────────────
+     De waarden komen uit `rounda-1c.css` (eigenaar: regie, wordt hier niet
+     aangeraakt). Ze staan hier als *systeem*token zodat er één bron is voor
+     beide thema's: de 1c-laag definieert alleen de donkere variant, en zonder
+     deze regels zou elk gebruik in het lichte thema apart gepatcht moeten
+     worden — precies hoe het kleurenpalet eerder uit elkaar liep.
+
+     Lichte varianten zijn donkerder getrokken; lime en cyan halen op wit
+     nooit AA als tekst (lime #d8ff3e komt op ~1,2:1 uit). Wie ze als tekst
+     gebruikt krijgt dus de donkere tint, wie ze als vlak of rand gebruikt
+     merkt het verschil nauwelijks. `contrast.test.mjs` bewaakt dat. */
+  --color-signal-lime: #d8ff3e;    /* 1c: primair signaal, voortgang */
+  --color-signal-lime-dim: #3d4a10;
+  --color-signal-magenta: #ff3ea5; /* 1c: urgentie — laatste seconden */
+  --color-signal-cyan: #4ad2ff;
+  --color-signal-warm: #ffa63e;
+
+  /* Lettertyperollen. `rounda-1c.css` zet dezelfde drie; hier met een
+     systeemfont-fallback, zodat de app leesbaar blijft als de webfonts niet
+     laden (`08` §7: een falende asset mag de game niet blokkeren). */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Archivo', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* ── Typografie (05 §2.3) ──────────────────────────────────────────────
+     Rollen, geen groottes: `--type-display-code` zegt waarvoor het is,
+     `--type-2xl` niet. Wie later besluit dat de code kleiner moet, wijzigt
+     één plek in plaats van elf.
+
+     De waarden komen uit wat er stond; alleen `display-code` is bewust
+     gegroeid, omdat `04` S05 eist dat de gamecode op kamerafstand leesbaar is
+     en hij daarvoor te klein was. `07` §11 vraagt `clamp()` voor code en rank
+     zodat ze meegroeien met de schermbreedte. */
+  --type-display-xl: 5rem;                       /* countdown */
+  --type-display-code: clamp(2.25rem, 12vw, 3.5rem);
+  --type-display-hero: clamp(2rem, 8vw, 2.75rem); /* merknaam */
+  --type-display-lg: 3rem;                        /* logo-glyph */
+  --type-heading-1: 2.2rem;
+  --type-heading-2: 1.5rem;
+  --type-heading-3: 1.35rem;
+  --type-body-lg: 1.15rem;
+  --type-label: 1.05rem;                          /* knoplabel */
+  --type-body: 1rem;
+  --type-body-sm: 0.95rem;
+  --type-caption: 0.875rem;
+  --type-micro: 0.72rem;                          /* kleine kapitalen */
+
+  --r: 14px;
+  --r-sm: 10px;
+  /* 1c maakt van elke knop een pil. Dat stond per instantie in `rounda-1c.css`
+     (`.home-quick-start`, `.lobby-start`, `.podium-rematch`, `.gameplay-option`,
+     `.btn-destructive`, twee `.btn-secondary`-plekken) en dus niet op de rollen
+     zelf — waardoor een `.btn-quiet` of een gewone `.btn-primary` als enige
+     rechthoekig bleef. Als token, en toegepast op de knopfamilie in
+     components.css: vorm is een eigenschap van de rol, niet van de plek. */
+  --r-pill: 999px;
+
+  /* ── Ruimtebudget mobiel (agent-opdrachten/README §1) ───────────────────
+     Waarom als token en niet per component: op 390 × 844 is er ~650 px
+     bruikbaar en vielen vier antwoordpillen buiten beeld. "Ziet er compacter
+     uit" is niet toetsbaar, deze vijf getallen wel. Ze vormen één contract:
+     pakket A bezit ze, B/C/D lezen ze. Wie meer ruimte nodig heeft vraagt het
+     aan bij A in plaats van er stilzwijgend overheen te gaan — anders lekt
+     het budget weer weg over vier stylesheets tegelijk.
+
+     Rekensom die eraan hangt: 44 + 16 (chrome) + 200 (beeld) + 4 × 56 + 3 × 11
+     = 517 px, ruim binnen de 650. */
+  --chrome-h: 44px;    /* de codebalk incl. álles wat erin staat */
+  --chrome-gap: 16px;  /* ruimte tussen de chrome en de eerste inhoud */
+  --media-max-h: 200px; /* vlag, contour, elk vraagbeeld */
+  --answer-h: 56px;    /* één antwoordpil */
+  --answer-gap: 11px;
+
+  /* Wat #app-header uit de flow opeet: de balk zelf plus de ruimte eronder.
+     De header staat in de normale flow (sticky), dus een scherm dat 100dvh
+     hoog is duwt de pagina exact deze hoogte te ver door. `.screen` trekt 'm
+     er daarom weer af — zie de opmerking daar. Afgeleid en niet los
+     opgeschreven, zodat hij niet uit de pas kan lopen met de twee tokens
+     hierboven (dat gebeurde eerder: 3.5rem terwijl de balk 56 px was). */
+  --header-h: calc(var(--chrome-h) + var(--chrome-gap));
+
+  /* ── Motion (06 §3) ────────────────────────────────────────────────────
+     Eigendom van thema 2 (designsysteem), consument is thema 3
+     (HANDOFF-UI UI-9). Eén waarde per bucket, gekozen binnen de bandbreedte
+     die 06 §3 als werkhypothese geeft — de exacte ms daarbinnen is een
+     implementatiedetail, geen ontwerpbesluit.
+
+     Wie hier een waarde wijzigt raakt élke overgang in de app; dat is de
+     bedoeling. Wie een nieuwe duur nodig heeft die hier niet in past, meldt
+     dat in plaats van er een losse waarde naast te zetten.
+
+     Performancebudget (06 §9, M5): transform/opacity zijn de voorkeur, niet
+     een verbod — color/border-color/background-color zijn toegestaan voor
+     kleine statusovergangen, width/height/top/left/margin/padding vermijden
+     (forceert reflow), blur/filter/grote box-shadow meten en beperken. Zie
+     ../../docs/design-documentation/design/3-beweging-en-gevoel/
+     PERFORMANCE-BUDGET-AUDIT.md voor de volledige toetsing. De enige
+     overtreding die daar stond (.timer-fill's width-transitie) is weg: de
+     timer bestaat sinds de bouwsprint uit segmenten die alleen van kleur
+     wisselen. */
+  --motion-instant: 100ms;    /*  80–120ms  — indrukken, directe respons */
+  --motion-fast: 160ms;       /* 140–180ms  — kleine statuswissels */
+  --motion-base: 250ms;       /* 220–280ms  — verschijnen en verdwijnen */
+  --motion-emphasis: 400ms;   /* 350–500ms  — reveal, rangwisseling */
+  --motion-stage: 900ms;      /* 700–1200ms — podium, finale */
+
+  /* Easingrollen uit 06 §3. Namen volgen de rol, niet de curve: wie
+     `--ease-press` leest weet waarvoor het is, `cubic-bezier(0.4, 0, 1, 1)`
+     niet. */
+  --ease-press: cubic-bezier(0.4, 0, 1, 1);       /* snelle ease-out */
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);    /* zachte deceleratie */
+  --ease-rank: cubic-bezier(0.34, 1.56, 0.64, 1); /* spring, beheerst */
+  --ease-stage: cubic-bezier(0.22, 1, 0.36, 1);   /* podium */
+}
+
+/* Lichte variant (UI-vraag: thema-instelling naast de taalkeuze). Bewust geen
+   ander accent/contrast-concept, alleen het donkere palet omgekeerd — zelfde
+   productgevoel, andere helderheid. Toegepast via
+   `document.documentElement.dataset.theme` (`app-menu.mjs`). */
+:root[data-theme='light'] {
+  --color-bg-canvas: #f4f4fa;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #ececf6;
+  --color-border-subtle: #dcdce8;
+  --color-text-primary: #14141f;
+  --color-text-muted: #5b5b70;
+  --color-success-surface: rgba(34, 197, 94, 0.14);
+  --color-danger-surface: rgba(239, 68, 68, 0.1);
+
+  /* Thema 5-bevinding (echt gemeten, niet aangenomen): de donkere-thema-tinten
+     van accent-light/error/success/gold zijn ontworpen om op een bijna-zwarte
+     achtergrond te lichten — als tekst op dit lichte thema zakken ze onder
+     WCAG AA (accent-light 3.61:1, error 3.43:1, success 2.08:1, gold 1.96:1
+     op --color-bg-canvas; berekend met de standaard relatieve-luminantieformule, geen
+     schatting). Hieronder donkerdere varianten die op elke huidige
+     toepassing (tekst én rand) minimaal AA (4.5:1) halen, incl. de lastigste
+     combinatie: `.btn-opt.active`'s eigen tekstkleur op zijn eigen
+     `--color-accent-glow`-achtergrond (vandaar ook een aangepaste, minder
+     verzadigde glow — de originele 25%-paars-tint komt op een lichte
+     achtergrond nooit boven 3,9:1 uit, ongeacht hoe donker de tekst wordt). */
+  --color-accent-primary: #6f941a;
+  --color-accent-primary-hover: #55731a;
+  --color-accent-glow: rgba(111, 148, 26, 0.14);
+  --color-danger: #b91c1c;
+  --color-success: #166534;
+  --color-accent-competition: #b3216f;
+
+  /* De focusring volgde vóór de rolhernoeming `--text` en draaide dus vanzelf
+     mee met het thema. Als eigen rol moet die omslag expliciet, anders staat
+     er een bijna-witte ring op een bijna-witte achtergrond. Zelfde waarde als
+     de primaire tekstkleur hier — het gaat om maximaal contrast met de
+     ondergrond, niet om een eigen kleur. */
+  --color-focus: #14141f;
+
+  /* Signaalpalet in het lichte thema. Lime en cyan zijn ontworpen om op
+     bijna-zwart te lichten en halen op wit geen AA (lime ~1,2:1); dus
+     donkerder getrokken met behoud van de tint. Magenta hoefde maar licht
+     bijgesteld. Gecontroleerd door `contrast.test.mjs`. */
+  --color-signal-lime: #56701a;
+  --color-signal-lime-dim: #dfeaba;
+  --color-signal-magenta: #b3125f;
+  --color-signal-cyan: #106b8f;
+  --color-signal-warm: #9a5b0a;
+  /* Waarschuwing volgt dezelfde correctie als competition: het donkere-thema-
+     goud haalt op een lichte achtergrond geen AA. Nog geen gebruiker, maar
+     dan staat hij er goed zodra T2-3 hem pakt. */
+  --color-warning: #9a5b0a;
+}
+
+/* Beweging: systeemvoorkeur altijd respecteren (08 §2.4, QA-checklist K).
+   Staat hier — vóór er serieus motion-werk bijkomt — juist omdat het na dat
+   werk overal opnieuw teruggebouwd zou moeten worden; nu is het één regel.
+   Vervangt duur (niet transitions verwijderen: een instant statuswissel is
+   nog steeds een statuswissel, alleen zonder de overgang ernaartoe) en zet
+   scroll-gedrag op instant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Thema 3-review, M0: het bovenstaande verkort een :active-scale naar
+     0,001ms, maar verwijdert 'm niet — 06 §7 zegt "geen scale/spring", niet
+     "sneller scale". Schakel transform hier expliciet uit voor elke control
+     die er een heeft (components.css), en geef een non-transform
+     alternatief zodat de tik nog steeds voelbaar is.
+
+     `!important` is hier bewust, niet uit gewoonte: base.css laadt vóór
+     components.css, dus bij gelijke specificiteit wint anders alsnog de
+     latere, onvoorwaardelijke `transform: scale(...)` uit components.css —
+     geverifieerd met CDP's forcePseudoState vóór deze regel er stond, de
+     scale bleef zichtbaar zonder `!important`. Zelfde discipline als de
+     duration-override hierboven: een vangnet moet winnen ongeacht waar de
+     brongebruiker later in de cascade zit. */
+  .btn-primary:active,
+  .podium-rematch:active,
+  .btn-secondary:active,
+  .btn-destructive:active,
+  .gameplay-option:not(:disabled):active,
+  .btn-quiet:active,
+  .btn-opt:active,
+  .btn-icon:active {
+    transform: none !important;
+  }
+
+  .btn-primary:active,
+  .podium-rematch:active {
+    box-shadow: 0 0 0 4px var(--color-accent-glow);
+  }
+
+  .btn-secondary:active {
+    border-color: var(--color-accent-primary-hover);
+  }
+
+  .btn-destructive:active {
+    background: var(--color-danger-surface);
+  }
+
+  .gameplay-option:not(:disabled):active {
+    border-color: var(--color-accent-primary-hover);
+    box-shadow: 0 0 0 3px var(--color-accent-glow);
+  }
+
+  /* M1/E01: dezelfde discipline voor de drie controls die deze prompt
+     toevoegt — geen scale, wél een zichtbare non-transform-reactie. */
+  .btn-quiet:active {
+    background: var(--color-surface-1);
+    color: var(--color-text-primary);
+  }
+
+  .btn-opt:active {
+    border-color: var(--color-accent-primary-hover);
+  }
+
+  .btn-icon:active {
+    border-color: var(--color-accent-primary-hover);
+    background: var(--color-surface-2);
+  }
+}

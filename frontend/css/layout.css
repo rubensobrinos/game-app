@@ -1,0 +1,374 @@
+/* ── Appheader = de chrome — zichtbaar op élk scherm, buiten #app-root ─────
+   A1: dit ís de ene rij. Code, QR, delen, hostacties en het voorkeurenmenu
+   zijn allemaal directe flex-items van deze balk; er bestaat geen tweede rij
+   meer onder het scherm.
+
+   `height` en niet `min-height`: de balk mag niet meegroeien met wat er
+   toevallig in staat, want dán is het budget geen budget meer. Alles wat
+   hoger zou worden (de deel-toast, het voorkeurenpaneel, het ⋯-paneel van de
+   host) staat daarom absoluut gepositioneerd óver de pagina heen.
+
+   A-x1 — de bug: deze balk was sticky zonder achtergrond, dus de pagina
+   scrolde er zichtbaar dóórheen (de lime strook boven de code op IMG_0291 en
+   de codebalk die door "Hard" leek te snijden op IMG_0292 zijn hetzelfde
+   symptoom). Sticky blijft sticky — de producteigenaar wil de code altijd in
+   beeld — dus de fix is de achtergrond, niet het sticky-gedrag. */
+#app-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--chrome-h);
+  padding: 0 12px;
+  max-width: 480px;
+  margin: 0 auto var(--chrome-gap);
+}
+
+/* De achtergrond hoort bij de AANLEIDING, niet bij de balk (R2-1, 5 aug).
+   Tijdens een potje staat de chrome sticky en scrolt de inhoud eronderdoor —
+   zonder dekvlak schijnt die er zichtbaar doorheen (bevinding A-x1). Op home
+   valt er niets onderdoor te scrollen: dat scherm past en staat stil. Daar gaf
+   dezelfde achtergrond een zwarte band die dwars door de lime gloed sneed.
+   Vandaar de koppeling aan de codebalk: die bestaat alleen tijdens een sessie,
+   en dat is precies wanneer er iets af te dekken valt. */
+#app-header:has(.room-header) {
+  background: var(--color-bg-canvas);
+}
+
+/* De achtergrond hierboven stopt bij `max-width: 480px`; op een breder scherm
+   zou de pagina er langs de zijkanten alsnog doorheen scrollen. Deze laag
+   loopt door tot de volledige viewportbreedte en ligt (z-index: -1, binnen de
+   stapelcontext die #app-header zelf al maakt) achter de knoppen maar vóór de
+   pagina. */
+#app-header::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  background: var(--color-bg-canvas);
+}
+
+/* S05/D-018/D-019 (room-header.mjs): permanente code + QR-knop, alleen
+   gemount zolang een sessie loopt. `display: contents` op zowel de slot als
+   de balk zelf: code, QR-knop en deelknop worden zo rechtstreeks flex-items
+   van de chrome, zodat er één rij met één gap is in plaats van een doos in
+   een doos met twee keer marge. */
+.room-header-slot,
+.room-header {
+  display: contents;
+}
+
+/* Idem voor de hostknoppen (session-shell.mjs mount hier zijn hostBarRoot):
+   pauze en ⋯ hoorden bij de chrome, niet op een eigen rij onder het scherm —
+   dat was de tweede rij die ~72 px kostte (#45, #46). `.session-hostbar`
+   blijft wél een eigen flex-item: dat is de positioneringsanker voor zijn
+   ⋯-paneel. */
+.session-hostbar-slot {
+  display: contents;
+}
+
+.room-header-code {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  background: var(--color-surface-1);
+  border: 1.5px solid var(--color-border-subtle);
+  border-radius: var(--r-sm);
+  padding: 0.4rem 0.7rem;
+}
+
+.room-header-code-label {
+  font-size: var(--type-micro);
+  color: var(--color-text-muted);
+}
+
+/* Een getal dat wordt voorgelezen en overgetypt, geen gewone tekst. */
+.room-header-code-value {
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+/* T5-8: `07` §11 "code en rank gebruiken responsive clamp... podiumlabels
+   zijn veel groter dan telefoonlabels" — `room-header` is de enige plek waar
+   de code + QR-knop staan (D-018: nooit een tweede ingang, dus geen aparte
+   grote QR-kaart in de lobby zelf, alleen deze bestaande weergave laten
+   meegroeien). Blijft bescheiden t.o.v. `--type-display-code`: dit zit in de
+   vaste `--header-h`-hoogte appheader, niet een los canvas. */
+@media (min-width: 1200px) {
+  .room-header-code-value {
+    font-size: clamp(1.25rem, 1.4vw, 1.75rem);
+  }
+}
+
+.room-qr-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  background: var(--color-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.room-qr-card {
+  background: var(--color-surface-1);
+  border: 1.5px solid var(--color-border-subtle);
+  border-radius: var(--r);
+  padding: 1.5rem;
+  text-align: center;
+  max-width: 340px;
+  width: 100%;
+}
+
+.room-qr-title {
+  margin: 0 0 1rem;
+}
+
+.room-qr-image {
+  width: min(80vw, 280px);
+  height: min(80vw, 280px);
+  background: #fff;
+  border-radius: var(--r-sm);
+  padding: 1rem;
+}
+
+.room-qr-code {
+  letter-spacing: 0.1em;
+  font-size: var(--type-display-code);
+  font-weight: 800;
+  margin: 1rem 0 0;
+}
+
+.room-qr-url {
+  color: var(--color-text-muted);
+  font-size: var(--type-caption);
+  word-break: break-all;
+  margin: 0.25rem 0 1rem;
+}
+
+.btn-icon {
+  background: var(--color-surface-1);
+  border: 1.5px solid var(--color-border-subtle);
+  border-radius: var(--r-sm);
+  color: var(--color-text-primary);
+  width: 2.75rem;
+  height: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--type-body-lg);
+  /* `--ease-enter` en niet `--ease-press`: dit is een hover-overgang, en
+     06 §3 wijst de press-curve toe aan input/indrukken. Stond eerst fout —
+     precies de willekeur die tokens moeten uitbannen. M1/E01 voegt
+     `transform` toe met de press-curve wél, want dát is de indrukfeedback. */
+  transition: transform var(--motion-instant) var(--ease-press),
+    border-color var(--motion-fast) var(--ease-enter);
+}
+
+.btn-icon:hover {
+  border-color: var(--color-accent-primary-hover);
+}
+
+.btn-icon:active { transform: scale(0.99); }
+
+/* A3 (#7/#8/#46): dit is sinds A3 het énige menu in de app — voorkeuren én
+   hostacties, in die volgorde van onder naar boven. 280 i.p.v. 260 px: de
+   hostsectie krijgt er een spelerslijst met naam + ⋯ in, en op 260 px begon
+   die te wringen. `max-height` + scroll omdat die lijst met de room meegroeit;
+   zonder dat loopt het menu bij een volle room onder het scherm door en is de
+   onderste knop onbereikbaar. `z-index: 61` is bewust hoger dan de
+   pauze-overlay (55): een host moet ook tijdens PAUSED bij zijn acties. */
+.app-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 1rem;
+  z-index: 61;
+  width: min(280px, calc(100vw - 2rem));
+  max-height: calc(100dvh - var(--chrome-h) - 1.5rem);
+  overflow-y: auto;
+  background: var(--color-surface-1);
+  border: 1.5px solid var(--color-border-subtle);
+  border-radius: var(--r);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+/* VERVALLEN — T5-7 maakte hier vanaf 768 px een vast side panel van: het
+   paneel stond dan permanent open ín de header en de ⋯-knop verdween
+   (`display: flex !important` versloeg daarvoor het `hidden`-attribuut dat
+   app-menu.mjs netjes bleef zetten).
+
+   Waarom het weg is (producteigenaar, 5 aug 2026): op een breed scherm was
+   TAAL / THEMA / REACTIEZINNEN daardoor het eerste wat je op de homepagina
+   zag, drie blokken hoog, boven het logo. "Een slechte binnenkomer" — en
+   terecht: dat zijn instellingen die je één keer per apparaat zet.
+
+   Waarom niemand het zag: het ruimtebudget van de UX-ronde is een
+   telefoonbudget, en op telefoonbreedte gold deze regel nooit. Alle metingen
+   stonden op 390 px.
+
+   Het menu is nu op élke breedte hetzelfde: een dropdown achter de ⋯. */
+
+.app-menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.app-menu-label {
+  font-size: var(--type-micro);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.btn-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-opt {
+  flex: 1;
+  background: transparent;
+  border: 1.5px solid var(--color-border-subtle);
+  border-radius: var(--r-sm);
+  color: var(--color-text-muted);
+  padding: 0.5rem 0.4rem;
+  min-height: 40px;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  /* Expliciete lijst i.p.v. `all`: die animeerde ook layout-eigenschappen,
+     wat 06 §9 (transform/opacity waar het kan) juist wil vermijden. Hier
+     wisselen kleur, rand en (M1/E01) een kleine :active-scale. */
+  transition: transform var(--motion-instant) var(--ease-press),
+    border-color var(--motion-fast) var(--ease-press),
+    background-color var(--motion-fast) var(--ease-press),
+    color var(--motion-fast) var(--ease-press);
+  white-space: nowrap;
+}
+
+.btn-opt:active { transform: scale(0.99); }
+
+.btn-opt:hover {
+  border-color: var(--color-accent-primary-hover);
+  color: var(--color-text-primary);
+}
+
+.btn-opt.active {
+  border-color: var(--color-accent-primary-hover);
+  background: var(--color-accent-glow);
+  color: var(--color-accent-primary-hover);
+}
+
+/* ── Scherm-layout ─────────────────────────────────────────────────────── */
+.screen {
+  min-height: calc(100dvh - var(--header-h));
+  display: flex;
+  flex-direction: column;
+  /* `safe center` i.p.v. `center`: bij inhoud die hoger is dan het scherm
+     (lange deelnemerslijst, opengeklapte instellingen) schuift gewoon
+     `center` de bovenkant buiten het scrollgebied, waar je niet meer bij
+     kunt. `safe` valt in dat geval terug op flex-start. */
+  justify-content: safe center;
+  align-items: stretch;
+  gap: 1rem;
+  padding: 2rem 1.5rem calc(2rem + env(safe-area-inset-bottom));
+}
+
+/* Voor schermen die van boven af opbouwen (lobby, tussenstand) — centreren
+   heeft daar geen zin zodra de lijst groeit.
+
+   Ook geen `min-height` meer: zo'n scherm hoeft het viewport niet te vullen
+   (het staat toch bovenaan), en er kan van álles bóven staan — de hostbalk,
+   de reconnect-banner. Bleef die 100dvh staan, dan telde elk van die dingen
+   er weer bovenop en scrollde de pagina, precies zoals de header dat eerder
+   deed. De achtergrond komt van `body`, dus een korter scherm laat geen gat. */
+.screen.screen-top {
+  justify-content: flex-start;
+  min-height: 0;
+  /* A1: de ruimte onder de chrome staat nu één keer in `--chrome-gap`
+     (`#app-header`'s margin-bottom). Bleef deze 2rem staan, dan begon de
+     eerste inhoud van elk sessiescherm op 44 + 16 + 32 = 92 px in plaats van
+     op 60 — het budget zou dan wel in de tokens staan maar nergens gelden.
+     Alleen `.screen-top` (lobby, spel, tussenstand, podium): home en join
+     bouwen op vanuit het midden en houden hun lucht. */
+  padding-top: 0;
+}
+
+.app-logo {
+  font-size: var(--type-display-lg);
+  text-align: center;
+}
+
+/* Titel-gradient/kleur komt van components.css se generieke `h1`-regel (zelfde
+   gradient overal, UI-5's harde eis) — hier alleen grootte/marge per scherm. */
+.home-title {
+  font-size: clamp(2rem, 8vw, 2.75rem);
+  text-align: center;
+  margin: 0 0 0.5rem;
+}
+
+/* T5-6-zoom-audit (gemeten, niet aangenomen): `rounda-1c.css` zet een vaste
+   `font-size: 46px` op `.home-title` (regie's compositielaag, niet hier
+   aangeraakt — zie STATUS.md). Op 200%-paginazoom (≈195px effectieve
+   breedte, zelfde meetmethode als T5-1) past "ROUNDA" bij 46px niet meer:
+   184px content op 147px beschikbare ruimte, geen spatie om op af te breken,
+   dus schuift de hele pagina zijwaarts. `.screen .home-title` (specificiteit
+   0,2,0) wint bewust van rounda-1c.css's `.home-title` (0,1,0) ondanks de
+   latere laadvolgorde — dit is de robuustheidslaag die base.css hoort te
+   leveren, geen visuele keuze. Alleen actief onder een breedte die geen
+   echt toestel ongezoomd haalt (~320px is de smalste), dus nooit zichtbaar
+   bij normaal gebruik. */
+@media (max-width: 260px) {
+  .screen .home-title {
+    font-size: clamp(1.5rem, 13vw, 2.5rem);
+  }
+}
+
+.join-title {
+  font-size: var(--type-heading-3);
+  text-align: center;
+  margin: 0;
+}
+
+.join-status {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--type-caption);
+  min-height: 1.2em;
+}
+
+.home-promise {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--type-caption);
+  margin: 0 0 1rem;
+}
+
+.join-waiting-count {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--type-caption);
+  margin: 0 0 0.5rem;
+}
+
+.home-divider {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--type-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0.25rem 0;
+}
+

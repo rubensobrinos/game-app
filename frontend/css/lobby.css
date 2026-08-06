@@ -1,0 +1,314 @@
+/* ── Formulierlabels (components.css stylet `.field-input` zelf, niet de
+   wrapper/labeltekst eromheen) ────────────────────────────────────────── */
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field-label-text {
+  font-size: var(--type-micro);
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.field-label-hint {
+  font-size: var(--type-micro);
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+/* S04: grafeemteller bij de naamlimiet, rechts uitgelijnd onder het veld. */
+.join-name-counter {
+  display: block;
+  text-align: right;
+  font-size: var(--type-micro);
+  color: var(--color-text-muted);
+}
+
+.field-error {
+  color: var(--color-danger);
+  background: var(--color-danger-surface);
+  border-radius: var(--r-sm);
+  font-size: var(--type-caption);
+  text-align: center;
+  padding: 0;
+  margin: 0;
+  min-height: 0;
+}
+
+.field-error:not(:empty) {
+  padding: 0.5rem 0.75rem;
+}
+
+/* ── UI2: Lobby + Delen ────────────────────────────────────────────────── */
+
+/* `.screen`'s `gap` raakt alleen zijn eigen kinderen, en de lobby mount één
+   wrapper-div daarin — binnen die wrapper viel dus álles tegen elkaar aan.
+   Dit is waar het verticale ritme van dit scherm vandaan komt. */
+.lobby-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.lobby-main-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* T5-7: tweekoloms vanaf tabletbreedte — QR/deelsectie naast de spelerslijst
+   i.p.v. eronder (`07` §6). Content-driven breekpunt (768px is waar de
+   QR-afbeelding + spelerslijst daadwerkelijk naast elkaar passen zonder
+   uitknijpen bij de standaard 320px `.lobby-share`-breedte), geen
+   willekeurig getal. `#app-root`'s max-width wordt hiervoor specifiek
+   verruimd (`.app-root-wide`, session-shell.mjs zet die klasse alleen op
+   lobby/tussenstand) — niet globaal, dat zou elk ander scherm meenemen. */
+@media (min-width: 768px) {
+  .lobby-screen {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    grid-template-areas: 'main share' 'start start';
+    align-items: start;
+    gap: 1.5rem 2rem;
+  }
+
+  .lobby-main-column { grid-area: main; }
+  .lobby-share { grid-area: share; }
+  .lobby-start { grid-area: start; }
+}
+
+.lobby-title {
+  text-align: center;
+  margin: 0;
+}
+
+.lobby-waiting,
+.lobby-count {
+  text-align: center;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.lobby-waiting {
+  margin-top: -0.75rem; /* hoort bij de titel, niet als losse alinea ernaast */
+}
+
+.lobby-locked {
+  text-align: center;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  margin: -0.75rem 0 0;
+}
+
+.lobby-player-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: center;
+  margin-top: -0.75rem;
+}
+
+.lobby-player-status p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.lobby-player-status .lobby-player-joined {
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+/* Deelnemers als één blok: het aantal is de kop, de namen staan eronder. */
+.lobby-count {
+  font-size: var(--type-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* M7/E03: teller pulseert één keer bij een daadwerkelijke wijziging
+   (gedebouncet in lobby.mjs, niet hier) — de klasse wordt door JS
+   verwijderd+teruggezet om de animatie te laten herhalen. */
+.lobby-count-pulse {
+  animation: lobby-count-pulse var(--motion-fast) var(--ease-enter);
+}
+
+@keyframes lobby-count-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+/* M7/E03: alleen écht nieuwe rijen krijgen dit (lobby.mjs reconcilieert
+   i.p.v. de lijst steeds te herbouwen) — bestaande rijen blijven ongemoeid. */
+.lobby-player-enter {
+  animation: lobby-player-enter var(--motion-base) var(--ease-enter);
+}
+
+@keyframes lobby-player-enter {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.lobby-players {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* `minmax(0, 1fr)` en niet de impliciete `auto`: een roosteritem krimpt
+     standaard niet onder zijn inhoudsbreedte, dus een lange naam met
+     `white-space: nowrap` (spelerchip) duwde de hele rij breder dan het
+     rooster en liet de pagina zijwaarts scrollen. Gemeten op 320px met een
+     naam van 60 tekens — de invoerlimiet. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+/* T5-9 zette deze klasse al aan (`lobby.mjs`, 9-35 spelers), maar er was nog
+   geen regel die 'm iets liet doen — de "compacte grid" was dus visueel
+   identiek aan de gewone lijst. `auto-fill` i.p.v. een vast kolomaantal:
+   dezelfde regel geeft twee kolommen op tabletbreedte en groeit vanzelf naar
+   drie/vier op T5-8's grote breedte (`#app-root.app-root-wide`'s 1200px-
+   tier hierboven) — dat is de "levende spelerswand" uit `07` §7's
+   large/podium-compositie, zonder een aparte large-only regel nodig te
+   hebben. `minmax(0, ...)`, niet `auto`: zelfde reden als de rij hierboven,
+   anders duwt een lange naam de kolom (en de pagina) breder. */
+.lobby-players-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr));
+}
+
+.lobby-player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--r-sm);
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+}
+
+/* T5-1 (gemeten): de naam-span had geen `min-width`, dus flexbox' default
+   `min-width: auto` weigerde 'm te laten krimpen — bij 200%-zoom/tekst duwde
+   een lange naam + de verwijderknop de rij (en daarmee de pagina) horizontaal
+   uit. `min-width: 0` laat 'm krimpen/afbreken i.p.v. de rij te verbreden. */
+.lobby-player > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* S17: inline verwijderknop voor de host — zelfde compacte stijl als
+   `.session-hostbar-kick`, niet volle breedte zoals `.btn-secondary`
+   standaard is. */
+.lobby-player-kick {
+  flex: none;
+  width: auto;
+  min-width: 0;
+}
+
+.lobby-empty {
+  text-align: center;
+  background: var(--color-surface-1);
+  border: 1px dashed var(--color-border-subtle);
+  border-radius: var(--r-sm);
+  padding: 1.5rem 1rem;
+}
+
+.lobby-empty-title {
+  font-weight: 700;
+  margin: 0 0 0.25rem;
+}
+
+.lobby-empty-hint {
+  color: var(--color-text-muted);
+  font-size: var(--type-caption);
+  margin: 0;
+}
+
+/* Deelblok: kop + de vier acties, als één herkenbare groep in plaats van vier
+   losse knoppen tussen de rest. */
+.lobby-share {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--r);
+}
+
+.lobby-share-title {
+  font-size: var(--type-micro);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0;
+  text-align: center;
+}
+
+.lobby-share-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+/* Binnen het deelblok staan de knoppen al in een kaart; een tweede
+   kaartachtergrond eronder maakt het rommelig. */
+.lobby-share-row .btn-secondary {
+  background: var(--color-surface-2);
+  font-size: var(--type-body-sm);
+  padding: 12px 10px;
+}
+
+/* De hoofdactie krijgt lucht boven zich, zodat hij niet aan het deelblok
+   vastplakt. S05 (04): sticky op mobiel — bij een groeiende deelnemerslijst
+   moet de startknop bereikbaar blijven zonder eerst naar beneden te scrollen. */
+.lobby-start {
+  margin-top: 0.5rem;
+  position: sticky;
+  bottom: env(safe-area-inset-bottom, 0);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+/* BOUWSPRINT: subregel onder het knoplabel — geen aparte kleur (blijft de
+   knoptekstkleur, dus contrast is identiek aan het label zelf), alleen
+   kleiner en niet-vet om het als ondergeschikt te lezen. */
+.lobby-start-sub {
+  font-size: var(--type-caption);
+  font-weight: normal;
+}
+
+@media (min-width: 512px) {
+  .lobby-start {
+    position: static;
+  }
+}
+
+/* Alleen ruimte innemen zodra er iets te melden is — een permanent
+   gereserveerde regel liet een gat onder in het deelblok staan. De
+   `aria-live`-aankondiging werkt ook zonder vaste hoogte; het blok groeit
+   hooguit één regel, wat geen storende sprong geeft. */
+.lobby-share-feedback {
+  text-align: center;
+  color: var(--color-accent-primary-hover);
+  font-size: var(--type-caption);
+  margin: 0;
+}
+
+.lobby-share-feedback:empty {
+  display: none;
+}
+
+.lobby-link-fallback {
+  text-align: center;
+}
+

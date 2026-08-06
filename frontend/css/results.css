@@ -1,0 +1,202 @@
+/* ── Tussenstand & podium (UI4) ───────────────────────────────────── */
+
+.scoreboard-list,
+.podium-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* T5-6-zoom-audit (gemeten, niet aangenomen): zonder expliciete
+     `grid-template-columns` is de enige impliciete kolom `auto` — die groeit
+     mee met het breedste kind i.p.v. te krimpen tot de beschikbare ruimte.
+     Bij een lange naam (S15's rank/naam/beweging/score-rij) duwde dat de
+     hele `<li>`, en dus de pagina, breder dan de viewport — `.scoreboard-
+     name`'s eigen `overflow:hidden`/`ellipsis` kwam daardoor nooit in actie,
+     want de rij zelf was al te breed. Zelfde fix als `.lobby-players` (T5-1)
+     kreeg voor precies dezelfde grid-auto-breedte-val. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.scoreboard-entry,
+.podium-step {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--r-sm);
+  padding: 12px 16px;
+}
+
+.scoreboard-entry.is-self,
+.podium-step.is-self {
+  border-color: var(--color-accent-primary-hover);
+  box-shadow: 0 0 0 2px var(--color-accent-glow);
+}
+
+/* M9/E11: korte, eenmalige nadruk op de eigen rij bij een daadwerkelijke
+   rangwijziging — bovenop de FLIP-beweging (scoreboard.mjs), niet in
+   plaats daarvan. Elke rij is een vers <li> per render, dus geen
+   restart-truc nodig zoals bij een hergebruikte node. */
+/* S15/`05` §10: vaste breedte, rechts uitgelijnd en tabulair — anders staan
+   `#1` en `#12` niet onder elkaar en oogt de kolom scheef. */
+.scoreboard-rank {
+  flex: none;
+  min-width: 3.2ch;
+  text-align: right;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.scoreboard-entry-emphasis {
+  animation: scoreboard-entry-emphasis var(--motion-emphasis) var(--ease-enter);
+}
+
+@keyframes scoreboard-entry-emphasis {
+  0%, 100% { box-shadow: 0 0 0 2px var(--color-accent-glow); }
+  40% { box-shadow: 0 0 0 5px var(--color-accent-glow); }
+}
+
+.scoreboard-name,
+.podium-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* S15: nu drie kinderen in de rij (naam, beweging, score) i.p.v. twee —
+     zonder dit neemt de naam z'n intrinsieke breedte en verdringt de
+     bewegingsbadge, i.p.v. zelf af te knippen. */
+  flex: 1;
+  min-width: 0;
+}
+
+/* S15: bewegingsbadge (↑2/↓1/—) tussen naam en score. Geen eigen kleurrol
+   voor omhoog/omlaag — hergebruikt de bestaande success/danger-tokens,
+   consistent met hoe de rest van de app "beter"/"slechter" al kleurt. */
+.scoreboard-move {
+  flex: none;
+  font-size: var(--type-caption);
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.scoreboard-move.is-up { color: var(--color-success); }
+.scoreboard-move.is-down { color: var(--color-danger); }
+
+.scoreboard-rank,
+.scoreboard-score,
+.podium-score {
+  font-weight: 800;
+  color: var(--color-accent-primary-hover);
+}
+
+/* T5-7: ruimere leaderboardweergave vanaf tabletbreedte (`07` §6) — alleen
+   `.scoreboard-list`, niet de gedeelde `.podium-steps`-selector hierboven,
+   dus het podiumscherm blijft ongewijzigd. Gecentreerd in de verruimde
+   `#app-root` (session-shell.mjs zet `.app-root-wide` alleen voor dit
+   scherm), niet edge-to-edge over de volle 760px. */
+@media (min-width: 768px) {
+  .scoreboard-list {
+    max-width: 600px;
+    margin: 0 auto;
+    gap: 12px;
+  }
+
+  .scoreboard-entry {
+    padding: 16px 20px;
+    font-size: var(--type-label);
+  }
+}
+
+/* T5-8: large/podium (`07` §7 "Reveal": "leaderboard met rank movement" —
+   hier alleen de bredere lay-out, de rank-movement-animatie zelf is thema
+   3/1's scope, niet aangeraakt). T5-7 liet `.podium-steps` bewust
+   ongewijzigd ("podiumscherm blijft ongewijzigd", toen nog niveau 0) — dit
+   is dus de eerste keer dat het podiumscherm zelf meegroeit, gedeeld met
+   `.scoreboard-list` omdat beide dezelfde `<ol>`-structuur en
+   `#app-root.app-root-wide` gebruiken (session-shell.mjs). */
+@media (min-width: 1200px) {
+  .scoreboard-list,
+  .podium-steps {
+    max-width: 900px;
+  }
+
+  .scoreboard-entry,
+  .podium-step {
+    padding: 20px 28px;
+    font-size: var(--type-body-lg);
+  }
+}
+
+.podium-step-1 { border-color: var(--color-accent-competition, #f59e0b); }
+
+/* S20's 3→2→1-opbouw zet `hidden` per stap — zonder deze regel wint de
+   `display: flex` hierboven (auteurscascade na de UA-stylesheet), en blijft
+   een "verborgen" stap gewoon zichtbaar. */
+.podium-step[hidden] { display: none; }
+.podium-medal { font-size: var(--type-heading-3); }
+
+/* M10/E14: entrance-animatie bovenop S20's `hidden`-toggle. Een
+   `transition` kan niet animeren over de `display:none`-grens hierboven,
+   dus een `@keyframes`-animatie die start zodra `hidden` weggaat (klasse
+   en attribuut gaan tegelijk aan in podium.mjs). Alleen op het gestaggerde
+   pad — skip/reduced motion tonen alles zonder deze klasse. */
+.podium-step-enter {
+  animation: podium-step-enter var(--motion-stage) var(--ease-stage);
+}
+
+@keyframes podium-step-enter {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* M10/E14: begrensd, CSS-only confetti — vast aantal deeltjes (16, zie
+   podium.mjs), transform/opacity-only, vaste korte duur, geen lus.
+   `--i` (custom property per deeltje) verspreidt start-positie/vertraging
+   zonder 16 losse regels te schrijven. */
+.podium-confetti {
+  position: relative;
+  height: 0;
+  overflow: visible;
+}
+
+.podium-confetti-piece {
+  position: absolute;
+  top: 0;
+  left: calc(5% + (var(--i, 0) * 6%));
+  width: 8px;
+  height: 8px;
+  background: var(--color-accent-competition, #f59e0b);
+  opacity: 0;
+  animation: podium-confetti-fall 1.8s ease-in calc(var(--i, 0) * 40ms) 1;
+}
+
+.podium-confetti-piece:nth-child(3n) { background: var(--color-accent-primary); }
+.podium-confetti-piece:nth-child(3n+1) { background: var(--color-success); }
+
+@keyframes podium-confetti-fall {
+  0% { opacity: 1; transform: translateY(0) rotate(0deg); }
+  100% { opacity: 0; transform: translateY(140px) rotate(200deg); }
+}
+
+.scoreboard-self,
+.podium-self { margin-top: 14px; font-weight: 600; color: var(--color-text-primary); }
+
+/* S20: tot vier acties (Revanche/Nieuw spel/Deel uitslag/Afsluiten) — gap
+   i.p.v. losse margins, anders stapelt elke knop tegen de vorige aan. */
+.podium-action {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.podium-wait { text-align: center; }
+
+.podium-share-feedback {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--type-caption);
+  min-height: 1.2em;
+  margin: 8px 0 0;
+}

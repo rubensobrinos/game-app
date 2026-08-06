@@ -1,0 +1,151 @@
+/* Invoervelden */
+.field-input {
+  display: block;
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-2);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--type-body-lg);
+}
+
+/* Géén `outline: none` meer op de basisregel: die stond later in de cascade
+   dan base.css' `:focus-visible` en met gelijke specificiteit won hij dus
+   ook tijdens focus — het veld had daardoor helemaal geen zichtbare
+   toetsenbordfocus. De accentgloed hieronder is de visuele stijl, de ring uit
+   base.css blijft de toegankelijkheidsgarantie. */
+.field-input:focus {
+  border-color: var(--color-accent-primary-hover);
+  box-shadow: 0 0 0 3px var(--color-accent-glow);
+}
+
+.field-input::placeholder { color: var(--color-text-muted); }
+
+/* Verticale ritmiek voor de formulier-achtige schermen */
+.home-quick-start,
+.home-code-submit,
+.join-submit,
+.join-back-to-start,
+.join-retry { margin-top: 14px; }
+
+/* M6/E02: geen eigen progressindicator meer hier — `button.is-loading`
+   (button-loading.mjs, thema 2, T2-2) levert al label, spinner en
+   breedte-lock voor precies dit moment. */
+
+.home-code-input,
+.join-name-input { margin-top: 6px; }
+
+/* 1c's zes-cellen-code-invoer. `home.mjs` bouwt zes losse `<input maxlength=1>`
+   maar er stond nergens CSS voor `.home-code-cells` — dus stonden die zes als
+   volle-breedte velden ónder elkaar op de voorpagina. Hier gerepareerd omdat
+   het de componentlaag is; de opbouw zelf blijft van de eigenaar van `home`. */
+.home-code-cells {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* In een rij van zes is een cel één teken breed. De 0.45em letterafstand die
+   `rounda-1c.css` op `.home-code-input` zet, was voor het oude doorlopende
+   veld bedoeld en duwt een enkel cijfer hier uit het midden. */
+.home-code-cells .home-code-input {
+  width: 100%;
+  min-width: 0;
+  margin-top: 0;
+  padding: 12px 0;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+/* Startknop met sublabel: twee regels, geen doorlopende zin — zonder dit las
+   de knop als "Start direct een gameJe bent de spelleider". */
+.home-quick-start-label,
+.home-quick-start-sub {
+  display: block;
+}
+
+.home-quick-start-sub {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.home-host-setup-link { margin-top: 10px; }
+
+/* ── S02: Spel aanpassen (host-setup.mjs) ──────────────────────────── */
+
+.host-setup-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.host-setup-back { align-self: flex-start; width: auto; }
+
+.host-setup-title { margin: 0; }
+
+/* Progressief onthuld (04): <details>/<summary> toont de huidige keuzes al
+   samengevat vóórdat een groep openklapt — geen eigen open/dicht-state nodig. */
+.host-setup-game-type,
+.host-setup-content,
+.host-setup-rounds,
+.host-setup-mode,
+.host-setup-rules {
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--r-sm);
+  padding: 12px 16px;
+}
+
+.host-setup-game-type summary,
+.host-setup-content summary,
+.host-setup-rounds summary,
+.host-setup-mode summary,
+.host-setup-rules summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.host-setup-game-type[open] summary,
+.host-setup-content[open] summary,
+.host-setup-rounds[open] summary,
+.host-setup-mode[open] summary,
+.host-setup-rules[open] summary {
+  margin-bottom: 10px;
+}
+
+.host-setup-game-type-detail,
+.host-setup-mode-detail {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.host-setup-content-field,
+.host-setup-rounds-label,
+.host-setup-pacing-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.host-setup-checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.host-setup-checkbox-field input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+

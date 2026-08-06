@@ -22,7 +22,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const css = readFileSync(fileURLToPath(new URL('./rounda-1c.css', import.meta.url)), 'utf8');
-const base = readFileSync(fileURLToPath(new URL('./base.css', import.meta.url)), 'utf8');
+// `base.css` is opgesplitst (refactor 1); `.lobby-start` woont sinds die
+// verhuizing in `lobby.css`. De regel zelf is ongewijzigd — alleen het adres.
+const base = readFileSync(fileURLToPath(new URL('./lobby.css', import.meta.url)), 'utf8');
 
 test('punt 32: de startknop blijft sticky — dat is een productbesluit, geen bug', () => {
   // Beschermt tegen de "fix" die de review zou afkeuren: sticky weghalen.

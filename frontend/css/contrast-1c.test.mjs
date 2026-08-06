@@ -9,7 +9,7 @@
 // geen generieke lijst "tekstkleuren × achtergrondkleuren" te draaien zonder
 // onzincombinaties te testen. In plaats daarvan leest elk paar hieronder de
 // écht gedeclareerde `color`/`background` uit `rounda-1c.css` zelf (en uit
-// `base.css` voor tokens) — geen losstaande kopie van wat de kleur "hoort" te
+// `tokens.css` voor tokens) — geen losstaande kopie van wat de kleur "hoort" te
 // zijn. Zo faalt de test ook echt als iemand een van deze regels per ongeluk
 // terugdraait (geverifieerd door de fix tijdelijk te stashen: alle paren die
 // deze fase repareert, faalden toen op precies de gemeten verhoudingen uit de
@@ -31,7 +31,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const basePath = fileURLToPath(new URL('./base.css', import.meta.url));
+const basePath = fileURLToPath(new URL('./tokens.css', import.meta.url));
 const baseCss = readFileSync(basePath, 'utf8');
 const oneCPath = fileURLToPath(new URL('./rounda-1c.css', import.meta.url));
 const oneCCss = readFileSync(oneCPath, 'utf8');

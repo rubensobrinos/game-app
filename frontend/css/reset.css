@@ -1,0 +1,128 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  font-size: 1rem;
+  line-height: 1.4;
+  background: var(--color-bg-canvas);
+  color: var(--color-text-primary);
+  -webkit-tap-highlight-color: transparent;
+  /* `viewport-fit=cover` (index.html) tekent al onder de notch/homebar door
+     zonder dit — die meta-tag beloofde het, maar er stond nergens een
+     `env(safe-area-inset-*)`. Top/left/right hier: de sticky header en
+     `#app-root` zijn beide horizontaal gecentreerd via margin, dus padding
+     op `body` (niet op de header zelf) houdt `--header-h` exact — die zou
+     anders weer stilzwijgend fout gaan, zoals eerder al eens gebeurde toen
+     `#app-root`/`.screen` allebei een eigen min-height hadden. Bottom staat
+     op `.screen`, niet hier, want home/join/lobby/gameplay wisselen elkaar
+     áf in dezelfde `#app-root` en delen dus geen gezamenlijke bodemrand. */
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Géén min-height hier: `.screen` vult zelf de resthoogte onder de header.
+   Stond die 100dvh hier én op `.screen`, dan telde de header (die in de
+   normale flow staat) er bovenop en scrollde élk scherm ~3.5rem te ver. */
+#app-root {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* T5-7: lobby/tussenstand/podium krijgen op tabletbreedte meer ruimte
+   (`session-shell.mjs` zet/verwijdert deze klasse per gemount scherm) — geen
+   globale verruiming, dat zou home/join/gameplay ongewenst meenemen. */
+@media (min-width: 768px) {
+  #app-root.app-root-wide {
+    max-width: 760px;
+  }
+}
+
+/* T5-8: large/desktop-tv (`07` §7/§8) — nog een tandje breder dan T5-7's
+   tabletmaat, zodat de spelerswand en de tussenstand/podium-lijst écht
+   ruimte krijgen i.p.v. alleen wat minder leeg te zijn. 1200px is
+   content-driven, niet willekeurig: dat is waar `.lobby-players-grid`
+   (hieronder, `auto-fill`) een derde/vierde kolom krijgt in plaats van twee
+   uitgerekte kolommen. */
+@media (min-width: 1200px) {
+  #app-root.app-root-wide {
+    max-width: 1100px;
+  }
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* Auteursregels zoals `.field-label { display: flex }` winnen anders van de
+   UA-stylesheet se `[hidden] { display: none }` (gelijke specificiteit, maar
+   auteur-CSS verslaat altijd UA-CSS) — dus expliciet hier afdwingen. */
+[hidden] {
+  display: none !important;
+}
+
+/* Alleen voor screenreaders: visueel weg, maar niet uit de toegankelijkheids-
+   boom (in tegenstelling tot `[hidden]`/`display:none`). Voor schermtitels en
+   labels die geen plek verdienen in de visuele layout, maar wél nodig zijn
+   zodra een scherm wisselt (aankondiging) of een control alleen een icoon
+   toont. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  min-height: 44px;
+  min-width: 44px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Toetsenbordfocus. Stond nergens: `components.css` zet `outline: none` op
+   `.field-input` en de knoppen kregen alleen een hover-stijl, dus wie met Tab
+   navigeerde zag niet waar hij was. `:focus-visible` (niet `:focus`) houdt de
+   ring weg bij een muisklik op een knop, maar toont 'm bij Tab — en bij
+   tekstvelden altijd, want daar matcht `:focus-visible` per spec ook op klik.
+
+   De ring staat bewust op --color-text-primary i.p.v. --color-accent-primary-hover: het accent is óók de
+   kleur van "geselecteerd" (.btn-opt.active, .gameplay-option.is-selected),
+   en focus mag niet lijken op selectie. */
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* Alleen weghalen waar de UA-ring niets toevoegt (de overlay heeft al een
+   eigen zichtbare rand) — nooit globaal. */
+.app-menu:focus-visible {
+  outline: none;
+}

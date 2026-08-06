@@ -2,10 +2,10 @@
 // onderdeel van `node --test`, niet als eenmalig script (58eba07's
 // licht-thema-fix gebeurde toen met een losstaand, niet-gecommit scriptje —
 // dit is diezelfde berekening, nu zodat 'm bij élke tokenwijziging in
-// `base.css` automatisch opnieuw draait i.p.v. met de hand nagerekend te
+// `tokens.css` automatisch opnieuw draait i.p.v. met de hand nagerekend te
 // worden).
 //
-// Scope: elke tekenkleurtoken die in `components.css`/`base.css` als
+// Scope: elke tekenkleurtoken die in de opgesplitste stylesheets als
 // `color:` (niet `border-color`) voorkomt, tegen de kaartachtergronden waar
 // die tekst in de praktijk op staat (`--color-bg-canvas`, `--color-surface-1`,
 // `--color-surface-2`) — geen poging om de exacte DOM-nesting per selector na
@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const cssPath = fileURLToPath(new URL('./base.css', import.meta.url));
+const cssPath = fileURLToPath(new URL('./tokens.css', import.meta.url));
 const css = readFileSync(cssPath, 'utf8');
 
 function extractBlock(source, startRegex) {
@@ -78,7 +78,7 @@ const TEXT_TOKENS = [
   '--color-warning',
   '--color-accent-competition',
   '--color-accent-primary-hover',
-  // Signaalpalet uit 1c — opgenomen als systeemtoken in `base.css` zodat
+  // Signaalpalet uit 1c — opgenomen als systeemtoken in `tokens.css` zodat
   // licht en donker één bron delen. Alleen de tinten die als tekst kunnen
   // dienen; `-lime-dim` is een vlakkleur en valt buiten scope.
   '--color-signal-lime',

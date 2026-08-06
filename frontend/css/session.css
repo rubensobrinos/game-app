@@ -1,0 +1,204 @@
+/* ── Reconnect-status + pauze-overlay (session-shell.mjs) ─────────────────
+   Zichtbaar over élke onderliggende fase-view heen, geen eigen route. */
+.session-banner {
+  text-align: center;
+  font-size: var(--type-caption);
+  padding: 0.5rem 1rem;
+  color: var(--color-text-primary);
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border-subtle);
+  transition: background-color var(--motion-base) var(--ease-enter);
+}
+
+/* M2/E15: stille successtransitie ("klein", geen viering) zodra de balk
+   naar "we zijn weer verbonden" wisselt — een korte, kalme opacity-puls
+   bovenop de kleurovergang hierboven, niet in plaats daarvan. */
+.session-banner-success {
+  animation: session-banner-success var(--motion-emphasis) var(--ease-enter);
+}
+
+@keyframes session-banner-success {
+  0% { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+
+.session-banner.is-disconnected {
+  background: var(--color-danger-surface);
+  color: var(--color-danger);
+}
+
+.session-answer-saved {
+  text-align: center;
+  font-size: var(--type-caption);
+  color: var(--color-text-muted);
+  padding: 0.35rem 1rem 0;
+  margin: 0;
+}
+
+/* Randgeval "dubbele tab" (prompt 05) — informatief, geen foutkleur: dit
+   tabblad werkt door, het is alleen mogelijk niet meer de actuele stand. */
+.session-duplicate-tab {
+  text-align: center;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-surface-2);
+  padding: 0.5rem 1rem;
+  margin: 0;
+}
+
+/* S19: terugvalroute na een reconnect die te lang duurt — verschijnt onder
+   de statusbalk, niet erin (blijft zo een aparte, tikbare actie). */
+.session-reconnect-fallback {
+  display: block;
+  width: calc(100% - 2rem);
+  margin: 0.5rem 1rem 0;
+}
+
+.session-pause-overlay {
+  position: fixed;
+  inset: 0;
+  /* D-018: de code/QR in #app-header (z-index 60) "blijft het hele potje
+     zichtbaar" — ook tijdens pauze. Onder de header, niet erboven, anders
+     dekt deze overlay 'm onbedoeld af (S16's "QR tonen" werd zo onbereikbaar:
+     de qrButton zat wél nog in de DOM, maar lag onder deze overlay). */
+  z-index: 55;
+  background: var(--color-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.session-pause-card {
+  background: var(--color-surface-1);
+  border: 1.5px solid var(--color-border-subtle);
+  border-radius: var(--r);
+  padding: 2rem 1.5rem;
+  text-align: center;
+  font-size: var(--type-body-lg);
+  font-weight: 700;
+  max-width: 320px;
+}
+
+/* Host ziet een stempel i.p.v. de kalme spelerszin (T4-5) — hoofdletters via
+   CSS, niet in de vertaalwaarde, zelfde regel als de resultaatstempels. */
+.session-pause-card-host-stamp {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* S16: tijdens PAUSED verplaatst session-shell.mjs de hostbalk zelf ín de
+   pauze-kaart (zie renderPauseOverlay) zodat lock/kick/finish bereikbaar
+   blijven — hier alleen de layout aanpassen aan die nieuwe context, geen
+   nieuwe knoppen. */
+.session-pause-card .session-hostbar {
+  margin: 1.25rem 0 0;
+  max-width: none;
+  text-align: left;
+  justify-content: center;
+}
+
+/* ── UI5: Hostbalk (views/hostbar.mjs) ────────────────────────────────────
+   Hostbediening is gereedschap naast het scherm, geen inhoud ervan.
+
+   A1 (#45, #46): de balk staat niet meer als eigen strip bóven de fase-view
+   maar als groep ín de chromerij. Daarmee vervallen zijn omkadering, marge en
+   padding — die maakten van twee knoppen een rij van ~72 px. Wat blijft is
+   `position: relative`, want het ⋯-paneel hangt eraan. */
+.session-hostbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+/* `bar.hidden = true` (hostbar.mjs, elke niet-host) verloor het van de
+   `display: flex` hierboven: een niet-host hield zo een lege, omrande strook
+   over. Nu de balk in de chromerij staat zou dat een gat naast de code zijn. */
+.session-hostbar[hidden] {
+  display: none;
+}
+
+/* `.btn-secondary`/`.btn-destructive` zijn volle breedte (components.css) —
+   binnen deze strip moeten knoppen juist naast elkaar passen. */
+.session-hostbar .btn-secondary,
+.session-hostbar .btn-destructive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 38px;
+  padding: 11px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  border-radius: var(--r-pill);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+
+.session-hostbar .btn-secondary:hover {
+  color: var(--color-text-primary);
+}
+
+/* Beëindigen blijft ook in de compacte strip herkenbaar destructief, maar
+   zonder de hele balk rood te maken.
+
+   Alleen de kleur wijkt af, verder niets: hiervóór was `Game beëindigen` een
+   rechthoek van 14px tekst tussen vier pillen van 12,5px — die knop is de
+   onomkeerbare, dus dat viel op als een fout in plaats van als een
+   waarschuwing. `rounda-1c.css` gaf de secondary-pillen hun maat maar liet de
+   destructive staan; die maten staan nu in de gedeelde regel hierboven, zodat
+   alle vijf knoppen uit één bron komen. */
+.session-hostbar .btn-destructive {
+  background: transparent;
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+  /* De rand van 1px zou de pil 2px groter maken dan zijn randloze buren. */
+  padding: 10px 13px;
+}
+
+.session-hostbar .btn-destructive:hover {
+  background: var(--color-danger-surface);
+  color: var(--color-danger);
+}
+
+/* Past gewoon naast de andere knoppen; alleen de uitklappende lijst eronder
+   heeft de volle breedte nodig. */
+.session-hostbar-players-toggle {
+  flex-basis: auto;
+}
+
+.session-hostbar-players {
+  flex-basis: 100%;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.session-hostbar-player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--r-sm);
+  padding: 0.5rem 0.75rem;
+}
+
+.session-hostbar-kick {
+  flex: none;
+  min-width: 0;
+}
+
+/* Voetlink naar de sologames (/solo) — sinds / de Rounda-hoofdpagina is.
+   Bewust stil: dit is de nooduitgang, niet een tweede hoofdrol. */
+.app-footer { text-align: center; padding: 20px 16px 28px; }
+.app-footer-solo-link { color: var(--color-text-muted); font-size: 0.9rem; text-decoration: underline; }
+.app-footer-solo-link:hover { color: var(--color-text-primary); }
