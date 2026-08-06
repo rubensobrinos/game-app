@@ -62,3 +62,44 @@ opgeruimd, en dat de diff leeg was.
 ## Prompt
 
 > Je werkt in de repo `game-app` (Rounda). Controleer dat `npm test` draait. Lees `docs/openstaand/refactor/14-overrides-platslaan.md` en voer dat uit: in `frontend/css/1c-overrides.css` de dubbele regels platslaan zodat er per selector nog één plek is, te beginnen bij de zeven die in het document staan. Dit is de enige refactor die gedrag mág veranderen, en dus de enige met een harde visuele controle: de berekende stijlen moeten vóór en ná identiek zijn op alle zeven schermen in beide thema's, gemeten met een eigen wegwerpscript naast `tools/meet.mjs`. Een concatenatie-vergelijking volstaat hier niet — je verandert de inhoud, niet alleen de plaats. Zet in je oplevering welke schermen, hoeveel elementen, hoeveel duplicaten en dat de diff leeg was. Splits het bestand niet; dat is een andere opdracht. Blijf uit de andere CSS-bestanden. Nederlands. Er werken meer agents in deze map: stage en commit alleen je eigen bestanden, nooit `git add -A`. Draait er een rode test die niet van jou is, dan telt die niet mee. `devkit check-autonomy --staged` vóór elke commit. Niet pushen. Stop als je klaar bent en lever op.
+
+---
+
+## Ronde 2 — de veertien die overbleven (lead, 6 aug 2026)
+
+De eerste ronde is gedaan (`8274867`) en het bewijs was degelijk: 578
+elementen, zeven schermen, beide thema's, lege diff. Maar de zeven selectors
+die in dit document stonden, waren niet alle duplicaten — ze waren de zeven die
+ik toen gemeten had langs één bepaalde opdeling.
+
+Opnieuw doorgerekend op het platgeslagen bestand staan er **nog veertien**
+selectors twee keer, verspreid over verschillende secties. Zolang die er zijn,
+kan het bestand niet thematisch gesplitst worden.
+
+| Selector | Regels |
+| --- | --- |
+| `.home-screen .app-logo` | 31, 750 |
+| `.home-screen .home-title` | 32, 760 |
+| `.screen-top .gameplay-header` | 69, 683 |
+| `.rounda-flag-hint` | 163, 438 |
+| `.reveal-next-bar i` | 262, 680 |
+| `.lobby-settings` | 481, 836 |
+| `.lobby-settings-body` | 499, 836 |
+| `.lobby-settings-label` | 500, 840 |
+| `.lobby-gamecard` | 508, 885 |
+| `.lobby-seg-option` | 529, 1094 |
+| `.lobby-toggle` | 554, 591 |
+| `.lobby-self-colors` | 576, 867 |
+| `.lobby-self-swatch` | 586, 845 |
+| `.gameplay-timer-host` | 728, 942 |
+
+Regelnummers gelden voor het bestand ná commit `8274867`; controleer ze
+opnieuw als er intussen iets veranderd is.
+
+**Zelfde werkwijze, zelfde bewijs.** Dit is nog steeds de enige refactor die
+gedrag mag veranderen, dus de computed-style-vergelijking over zeven schermen
+in twee thema's blijft de harde eis.
+
+**Daarna pas splitsen.** Als deze veertien weg zijn, controleer je zelf of er
+nog duplicaten over meerdere secties staan. Zijn die er niet meer, dan is
+opdracht 3 (splitsen per scherm) veilig en mag je die er direct achteraan doen.
