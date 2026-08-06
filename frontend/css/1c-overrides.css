@@ -5,18 +5,9 @@
    feedbackronde die daarna kwam ("REVIEWFIXES", "FEEDBACKRONDE 4 aug",
    "PAKKET B/C/D", …). Elke ronde overschrijft bewust regels uit een eerdere.
 
-   WAAROM HET NIET VERDER GESPLITST IS (lead, 6 aug 2026). De voor de hand
-   liggende opdeling — home, lobby, spel, uitslag — is gemeten en botst op
-   ZEVEN plekken: dan wisselen twee regels van volgorde en wint ineens de
-   andere. Bijvoorbeeld `.lobby-start` (regel 119 vs 942),
-   `.lobby-gamearrow`/`.lobby-settings-more` (695 vs 942),
-   `.session-hostbar-kick` (695 vs 1240) en drie
-   `prefers-reduced-motion`-blokken.
-
-   Splitsen kan dus pas ná het platslaan van die overschrijvingen: de latere
-   regel in de eerdere verwerken, zodat er per selector nog één plek is. Dat
-   is een gedragsverandering en hoort een eigen opdracht te zijn, mét visuele
-   verificatie. Tot die tijd: hier bijschrijven aan het EIND, nooit ertussen.
+   Lead, 6 aug 2026: de zeven bekende cascadeblokkades voor een latere split
+   zijn platgeslagen in dit bestand. Nieuwe correcties blijven nog steeds aan
+   het einde staan totdat de volgende refactor dit bestand thematisch opsplitst.
    ═════════════════════════════════════════════════════════════════════════ */
 
 /* ── Licht thema: de 1c-look is donker-eerst; licht krijgt dezelfde vormen
@@ -36,15 +27,6 @@
 :root[data-theme='light'] .podium-step { background: var(--color-surface-1); border-color: var(--color-border-subtle); }
 :root[data-theme='light'] .app-logo::before { background: var(--color-bg-canvas); }
 :root[data-theme='light'] .app-logo::after { color: #55731a; }
-
-@media (prefers-reduced-motion: no-preference) {
-  .lobby-player-enter { animation: rounda-pop 0.5s ease-out; }
-  @keyframes rounda-pop {
-    0% { transform: translateY(14px) scale(0.94); opacity: 0; }
-    60% { transform: translateY(0) scale(1.03); opacity: 1; }
-    100% { transform: translateY(0) scale(1); opacity: 1; }
-  }
-}
 
 /* ════════════════════════════════════════════════════════════════════
    COMPOSITIE (3 aug, avond) — de posities uit de 1c-mockups, CSS-only.
@@ -139,8 +121,17 @@
 
 /* ════ REVIEWFIXES (grote review, na bouwsprint) ════ */
 
-/* #5: lucht tussen uitnodigen-blok en de (sticky) startknop — geen overlap */
-.lobby-start { margin-top: 16px; }
+/* #5: lucht tussen uitnodigen-blok en de (sticky) startknop — geen overlap.
+   De latere startknopcorrecties zijn hierheen teruggevouwen: label/subregel
+   als kolom, en 12px lucht onder de zwevende knop. */
+.lobby-start {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+}
 
 /* #6: permanente mini-QR in het paneel — scanbaar zonder tik */
 .room-header-qr-inline {
@@ -322,15 +313,6 @@ body:has(.home-screen) .app-footer { display: block; }
   margin: 7px 0 0;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .reveal-card { animation: rounda-pop 0.55s cubic-bezier(0.2, 1.4, 0.4, 1); }
-  .reveal-self { animation: rounda-pop 0.55s 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) backwards; }
-  /* Geen secondenclaim uit het protocol → geen aftel-illusie; de balk
-     pendelt (transform-only, gecomposit — zelfde les als reviewfix #10). */
-  .reveal-next-bar i { animation: reveal-pendel 1.6s ease-in-out infinite alternate; }
-  @keyframes reveal-pendel { from { transform: translateX(0); } to { transform: translateX(150%); } }
-}
-
 :root[data-theme='light'] .reveal-self { background: var(--color-surface-1); }
 :root[data-theme='light'] .reveal-card-label,
 :root[data-theme='light'] .reveal-card-count { color: #55731a; }
@@ -354,14 +336,8 @@ body:has(.home-screen) .app-footer { display: block; }
 }
 
 /* #4: startknop — label en subregel stonden als twee inline spans tegen
-   elkaar aan ("Start Roundaledereen mee?"). Zelfde opbouw als de mockup-
-   hero-pil: label groot, subregel mono eronder. */
-.lobby-start {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
+   elkaar aan ("Start Roundaledereen mee?"). De declaraties zelf staan bij de
+   eerste `.lobby-start`, zodat deze selector nog maar één definitie heeft. */
 .lobby-start-sub {
   font: 700 11px/1 var(--font-mono);
   letter-spacing: 0.08em;
@@ -448,10 +424,6 @@ body:has(.home-screen) .app-footer { display: block; }
   height: 8px;
   border-radius: 50%;
   background: var(--rounda-lime);
-}
-@media (prefers-reduced-motion: no-preference) {
-  .lobby-ready-dot { animation: rounda-adem 1.4s infinite; }
-  @keyframes rounda-adem { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 }
 .lobby-ready-text { flex: 1; font: 700 14px/1.2 var(--font-display); color: #d4d4de; }
 .lobby-ready-name {
@@ -751,14 +723,25 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   font: 700 16px/1 var(--font-display);
 }
 .lobby-player-menu-panel { flex: none; }
-.lobby-player-menu-panel .lobby-player-kick,
-.session-hostbar-kick {
+.lobby-player-menu-panel .lobby-player-kick {
   width: auto;
   margin: 0;
   padding: 8px 14px;
   border-radius: 999px;
   font-size: 12px;
   min-height: 44px;
+}
+.session-hostbar-kick {
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: #9a9aa8;
+  font: 500 13px/1.3 var(--font-body);
+  text-align: left;
 }
 .session-hostbar-player { display: flex; align-items: center; gap: 8px; }
 .session-hostbar-player span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -768,34 +751,37 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 .lobby-gamerow .lobby-gamecard { flex: 1; }
 .lobby-gamearrow {
   flex: none;
-  width: 44px;
-  height: 44px;
+  width: 34px;
+  height: 56px;
   padding: 0;
   border-radius: 12px;
   background: var(--rounda-row);
   border: 1px solid var(--rounda-row-border);
-  color: #b9b9c6;
-  font: 700 18px/1 var(--font-display);
+  color: #8e8e9c;
+  font: 700 15px/1 var(--font-display);
 }
 .lobby-gamecard.is-soon { filter: saturate(0.35) brightness(0.8); }
 
 /* #10: Meer instellingen */
 .lobby-settings-more {
-  align-self: flex-end;
-  font: 500 11.5px/1 var(--font-body);
-  color: #8e8e9c;
+  align-self: flex-start;
+  width: auto;
+  padding: 0;
+  background: none;
+  border: none;
+  font: 700 10.5px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5c5c6b;
+  text-decoration: underline;
+  text-underline-offset: 3px;
   min-height: 44px;
 }
-.lobby-settings-morebody { display: flex; flex-direction: column; gap: 10px; }
+.lobby-settings-morebody { display: flex; flex-direction: column; gap: 8px; }
 
 /* #12: echte aflopende balk (duur komt uit de serverconfig, inline gezet) */
 @keyframes reveal-drain { from { width: 100%; } to { width: 0%; } }
 .reveal-next-bar i { width: 100%; }
-@media (prefers-reduced-motion: no-preference) {
-  /* de pendel vervalt: de drain-animatie wordt per ronde inline gezet */
-  .reveal-next-bar i { animation: none; }
-}
-
 /* ════ FEEDBACKRONDE 3 (4 aug): de vraag-kop uit mockup 4 ════ */
 
 .screen-top .gameplay-header {
@@ -822,7 +808,19 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   background: var(--rounda-lime);
 }
 @media (prefers-reduced-motion: no-preference) {
+  .lobby-player-enter { animation: rounda-pop 0.5s ease-out; }
+  .reveal-card { animation: rounda-pop 0.55s cubic-bezier(0.2, 1.4, 0.4, 1); }
+  .reveal-self { animation: rounda-pop 0.55s 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) backwards; }
+  .lobby-ready-dot,
   .gameplay-inline-progress-dot { animation: rounda-adem 1.4s infinite; }
+  /* De revealbalk wordt per ronde inline gezet; geen losse pendel-illusie. */
+  .reveal-next-bar i { animation: none; }
+  @keyframes rounda-pop {
+    0% { transform: translateY(14px) scale(0.94); opacity: 0; }
+    60% { transform: translateY(0) scale(1.03); opacity: 1; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  @keyframes rounda-adem { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 }
 .gameplay-inline-progress-text {
   font: 700 12px/1 var(--font-mono);
@@ -985,8 +983,7 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
    labels hebben hun eigen bovenmarge niet meer nodig. De knoppen zelf blijven
    op hun maat — dat zijn tikdoelen, geen lucht (punten 26/28/29/30). */
 .lobby-settings,
-.lobby-settings-body,
-.lobby-settings-morebody {
+.lobby-settings-body {
   gap: 8px;
 }
 
@@ -1040,46 +1037,12 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   min-width: 0;
 }
 
-/* R2-5: "Meer instellingen" was een knop midden in de kolom. Het is een
-   bescheiden ingang naar wat je meestal niet nodig hebt, dus: een stille
-   regel onderin. Het tikgebied blijft 44px hoog (de regel is klein, het
-   doel niet). */
-.lobby-settings-more {
-  align-self: flex-start;
-  width: auto;
-  padding: 0;
-  background: none;
-  border: none;
-  font: 700 10.5px/1 var(--font-mono);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #5c5c6b;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-/* Punt 24: de pijlen blijven, maar als secundaire bediening — smaller dan de
-   44px-blokken die ze waren. Ze houden hun volle hoogte, dus het tikdoel
-   blijft ruim. */
-.lobby-gamearrow {
-  width: 34px;
-  height: 56px;
-  font-size: 15px;
-  color: #8e8e9c;
-}
-
 /* Punt 23: horizontaal vegen over de kaart draait de carrousel (lobby.mjs).
    `pan-y` laat de pagina verticaal scrollen, maar geeft de horizontale
    beweging aan de kaart — zonder dit vecht de browser-scroll met de veeg. */
 .lobby-gamecard {
   touch-action: pan-y;
   cursor: grab;
-}
-
-/* Punt 31: "Start Rounda" plakte tegen de onderrand. Iets omhoog, zodat er
-   lucht onder de knop staat — hij blijft zweven (producteigenaar: "goud"). */
-.lobby-start {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
 }
 
 /* ══ LEAD — losse punten (regie) ══════════════════════════════════════════ */
@@ -1309,8 +1272,7 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
 /* Punt 49, letterlijk: niet dominant. De INGANG naar beëindigen is een stille
    regel — geen rode omkadering, geen volle-breedte-knop die om een tik vraagt.
    Rood is voorbehouden aan de bevestiging eronder, want dáár gebeurt het. */
-.session-hostbar-finish,
-.session-hostbar-kick {
+.session-hostbar-finish {
   width: 100%;
   min-height: 44px;
   padding: 8px 12px;
@@ -1322,8 +1284,8 @@ body[data-rounda-fase='lobby'] .session-hostbar { display: none; }
   text-align: left;
 }
 .session-hostbar-finish:hover,
-.session-hostbar-kick:hover,
 .session-hostbar-finish:focus-visible,
+.session-hostbar-kick:hover,
 .session-hostbar-kick:focus-visible {
   color: var(--color-danger, #ff5470);
   background: rgba(255, 84, 112, 0.08);
