@@ -11,24 +11,16 @@ Peildatum: 6 aug 2026.
 
 | Wat | Status |
 | --- | --- |
-| [Host wijzigt naam/kleur van een ander](host-wijzigt-naam-en-kleur.md) | klaar om te starten |
-| [Solo: antwoordvolgorde na reload](solo-antwoordvolgorde.md) | klaar om te starten |
 
 ## Middel — dagen
 
 | Wat | Status |
 | --- | --- |
-| [Antwoord automatisch tonen](antwoord-automatisch-tonen.md) | klaar om te starten |
-| [Continentfilter](continentfilter.md) | klaar om te starten |
-| [Reactiezinnen naar 50–100 per taal](reactiezinnen.md) | klaar om te starten |
-| [Hoger/lager en Hoofdsteden aanzetten](hoger-lager-en-hoofdsteden.md) | klaar om te starten |
 
 ## Groot — weken
 
 | Wat | Status |
 | --- | --- |
-| [Landcontent: 60 landen](landcontent.md) | klaar om te starten |
-| [Spelersidentiteit stap 4–6](spelersidentiteit.md) | klaar om te starten |
 | [Raad het land](raad-het-land.md) | klaar om te starten |
 | [Typed answers](typed-answers.md) | wacht op het scorebesluit |
 | [De donut-gamekeuze](donut-gamekeuze.md) | klaar om te starten |

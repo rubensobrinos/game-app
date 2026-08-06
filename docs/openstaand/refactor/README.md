@@ -7,22 +7,29 @@ tegelijk kunnen werken. Dit is geen opruimwerk, het is de rem eraf halen.
 **Regel voor alle acht: geen gedragsverandering.** Een verhuizing, geen
 herontwerp. Zie je onderweg iets dat beter kan — melden, niet meenemen.
 
-| # | Bestand | Regels | Kan starten |
-| --- | --- | --: | --- |
-| [1](1-css-base-en-components.md) | `base.css` + `components.css` | 2421 | ja |
-| [2](2-serveradapters.md) | `index.mjs` + redis + analytics | 3591 | ja |
-| [3](3-rounda-1c-css.md) | `rounda-1c.css` | 1912 | ná het uitslagscherm |
-| [4](4-transport-mock.md) | `transport-mock.mjs` | 1548 | ja |
-| [5](5-session-shell.md) | `session-shell.mjs` | 1169 | zodra vrij |
-| [6](6-socket.md) | `socket.mjs` | 1399 | zodra vrij |
-| [7](7-room-lifecycle.md) | `room-lifecycle.mjs` | 1057 | ná ronde 2 |
-| [8](8-match-lifecycle.md) | `match-lifecycle.mjs` | 1764 | **als laatste** |
-| [9](9-transport-client.md) | `transport.mjs` | 978 | ja |
-| [10](10-rest-test.md) | `rest.test.mjs` | 1120 | **vervallen** |
-| [11](11-lobby.md) | `views/lobby.mjs` | 1090 | af |
-| [12](12-match-lifecycle-test.md) | `match-lifecycle.test.mjs` | 2337 | **vervallen** |
-| [13](13-socket-test.md) | `socket.test.mjs` | 1158 | **vervallen** |
-| [14](14-overrides-platslaan.md) | `1c-overrides.css` platslaan | 1609 | vóór 3 |
+| # | Bestand | Was | Nu | Stand |
+| --- | --- | --: | --: | --- |
+| 1 | `base.css` + `components.css` | 2421 | 9 bestanden | af |
+| 2 | `index.mjs`, redis, analytics | 3591 | 3 gesplitst | af |
+| 3 | `rounda-1c.css` | 1912 | 10 (facade) | af |
+| 4 | `transport-mock.mjs` | 1548 | 651 | af |
+| 5 | `session-shell.mjs` | 1169 | 734 | af |
+| 6 | `socket.mjs` | 1399 | 369 | af |
+| 7 | `room-lifecycle.mjs` | 1057 | 59 | af |
+| 8 | `match-lifecycle.mjs` | 1764 | 64 | af |
+| 9 | `transport.mjs` | 978 | 59 | af |
+| 10 | `rest.test.mjs` | 1120 | — | geschrapt |
+| 11 | `views/lobby.mjs` | 1090 | 191 | af |
+| 12 | `match-lifecycle.test.mjs` | 2337 | — | geschrapt |
+| 13 | `socket.test.mjs` | 1158 | — | geschrapt |
+| 14 | `1c-overrides.css` platslaan | — | 0 duplicaten | af |
+
+**De lijst is klaar.** Negen productiebestanden opgesplitst, drie
+testbestanden geschrapt, de CSS-overschrijvingen platgeslagen.
+
+Eén ding blijft over en dat is optioneel: `1c-overrides.css` (1571 regels) is
+nu splitsbaar maar niet gesplitst. Doe dat pas als twee mensen er tegelijk in
+moeten.
 
 Daarna nog, zodra ze vrij zijn: `match-lifecycle.test.mjs` (2337),
 `data-store-conformance.mjs` (2218), `redis/data-store.test.mjs` (1695),
