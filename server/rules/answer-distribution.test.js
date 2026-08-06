@@ -25,6 +25,15 @@ describe('computeAnswerDistribution #1-12', () => {
     assert.deepStrictEqual(result, { jp: 1, cn: 1, kr: 0, th: 0 });
   });
 
+  test('#2b country_shape_mc routeert correct — zonder deze tak liep endRound vast', () => {
+    // De ontbrekende `case` liet `endRound` een RangeError werpen op de
+    // fasepomp: geen log, geen foutcode, room stil in ROUND_ACTIVE. Zie de
+    // toelichting in answer-distribution.js.
+    const answers = [{ answer: { optionId: 'hr' } }, { answer: { optionId: 'pl' } }, { answer: { optionId: 'hr' } }];
+    const result = computeAnswerDistribution('country_shape_mc', answers, { validOptionIds: ['hr', 'lt', 'md', 'pl'] });
+    assert.deepStrictEqual(result, { hr: 2, lt: 0, md: 0, pl: 1 });
+  });
+
   test('#3 real_or_fake_flag, mix van real/fake', () => {
     const answers = [
       { answer: { choice: 'real' } },

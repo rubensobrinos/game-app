@@ -11,6 +11,11 @@
 import { getCountryPool } from '../../../shared/content/index.mjs';
 import { isPlayableGameType } from '../../../shared/content/game-catalog.mjs';
 import { generateFlagSpec } from '../../../shared/content/flag-spec.mjs';
+// De LICHTE index (2 KB, alleen landcodes) — nooit shapes.data.mjs (234 KB
+// tekenpaden). Zelfde scheiding als op de server: die kiest een land en tekent
+// niets; het tekenwerk gebeurt in shape-renderer.mjs, dat de paddata pas
+// dynamisch ophaalt als deze game daadwerkelijk gespeeld wordt.
+import { SHAPE_ISO2S } from '../../../shared/content/shapes-index.mjs';
 
 // Zelfde placeholder-waarde als PROTOCOL.md's voorbeelden. Gedeeld door
 // mock/match.mjs (round:started) en transport-mock.mjs (buildSnapshot's
@@ -21,6 +26,8 @@ const QUESTION_COUNT = 5;
 // Besluit 49 (docs/openstaand/hoger-lager-en-hoofdsteden.md): zelfde drie
 // metrics als de echte server (question-selection.js's VALID_METRICS).
 const HIGHER_LOWER_METRICS = ['population', 'area', 'gdp'];
+/** Welke landen een contour hebben — de enige extra eis van `country_shape_mc`. */
+const HAS_SHAPE = new Set(SHAPE_ISO2S);
 
 /** De gameType van deze room: uit de config, met de quick-start default. */
 export function resolveGameType(config) {
@@ -49,11 +56,39 @@ export function resolveGameType(config) {
  */
 export function buildQuestionSequence(gameType = DEFAULT_GAME_TYPE) {
   const pool = getCountryPool();
-  const count = Math.min(QUESTION_COUNT, pool.length);
+  // `country_shape_mc` is de enige gameType met een eis aan het TARGET: er moet
+  // een contour van bestaan (225 van de 230, zie shapes-index.mjs). Precies
+  // dezelfde beperking die de server via `hasShape` legt in
+  // `selectCountryShapeQuestion`. Afleiders vallen er buiten — die zijn namen,
+  // van hen wordt niets getekend. Voor elke andere gameType is dit de volle
+  // pool en verandert er niets.
+  const targetPool = gameType === 'country_shape_mc' ? pool.filter((entry) => HAS_SHAPE.has(entry.iso2)) : pool;
+  const count = Math.min(QUESTION_COUNT, targetPool.length);
   const questions = [];
 
   for (let i = 0; i < count; i += 1) {
-    const target = pool[i];
+    const target = targetPool[i];
+
+    if (gameType === 'country_shape_mc') {
+      // Structureel identiek aan flags_mc — `targetIso2` + vier `optionIso2s`,
+      // `correct.optionId` — want dat is ook wat de server teruggeeft. Het
+      // enige verschil zit in de RENDERING (een contour i.p.v. een vlag) en
+      // in de targetkeuze hierboven.
+      //
+      // Afleiders bij voorkeur van hetzelfde continent, net als de server:
+      // vier willekeurige wereldlanden maken de vraag te makkelijk. Vast op
+      // poolvolgorde in plaats van willekeurig — een doorloop moet
+      // herhaalbaar zijn, zelfde afweging als odd_one_out en higher_lower.
+      const zelfdeContinent = pool.filter((entry) => entry.iso2 !== target.iso2 && entry.continent === target.continent);
+      const overig = pool.filter((entry) => entry.iso2 !== target.iso2 && entry.continent !== target.continent);
+      const afleiders = [...zelfdeContinent, ...overig].slice(0, 3);
+      const optionIso2s = shuffle([target, ...afleiders].map((entry) => entry.iso2.toUpperCase()));
+      questions.push({
+        payload: { targetIso2: target.iso2.toUpperCase(), optionIso2s },
+        correct: { optionId: target.iso2.toUpperCase() },
+      });
+      continue;
+    }
 
     if (gameType === 'odd_one_out') {
       // Drie uit hetzelfde continent + één buitenbeentje, zoals de server

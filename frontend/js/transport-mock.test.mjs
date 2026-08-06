@@ -1238,6 +1238,76 @@ test('buildQuestionSequence("capitals_mc") levert dezelfde payloadvorm als flags
   }
 });
 
+test('buildQuestionSequence("country_shape_mc") bouwt dezelfde vraag als de server', () => {
+  const eerste = buildQuestionSequence('country_shape_mc');
+  const tweede = buildQuestionSequence('country_shape_mc');
+  assert.equal(eerste.length, 5);
+  assert.deepEqual(
+    eerste.map((v) => v.payload.targetIso2),
+    tweede.map((v) => v.payload.targetIso2),
+    'geen willekeur in de targetkeuze — een doorloop moet herhaalbaar zijn',
+  );
+
+  for (const vraag of eerste) {
+    // Structureel identiek aan flags_mc/capitals_mc: dat is precies wat
+    // `selectCountryShapeQuestion` op de server teruggeeft.
+    assert.match(vraag.payload.targetIso2, /^[A-Z]{2}$/);
+    assert.equal(vraag.payload.optionIso2s.length, 4);
+    assert.ok(vraag.payload.optionIso2s.includes(vraag.payload.targetIso2));
+    assert.equal(new Set(vraag.payload.optionIso2s).size, 4, 'vier verschillende opties');
+    assert.equal(vraag.correct.optionId, vraag.payload.targetIso2);
+    // Besluit 20: het juiste antwoord staat niet in de publieke payload.
+    assert.equal(vraag.payload.correct, undefined);
+    assert.equal(vraag.payload.optionId, undefined);
+  }
+});
+
+test('de contourvraag kiest alleen landen waarvan een contour bestaat', async () => {
+  // De enige extra eis van deze gameType, en de reden dat de server
+  // `hasShape` injecteert: vijf pool-landen (de Franse overzeese gebieden)
+  // hebben er geen. Een target zonder contour zou een leeg spelscherm geven.
+  const { SHAPE_ISO2S } = await import('../../shared/content/shapes-index.mjs');
+  const heeftContour = new Set(SHAPE_ISO2S);
+  for (const vraag of buildQuestionSequence('country_shape_mc')) {
+    assert.ok(
+      heeftContour.has(vraag.payload.targetIso2.toLowerCase()),
+      `${vraag.payload.targetIso2} is als target gekozen maar heeft geen contour`,
+    );
+  }
+});
+
+test('afleiders komen bij voorkeur van hetzelfde continent, net als op de server', async () => {
+  const { getCountryPool } = await import('../../shared/content/index.mjs');
+  const continentVan = new Map(getCountryPool().map((e) => [e.iso2.toUpperCase(), e.continent]));
+  for (const vraag of buildQuestionSequence('country_shape_mc')) {
+    const eigen = continentVan.get(vraag.payload.targetIso2);
+    const zelfde = vraag.payload.optionIso2s.filter((iso2) => continentVan.get(iso2) === eigen).length;
+    assert.equal(zelfde, 4, `${vraag.payload.targetIso2}: vier opties uit hetzelfde continent verwacht`);
+  }
+});
+
+test('een land met een uitgerekte contour blijft speelbaar', async () => {
+  // 51 landen in shapes.data.mjs dragen `stretched: true` — er is geen
+  // proportionele bron voor (opdracht E). Ze hebben WEL een pad, dus ze horen
+  // gewoon speelbaar te zijn: een uitgerekte contour is lelijk, geen fout. Dit
+  // toetst de hele weg van vraag tot tekenbaar pad.
+  const { SHAPE_ENTRIES } = await import('../../shared/content/shapes.data.mjs');
+  const gerekt = SHAPE_ENTRIES.filter((e) => e.stretched === true);
+  assert.ok(gerekt.length > 0, 'zonder uitgerekte landen bewijst deze test niets');
+
+  const { getCountryPool } = await import('../../shared/content/index.mjs');
+  const poolIso2s = new Set(getCountryPool().map((e) => e.iso2));
+  for (const entry of gerekt) {
+    assert.ok(poolIso2s.has(entry.iso2), `${entry.iso2} zit niet in de pool`);
+    // Een tekenbaar pad: begint met een moveto en heeft genoeg punten.
+    assert.match(entry.shape, /^M/);
+    assert.ok(
+      (entry.shape.match(/-?\d+(?:\.\d+)?/g) ?? []).length >= 6,
+      `${entry.iso2} heeft te weinig punten om te tekenen`,
+    );
+  }
+});
+
 test('optionValuesOf/correctValueOf kennen de "side"-vorm van higher_lower', () => {
   const [vraag] = buildQuestionSequence('higher_lower');
   assert.deepEqual(optionValuesOf(vraag), ['0', '1']);
