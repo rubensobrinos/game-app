@@ -583,6 +583,79 @@ test('game:kick meldt de gekickte sessie persoonlijk en de room het nieuwe aanta
   assert.equal(bystanderClient.eventsNamed('session:kicked').length, 0, 'session:kicked is een single_session-event');
 });
 
+// docs/openstaand/host-wijzigt-naam-en-kleur.md: de host kan een ándere
+// speler hernoemen/herkleuren, ook als die al zelf een naam koos — precies
+// het gat dat game:kick al niet had (een host kon altijd al verwijderen).
+test('game:rename-player: de host hernoemt een ander, óók ná diens eigen eenmalige player:rename', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness);
+  // Lege displayName: de speler krijgt een GEGENEREERDE naam bij join
+  // (nameSource != 'chosen'), zodat de eigen eenmalige player:rename hierna
+  // nog kan slagen — een opgegeven joinnaam telt namelijk al als "gekozen".
+  const target = await seedPlayer(harness, room, '');
+
+  const host = await harness.connect(authFor(room));
+  const targetClient = await harness.connect(authFor(target));
+
+  // De speler verbruikt zijn eigen eenmalige rename eerst.
+  const selfRename = await targetClient.emitWithAck('player:rename', { actionId: 'act_self', payload: { displayName: 'Zelfgekozen' } });
+  assert.equal(selfRename.ok, true);
+  await host.waitFor('room:player-changed');
+
+  // Een tweede player:rename van de speler zelf zou nu INVALID_PHASE geven —
+  // de host mag dat via game:rename-player wél.
+  const ack = await host.emitWithAck('game:rename-player', {
+    actionId: 'act_host_rename',
+    payload: { playerId: target.playerId, displayName: 'Door host hernoemd' },
+  });
+  assert.equal(ack.ok, true);
+  assert.equal(ack.payload.effectiveName, 'Door host hernoemd');
+
+  // `waitFor` geeft het EERSTE bijpassende event terug, dus een tweede
+  // room:player-changed (van de host-rename) vraagt om een predicate — anders
+  // levert een tweede oproep gewoon de eerste (self-rename) opnieuw op.
+  const changed = await host.waitFor('room:player-changed', (envelope) => envelope.payload.delta.effectiveName === 'Door host hernoemd');
+  assert.deepEqual(changed.payload, {
+    playerCount: 2,
+    delta: { type: 'rename', playerId: target.playerId, effectiveName: 'Door host hernoemd' },
+  });
+});
+
+test('game:rename-player: een niet-host krijgt NOT_HOST', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness);
+  const target = await seedPlayer(harness, room, 'Speler 7');
+  const targetClient = await harness.connect(authFor(target));
+
+  const ack = await targetClient.emitWithAck('game:rename-player', {
+    actionId: 'act_x',
+    payload: { playerId: target.playerId, displayName: 'Zelfbenoemd' },
+  });
+  assert.equal(ack.ok, false);
+  assert.equal(ack.payload.code, 'NOT_HOST');
+});
+
+test('game:recolor-player: de host wijzigt de kleur van een ander', async (t) => {
+  const harness = await makeHarness(t);
+  const room = await seedRoom(harness);
+  const target = await seedPlayer(harness, room, 'Kleurloos');
+  const host = await harness.connect(authFor(room));
+  await harness.connect(authFor(target));
+
+  const ack = await host.emitWithAck('game:recolor-player', {
+    actionId: 'act_host_recolor',
+    payload: { playerId: target.playerId, color: 'teal' },
+  });
+  assert.equal(ack.ok, true);
+  assert.equal(ack.payload.color, 'teal');
+
+  const changed = await host.waitFor('room:player-changed');
+  assert.deepEqual(changed.payload, {
+    playerCount: 2,
+    delta: { type: 'recolor', playerId: target.playerId, color: 'teal' },
+  });
+});
+
 test('player:leave laat de speler zelf vertrekken: room:player-changed uit, maar geen geforceerde disconnect of sessie-intrekking', async (t) => {
   const harness = await makeHarness(t);
   const room = await seedRoom(harness);

@@ -51,6 +51,28 @@ export function validatePlayerRenamePayload(payload) {
 }
 
 /**
+ * Valideert de payload van `game:rename-player` (docs/openstaand/
+ * host-wijzigt-naam-en-kleur.md): de hostvariant van `player:rename`, exact
+ * twee sleutels — `playerId` (niet-lege string, wie) en `displayName`
+ * (string, zelfde vormeis als `player:rename`). Of die speler bestaat en de
+ * naam na normalisatie bruikbaar is, is roomstate en hoort bij
+ * `room-lifecycle.renamePlayer`, niet hier.
+ * @param {unknown} payload
+ * @returns {ValidationResult}
+ */
+export function validateGameRenamePlayerPayload(payload) {
+  if (!isPlainObject(payload)) return { ok: false, code: null };
+  const keys = Object.keys(payload);
+  const expectedKeys = ['playerId', 'displayName'];
+  if (keys.length !== expectedKeys.length || !expectedKeys.every((key) => keys.includes(key))) {
+    return { ok: false, code: null };
+  }
+  if (typeof payload.playerId !== 'string' || payload.playerId.length === 0) return { ok: false, code: null };
+  if (typeof payload.displayName !== 'string') return { ok: false, code: null };
+  return { ok: true };
+}
+
+/**
  * Valideert de payload van `player:leave`. Verwacht exact een leeg object.
  * @param {unknown} payload
  * @returns {ValidationResult}
@@ -133,6 +155,26 @@ export function validatePlayerRecolorPayload(payload) {
   if (!isPlainObject(payload)) return { ok: false, code: null };
   const keys = Object.keys(payload);
   if (keys.length !== 1 || keys[0] !== 'color') return { ok: false, code: null };
+  if (!VALID_PLAYER_COLORS.has(payload.color)) return { ok: false, code: null };
+  return { ok: true };
+}
+
+/**
+ * Valideert de payload van `game:recolor-player` (docs/openstaand/
+ * host-wijzigt-naam-en-kleur.md): de hostvariant van `player:recolor`, exact
+ * twee sleutels — `playerId` (niet-lege string, wie) en `color` (uit
+ * dezelfde gesloten `PLAYER_COLORS`-enum als hierboven).
+ * @param {unknown} payload
+ * @returns {ValidationResult}
+ */
+export function validateGameRecolorPlayerPayload(payload) {
+  if (!isPlainObject(payload)) return { ok: false, code: null };
+  const keys = Object.keys(payload);
+  const expectedKeys = ['playerId', 'color'];
+  if (keys.length !== expectedKeys.length || !expectedKeys.every((key) => keys.includes(key))) {
+    return { ok: false, code: null };
+  }
+  if (typeof payload.playerId !== 'string' || payload.playerId.length === 0) return { ok: false, code: null };
   if (!VALID_PLAYER_COLORS.has(payload.color)) return { ok: false, code: null };
   return { ok: true };
 }
@@ -258,12 +300,13 @@ export function validateShareOpenedPayload(payload) {
  */
 
 /**
- * De 15 bekende clientevents (de 12 uit §Client → server events, plus
+ * De 17 bekende clientevents (de 12 uit §Client → server events, plus
  * `player:recolor` en `game:update-config` uit besluit 40 + feedbackronde,
- * 4 aug 2026, plus `game:reveal` uit fase 4/besluit C, 5 aug 2026), met hun
- * validator en vereiste rol. Enige bron van waarheid voor "welke eventnamen
- * bestaan" — `resolveEventValidator` doet een pure lookup hierop, geen tweede
- * lijst.
+ * 4 aug 2026, plus `game:reveal` uit fase 4/besluit C, 5 aug 2026, plus
+ * `game:rename-player` en `game:recolor-player` uit
+ * docs/openstaand/host-wijzigt-naam-en-kleur.md), met hun validator en
+ * vereiste rol. Enige bron van waarheid voor "welke eventnamen bestaan" —
+ * `resolveEventValidator` doet een pure lookup hierop, geen tweede lijst.
  * @type {ReadonlyMap<string, EventValidatorEntry>}
  */
 const EVENT_VALIDATORS_BY_NAME = new Map([
@@ -277,6 +320,8 @@ const EVENT_VALIDATORS_BY_NAME = new Map([
   ['game:finish', { validate: validateGameFinishPayload, requiredRole: 'host' }],
   ['game:rematch', { validate: validateGameRematchPayload, requiredRole: 'host' }],
   ['game:update-config', { validate: validateGameUpdateConfigPayload, requiredRole: 'host' }],
+  ['game:rename-player', { validate: validateGameRenamePlayerPayload, requiredRole: 'host' }],
+  ['game:recolor-player', { validate: validateGameRecolorPlayerPayload, requiredRole: 'host' }],
   ['player:rename', { validate: validatePlayerRenamePayload, requiredRole: 'player' }],
   ['player:recolor', { validate: validatePlayerRecolorPayload, requiredRole: 'player' }],
   ['player:leave', { validate: validatePlayerLeavePayload, requiredRole: 'player' }],
@@ -285,7 +330,7 @@ const EVENT_VALIDATORS_BY_NAME = new Map([
 ]);
 
 /**
- * Alle 15 bekende clientevent-namen, afgeleid van `EVENT_VALIDATORS_BY_NAME`
+ * Alle 17 bekende clientevent-namen, afgeleid van `EVENT_VALIDATORS_BY_NAME`
  * (geen tweede handmatige lijst), voor gebruik in exhaustiviteitstests.
  * @type {ReadonlyArray<string>}
  */

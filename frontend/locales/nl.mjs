@@ -358,6 +358,13 @@ export const nl = Object.freeze({
   'hostbar.players': 'Spelers beheren',
   'hostbar.kick': 'Verwijder',
   'hostbar.kickConfirmPrefix': 'Verwijderen uit deze game:',
+  // docs/openstaand/host-wijzigt-naam-en-kleur.md: hostvariant van
+  // player:rename/player:recolor, in hetzelfde per-speler-⋯-menu als
+  // Verwijder (lobby.mjs). Geen aparte bevestiging nodig — dat is ook zo bij
+  // de eigen naam/kleur kiezen, alleen kick is destructief genoeg voor een
+  // bevestigingsstap.
+  'hostbar.renamePlayer': 'Hernoem',
+  'hostbar.recolorPlayer': 'Kleur',
 
   // — UI2: Lobby + Delen —
   'room.scanToJoin': 'Scan om mee te doen',

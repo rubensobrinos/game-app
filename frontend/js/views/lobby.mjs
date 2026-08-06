@@ -29,7 +29,25 @@ import { createRoundaFlagView } from './rounda-flag.mjs';
 // spelers" wordt gebruikt.
 const RECENT_JOINS_COUNT = 5;
 
-export function createLobbyView({ root, t, tCount, isHost, onStart, onShareAction, onKickPlayer, onRename, onRecolor, onConfigChange }) {
+export function createLobbyView({
+  root,
+  t,
+  tCount,
+  isHost,
+  onStart,
+  onShareAction,
+  onKickPlayer,
+  onRename,
+  onRecolor,
+  onConfigChange,
+  // docs/openstaand/host-wijzigt-naam-en-kleur.md: hostvariant van
+  // onRename/onRecolor hierboven — zelfde LOBBY-only regels, maar de host
+  // kiest de doelspeler en de eenmaal-limiet van onRename geldt niet voor
+  // hem. Optioneel (`?.()` hieronder) zolang de aanroeper deze twee nog niet
+  // meegeeft — de knoppen verschijnen dan gewoon, maar doen niets.
+  onHostRenamePlayer,
+  onHostRecolorPlayer,
+}) {
   root.textContent = '';
 
   // Geen eigen `.screen`-klasse: de aanroeper (session-shell.mjs) mount dit in
@@ -795,8 +813,12 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
         item.appendChild(chip);
         let kickButton;
         // Feedbackronde 2 (punt 5): NOOIT een kale verwijderknop in de rij —
-        // een klein ⋯-menu per speler, met daarin (voor nu) Verwijderen.
-        // Naam/kleur van ándermans rij wijzigen vergt serverwerk (ticket).
+        // een klein ⋯-menu per speler. docs/openstaand/host-wijzigt-naam-en-
+        // kleur.md dicht het "vergt serverwerk"-ticket hieronder: hernoemen
+        // en herkleuren van een ándere speler kunnen nu ook, naast Verwijderen
+        // — alle drie alleen zichtbaar zolang dit scherm draait, en dat is
+        // per constructie alleen tijdens LOBBY (session-shell.mjs mount deze
+        // view nergens anders), dus geen aparte fasecheck hier nodig.
         if (isHost && model.canKick) {
           const rowMenuButton = document.createElement('button');
           rowMenuButton.type = 'button';
@@ -807,6 +829,81 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
           rowMenuButton.setAttribute('aria-label', `${t('lobby.playerOptions')} ${name}`);
           const rowMenu = el('div', 'lobby-player-menu-panel');
           rowMenu.hidden = true;
+
+          const renameButtonRow = document.createElement('button');
+          renameButtonRow.type = 'button';
+          renameButtonRow.className = 'btn-secondary lobby-player-rename';
+          renameButtonRow.textContent = t('hostbar.renamePlayer');
+          const renameInputRow = document.createElement('input');
+          renameInputRow.type = 'text';
+          renameInputRow.className = 'field-input lobby-player-rename-input';
+          renameInputRow.maxLength = 60;
+          renameInputRow.hidden = true;
+          renameInputRow.setAttribute('aria-label', `${t('hostbar.renamePlayer')} ${name}`);
+          const renameSaveRow = document.createElement('button');
+          renameSaveRow.type = 'button';
+          renameSaveRow.className = 'btn-secondary lobby-player-rename-save';
+          renameSaveRow.textContent = t('lobby.selfRenameSave');
+          renameSaveRow.hidden = true;
+          const closeRename = () => {
+            renameInputRow.hidden = true;
+            renameSaveRow.hidden = true;
+            renameButtonRow.hidden = false;
+          };
+          renameButtonRow.addEventListener('click', () => {
+            renameButtonRow.hidden = true;
+            renameInputRow.hidden = false;
+            renameSaveRow.hidden = false;
+            renameInputRow.value = name;
+            renameInputRow.focus();
+            renameInputRow.select?.();
+          });
+          renameInputRow.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') renameSaveRow.click();
+            if (event.key === 'Escape') closeRename();
+          });
+          renameSaveRow.addEventListener('click', async () => {
+            const value = renameInputRow.value.trim();
+            closeRename();
+            if (value === '' || value === name) return;
+            try {
+              await onHostRenamePlayer?.(playerId, value);
+            } catch {
+              // serverstand blijft de waarheid; de volgende update() toont 'm
+            }
+          });
+
+          const recolorButtonRow = document.createElement('button');
+          recolorButtonRow.type = 'button';
+          recolorButtonRow.className = 'btn-secondary lobby-player-recolor';
+          recolorButtonRow.textContent = t('hostbar.recolorPlayer');
+          recolorButtonRow.setAttribute('aria-expanded', 'false');
+          const recolorColorsRow = el('div', 'lobby-player-colors');
+          recolorColorsRow.setAttribute('role', 'group');
+          recolorColorsRow.hidden = true;
+          for (const [colorName, hex] of Object.entries(SERVER_KLEUREN)) {
+            const dot = document.createElement('button');
+            dot.type = 'button';
+            dot.className = 'lobby-player-color';
+            dot.style.backgroundColor = hex;
+            dot.setAttribute('aria-label', colorName);
+            dot.addEventListener('click', async () => {
+              recolorColorsRow.hidden = true;
+              recolorButtonRow.setAttribute('aria-expanded', 'false');
+              try {
+                await onHostRecolorPlayer?.(playerId, colorName);
+              } catch {
+                // idem: geen eigen foutkanaal, serverstand corrigeert zichtbaar
+              }
+            });
+            recolorColorsRow.appendChild(dot);
+          }
+          recolorButtonRow.addEventListener('click', () => {
+            const open = recolorButtonRow.getAttribute('aria-expanded') === 'true';
+            recolorButtonRow.setAttribute('aria-expanded', String(!open));
+            recolorColorsRow.hidden = open;
+          });
+
           kickButton = document.createElement('button');
           kickButton.type = 'button';
           kickButton.className = 'btn-destructive lobby-player-kick';
@@ -816,11 +913,16 @@ export function createLobbyView({ root, t, tCount, isHost, onStart, onShareActio
               onKickPlayer(playerId);
             }
           });
-          rowMenu.appendChild(kickButton);
+          rowMenu.append(renameButtonRow, renameInputRow, renameSaveRow, recolorButtonRow, recolorColorsRow, kickButton);
           rowMenuButton.addEventListener('click', () => {
             const open = rowMenuButton.getAttribute('aria-expanded') === 'true';
             rowMenuButton.setAttribute('aria-expanded', String(!open));
             rowMenu.hidden = open;
+            if (open) {
+              closeRename();
+              recolorColorsRow.hidden = true;
+              recolorButtonRow.setAttribute('aria-expanded', 'false');
+            }
           });
           item.append(rowMenuButton, rowMenu);
         }

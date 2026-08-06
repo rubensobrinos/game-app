@@ -434,6 +434,17 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
           requireRole(isPlayer, 'NOT_PLAYER');
           return ackWith(recolorPlayer(room, session.playerId, safePayload.color));
 
+        // docs/openstaand/host-wijzigt-naam-en-kleur.md: hostvariant — de
+        // host mag een ándere speler hernoemen/herkleuren, ook ná diens eigen
+        // eenmalige player:rename (bypassRenameLimit: true hieronder).
+        case 'game:rename-player':
+          requireRole(isHost, 'NOT_HOST');
+          return ackWith(renamePlayer(room, safePayload.playerId, safePayload.displayName, true));
+
+        case 'game:recolor-player':
+          requireRole(isHost, 'NOT_HOST');
+          return ackWith(recolorPlayer(room, safePayload.playerId, safePayload.color));
+
         case 'game:update-config':
           requireRole(isHost, 'NOT_HOST');
           return ackWith(updateRoomConfig(room, safePayload));
@@ -855,7 +866,7 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
     return {};
   }
 
-  function renamePlayer(target, playerId, displayName) {
+  function renamePlayer(target, playerId, displayName, bypassRenameLimit = false) {
     if (target.phase !== 'LOBBY') {
       throw new ProtocolError('INVALID_PHASE', 'player:rename only allowed in LOBBY.');
     }
@@ -863,7 +874,7 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
     if (player === undefined) {
       throw new ProtocolError('NOT_PLAYER', 'Unknown player.');
     }
-    if (player.hasRenamed) {
+    if (player.hasRenamed && !bypassRenameLimit) {
       throw new ProtocolError('INVALID_PHASE', 'player:rename allowed at most once.');
     }
     player.effectiveName = finalizeName(normalizeDisplayName(displayName), target);

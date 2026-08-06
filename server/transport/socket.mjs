@@ -1157,6 +1157,49 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
         };
       }
 
+      case 'game:rename-player': {
+        // docs/openstaand/host-wijzigt-naam-en-kleur.md: hostvariant van
+        // player:rename, mét `bypassRenameLimit` — de once-per-speler-limiet
+        // geldt niet voor de host (anders kan hij "Speler 7" niet herstellen).
+        const result = await renamePlayer(context, {
+          roomId,
+          playerId: payload.playerId,
+          displayName: payload.displayName,
+          bypassRenameLimit: true,
+        });
+        if (!result.ok) return result;
+        return {
+          ok: true,
+          value: { playerId: payload.playerId, effectiveName: result.value.effectiveName },
+          after: async () => publish('room:player-changed', {
+            roomId,
+            payload: {
+              playerCount: await playerCountOf(roomId),
+              delta: { type: 'rename', playerId: payload.playerId, effectiveName: result.value.effectiveName },
+            },
+          }),
+        };
+      }
+
+      case 'game:recolor-player': {
+        // docs/openstaand/host-wijzigt-naam-en-kleur.md: hostvariant van
+        // player:recolor — `recolorPlayer` kende al geen eenmaal-limiet,
+        // dus alleen de doelspeler-id verschilt van de eigen-kleur-route.
+        const result = await recolorPlayer(context, { roomId, playerId: payload.playerId, color: payload.color });
+        if (!result.ok) return result;
+        return {
+          ok: true,
+          value: { playerId: payload.playerId, color: result.value.color },
+          after: async () => publish('room:player-changed', {
+            roomId,
+            payload: {
+              playerCount: await playerCountOf(roomId),
+              delta: { type: 'recolor', playerId: payload.playerId, color: result.value.color },
+            },
+          }),
+        };
+      }
+
       case 'game:finish': {
         cancelTimer(roomId);
         const result = await finishMatch(context, { roomId });
@@ -1239,7 +1282,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
         // only, max één keer, volledige naamnormalisatie).
         const result = await renamePlayer(context, {
           roomId,
-          playerId: session.playerId,
+          playerId,
           displayName: payload.displayName,
         });
         if (!result.ok) return result;
@@ -1250,7 +1293,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
             roomId,
             payload: {
               playerCount: await playerCountOf(roomId),
-              delta: { type: 'rename', playerId: session.playerId, effectiveName: result.value.effectiveName },
+              delta: { type: 'rename', playerId, effectiveName: result.value.effectiveName },
             },
           }),
         };
@@ -1261,7 +1304,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
         // palet — protocollaag valideerde de waarde al).
         const result = await recolorPlayer(context, {
           roomId,
-          playerId: session.playerId,
+          playerId,
           color: payload.color,
         });
         if (!result.ok) return result;
@@ -1272,7 +1315,7 @@ export function attachSocketServer(httpServer, { context, config = {} } = {}) {
             roomId,
             payload: {
               playerCount: await playerCountOf(roomId),
-              delta: { type: 'recolor', playerId: session.playerId, color: result.value.color },
+              delta: { type: 'recolor', playerId, color: result.value.color },
             },
           }),
         };

@@ -434,6 +434,8 @@ Een snapshot bevat nooit het correcte antwoord van een actieve ronde.
 | `game:rematch` | host | `{}` | fase FINISHED |
 | `player:rename` | player | `{ displayName }` | alleen lobby, maximaal eenmaal |
 | `player:recolor` | player | `{ color }` | alleen lobby, kleur uit het vaste palet |
+| `game:rename-player` | host | `{ playerId, displayName }` | alleen lobby, geen eenmaal-limiet (hostvariant van `player:rename`) |
+| `game:recolor-player` | host | `{ playerId, color }` | alleen lobby, kleur uit het vaste palet (hostvariant van `player:recolor`) |
 | `game:update-config` | host | subset van de wijzigbare configvelden | alleen LOBBY, exact één speelbare gameType |
 | `player:leave` | player | `{}` | actieve sessie |
 | `round:answer` | player | zie hieronder | ronde actief, speelgerechtigd, niet eerder geantwoord |
@@ -483,8 +485,7 @@ wordt aangeroepen.
 
 ### `player:rename` en `player:recolor`
 
-Beide alleen in fase `LOBBY`, beide door de speler zelf voor zichzelf — een
-host wijzigt (nog) niet de naam of kleur van een ander.
+Beide alleen in fase `LOBBY`, beide door de speler zelf voor zichzelf.
 
 | | `player:rename` | `player:recolor` |
 | --- | --- | --- |
@@ -499,6 +500,31 @@ host wijzigt (nog) niet de naam of kleur van een ander.
 
 Idempotentie loopt via de gewone `actionId`-cache van de envelope: dezelfde
 `actionId` levert dezelfde ack zonder de wijziging tweemaal toe te passen.
+
+### `game:rename-player` en `game:recolor-player`
+
+De hostvariant (docs/openstaand/host-wijzigt-naam-en-kleur.md): een host kon
+een speler al verwijderen (`game:kick`) maar niet hernoemen — terwijl dat
+precies is wat je wil bij "Speler 7" of een onleesbare naam. Zelfde regels
+als `player:rename`/`player:recolor` hierboven (alleen `LOBBY`, dezelfde
+naamnormalisatie, hetzelfde kleurenpalet), met twee verschillen: de host kiest
+de doelspeler via `playerId` in de payload, en **de eenmaal-limiet van
+`player:rename` geldt niet voor de host** — anders kan hij een fout van de
+speler niet herstellen. `player:recolor` kende toch al geen limiet, dus voor
+`game:recolor-player` verandert er verder niets.
+
+| | `game:rename-player` | `game:recolor-player` |
+| --- | --- | --- |
+| Payload | `{ playerId: string, displayName: string }` | `{ playerId: string, color: string }` |
+| Fase | LOBBY | LOBBY |
+| Rol | host | host |
+| Herhaalbaar | **ja**, ook als de doelspeler al eerder (zelf of door de host) een naam koos | ja |
+| Validatie | zelfde naamnormalisatie als `player:rename` | zelfde gesloten kleurenpalet als `player:recolor` |
+| Foutcodes | `GAME_NOT_FOUND`, `INVALID_PHASE`, `NOT_PLAYER` (doelspeler bestaat niet/is weg), `INVALID_ANSWER_FORMAT` | `GAME_NOT_FOUND`, `INVALID_PHASE`, `NOT_PLAYER`, `INVALID_ANSWER_FORMAT` |
+| Broadcast | `room:player-changed` met `delta: { type: "rename", playerId, effectiveName }` (zelfde deltavorm als `player:rename`, ongeacht wie de wijziging aanvroeg) | `room:player-changed` met `delta: { type: "recolor", playerId, color }` |
+| In de snapshot | `participants[].effectiveName`, en `self.effectiveName` voor de doelspeler | `participants[].color`, en `self.color` voor de doelspeler |
+
+Idempotentie loopt hier ook via de gewone `actionId`-cache van de envelope.
 
 ### `game:update-config`
 

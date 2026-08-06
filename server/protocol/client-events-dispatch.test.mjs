@@ -10,6 +10,8 @@ import {
   hasRequiredRole,
   validateGameUpdateConfigPayload,
   validatePlayerRecolorPayload,
+  validateGameRenamePlayerPayload,
+  validateGameRecolorPlayerPayload,
   PLAYER_COLORS,
   SELECTABLE_GAME_TYPES,
 } from './client-events-dispatch.mjs';
@@ -110,19 +112,83 @@ test('validateShareOpenedPayload: method "qrcode" (onbekende vijfde waarde) -> a
 
 // Rij 23 — resolveEventValidator("game:start") ... ("share:opened"): elk van
 // de 12 levert { ok: true, entry }.
-test('ALL_CLIENT_EVENT_NAMES bevat exact de 15 gedocumenteerde eventnamen', () => {
+test('ALL_CLIENT_EVENT_NAMES bevat exact de 17 gedocumenteerde eventnamen', () => {
   // 14 sinds besluit 40 + feedbackronde 4 aug: +player:recolor,
-  // +game:update-config. 15 sinds fase 4/besluit C, 5 aug: +game:reveal.
+  // +game:update-config. 15 sinds fase 4/besluit C, 5 aug: +game:reveal. 17
+  // sinds docs/openstaand/host-wijzigt-naam-en-kleur.md: +game:rename-player,
+  // +game:recolor-player.
   assert.deepEqual(
     [...ALL_CLIENT_EVENT_NAMES].sort(),
     [
       'game:finish', 'game:kick', 'game:lock', 'game:next', 'game:pause',
-      'game:rematch', 'game:resume', 'game:reveal', 'game:start', 'game:update-config',
+      'game:recolor-player', 'game:rematch', 'game:rename-player', 'game:resume',
+      'game:reveal', 'game:start', 'game:update-config',
       'player:leave', 'player:recolor', 'player:rename', 'round:answer',
       'share:opened',
     ].sort(),
   );
-  assert.equal(ALL_CLIENT_EVENT_NAMES.length, 15);
+  assert.equal(ALL_CLIENT_EVENT_NAMES.length, 17);
+});
+
+// docs/openstaand/host-wijzigt-naam-en-kleur.md: game:rename-player is de
+// hostvariant van player:rename — zelfde vormeisen aan displayName, plus een
+// verplichte playerId (het doelwit, niet de aanroeper).
+test('validateGameRenamePlayerPayload: geldige playerId + displayName -> ok', () => {
+  assert.deepEqual(
+    validateGameRenamePlayerPayload({ playerId: 'plr_1', displayName: 'Sanne' }),
+    { ok: true },
+  );
+});
+
+test('validateGameRenamePlayerPayload: playerId ontbreekt -> afgewezen', () => {
+  assert.deepEqual(validateGameRenamePlayerPayload({ displayName: 'Sanne' }), { ok: false, code: null });
+});
+
+test('validateGameRenamePlayerPayload: lege playerId -> afgewezen', () => {
+  assert.deepEqual(
+    validateGameRenamePlayerPayload({ playerId: '', displayName: 'Sanne' }),
+    { ok: false, code: null },
+  );
+});
+
+test('validateGameRenamePlayerPayload: displayName ontbreekt -> afgewezen', () => {
+  assert.deepEqual(validateGameRenamePlayerPayload({ playerId: 'plr_1' }), { ok: false, code: null });
+});
+
+test('validateGameRenamePlayerPayload: extra sleutel -> afgewezen', () => {
+  assert.deepEqual(
+    validateGameRenamePlayerPayload({ playerId: 'plr_1', displayName: 'Sanne', extra: 1 }),
+    { ok: false, code: null },
+  );
+});
+
+// docs/openstaand/host-wijzigt-naam-en-kleur.md: game:recolor-player is de
+// hostvariant van player:recolor — zelfde gesloten kleurenpalet, plus een
+// verplichte playerId.
+test('validateGameRecolorPlayerPayload: geldige playerId + color -> ok', () => {
+  assert.deepEqual(
+    validateGameRecolorPlayerPayload({ playerId: 'plr_1', color: 'teal' }),
+    { ok: true },
+  );
+});
+
+test('validateGameRecolorPlayerPayload: playerId ontbreekt -> afgewezen', () => {
+  assert.deepEqual(validateGameRecolorPlayerPayload({ color: 'teal' }), { ok: false, code: null });
+});
+
+test('validateGameRecolorPlayerPayload: ongeldige kleur -> afgewezen', () => {
+  assert.deepEqual(
+    validateGameRecolorPlayerPayload({ playerId: 'plr_1', color: 'brown' }),
+    { ok: false, code: null },
+  );
+});
+
+test('game:rename-player en game:recolor-player vereisen rol host', () => {
+  for (const eventName of ['game:rename-player', 'game:recolor-player']) {
+    const result = resolveEventValidator(eventName);
+    assert.equal(result.ok, true);
+    assert.equal(result.entry.requiredRole, 'host');
+  }
 });
 
 for (const eventName of ALL_CLIENT_EVENT_NAMES) {

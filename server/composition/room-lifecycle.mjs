@@ -901,12 +901,20 @@ export async function leaveRoom(context, { roomId, playerId } = {}) {
  * naam loopt door exact dezelfde normalisatie/uniekmaking/profaniteitscheck
  * als bij join (`resolveNames`), tegen de namen van de ándere actieve
  * spelers. AUTORISATIE ZIT HIER NIET (zie kop): de socketlaag garandeert al
- * dat de aanroeper de speler zélf is.
+ * dat de aanroeper de speler zélf is — óf, bij `bypassRenameLimit`, de host.
+ *
+ * `bypassRenameLimit` (docs/openstaand/host-wijzigt-naam-en-kleur.md): de
+ * host kan via `game:rename-player` een ándere speler hernoemen, ook als
+ * die al een zelfgekozen naam draagt. Zonder deze knop kan een host "Speler
+ * 7" of een onleesbare naam niet herstellen. De once-per-speler-limiet blijft
+ * onverkort gelden voor `player:rename` (de speler zelf) — alleen de
+ * hostroute mag hem negeren, en ook dán blijft alles verder ongewijzigd: nog
+ * steeds alleen in LOBBY, nog steeds dezelfde normalisatie/uniekmaking.
  *
  * @param {import('./context.mjs').Context} context
- * @param {{ roomId: string, playerId: string, displayName: unknown }} params
+ * @param {{ roomId: string, playerId: string, displayName: unknown, bypassRenameLimit?: boolean }} params
  */
-export async function renamePlayer(context, { roomId, playerId, displayName } = {}) {
+export async function renamePlayer(context, { roomId, playerId, displayName, bypassRenameLimit = false } = {}) {
   const room = await context.store.loadRoom(roomId);
   if (room === null) {
     return fail(CODES.GAME_NOT_FOUND);
@@ -918,7 +926,7 @@ export async function renamePlayer(context, { roomId, playerId, displayName } = 
   if (player === null || player.left === true || player.kicked === true) {
     return fail(CODES.NOT_PLAYER);
   }
-  if (player.nameSource === NAME_SOURCE_CHOSEN) {
+  if (player.nameSource === NAME_SOURCE_CHOSEN && !bypassRenameLimit) {
     return fail(CODES.INVALID_PHASE); // mock-pariteit: "rename allowed at most once"
   }
 
@@ -955,6 +963,12 @@ export async function renamePlayer(context, { roomId, playerId, displayName } = 
  * De kleurwaarde zelf is al gevalideerd tegen het gesloten `PLAYER_COLORS`-
  * palet in de protocollaag; dubbele kleuren zijn toegestaan (zestien kleuren
  * sinds besluit 42, tot 100 spelers — uniciteit afdwingen kan niet).
+ *
+ * Geen aparte hostvariant nodig (docs/openstaand/host-wijzigt-naam-en-kleur.md):
+ * anders dan hernoemen kende `recolorPlayer` al geen eenmaal-limiet, dus
+ * `game:recolor-player` (host, andere speler) roept deze functie ongewijzigd
+ * aan met de doelspeler-id — precies zoals `player:recolor` 'm al aanriep met
+ * de eigen speler-id. AUTORISATIE ZIT HIER NIET, net als bij `renamePlayer`.
  *
  * @param {import('./context.mjs').Context} context
  * @param {{ roomId: string, playerId: string, color: string }} params

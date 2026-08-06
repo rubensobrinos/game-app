@@ -10,7 +10,7 @@
  *   locked: boolean,
  * }} HostControlContext
  *
- * @typedef {'start'|'pause'|'resume'|'next'|'reveal'|'lock'|'unlock'|'kick'|'finish'|'rematch'} HostAction
+ * @typedef {'start'|'pause'|'resume'|'next'|'reveal'|'lock'|'unlock'|'kick'|'finish'|'rematch'|'rename-player'|'recolor-player'} HostAction
  */
 
 const ACTIVE_PHASES = new Set(['COUNTDOWN', 'ROUND_ACTIVE', 'ROUND_RESULT', 'SCOREBOARD']);
@@ -48,6 +48,10 @@ export function availableHostActions(context) {
 
   if (phase === 'LOBBY' && context.playerCount >= 1) {
     actions.push('start');
+    // docs/openstaand/host-wijzigt-naam-en-kleur.md: zelfde regel als
+    // player:rename/player:recolor zelf — alleen in LOBBY.
+    actions.push('rename-player');
+    actions.push('recolor-player');
   }
   if (ACTIVE_PHASES.has(phase)) {
     actions.push('pause');
@@ -81,7 +85,7 @@ export function availableHostActions(context) {
  * beschikbaar is volgens `context` (geen vertrouwen op een verouderde UI-lijst).
  * @param {HostAction} action
  * @param {HostControlContext} context
- * @param {{ playerId?: string, reason?: string }} [params]
+ * @param {{ playerId?: string, reason?: string, displayName?: string, color?: string }} [params]
  * @returns {{ event: string, payload: object } | null}
  */
 export function hostActionRequest(action, context, params) {
@@ -109,6 +113,14 @@ export function hostActionRequest(action, context, params) {
     case 'kick':
       return typeof safeParams.playerId === 'string'
         ? { event: 'game:kick', payload: { playerId: safeParams.playerId } }
+        : null;
+    case 'rename-player':
+      return typeof safeParams.playerId === 'string' && typeof safeParams.displayName === 'string'
+        ? { event: 'game:rename-player', payload: { playerId: safeParams.playerId, displayName: safeParams.displayName } }
+        : null;
+    case 'recolor-player':
+      return typeof safeParams.playerId === 'string' && typeof safeParams.color === 'string'
+        ? { event: 'game:recolor-player', payload: { playerId: safeParams.playerId, color: safeParams.color } }
         : null;
     case 'finish':
       return { event: 'game:finish', payload: {} };

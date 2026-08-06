@@ -246,6 +246,8 @@ test('host-only socket actions reject a player-only session with NOT_HOST', asyn
     'game:kick',
     'game:finish',
     'game:rematch',
+    'game:rename-player',
+    'game:recolor-player',
   ];
   for (const event of hostOnlyEvents) {
     await assert.rejects(
@@ -425,6 +427,42 @@ test(
     );
   }),
 );
+
+// docs/openstaand/host-wijzigt-naam-en-kleur.md: een host kon een speler al
+// verwijderen maar niet hernoemen — deze twee events dichten dat gat.
+test('game:rename-player: de host hernoemt een ander, óók ná diens eigen eenmalige player:rename', async () => {
+  const transport = createMockTransport();
+  const created = await transport.createGame({});
+  const joined = await transport.joinGame({ inviteId: created.inviteId, displayName: '' });
+  const hostConn = transport.connect(created.sessionToken, { onEvent: () => {} });
+  const targetConn = transport.connect(joined.sessionToken, { onEvent: () => {} });
+
+  const selfRename = await targetConn.send('player:rename', 'act_self', { displayName: 'Zelfgekozen' });
+  assert.equal(selfRename.ok, true);
+  // Een tweede player:rename van de speler zelf zou nu INVALID_PHASE geven.
+  await assert.rejects(
+    () => targetConn.send('player:rename', 'act_self_2', { displayName: 'Nog een keer' }),
+    (err) => err.code === 'INVALID_PHASE',
+  );
+
+  const hostAck = await hostConn.send('game:rename-player', 'act_host', {
+    playerId: joined.playerId,
+    displayName: 'Door host hernoemd',
+  });
+  assert.equal(hostAck.ok, true);
+  assert.equal(hostAck.payload.effectiveName, 'Door host hernoemd');
+});
+
+test('game:recolor-player: de host wijzigt de kleur van een ander', async () => {
+  const transport = createMockTransport();
+  const created = await transport.createGame({});
+  const joined = await transport.joinGame({ inviteId: created.inviteId, displayName: 'Kleurloos' });
+  const hostConn = transport.connect(created.sessionToken, { onEvent: () => {} });
+
+  const ack = await hostConn.send('game:recolor-player', 'act_recolor', { playerId: joined.playerId, color: 'teal' });
+  assert.equal(ack.ok, true);
+  assert.equal(ack.payload.color, 'teal');
+});
 
 test('player:leave deactivates the player and lowers playerCount, but leaves the session usable', async () => {
   const transport = createMockTransport();

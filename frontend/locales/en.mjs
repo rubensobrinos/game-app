@@ -287,6 +287,8 @@ export const en = Object.freeze({
   'hostbar.players': 'Manage players',
   'hostbar.kick': 'Remove',
   'hostbar.kickConfirmPrefix': 'Remove from this game:',
+  'hostbar.renamePlayer': 'Rename',
+  'hostbar.recolorPlayer': 'Color',
 
   'room.scanToJoin': 'Scan to join',
   'lobby.title': 'Lobby',

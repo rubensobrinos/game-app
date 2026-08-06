@@ -104,6 +104,47 @@ test('15. hostActionRequest(kick) without a playerId is null', () => {
   assert.strictEqual(result, null);
 });
 
+// docs/openstaand/host-wijzigt-naam-en-kleur.md: hostvariant van
+// player:rename/player:recolor, alleen in LOBBY.
+test('rename-player/recolor-player zijn beschikbaar in LOBBY met minstens één speler, niet daarbuiten', () => {
+  const lobby = availableHostActions(ctx({ phase: 'LOBBY', playerCount: 1 }));
+  assert.ok(lobby.includes('rename-player'));
+  assert.ok(lobby.includes('recolor-player'));
+
+  const emptyLobby = availableHostActions(ctx({ phase: 'LOBBY', playerCount: 0 }));
+  assert.ok(!emptyLobby.includes('rename-player'));
+  assert.ok(!emptyLobby.includes('recolor-player'));
+
+  const scoreboard = availableHostActions(ctx({ phase: 'SCOREBOARD', playerCount: 2 }));
+  assert.ok(!scoreboard.includes('rename-player'));
+  assert.ok(!scoreboard.includes('recolor-player'));
+});
+
+test('hostActionRequest(rename-player) with playerId + displayName', () => {
+  const result = hostActionRequest('rename-player', ctx({ playerCount: 2 }), { playerId: 'p_1', displayName: 'Nieuwe naam' });
+  assert.deepStrictEqual(result, { event: 'game:rename-player', payload: { playerId: 'p_1', displayName: 'Nieuwe naam' } });
+});
+
+test('hostActionRequest(rename-player) without displayName is null', () => {
+  const result = hostActionRequest('rename-player', ctx({ playerCount: 2 }), { playerId: 'p_1' });
+  assert.strictEqual(result, null);
+});
+
+test('hostActionRequest(recolor-player) with playerId + color', () => {
+  const result = hostActionRequest('recolor-player', ctx({ playerCount: 2 }), { playerId: 'p_1', color: 'teal' });
+  assert.deepStrictEqual(result, { event: 'game:recolor-player', payload: { playerId: 'p_1', color: 'teal' } });
+});
+
+test('hostActionRequest(recolor-player) without color is null', () => {
+  const result = hostActionRequest('recolor-player', ctx({ playerCount: 2 }), { playerId: 'p_1' });
+  assert.strictEqual(result, null);
+});
+
+test('hostActionRequest(rename-player) buiten LOBBY is null, ook met geldige params', () => {
+  const result = hostActionRequest('rename-player', ctx({ phase: 'SCOREBOARD', playerCount: 2 }), { playerId: 'p_1', displayName: 'x' });
+  assert.strictEqual(result, null);
+});
+
 test('16. hostActionRequest re-checks availability — resume from LOBBY is null', () => {
   const result = hostActionRequest('resume', ctx({ phase: 'LOBBY' }));
   assert.strictEqual(result, null);

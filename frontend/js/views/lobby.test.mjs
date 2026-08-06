@@ -181,6 +181,45 @@ test('§A5: draaien naar een speelbare game stuurt precies één gameType via ga
   }
 });
 
+// docs/openstaand/host-wijzigt-naam-en-kleur.md: de host kon een speler al
+// verwijderen (kick), maar niet hernoemen/herkleuren — dat zit nu in
+// hetzelfde per-speler ⋯-menu.
+test('host-wijzigt-naam-en-kleur: het ⋯-menu van een andere speler biedt hernoemen en herkleuren aan', async () => {
+  const hernoemd = [];
+  const herkleurd = [];
+  const { root, view } = await maakLobby({
+    onHostRenamePlayer: (playerId, displayName) => hernoemd.push({ playerId, displayName }),
+    onHostRecolorPlayer: (playerId, color) => herkleurd.push({ playerId, color }),
+  });
+  view.update({
+    ...BASIS_MODEL,
+    canKick: true,
+    participants: new Map([['p_1', 'Speler 7']]),
+  });
+
+  const menuButton = vind(root, 'lobby-player-menu');
+  assert.notEqual(menuButton, null, 'het ⋯-menu hoort te bestaan zodra canKick waar is');
+  klik(menuButton);
+
+  const renameButton = vind(root, 'lobby-player-rename');
+  const renameInput = vind(root, 'lobby-player-rename-input');
+  const renameSave = vind(root, 'lobby-player-rename-save');
+  assert.notEqual(renameButton, null);
+  klik(renameButton);
+  renameInput.value = 'Nieuwe naam';
+  klik(renameSave);
+  assert.deepEqual(hernoemd, [{ playerId: 'p_1', displayName: 'Nieuwe naam' }]);
+
+  const recolorButton = vind(root, 'lobby-player-recolor');
+  assert.notEqual(recolorButton, null);
+  klik(recolorButton);
+  const dots = vindAlle(root, 'lobby-player-color');
+  assert.ok(dots.length > 0, 'het kleurenpalet hoort tikbare stippen te tonen');
+  klik(dots[0]);
+  assert.equal(herkleurd.length, 1);
+  assert.equal(herkleurd[0].playerId, 'p_1');
+});
+
 test('§A5: draaien naar een NIET-speelbare game wijzigt de configuratie niet', async () => {
   const { root, patches } = await maakLobby();
   const pijlen = vindAlle(root, 'lobby-gamearrow');
