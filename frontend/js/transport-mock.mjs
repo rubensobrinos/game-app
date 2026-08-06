@@ -28,68 +28,69 @@
 //     deze mock zelf de server-kant van het protocol naspeelt (legaliteit van
 //     acties, faseovergangen). Alleen `shared/content` en `shared/product`
 //     worden hergebruikt, zoals het voorbeeld in de opdracht ook aangeeft.
+//
+// REFACTOR 4 (docs/openstaand/refactor/4-transport-mock.md, 1548 regels vóór
+// de splitsing): de 67 functies achter de twee exports hieronder wonen nu
+// verspreid over `mock/*.mjs`, per naad (room/match/pacing/answers/events/
+// sessie), plus een paar afhankelijkheidsloze "Layer 0"-bestanden
+// (protocol-error/ids/names/questions/players/timers) om kringverwijzingen
+// tussen die naden te vermijden — zie de kopnotities daar. Dit bestand is de
+// overgebleven "dunne" orchestrator: het bouwt één `ctx` per mockinstantie
+// (`{ room, onStateChange, ... }`, zie hieronder), bedraadt alle mock/*.mjs-
+// functies daaraan, en blijft zelf de REST-achtige functies (createGame,
+// previewInvite, ...) en de eventdispatch (`handleSend`) houden — precies
+// zoals die in het bronbestand ook al nergens elders in pasten. Geen
+// gedragsverandering: dezelfde volgorde, dezelfde events, dezelfde timing.
 
 // Relatief vanaf `/js/transport-mock.mjs` komt dit bij de door INT-A
 // vastgelegde `/shared/*`-mapping uit. Een relatief modulespecifier blijft
 // bovendien rechtstreeks onder `node:test` bruikbaar.
-import { CONTENT_VERSION, getCountryPool } from '../../shared/content/index.mjs';
+import { CONTENT_VERSION } from '../../shared/content/index.mjs';
 import { isPlayableGameType } from '../../shared/content/game-catalog.mjs';
-import { rankPlayers as rankByRules } from '../../shared/rules/ranking.mjs';
-import { generateFlagSpec } from '../../shared/content/flag-spec.mjs';
 
-const RENDERER_VERSION = 'flag-renderer-1'; // zelfde placeholder-waarde als PROTOCOL.md's voorbeelden.
-const DEFAULT_GAME_TYPE = 'flags_mc';
+import { ProtocolError } from './mock/protocol-error.mjs';
+import { randomToken, randomId } from './mock/ids.mjs';
+import { normalizeDisplayName, generateSuggestedName, finalizeName } from './mock/names.mjs';
+import {
+  DEFAULT_GAME_TYPE,
+  RENDERER_VERSION,
+  buildQuestionSequence,
+  withSavedOptionOrder,
+  correctValueOf,
+  optionValuesOf,
+} from './mock/questions.mjs';
+import {
+  MOCK_PLAYER_COLORS,
+  addPlayer,
+  countActivePlayers,
+  rankPlayers,
+  findRanked,
+  toScoreboardEntry,
+} from './mock/players.mjs';
+import { broadcast } from './mock/events.mjs';
+import { connect as sessieConnect, requireSession, requireRole, persist } from './mock/sessie.mjs';
+import {
+  buildRoom,
+  resolveRoomLocator,
+  setLocked,
+  kickPlayer,
+  renamePlayer,
+  recolorPlayer,
+  updateRoomConfig,
+} from './mock/room.mjs';
+import { startGame, finishGame, rematch } from './mock/match.mjs';
+import { advanceOnHostCue, advanceFromScoreboard, revealAnswer, pauseGame, resumeGame, rearmTimer } from './mock/pacing.mjs';
+import { submitAnswer } from './mock/answers.mjs';
+
 const MAX_PLAYERS = 100;
-const QUESTION_COUNT = 5;
-const NAME_MAX_GRAPHEMES = 20;
-// Besluit 49 (docs/openstaand/hoger-lager-en-hoofdsteden.md): zelfde drie
-// metrics als de echte server (question-selection.js's VALID_METRICS).
-const HIGHER_LOWER_METRICS = ['population', 'area', 'gdp'];
-
-// Punt 7 / besluit 52 (docs/openstaand/continentfilter.md): zelfde zes
-// waarden als CONTINENT_VALUES in server/data/types/game-configuration.js.
-const MOCK_CONTINENTS = Object.freeze(['Europe', 'Asia', 'Africa', 'North America', 'South America', 'Oceania']);
-
-// `joinSource` enum uit PROTOCOL.md, §`POST /api/v1/games/join`.
-const JOIN_SOURCES = new Set(['qr', 'shared_link', 'code', 'unknown']);
-
-// Rondetiming — kort gehouden voor handmatig doorklikken, zie bovenstaande
-// documentatie. Geen protocolvereiste.
-const COUNTDOWN_MS = 1200;
-const ROUND_ACTIVE_MS = 8000;
-const ROUND_RESULT_MS = 2500;
-const SCOREBOARD_AUTO_ADVANCE_MS = 2500;
 
 // Simuleert een niet-triviale klokafwijking, zodat `fetchServerTime()` +
 // `estimateServerOffset()` ook in de mock iets zinnigs meten in plaats van
 // altijd exact 0.
 const SIMULATED_SERVER_SKEW_MS = 400;
 
-// Fase 4 (autoReveal, besluit 51): dezelfde coulance als besluit 13's
-// `deadlineGraceMs` voor de host-tik op "Toon antwoord" (zie `revealAnswer`).
-// De host ziet die knop verschijnen op basis van ZIJN eigen klokschatting
-// (`estimateServerOffset()`, die hier per definitie ~`SIMULATED_SERVER_SKEW_MS`
-// afwijkt) — zonder marge zou een tik op het exacte moment dat de knop
-// verschijnt hier stelselmatig te vroeg zijn. Ruim boven de skew, niet gelijk
-// eraan: `estimateServerOffset` middelt drie metingen en kan er dus nog naast
-// zitten.
-const REVEAL_DEADLINE_GRACE_MS = 600;
-
-const NAME_ADJECTIVES = ['Vlugge', 'Slimme', 'Dappere', 'Rustige', 'Gouden', 'Wakkere'];
-const NAME_NOUNS = ['Vos', 'Uil', 'Leeuw', 'Reiger', 'Das', 'Havik'];
-
-// Zelfde patroon als client/flow/join-state.mjs en
-// client/flow/host-setup-state.mjs: telt grapheme clusters, niet UTF-16 code
-// units, zodat een emoji of combining character nooit doormidden wordt geknipt.
-const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-
-class ProtocolError extends Error {
-  constructor(code, message) {
-    super(message ?? code);
-    this.name = 'ProtocolError';
-    this.code = code;
-  }
-}
+// `joinSource` enum uit PROTOCOL.md, §`POST /api/v1/games/join`.
+const JOIN_SOURCES = new Set(['qr', 'shared_link', 'code', 'unknown']);
 
 /**
  * Bouwt een nieuwe, onafhankelijke mock-`Transport`. Elke aanroep krijgt zijn
@@ -110,10 +111,38 @@ class ProtocolError extends Error {
  * @returns {import('./transport.mjs').Transport}
  */
 export function createMockTransport({ restoreState, onStateChange } = {}) {
-  /** @type {Room | null} */
-  let room = restoreState != null ? deserializeRoomState(restoreState) : null;
-  if (room !== null) {
-    rearmTimer(room);
+  /**
+   * Eén, door deze aanroep opgebouwd object, gedeeld door alle mock/*.mjs-
+   * functies die hieronder aan bod komen — zie de moduledoc hierboven en
+   * mock/events.mjs se kopnotitie voor de reden (dit vervangt de impliciete
+   * gezamenlijke sluiting die het bronbestand vóór de splitsing had).
+   * `room` is het enige veld dat na opbouw nog wijzigt (`createGame`
+   * hieronder kent 'm opnieuw toe) — de rest ligt vast zodra deze functie
+   * terugkeert.
+   * @type {{
+   *   room: object | null,
+   *   onStateChange: ((state: object) => void) | undefined,
+   *   randomId: (prefix: string) => string,
+   *   serializeRoomState: (room: object) => object,
+   *   buildSnapshot: typeof buildSnapshot,
+   *   persist: (ctx: object) => void,
+   *   handleSend: (sessionToken: string, event: string, actionId: string, payload: unknown) => Promise<object>,
+   *   advanceFromScoreboard: typeof advanceFromScoreboard,
+   * }}
+   */
+  const ctx = {
+    room: restoreState != null ? deserializeRoomState(restoreState) : null,
+    onStateChange,
+    randomId,
+    serializeRoomState,
+    buildSnapshot,
+    persist,
+    handleSend,
+    advanceFromScoreboard,
+  };
+
+  if (ctx.room !== null) {
+    rearmTimer(ctx.room, ctx);
   }
 
   return {
@@ -123,54 +152,8 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
     fetchState,
     leaveGame,
     fetchServerTime,
-    connect,
+    connect: (sessionToken, handlers) => sessieConnect(sessionToken, handlers, ctx),
   };
-
-  /**
-   * Zet, na herstel, precies één timer weer aan: die van de fase waarin de
-   * room stond toen hij werd opgeslagen. `target.phaseDeadline` ligt door het
-   * verstrijken van de tijd tussen opslaan en herstellen soms al in het
-   * verleden (bv. de pagina lag een minuut stil middenin een ronde) —
-   * `scheduleTimer` klemt een negatieve vertraging toch al af naar 0, dus dat
-   * lost de overgang meteen in plaats van nooit op. Zelfde aanpak als
-   * `resumeGame` hierboven na een `game:pause`/`game:resume`, alleen dan voor
-   * een hele paginalaad in plaats van een expliciete hostactie.
-   */
-  function rearmTimer(target) {
-    if (target.phaseDeadline === null) {
-      return;
-    }
-    const remaining = Math.max(0, target.phaseDeadline - Date.now());
-    switch (target.phase) {
-      case 'COUNTDOWN':
-        scheduleTimer(target, remaining, () => startRound(target, 0));
-        break;
-      case 'ROUND_ACTIVE':
-        // Fase 4 (autoReveal): zelfde voorwaarde als in `startRound` — een
-        // reload mag geen timer aanzetten die de compositie zelf ook niet
-        // zou hebben gepland.
-        if (target.config.autoReveal !== false) {
-          scheduleTimer(target, remaining, () => endRound(target, target.roundIndex));
-        }
-        break;
-      case 'ROUND_RESULT':
-        scheduleTimer(target, remaining, () => showScoreboard(target));
-        break;
-      case 'SCOREBOARD':
-        if (target.pacing === 'auto') {
-          scheduleTimer(target, remaining, () => advanceFromScoreboard(target));
-        }
-        break;
-      default:
-        break; // LOBBY/PAUSED/FINISHED plannen zelf niets.
-    }
-  }
-
-  function persist() {
-    if (room !== null && typeof onStateChange === 'function') {
-      onStateChange(serializeRoomState(room));
-    }
-  }
 
   // ---- REST-achtige functies -------------------------------------------
 
@@ -183,7 +166,7 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
     const hostParticipates = safeRequest.hostParticipates !== false;
     const requestedDisplayName = normalizeDisplayName(safeRequest.displayName);
 
-    room = buildRoom(safeRequest.config);
+    ctx.room = buildRoom(safeRequest.config);
 
     const sessionToken = randomToken();
     const roles = hostParticipates ? ['host', 'player'] : ['host'];
@@ -193,21 +176,21 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
     if (hostParticipates) {
       playerId = randomId('p');
       effectiveName = finalizeName(requestedDisplayName);
-      addPlayer(room, playerId, effectiveName);
+      addPlayer(ctx.room, playerId, effectiveName);
     }
 
-    room.sessions.set(sessionToken, { roles, playerId, actionCache: new Map() });
+    ctx.room.sessions.set(sessionToken, { roles, playerId, actionCache: new Map() });
 
     return {
-      roomId: room.roomId,
-      gameCode: room.gameCode,
-      inviteId: room.inviteId,
-      joinUrl: room.joinUrl,
+      roomId: ctx.room.roomId,
+      gameCode: ctx.room.gameCode,
+      inviteId: ctx.room.inviteId,
+      joinUrl: ctx.room.joinUrl,
       sessionToken,
       roles,
       playerId,
       effectiveName,
-      state: buildSnapshot(room, sessionToken),
+      state: buildSnapshot(ctx.room, sessionToken),
     };
   }
 
@@ -215,17 +198,17 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
     if (typeof inviteId !== 'string' || !/^[A-Za-z0-9_-]+$/.test(inviteId)) {
       throw new ProtocolError('INVITE_INVALID', `Malformed inviteId: ${String(inviteId)}`);
     }
-    if (room === null || room.inviteId !== inviteId) {
+    if (ctx.room === null || ctx.room.inviteId !== inviteId) {
       throw new ProtocolError('GAME_NOT_FOUND', 'No room for this inviteId.');
     }
 
     return {
-      roomId: room.roomId,
+      roomId: ctx.room.roomId,
       suggestedName: generateSuggestedName(),
-      phase: room.phase,
-      locked: room.locked,
-      allowLateJoin: room.allowLateJoin,
-      playerCount: countActivePlayers(room),
+      phase: ctx.room.phase,
+      locked: ctx.room.locked,
+      allowLateJoin: ctx.room.allowLateJoin,
+      playerCount: countActivePlayers(ctx.room),
       maxPlayers: MAX_PLAYERS,
     };
   }
@@ -233,7 +216,7 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
   async function joinGame(request) {
     const safeRequest = request !== null && typeof request === 'object' ? request : {};
     validateJoinRequest(safeRequest);
-    const target = resolveRoomLocator(safeRequest);
+    const target = resolveRoomLocator(ctx, safeRequest);
     if (target === null) {
       throw new ProtocolError('GAME_NOT_FOUND', 'No room for this inviteId/gameCode.');
     }
@@ -257,7 +240,7 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
     broadcast(target, 'room:player-changed', {
       playerCount: countActivePlayers(target),
       delta: { type: 'join', playerId, effectiveName, color: target.players.get(playerId)?.color },
-    });
+    }, ctx);
 
     return {
       roomId: target.roomId,
@@ -271,12 +254,12 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
   }
 
   async function fetchState(code, sessionToken) {
-    const { targetRoom, session } = requireSession(code, sessionToken);
+    const { targetRoom, session } = requireSession(code, sessionToken, ctx);
     return buildSnapshot(targetRoom, sessionToken, session);
   }
 
   async function leaveGame(code, sessionToken) {
-    const { targetRoom, session } = requireSession(code, sessionToken);
+    const { targetRoom, session } = requireSession(code, sessionToken, ctx);
     if (!session.roles.includes('player') || session.playerId === null) {
       throw new ProtocolError('NOT_PLAYER', 'Session has no player role to leave with.');
     }
@@ -287,73 +270,20 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
     broadcast(targetRoom, 'room:player-changed', {
       playerCount: countActivePlayers(targetRoom),
       delta: { type: 'leave', playerId: session.playerId },
-    });
+    }, ctx);
   }
 
   async function fetchServerTime() {
     return { serverTime: Date.now() + SIMULATED_SERVER_SKEW_MS };
   }
 
-  // ---- Fake "socket" ------------------------------------------------------
-
-  // Correctie 2 (transport-contract-response.md): `connect` neemt nu een
-  // `handlers`-object (`onEvent` + `onStatus`) i.p.v. kaal `onEvent`.
-  // `reconnect-state.mjs` heeft `onStatus` nodig om connecting/connected/
-  // disconnected te kunnen tonen. Dit is een single-process mock zonder echt
-  // netwerk om te laten falen, dus er is geen backoff te simuleren — wél de
-  // normale status-overgangen bij verbinden/sluiten, synchroon genoeg om
-  // `reconnect-state`'s conventie (dispatch eerst, vraag dan pas iets op) te
-  // kunnen testen.
-  function connect(sessionToken, handlers) {
-    const safeHandlers = handlers !== null && typeof handlers === 'object' ? handlers : {};
-    const onEvent = typeof safeHandlers.onEvent === 'function' ? safeHandlers.onEvent : () => {};
-    const onStatus = typeof safeHandlers.onStatus === 'function' ? safeHandlers.onStatus : () => {};
-
-    if (room === null || !room.sessions.has(sessionToken)) {
-      // Geen geldige sessie om aan te koppelen: lever een inert paar functies
-      // terug in plaats van te gooien — `connect()` zelf is synchroon en
-      // heeft in het echte contract geen foutpad; elke `send()` op deze
-      // connectie faalt alsnog met TOKEN_INVALID.
-      onStatus('disconnected');
-      return {
-        send: async () => {
-          throw new ProtocolError('TOKEN_INVALID', 'connect() called with an unknown sessionToken.');
-        },
-        close() {},
-      };
-    }
-
-    onStatus('connecting');
-
-    const listener = { onEvent };
-    room.listeners.set(sessionToken, listener);
-
-    // Zelfde gewoonte als een reconnect (PROTOCOL.md §Reconnect, punt 5): de
-    // net verbonden sessie krijgt meteen een volledige snapshot, in plaats
-    // van te wachten op de eerstvolgende faseovergang.
-    queueMicrotask(() => {
-      if (room !== null && room.listeners.get(sessionToken) === listener) {
-        onStatus('connected');
-        emit(listener, 'room:state', buildSnapshot(room, sessionToken));
-      }
-    });
-
-    return {
-      send: (event, actionId, payload) => handleSend(sessionToken, event, actionId, payload),
-      close() {
-        if (room !== null) {
-          room.listeners.delete(sessionToken);
-        }
-        onStatus('disconnected');
-      },
-    };
-  }
+  // ---- Fake "socket": eventdispatch -----------------------------------
 
   async function handleSend(sessionToken, event, actionId, payload) {
-    if (room === null) {
+    if (ctx.room === null) {
       throw new ProtocolError('GAME_NOT_FOUND', 'No room exists.');
     }
-    const session = room.sessions.get(sessionToken);
+    const session = ctx.room.sessions.get(sessionToken);
     if (session === undefined) {
       throw new ProtocolError('TOKEN_INVALID', 'Unknown sessionToken.');
     }
@@ -396,71 +326,71 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
       switch (event) {
         case 'game:start':
           requireRole(isHost, 'NOT_HOST');
-          return ackWith(startGame(room));
+          return ackWith(startGame(ctx.room, ctx));
 
         case 'game:pause':
           requireRole(isHost, 'NOT_HOST');
-          return ackWith(pauseGame(room, safePayload));
+          return ackWith(pauseGame(ctx.room, safePayload, ctx));
 
         case 'game:resume':
           requireRole(isHost, 'NOT_HOST');
-          return ackWith(resumeGame(room));
+          return ackWith(resumeGame(ctx.room, ctx));
 
         case 'game:next':
           requireRole(isHost, 'NOT_HOST');
-          return ackWith(advanceOnHostCue(room));
+          return ackWith(advanceOnHostCue(ctx.room, ctx));
 
         case 'game:reveal':
           requireRole(isHost, 'NOT_HOST');
-          return ackWith(revealAnswer(room));
+          return ackWith(revealAnswer(ctx.room, ctx));
 
         case 'game:lock':
           requireRole(isHost, 'NOT_HOST');
-          return ackWith(setLocked(room, safePayload.locked === true));
+          return ackWith(setLocked(ctx.room, safePayload.locked === true, ctx));
 
         case 'game:kick':
           requireRole(isHost, 'NOT_HOST');
-          return ackWith(kickPlayer(room, safePayload.playerId));
+          return ackWith(kickPlayer(ctx.room, safePayload.playerId, ctx));
 
         case 'game:finish':
           requireRole(isHost, 'NOT_HOST');
-          return ackWith(finishGame(room));
+          return ackWith(finishGame(ctx.room, ctx));
 
         case 'game:rematch':
           requireRole(isHost, 'NOT_HOST');
-          return ackWith(rematch(room));
+          return ackWith(rematch(ctx.room, ctx));
 
         case 'player:rename':
           requireRole(isPlayer, 'NOT_PLAYER');
-          return ackWith(renamePlayer(room, session.playerId, safePayload.displayName));
+          return ackWith(renamePlayer(ctx.room, session.playerId, safePayload.displayName, false, ctx));
 
         case 'player:recolor':
           requireRole(isPlayer, 'NOT_PLAYER');
-          return ackWith(recolorPlayer(room, session.playerId, safePayload.color));
+          return ackWith(recolorPlayer(ctx.room, session.playerId, safePayload.color, ctx));
 
         // docs/openstaand/host-wijzigt-naam-en-kleur.md: hostvariant — de
         // host mag een ándere speler hernoemen/herkleuren, ook ná diens eigen
         // eenmalige player:rename (bypassRenameLimit: true hieronder).
         case 'game:rename-player':
           requireRole(isHost, 'NOT_HOST');
-          return ackWith(renamePlayer(room, safePayload.playerId, safePayload.displayName, true));
+          return ackWith(renamePlayer(ctx.room, safePayload.playerId, safePayload.displayName, true, ctx));
 
         case 'game:recolor-player':
           requireRole(isHost, 'NOT_HOST');
-          return ackWith(recolorPlayer(room, safePayload.playerId, safePayload.color));
+          return ackWith(recolorPlayer(ctx.room, safePayload.playerId, safePayload.color, ctx));
 
         case 'game:update-config':
           requireRole(isHost, 'NOT_HOST');
-          return ackWith(updateRoomConfig(room, safePayload));
+          return ackWith(updateRoomConfig(ctx.room, safePayload, ctx));
 
         case 'player:leave':
           requireRole(isPlayer, 'NOT_PLAYER');
-          await leaveGame(room.gameCode, sessionToken);
+          await leaveGame(ctx.room.gameCode, sessionToken);
           return ackWith({});
 
         case 'round:answer':
           requireRole(isPlayer, 'NOT_PLAYER');
-          return ackWith(submitAnswer(room, session.playerId, safePayload));
+          return ackWith(submitAnswer(ctx.room, session.playerId, safePayload, ctx));
 
         case 'share:opened':
           // Analytics-only, mag falen zonder UX-effect (PROTOCOL.md) — hier
@@ -475,573 +405,6 @@ export function createMockTransport({ restoreState, onStateChange } = {}) {
         return { actionId, ok: true, serverTime: Date.now(), payload: resultPayload ?? {} };
       }
     }
-  }
-
-  // ---- Room-opbouw en helpers ---------------------------------------------
-
-  function buildRoom(config) {
-    const safeRoomConfig = config !== null && typeof config === 'object' ? config : {};
-    const gameCode = randomGameCode();
-    const inviteId = randomInviteId();
-    return {
-      roomId: randomId('room'),
-      gameCode,
-      inviteId,
-      joinUrl: buildJoinUrl(inviteId),
-      phase: 'LOBBY',
-      locked: false,
-      allowLateJoin: safeRoomConfig.allowLateJoin !== false,
-      pacing: safeRoomConfig.pacing === 'host' ? 'host' : 'auto',
-      config: safeRoomConfig,
-      matchId: randomId('match'),
-      matchSequence: 1,
-      pausedState: null,
-      players: new Map(),
-      sessions: new Map(),
-      listeners: new Map(),
-      gameType: resolveGameType(safeRoomConfig),
-      questions: buildQuestionSequence(resolveGameType(safeRoomConfig)),
-      roundIndex: -1,
-      currentRound: null,
-      pendingTimers: new Set(),
-      // Wanneer de huidige fase vanzelf overgaat naar de volgende (zie de
-      // scheduleTimer-aanroepen hieronder) — of `null` als de fase op een
-      // expliciete actie wacht (LOBBY, PAUSED, SCOREBOARD met pacing 'host',
-      // FINISHED). Bestaat naast de setTimeout-handle zelf omdat die laatste
-      // een reload niet overleeft, maar dit getal (na herstel opnieuw tegen
-      // `Date.now()` afgezet) wel — zie `deserializeRoomState`/`rearmTimer`.
-      phaseDeadline: null,
-    };
-  }
-
-  function resolveRoomLocator(request) {
-    if (room === null) {
-      return null;
-    }
-    if (typeof request.inviteId === 'string' && request.inviteId === room.inviteId) {
-      return room;
-    }
-    if (typeof request.gameCode === 'string' && request.gameCode === room.gameCode) {
-      return room;
-    }
-    return null;
-  }
-
-  function requireSession(code, sessionToken) {
-    if (room === null || room.gameCode !== code) {
-      throw new ProtocolError('GAME_NOT_FOUND', 'No room for this code.');
-    }
-    const session = room.sessions.get(sessionToken);
-    if (session === undefined) {
-      throw new ProtocolError('TOKEN_INVALID', 'Unknown sessionToken.');
-    }
-    return { targetRoom: room, session };
-  }
-
-  function requireRole(hasRole, code) {
-    if (!hasRole) {
-      throw new ProtocolError(code, `Action not permitted for this session (${code}).`);
-    }
-  }
-
-  // ---- Rondelogica ----------------------------------------------------------
-
-  function startGame(target) {
-    if (target.phase !== 'LOBBY') {
-      throw new ProtocolError('INVALID_PHASE', 'game:start requires phase LOBBY.');
-    }
-    if (countActivePlayers(target) < 1) {
-      throw new ProtocolError('INVALID_PHASE', 'game:start requires at least one player.');
-    }
-
-    target.phase = 'COUNTDOWN';
-    const countdownEndsAt = Date.now() + COUNTDOWN_MS;
-    target.phaseDeadline = countdownEndsAt;
-    broadcast(target, 'game:started', {
-      matchId: target.matchId,
-      totalRounds: target.questions.length,
-      countdownEndsAt,
-    });
-
-    scheduleTimer(target, COUNTDOWN_MS, () => startRound(target, 0));
-    return {};
-  }
-
-  function startRound(target, index) {
-    if (target.phase === 'FINISHED') {
-      return;
-    }
-    const question = target.questions[index];
-    if (question === undefined) {
-      return finishGame(target);
-    }
-
-    target.roundIndex = index;
-    for (const player of target.players.values()) {
-      player.answeredCurrentRound = false;
-    }
-
-    const startsAt = Date.now() + 250;
-    const endsAt = startsAt + ROUND_ACTIVE_MS;
-    target.currentRound = {
-      roundId: `round_${String(index + 1).padStart(2, '0')}`,
-      roundNumber: index + 1,
-      totalRounds: target.questions.length,
-      question,
-      startsAt,
-      endsAt,
-      answers: new Map(),
-    };
-    target.phase = 'ROUND_ACTIVE';
-    target.phaseDeadline = endsAt;
-
-    broadcast(target, 'round:started', {
-      matchId: target.matchId,
-      roundId: target.currentRound.roundId,
-      roundNumber: target.currentRound.roundNumber,
-      totalRounds: target.currentRound.totalRounds,
-      gameType: target.gameType,
-      contentVersion: CONTENT_VERSION,
-      rendererVersion: RENDERER_VERSION,
-      question: question.payload,
-      startsAt,
-      endsAt,
-    });
-
-    // Fase 4 (autoReveal, besluit 51): staat autoReveal uit, dan plant de
-    // mock — net als de echte server — GEEN automatisch ronde-einde. De ronde
-    // blijft ROUND_ACTIVE voorbij de deadline; `submitAnswer` sluit al af op
-    // `endsAt` (zie daar), en `game:reveal` roept `endRound` rechtstreeks aan.
-    if (target.config.autoReveal !== false) {
-      scheduleTimer(target, endsAt - Date.now(), () => endRound(target, index));
-    }
-  }
-
-  function submitAnswer(target, playerId, payload) {
-    if (target.phase !== 'ROUND_ACTIVE' || target.currentRound === null) {
-      throw new ProtocolError('ROUND_NOT_ACTIVE', 'No active round to answer.');
-    }
-    // Fase 4 (autoReveal, besluit 51): zonder deze toets bleef een ronde met
-    // autoReveal uit onbeperkt open voor antwoorden — vóór deze fase viel dat
-    // nooit op, want de timer sloot de ronde toch al af rond `endsAt`. Zelfde
-    // grens als de echte server zijn deadline+grace-toets (besluit 13); deze
-    // mock kent geen aparte grace-periode, dus knipt hard op `endsAt`.
-    if (Date.now() >= target.currentRound.endsAt) {
-      throw new ProtocolError('DEADLINE_PASSED', 'The answer window for this round has closed.');
-    }
-    if (typeof payload.roundId !== 'string' || payload.roundId !== target.currentRound.roundId) {
-      throw new ProtocolError('INVALID_ANSWER_FORMAT', 'roundId does not match the active round.');
-    }
-    const player = target.players.get(playerId);
-    if (player === undefined || !player.active) {
-      throw new ProtocolError('PLAYER_NOT_ELIGIBLE', 'Player is not part of this round.');
-    }
-    const currentRoundNumber = target.roundIndex + 1; // 1-based, zie eligibleFromRound.
-    if (currentRoundNumber < player.eligibleFromRound) {
-      throw new ProtocolError('PLAYER_NOT_ELIGIBLE', 'Player joined after this round started.');
-    }
-    if (player.answeredCurrentRound) {
-      throw new ProtocolError('ALREADY_ANSWERED', 'Player already answered this round.');
-    }
-    // De antwoordvorm hangt van de gameType af (PROTOCOL.md §round:answer):
-    // meerkeuze stuurt { optionId }, echt-of-nep stuurt { choice }.
-    const antwoord = payload.answer;
-    if (antwoord === null || typeof antwoord !== 'object') {
-      throw new ProtocolError('INVALID_ANSWER_FORMAT', 'answer must be an object.');
-    }
-    let gegeven;
-    if (target.gameType === 'odd_one_out') {
-      if (!Number.isInteger(antwoord.cardIndex)) {
-        throw new ProtocolError('INVALID_ANSWER_FORMAT', 'odd_one_out expects { cardIndex }.');
-      }
-      gegeven = String(antwoord.cardIndex);
-    } else if (target.gameType === 'real_or_fake_flag') {
-      if (antwoord.choice !== 'real' && antwoord.choice !== 'fake') {
-        throw new ProtocolError('INVALID_ANSWER_FORMAT', 'real_or_fake_flag expects { choice: "real" | "fake" }.');
-      }
-      gegeven = antwoord.choice;
-    } else if (target.gameType === 'higher_lower') {
-      if (antwoord.side !== 0 && antwoord.side !== 1) {
-        throw new ProtocolError('INVALID_ANSWER_FORMAT', 'higher_lower expects { side: 0 | 1 }.');
-      }
-      gegeven = String(antwoord.side);
-    } else {
-      // flags_mc EN capitals_mc: allebei { optionId }, zie buildQuestionSequence.
-      if (typeof antwoord.optionId !== 'string') {
-        throw new ProtocolError('INVALID_ANSWER_FORMAT', 'flags_mc/capitals_mc expect { optionId }.');
-      }
-      gegeven = antwoord.optionId;
-    }
-
-    player.answeredCurrentRound = true;
-    target.currentRound.answers.set(playerId, gegeven);
-
-    const isCorrect = gegeven === correctValueOf(target.currentRound.question);
-    if (isCorrect) {
-      player.score += 100;
-      player.correctCount += 1;
-      player.correctResponseTimeMsTotal += Math.max(0, Date.now() - target.currentRound.startsAt);
-    }
-
-    emitToSession(target, playerId, 'round:answer-accepted', { roundId: target.currentRound.roundId });
-    broadcast(target, 'round:progress', {
-      answeredCount: target.currentRound.answers.size,
-      eligiblePlayerCount: countActivePlayers(target),
-    });
-
-    return { roundId: target.currentRound.roundId };
-  }
-
-  function endRound(target, index) {
-    if (target.phase !== 'ROUND_ACTIVE' || target.currentRound === null) {
-      return;
-    }
-    const { question, answers, roundId } = target.currentRound;
-    const correctAnswer = question.correct;
-    const distribution = buildDistribution(optionValuesOf(question), answers);
-
-    target.phase = 'ROUND_RESULT';
-    target.phaseDeadline = Date.now() + ROUND_RESULT_MS;
-    broadcastPersonalized(target, 'round:ended', (playerId) => {
-      const ownCorrect = playerId !== null && answers.get(playerId) === correctValueOf(question);
-      return {
-        roundId,
-        correctAnswer,
-        ...(question.resultDetails === undefined ? {} : { resultDetails: question.resultDetails }),
-        distribution,
-        ownCorrect,
-        ownPoints: ownCorrect ? 100 : 0,
-        ownResponseTimeMs: null,
-      };
-    });
-
-    scheduleTimer(target, ROUND_RESULT_MS, () => showScoreboard(target));
-  }
-
-  function showScoreboard(target) {
-    if (target.phase !== 'ROUND_RESULT') {
-      return;
-    }
-    target.phase = 'SCOREBOARD';
-    const ranked = rankPlayers(target);
-    broadcastPersonalized(target, 'scoreboard:updated', (playerId) => ({
-      top: ranked.slice(0, 5).map(toScoreboardEntry),
-      self: playerId !== null ? toScoreboardEntry(findRanked(ranked, playerId)) : null,
-    }));
-
-    if (target.pacing === 'auto') {
-      target.phaseDeadline = Date.now() + SCOREBOARD_AUTO_ADVANCE_MS;
-      scheduleTimer(target, SCOREBOARD_AUTO_ADVANCE_MS, () => advanceFromScoreboard(target));
-    } else {
-      // pacing === 'host': wacht op een expliciete `game:next` (zie advanceOnHostCue).
-      target.phaseDeadline = null;
-    }
-  }
-
-  function advanceOnHostCue(target) {
-    if (target.phase !== 'SCOREBOARD') {
-      throw new ProtocolError('INVALID_PHASE', 'game:next requires phase SCOREBOARD.');
-    }
-    advanceFromScoreboard(target);
-    return {};
-  }
-
-  /**
-   * Fase 4 (autoReveal, besluit 51). Zelfde `endRound()`-aanroep die de timer
-   * anders had gedaan, alleen op het moment dat de host kiest — geen aparte
-   * fase-overgang, precies zoals de echte server (`socket.mjs`'s
-   * `case 'game:reveal'`). Twee poorten die `endRound()` zelf niet bewaakt:
-   * autoReveal moet uit staan, en de deadline moet al voorbij zijn.
-   */
-  function revealAnswer(target) {
-    if (target.config.autoReveal !== false) {
-      throw new ProtocolError('INVALID_PHASE', 'game:reveal requires autoReveal:false.');
-    }
-    if (
-      target.phase !== 'ROUND_ACTIVE'
-      || target.currentRound === null
-      || Date.now() < target.currentRound.endsAt - REVEAL_DEADLINE_GRACE_MS
-    ) {
-      throw new ProtocolError('INVALID_PHASE', 'game:reveal requires an active round past its deadline.');
-    }
-    endRound(target, target.roundIndex);
-    return { phase: target.phase };
-  }
-
-  function advanceFromScoreboard(target) {
-    if (target.phase !== 'SCOREBOARD') {
-      return;
-    }
-    const nextIndex = target.roundIndex + 1;
-    if (nextIndex < target.questions.length) {
-      startRound(target, nextIndex);
-    } else {
-      finishGame(target);
-    }
-  }
-
-  function finishGame(target) {
-    target.phase = 'FINISHED';
-    target.currentRound = null;
-    target.phaseDeadline = null;
-    const ranked = rankPlayers(target);
-    broadcastPersonalized(target, 'game:finished', (playerId) => ({
-      podium: ranked.slice(0, 5).map(toScoreboardEntry),
-      self: playerId !== null ? toScoreboardEntry(findRanked(ranked, playerId)) : null,
-    }));
-    return {};
-  }
-
-  function pauseGame(target, payload) {
-    const pausableActivePhases = new Set(['COUNTDOWN', 'ROUND_ACTIVE', 'ROUND_RESULT', 'SCOREBOARD']);
-    if (!pausableActivePhases.has(target.phase)) {
-      throw new ProtocolError('INVALID_PHASE', 'game:pause requires an active game.');
-    }
-    const remainingMs =
-      target.phase === 'ROUND_ACTIVE' && target.currentRound !== null
-        ? Math.max(0, target.currentRound.endsAt - Date.now())
-        : null;
-    target.pausedState = {
-      previousPhase: target.phase,
-      remainingMs,
-      reason: typeof payload.reason === 'string' ? payload.reason : 'host',
-      pausedAt: Date.now(),
-    };
-    target.phase = 'PAUSED';
-    target.phaseDeadline = null; // de klok staat stil; zie pausedState.remainingMs
-    clearTimers(target);
-    broadcast(target, 'game:paused', target.pausedState);
-    return {};
-  }
-
-  function resumeGame(target) {
-    if (target.phase !== 'PAUSED' || target.pausedState === null) {
-      throw new ProtocolError('INVALID_PHASE', 'game:resume requires phase PAUSED.');
-    }
-    const { previousPhase, remainingMs } = target.pausedState;
-    target.phase = previousPhase;
-    target.pausedState = null;
-
-    broadcast(target, 'game:resumed', {
-      phase: previousPhase,
-      // Pariteit met de server (R2-7): bij het hervatten van een lopende ronde
-      // reist de nieuwe deadline mee.
-      ...(previousPhase === 'ROUND_ACTIVE' && target.currentRound !== null
-        ? { roundEndsAt: target.currentRound.endsAt }
-        : {}),
-    });
-
-    if (previousPhase === 'ROUND_ACTIVE' && target.currentRound !== null) {
-      const newEndsAt = Date.now() + (remainingMs ?? ROUND_ACTIVE_MS);
-      target.currentRound.endsAt = newEndsAt;
-      target.phaseDeadline = newEndsAt;
-      scheduleTimer(target, newEndsAt - Date.now(), () => endRound(target, target.roundIndex));
-    } else if (previousPhase === 'COUNTDOWN') {
-      target.phaseDeadline = Date.now() + COUNTDOWN_MS;
-      scheduleTimer(target, COUNTDOWN_MS, () => startRound(target, 0));
-    } else if (previousPhase === 'SCOREBOARD' && target.pacing === 'auto') {
-      target.phaseDeadline = Date.now() + SCOREBOARD_AUTO_ADVANCE_MS;
-      scheduleTimer(target, SCOREBOARD_AUTO_ADVANCE_MS, () => advanceFromScoreboard(target));
-    }
-    return {};
-  }
-
-  function setLocked(target, locked) {
-    target.locked = locked;
-    broadcast(target, 'room:lock-changed', { locked });
-    return {};
-  }
-
-  function kickPlayer(target, playerId) {
-    if (typeof playerId !== 'string' || !target.players.has(playerId)) {
-      throw new ProtocolError('INVALID_ANSWER_FORMAT', 'Unknown playerId.');
-    }
-    const player = target.players.get(playerId);
-    player.active = false;
-    for (const [sessionToken, session] of target.sessions) {
-      if (session.playerId === playerId) {
-        emitToSessionToken(target, sessionToken, 'session:kicked', { reason: 'host' });
-      }
-    }
-    broadcast(target, 'room:player-changed', {
-      playerCount: countActivePlayers(target),
-      delta: { type: 'kick', playerId },
-    });
-    return {};
-  }
-
-  function renamePlayer(target, playerId, displayName, bypassRenameLimit = false) {
-    if (target.phase !== 'LOBBY') {
-      throw new ProtocolError('INVALID_PHASE', 'player:rename only allowed in LOBBY.');
-    }
-    const player = target.players.get(playerId);
-    if (player === undefined) {
-      throw new ProtocolError('NOT_PLAYER', 'Unknown player.');
-    }
-    if (player.hasRenamed && !bypassRenameLimit) {
-      throw new ProtocolError('INVALID_PHASE', 'player:rename allowed at most once.');
-    }
-    player.effectiveName = finalizeName(normalizeDisplayName(displayName), target);
-    player.hasRenamed = true;
-    broadcast(target, 'room:player-changed', {
-      playerCount: countActivePlayers(target),
-      delta: { type: 'rename', playerId, effectiveName: player.effectiveName },
-    });
-    return { effectiveName: player.effectiveName };
-  }
-
-  function recolorPlayer(target, playerId, color) {
-    if (target.phase !== 'LOBBY') {
-      throw new ProtocolError('INVALID_PHASE', 'player:recolor only allowed in LOBBY.');
-    }
-    const player = target.players.get(playerId);
-    if (player === undefined) {
-      throw new ProtocolError('NOT_PLAYER', 'Unknown player.');
-    }
-    if (!MOCK_PLAYER_COLORS.includes(color)) {
-      throw new ProtocolError('INVALID_ANSWER_FORMAT', 'Unknown color.');
-    }
-    player.color = color;
-    broadcast(target, 'room:player-changed', {
-      playerCount: countActivePlayers(target),
-      delta: { type: 'recolor', playerId, color },
-    });
-    return { color };
-  }
-
-  function updateRoomConfig(target, patch) {
-    if (target.phase !== 'LOBBY') {
-      throw new ProtocolError('INVALID_PHASE', 'game:update-config only allowed in LOBBY.');
-    }
-    // `continents` staat op de ECHTE server nog niet in UPDATABLE_CONFIG_KEYS
-    // (server/protocol/client-events-dispatch.mjs) — besluit 52 markeert het
-    // create-only totdat die protocolkant meekomt. Hier wél toegestaan, zodat
-    // de lobbytoggle in solo (de enige manier om 'm nu in een browser te
-    // beproeven) iets doet in plaats van in de void te schrijven.
-    const allowed = ['totalRounds', 'difficulty', 'language', 'pacing', 'autoReveal', 'speedBonus', 'allowLateJoin', 'gameTypes', 'continents'];
-    const safe = {};
-    for (const key of allowed) {
-      if (patch !== null && typeof patch === 'object' && key in patch) {
-        safe[key] = patch[key];
-      }
-    }
-    if (Object.keys(safe).length === 0) {
-      throw new ProtocolError('INVALID_REQUEST', 'Empty config patch.');
-    }
-    // Pariteit met de echte server (§A0): dezelfde gedeelde catalogus beslist
-    // wat speelbaar is. Zonder deze regel accepteert de mock een game die de
-    // server weigert — en dan bewijst een mockdoorloop het verkeerde.
-    if ('gameTypes' in safe) {
-      const list = safe.gameTypes;
-      if (!Array.isArray(list) || list.length !== 1 || !isPlayableGameType(list[0])) {
-        throw new ProtocolError('INVALID_REQUEST', 'gameTypes must hold exactly one playable game type.');
-      }
-    }
-    // Pariteit met assertGameConfigurationShape (game-configuration.js):
-    // niet-lege lijst uit de zes bekende continenten.
-    if ('continents' in safe) {
-      const list = safe.continents;
-      if (!Array.isArray(list) || list.length === 0 || !list.every((c) => MOCK_CONTINENTS.includes(c))) {
-        throw new ProtocolError('INVALID_REQUEST', 'continents must be a non-empty array of known continents.');
-      }
-    }
-    Object.assign(target.config ?? (target.config = {}), safe);
-    if ('gameTypes' in safe) {
-      // Alleen in LOBBY bereikbaar (zie de fasecontrole hierboven), dus de
-      // reeks opnieuw opbouwen kan nooit een lopende ronde omgooien.
-      target.gameType = resolveGameType(target.config);
-      target.questions = buildQuestionSequence(target.gameType);
-    }
-    if ('totalRounds' in safe) {
-      target.totalRounds = safe.totalRounds;
-    }
-    if ('pacing' in safe) {
-      target.pacing = safe.pacing;
-    }
-    if ('allowLateJoin' in safe) {
-      target.allowLateJoin = safe.allowLateJoin;
-    }
-    broadcast(target, 'room:config-changed', { config: { ...target.config } });
-    return { config: { ...target.config } };
-  }
-
-  function rematch(target) {
-    if (target.phase !== 'FINISHED') {
-      throw new ProtocolError('INVALID_PHASE', 'game:rematch requires phase FINISHED.');
-    }
-    target.phase = 'LOBBY';
-    target.matchId = randomId('match');
-    target.matchSequence += 1;
-    target.roundIndex = -1;
-    target.currentRound = null;
-    target.phaseDeadline = null;
-    for (const player of target.players.values()) {
-      player.score = 0;
-      player.correctCount = 0;
-      player.correctResponseTimeMsTotal = 0;
-      player.answeredCurrentRound = false;
-    }
-    broadcast(target, 'game:rematch-started', { matchId: target.matchId });
-    return {};
-  }
-
-  // ---- Broadcast / events -------------------------------------------------
-
-  function broadcast(target, event, payload) {
-    for (const listener of target.listeners.values()) {
-      emit(listener, event, payload);
-    }
-  }
-
-  function broadcastPersonalized(target, event, buildPayloadForPlayerId) {
-    for (const [sessionToken, listener] of target.listeners) {
-      const session = target.sessions.get(sessionToken);
-      const playerId = session?.playerId ?? null;
-      emit(listener, event, buildPayloadForPlayerId(playerId));
-    }
-  }
-
-  function emitToSession(target, playerId, event, payload) {
-    for (const [sessionToken, session] of target.sessions) {
-      if (session.playerId === playerId) {
-        emitToSessionToken(target, sessionToken, event, payload);
-      }
-    }
-  }
-
-  function emitToSessionToken(target, sessionToken, event, payload) {
-    const listener = target.listeners.get(sessionToken);
-    if (listener !== undefined) {
-      emit(listener, event, payload);
-    }
-  }
-
-  function emit(listener, event, payload) {
-    listener.onEvent({
-      event,
-      eventId: randomId('evt'),
-      serverTime: Date.now(),
-      payload,
-    });
-    // Elke gebeurtenis die hier binnenkomt is een moment waarop een verbonden
-    // speler ook echt iets nieuws ziet — precies de momenten waarop een
-    // solopartij zijn voortgang niet mag kwijtraken bij een reload.
-    persist();
-  }
-
-  function scheduleTimer(target, delayMs, callback) {
-    const handle = setTimeout(() => {
-      target.pendingTimers.delete(handle);
-      callback();
-    }, Math.max(0, delayMs));
-    target.pendingTimers.add(handle);
-  }
-
-  function clearTimers(target) {
-    for (const handle of target.pendingTimers) {
-      clearTimeout(handle);
-    }
-    target.pendingTimers.clear();
   }
 }
 
@@ -1247,157 +610,6 @@ function buildSnapshot(room, sessionToken, sessionArg) {
   };
 }
 
-// ---- Vraagreeks -------------------------------------------------------------
-
-/** De gameType van deze room: uit de config, met de quick-start default. */
-function resolveGameType(config) {
-  const gameTypes = config?.gameTypes;
-  const gekozen = Array.isArray(gameTypes) ? gameTypes[0] : null;
-  return isPlayableGameType(gekozen) ? gekozen : DEFAULT_GAME_TYPE;
-}
-
-/**
- * De vaste vraagreeks van deze mock, per gameType.
- *
- * Elke vraag is `{ payload, correct }`: `payload` gaat naar de client
- * (`round:started`, snapshot), `correct` blijft binnen de mock — besluit 20,
- * het juiste antwoord verlaat de server nooit vóór het einde van de ronde.
- * De reeks is bewust vast en kort (geen willekeur behalve de optievolgorde):
- * een handmatige doorloop moet snel en herhaalbaar zijn.
- *
- * Geëxporteerd (samen met `correctValueOf`/`optionValuesOf` hieronder) zodat
- * `higher_lower`/`capitals_mc` — schakel 5, "mockpariteit", van
- * shared/content/game-catalog.mjs's ketenuitspraak — rechtstreeks getest
- * kunnen worden. `createMockTransport()`'s publieke pad kan ze niet bereiken
- * zolang `PLAYABLE_GAME_TYPES` ze niet bevat (`resolveGameType` hierboven);
- * dat is precies het "bouwbaar, nog niet kiesbaar"-onderscheid uit besluit 49
- * (docs/openstaand/hoger-lager-en-hoofdsteden.md) en geen reden om het bewijs
- * dat de mock ze wél kan bouwen ongetest te laten.
- */
-export function buildQuestionSequence(gameType = DEFAULT_GAME_TYPE) {
-  const pool = getCountryPool();
-  const count = Math.min(QUESTION_COUNT, pool.length);
-  const questions = [];
-
-  for (let i = 0; i < count; i += 1) {
-    const target = pool[i];
-
-    if (gameType === 'odd_one_out') {
-      // Drie uit hetzelfde continent + één buitenbeentje, zoals de server
-      // (`question-selection.js`). Vast, niet willekeurig: een doorloop moet
-      // herhaalbaar zijn.
-      const zelfdeContinent = pool.filter((entry) => entry.continent === target.continent && entry.iso2 !== target.iso2);
-      const buitenbeentje = pool.find((entry) => entry.continent !== target.continent);
-      if (zelfdeContinent.length >= 2 && buitenbeentje !== undefined) {
-        const kaarten = [target, zelfdeContinent[0], zelfdeContinent[1], buitenbeentje];
-        const oddIndex = 3;
-        questions.push({
-          payload: { cards: kaarten.map((entry, index) => ({ cardIndex: index, iso2: entry.iso2.toUpperCase() })) },
-          correct: { cardIndex: oddIndex },
-          resultDetails: {
-            logic: 'continent',
-            majorityContinent: target.continent,
-            minorityContinent: buitenbeentje.continent,
-          },
-        });
-        continue;
-      }
-    }
-
-    if (gameType === 'higher_lower') {
-      // Besluit 49: vast, niet willekeurig — zelfde reden als odd_one_out
-      // hierboven (herhaalbare doorloop). Metric wisselt per ronde-index i.p.v.
-      // willekeurig `mixed` te kiezen, zodat een doorloop alle drie de metrics
-      // raakt in plaats van toevallig steeds dezelfde.
-      const metric = HIGHER_LOWER_METRICS[i % HIGHER_LOWER_METRICS.length];
-      const second = pool[(i + 1) % pool.length];
-      const correctSide = target[metric] >= second[metric] ? 0 : 1;
-      questions.push({
-        payload: {
-          metric,
-          sides: [
-            { side: 0, iso2: target.iso2.toUpperCase() },
-            { side: 1, iso2: second.iso2.toUpperCase() },
-          ],
-        },
-        correct: { side: correctSide },
-      });
-      continue;
-    }
-
-    if (gameType === 'real_or_fake_flag') {
-      // Om en om echt/nep, zodat een doorloop beide takken van het spelscherm
-      // raakt (echte vlagafbeelding vs. gegenereerde spec op canvas).
-      if (i % 2 === 0) {
-        questions.push({
-          payload: { kind: 'real', iso2: target.iso2.toUpperCase() },
-          correct: { choice: 'real' },
-        });
-      } else {
-        const seed = `fx_mock${String(i).padStart(2, '0')}`;
-        const { rendererVersion, ...spec } = generateFlagSpec(seed);
-        questions.push({
-          payload: { kind: 'generated', seed, rendererVersion, spec },
-          correct: { choice: 'fake' },
-        });
-      }
-      continue;
-    }
-
-    // flags_mc EN capitals_mc (besluit 49): dezelfde payloadvorm
-    // (`targetIso2`+`optionIso2s`, `correct.optionId`) — de echte server bouwt
-    // `capitals_mc` ook zo (question-selection.js's `selectCapitalsMcQuestion`).
-    // De richting ("hoofdstad van X?" vs. "Y hoort bij welk land?") is een
-    // renderkeuze op deze payload, geen aparte contentvorm — zie
-    // `capitalsQuestionDirection` in frontend/js/views/country-names.mjs.
-    const distractors = [];
-    for (let offset = 1; distractors.length < 3 && offset < pool.length; offset += 1) {
-      const candidate = pool[(i + offset) % pool.length];
-      if (candidate.iso2 !== target.iso2) {
-        distractors.push(candidate);
-      }
-    }
-    const optionIso2s = shuffle([target, ...distractors].map((entry) => entry.iso2.toUpperCase()));
-    questions.push({
-      payload: { targetIso2: target.iso2.toUpperCase(), optionIso2s },
-      correct: { optionId: target.iso2.toUpperCase() },
-    });
-  }
-
-  return questions;
-}
-
-/**
- * Zet de opgeslagen weergavevolgorde terug op een net herbouwde vraag
- * (`deserializeRoomState`, docs/openstaand/solo-antwoordvolgorde.md punt 1).
- * Alleen toegepast als `optionOrder` letterlijk dezelfde optieset is — een
- * andere permutatie, geen andere inhoud. Dezelfde ronde-index bouwt altijd
- * dezelfde optieset op (`buildQuestionSequence` is deterministisch op de
- * shuffle na), dus dat mag hier nooit falen; de check is puur verdediging
- * tegen een corrupte of verouderde `sessionStorage`-waarde — dan liever de
- * vers geschudde volgorde dan een vraag met een fantoomoptie.
- */
-function withSavedOptionOrder(question, optionOrder) {
-  if (question === undefined || !Array.isArray(optionOrder) || !Array.isArray(question.payload?.optionIso2s)) {
-    return question;
-  }
-  const current = question.payload.optionIso2s;
-  const sameSet = optionOrder.length === current.length && current.every((iso2) => optionOrder.includes(iso2));
-  if (!sameSet) {
-    return question;
-  }
-  return { ...question, payload: { ...question.payload, optionIso2s: optionOrder } };
-}
-
-function shuffle(array) {
-  const result = array.slice();
-  for (let i = result.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
-
 // PROTOCOL.md, §`POST /api/v1/games/join`: het request draagt "precies één
 // locator" (inviteId óf gameCode) en een optionele `joinSource` uit een vaste
 // enum. Geen van beide velden wordt vandaag door een apart wire-foutcode voor
@@ -1428,198 +640,12 @@ function validateJoinRequest(request) {
   }
 }
 
-/** De waarde die dit antwoord juist maakt, ongeacht gameType. */
-export function correctValueOf(question) {
-  if (question.correct.cardIndex !== undefined) return String(question.correct.cardIndex);
-  if (question.correct.side !== undefined) return String(question.correct.side);
-  return question.correct.optionId ?? question.correct.choice;
-}
-
-/** De mogelijke antwoordwaarden van deze vraag, in weergavevolgorde. */
-export function optionValuesOf(question) {
-  if (Array.isArray(question.payload.cards)) {
-    return question.payload.cards.map((kaart) => String(kaart.cardIndex));
-  }
-  if (Array.isArray(question.payload.sides)) {
-    return question.payload.sides.map((kant) => String(kant.side));
-  }
-  return question.payload.optionIso2s ?? ['real', 'fake'];
-}
-
-function buildDistribution(optionValues, answers) {
-  const counts = new Map(optionValues.map((waarde) => [waarde, 0]));
-  for (const gegeven of answers.values()) {
-    counts.set(gegeven, (counts.get(gegeven) ?? 0) + 1);
-  }
-  return optionValues.map((optionId) => ({ optionId, count: counts.get(optionId) ?? 0 }));
-}
-
-// ---- Spelers / scorebord ------------------------------------------------
-
-// Zelfde gesloten palet + volgorde als de server (client-events-dispatch.mjs).
-// Zestien sinds besluit 42; de eerste acht staan onveranderd op hun plek, want de
-// round-robin bij join loopt over deze volgorde. `transport-mock.test.mjs`
-// bewaakt de pariteit met de serverlijst — anders bewijst een mockdoorloop
-// het verkeerde.
-export const MOCK_PLAYER_COLORS = Object.freeze([
-  'orange', 'magenta', 'cyan', 'green', 'yellow', 'purple', 'lime', 'red',
-  'blue', 'teal', 'indigo', 'violet', 'rose', 'moss', 'rust', 'slate',
-]);
-
-function addPlayer(room, playerId, effectiveName) {
-  room.players.set(playerId, {
-    playerId,
-    effectiveName,
-    color: MOCK_PLAYER_COLORS[room.players.size % MOCK_PLAYER_COLORS.length],
-    score: 0,
-    // §A3: de gedeelde rangschikker (shared/rules/ranking.mjs) heeft deze twee
-    // velden nodig voor de tiebreak; zonder ze zou de mock een eigen,
-    // afwijkende volgorde moeten verzinnen.
-    correctCount: 0,
-    correctResponseTimeMsTotal: 0,
-    active: true,
-    answeredCurrentRound: false,
-    hasRenamed: false,
-    eligibleFromRound: room.roundIndex < 0 ? 1 : room.roundIndex + 2,
-    joinedAt: Date.now(),
-  });
-}
-
-function countActivePlayers(room) {
-  let count = 0;
-  for (const player of room.players.values()) {
-    if (player.active) {
-      count += 1;
-    }
-  }
-  return count;
-}
-
-/**
- * §A3 — DEZELFDE rangschikker als de server (`shared/rules/ranking.mjs`).
- *
- * De mock sorteerde hier zelf op score en joinedAt en kende helemaal geen
- * positie toe; de client vulde er daarna `index + 1` bij. Een gelijke stand
- * zag er in de mock dus anders uit dan op de echte server — en dan bewijst een
- * mockdoorloop het verkeerde. `rankPlayers` levert de competitierang (gedeelde
- * spelers delen hun nummer); die reist mee als `rank`.
- */
-function rankPlayers(room) {
-  const active = [...room.players.values()].filter((player) => player.active);
-  const byId = new Map(active.map((player) => [player.playerId, player]));
-  return rankByRules(active.map((player) => ({
-    id: player.playerId,
-    score: player.score,
-    correctCount: player.correctCount,
-    correctResponseTimeMsTotal: player.correctResponseTimeMsTotal,
-  }))).map((entry) => ({ ...byId.get(entry.id), rank: entry.position }));
-}
-
-function findRankIndex(ranked, playerId) {
-  return ranked.findIndex((player) => player.playerId === playerId);
-}
-
-function findRanked(ranked, playerId) {
-  return ranked.find((player) => player.playerId === playerId);
-}
-
-function toScoreboardEntry(player) {
-  if (player === undefined) {
-    return {};
-  }
-  // `rank` hoort in de payload: de client mag geen positie meer afleiden uit
-  // de rijvolgorde (§A3).
-  return {
-    playerId: player.playerId,
-    effectiveName: player.effectiveName,
-    score: player.score,
-    rank: player.rank,
-  };
-}
-
-// ---- Naam- en ID-generatie ------------------------------------------------
-
-function normalizeDisplayName(value) {
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const trimmed = value.normalize('NFKC').trim();
-  return trimmed.length === 0 ? null : truncateToGraphemes(trimmed, NAME_MAX_GRAPHEMES);
-}
-
-// Zelfde patroon als client/flow/join-state.mjs en
-// client/flow/host-setup-state.mjs's `truncateToGraphemes`: telt
-// grapheme-clusters via Intl.Segmenter, niet UTF-16 code units, zodat een
-// emoji of combining character nooit doormidden wordt geknipt.
-function truncateToGraphemes(value, limit) {
-  let result = '';
-  let count = 0;
-  for (const { segment } of graphemeSegmenter.segment(value)) {
-    if (count >= limit) {
-      break;
-    }
-    result += segment;
-    count += 1;
-  }
-  return result;
-}
-
-function generateSuggestedName() {
-  const adjective = NAME_ADJECTIVES[Math.floor(Math.random() * NAME_ADJECTIVES.length)];
-  const noun = NAME_NOUNS[Math.floor(Math.random() * NAME_NOUNS.length)];
-  return `${adjective} ${noun}`;
-}
-
-// Lost botsingen met een reeds gebruikte naam in dezelfde room op door een
-// volgnummer toe te voegen — de server bepaalt de uiteindelijke, unieke naam
-// pas bij join (PROTOCOL.md, §preview-endpoint "Grenzen").
-function finalizeName(requestedName, room) {
-  const base = requestedName ?? generateSuggestedName();
-  if (room === undefined) {
-    return base;
-  }
-  const used = new Set([...room.players.values()].map((player) => player.effectiveName));
-  if (!used.has(base)) {
-    return base;
-  }
-  let suffix = 2;
-  while (used.has(`${base} ${suffix}`)) {
-    suffix += 1;
-  }
-  return `${base} ${suffix}`;
-}
-
-function randomToken() {
-  return `tok_${randomHex(24)}`;
-}
-
-function randomId(prefix) {
-  return `${prefix}_${randomHex(12)}`;
-}
-
-function randomInviteId() {
-  return randomHex(12);
-}
-
-function randomGameCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
-function randomHex(length) {
-  if (typeof globalThis.crypto?.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, length);
-  }
-  let result = '';
-  while (result.length < length) {
-    result += Math.random().toString(16).slice(2);
-  }
-  return result.slice(0, length);
-}
-
-function buildJoinUrl(inviteId) {
-  const origin =
-    typeof window !== 'undefined' && window.location !== undefined
-      ? window.location.origin
-      : 'http://localhost:8000';
-  return `${origin}/j/${inviteId}`;
-}
+// ---- Publieke re-exports (ongewijzigd contract ná de splitsing) -----------
+//
+// `transport-mock.test.mjs` en `frontend/js/app.mjs` importeren deze namen
+// nog altijd rechtstreeks van `./transport-mock.mjs` — zie de opdracht
+// ("de twee bestaande exports blijven exact gelijk"). `createMockTransport`
+// staat hierboven; de overige vier woonden inhoudelijk altijd al bij de
+// vraagreeks/kleuren en zijn nu in mock/questions.mjs resp. mock/players.mjs
+// gedefinieerd — dezelfde functies, dezelfde waarden, alleen verplaatst.
+export { buildQuestionSequence, correctValueOf, optionValuesOf, MOCK_PLAYER_COLORS };
