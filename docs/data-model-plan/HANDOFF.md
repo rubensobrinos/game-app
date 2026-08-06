@@ -510,7 +510,7 @@ loadSessionByTokenHash(tokenHash) → Promise<Session | null>
 **Akkoord, ingediend.** Buiten de bevriezing van §7b — geen poortwijziging,
 alleen een documentatiecorrectie in `DATA-MODEL.md`, dus geen INT-A/INT-B-
 akkoord nodig. `docs/data-model-plan/` heeft geen directe verbinding met
-`docs/spec-redactie/` — dit bestand is, net als bij elk ander plan, het
+`docs/archief/plandocumentatie/spec-redactie/` — dit bestand is, net als bij elk ander plan, het
 kanaal ernaartoe.
 
 Eén regel, geen poortwijziging: `DATA-MODEL.md`'s
@@ -862,7 +862,7 @@ inclusief de dubbele-CAS- en invariant-scenario's.
 
 ## 18. Aan AR + GF — signaal, geen voorstel: statengranulariteit design vs. `Match.phase`
 
-Gevonden bij het doornemen van `docs/design-documentation/`. Volledige
+Gevonden bij het doornemen van `docs/archief/plandocumentatie/design-documentation/`. Volledige
 uitwerking:
 [`observatie-statengranulariteit-design-vs-matchphase.md`](../data-model-plan/observatie-statengranulariteit-design-vs-matchphase.md).
 
@@ -877,7 +877,7 @@ totdat jullie een richting kiezen — bij een nieuwe fasewaarde is dat
 
 ## 19. Aan PR, cc INT-A — signaal + geschetste richting, niet gebouwd: antwoordverdeling
 
-Gevonden bij het doornemen van `docs/design-documentation/`. Volledige
+Gevonden bij het doornemen van `docs/archief/plandocumentatie/design-documentation/`. Volledige
 uitwerking:
 [`observatie-antwoordverdeling-poortbehoefte.md`](../data-model-plan/observatie-antwoordverdeling-poortbehoefte.md).
 

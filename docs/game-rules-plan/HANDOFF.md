@@ -53,7 +53,7 @@ doen tijdens een live game. Besluit:
 Details: [`prompts/GR2-standings.md`](prompts/GR2-standings.md), sectie
 "Nadrukkelijk buiten scope".
 
-## 3. Aan de CT-agent (`docs/content-plan/prompts/CT1-shared-content-module.md`) en INT-A — contract overgedragen
+## 3. Aan de CT-agent (`docs/archief/plandocumentatie/content-plan/prompts/CT1-shared-content-module.md`) en INT-A — contract overgedragen
 
 **Status: eigenaar bekend (gecorrigeerd — eerdere versie van dit document zei
 "geen eigenaar bekend", dat klopte niet meer). Ons deel is af: het volledige

@@ -1,6 +1,6 @@
 # Observatie — statengranulariteit: designdocumentatie vs `Match.phase`
 
-**Van:** DM-agent, tijdens het doornemen van `docs/design-documentation/`.
+**Van:** DM-agent, tijdens het doornemen van `docs/archief/plandocumentatie/design-documentation/`.
 **Aan:** AR (eigenaar `state-machine.js`/de fasewaarden) en GF (eigenaar
 game-flow-tijdlijn/substaten).
 **Status:** signaal, geen voorstel met een uitgewerkte oplossing — de vraag
@@ -8,7 +8,7 @@ is voor AR/GF, niet iets wat ik zelf kan of moet beslissen.
 
 ## Wat er is gevonden
 
-`docs/design-documentation/design/1-schermen-en-flow/03-GAME-FLOW-AND-STATES.md`
+`docs/archief/plandocumentatie/design-documentation/design/1-schermen-en-flow/03-GAME-FLOW-AND-STATES.md`
 §3 ("Global state model") noemt zeventien UI-states:
 
 ```

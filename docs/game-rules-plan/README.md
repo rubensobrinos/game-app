@@ -173,7 +173,7 @@ geïmplementeerd (geen agents — kleiner genoeg om zelf sneller te doen).
 
 **Statuscorrectie (menselijk geverifieerd):** de contentmodule heeft wél al
 een eigenaar — de CT-agent
-(`docs/content-plan/prompts/CT1-shared-content-module.md`), inclusief de
+(`docs/archief/plandocumentatie/content-plan/prompts/CT1-shared-content-module.md`), inclusief de
 Echt-of-Nep-renderer als CT1-prioriteit 2. Ons deel daarin (het exacte
 poolcontract dat wij verwachten) staat nu overgedragen via
 [`CONTENT-POOL-INTERFACE.md`](CONTENT-POOL-INTERFACE.md) en `HANDOFF.md` §3.

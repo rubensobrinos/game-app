@@ -1,6 +1,6 @@
 # Content-pool interface — wat `question-selection.js` verwacht
 
-**Aan:** de CT-agent (`docs/content-plan/prompts/CT1-shared-content-module.md`)
+**Aan:** de CT-agent (`docs/archief/plandocumentatie/content-plan/prompts/CT1-shared-content-module.md`)
 en integrators (INT-A). **Status: leidend contract** — `shared/content/`
 bouwt hiernaar toe, niet andersom. Bron van waarheid is de daadwerkelijke
 implementatie in [`server/rules/question-selection.js`](../../server/rules/question-selection.js)

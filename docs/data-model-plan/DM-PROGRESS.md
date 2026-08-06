@@ -183,7 +183,7 @@ een beslissing van DM zelf:
 - ~~**INTB-8** (testfixtures)~~ — ✅ opgelost door **de DT-agent** (2026-08-02).
 
 **Drie nieuwe observaties, uit het doornemen van
-`docs/design-documentation/`** (product-/UX-designbaseline, geen
+`docs/archief/plandocumentatie/design-documentation/`** (product-/UX-designbaseline, geen
 backend-scope, maar met drie concrete raakpunten):
 
 - **`HANDOFF.md` §18** — statengranulariteit design (17 UI-states) vs.

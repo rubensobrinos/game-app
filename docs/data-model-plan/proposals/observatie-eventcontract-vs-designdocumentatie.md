@@ -1,13 +1,13 @@
 # Observatie — DM8's eventcontract vs. de events genoemd in de designdocumentatie
 
 Aanvulling op [`analytics-event-contract.md`](analytics-event-contract.md),
-gevonden tijdens het doornemen van `docs/design-documentation/design/`. Zelf
+gevonden tijdens het doornemen van `docs/archief/plandocumentatie/design-documentation/design/`. Zelf
 geen nieuw voorstel — een reconciliatie die moet gebeuren zodra DM8 weer
 wordt opgepakt voor product-/data-review, niet vóór die tijd.
 
 ## De twee lijsten naast elkaar
 
-`docs/design-documentation/design/1-schermen-en-flow/03-GAME-FLOW-AND-STATES.md`
+`docs/archief/plandocumentatie/design-documentation/design/1-schermen-en-flow/03-GAME-FLOW-AND-STATES.md`
 §8 ("State-events voor analytics en logging") noemt:
 
 ```

@@ -1,6 +1,6 @@
 # Observatie — antwoordverdeling: ontbrekende poortcapaciteit, nog geen aanroeper
 
-**Van:** DM-agent, tijdens het doornemen van `docs/design-documentation/`.
+**Van:** DM-agent, tijdens het doornemen van `docs/archief/plandocumentatie/design-documentation/`.
 **Aan:** PR (protocol-plan, wire-contract voor `round:ended`/reveal), cc
 INT-A (compositielaag).
 **Status:** signaal + geschetste richting, NIET gebouwd — er is nog geen
