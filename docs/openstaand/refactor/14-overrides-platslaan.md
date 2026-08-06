@@ -103,3 +103,40 @@ in twee thema's blijft de harde eis.
 **Daarna pas splitsen.** Als deze veertien weg zijn, controleer je zelf of er
 nog duplicaten over meerdere secties staan. Zijn die er niet meer, dan is
 opdracht 3 (splitsen per scherm) veilig en mag je die er direct achteraan doen.
+
+---
+
+## Ronde 3 — acht blokkerende, vier onschuldige (lead, 6 aug 2026)
+
+Ronde 2 is gedaan (`6adf96b`), opnieuw met een lege diff over 578 elementen.
+Er bleven twaalf duplicaten over; ik heb ze doorgerekend tegen de sectiekoppen
+van het bestand. **Acht daarvan lopen over een sectiegrens en blokkeren de
+splitsing. Vier niet — die staan binnen dezelfde sectie en houden hun volgorde
+hoe je ook splitst.**
+
+| Blokkerend | Regels |
+| --- | --- |
+| `.screen` | 20, 98 |
+| `.gameplay-flag` | 81, 899 |
+| `.reveal-card` | 185, 724 |
+| `.reveal-self` | 215, 725 |
+| `.reveal-next-bar i` | 269, 729 |
+| `.lobby-ready-dot` | 380, 726 |
+| `.gameplay-inline-progress-dot` | 716, 726 |
+| `.podium-action` | 864, 886 |
+
+| Laat staan — zelfde sectie | Regels |
+| --- | --- |
+| `.lobby-gamecard::before` | 526, 528 |
+| `.lobby-gamecard::after` | 526, 529 |
+| `.session-hostbar-players-toggle` | 979, 988 |
+| `.session-hostbar-settings-toggle` | 979, 988 |
+
+Het aantal blokkerende duplicaten loopt terug — 7, dan 14, nu 8 — dus dit
+convergeert. Zes van de acht wijzen bovendien naar dezelfde late sectie (rond
+regel 720), die veel eerdere regels overschrijft; dat is één cluster, geen acht
+losse gevallen.
+
+**Na deze ronde mag het bestand gesplitst worden**, mits je zelf controleert
+dat er geen duplicaten over sectiegrenzen meer zijn.
+

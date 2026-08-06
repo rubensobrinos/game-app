@@ -247,3 +247,80 @@ tegen de echte server.
 
 > **Prompt D** — Je werkt in de repo `game-app` (Rounda). Controleer dat `npm test` draait. Lees `docs/openstaand/raad-het-land.md`, opdracht D. Laat `frontend/js/mock/questions.mjs` dezelfde contourvraag bouwen als de server, speel daarna een volledige partij met alleen `country_shape_mc` — solo in de mock én met twee browsers tegen de echte server — en zet hem pas dán in `PLAYABLE_GAME_TYPES` in `shared/content/game-catalog.mjs`. Die volgorde is niet vrijblijvend: op 4 augustus stond een game op speelbaar terwijl de contentbron hem niet kon bouwen, en toen bleef de room stil in COUNTDOWN hangen tot de TTL verliep. Lever de partij op met schermafdrukken van lobby, spelscherm, uitslag en podium. Nederlands. Er werken meer agents in deze map: stage en commit alleen je eigen bestanden, nooit `git add -A`. `devkit check-autonomy --staged` vóór elke commit. Niet pushen. Stop als je klaar bent en lever op.
 
+---
+
+## E — De vervorming repareren
+
+Ontdekt door de agent van opdracht B, daarna nagemeten door de lead. **Deze
+opdracht hoort vóór D:** anders zet je een game aan waarin sommige landen niet
+te herkennen zijn.
+
+### Wat er mis is
+
+Elk land in `shapes.data.mjs` is uitgerekt tot het zijn eigen 100×100-vak
+vult. Niet bijgesneden of geschaald met behoud van verhouding — uitgerekt. Alle
+225 landen hebben daardoor ongeveer dezelfde verhouding, ongeacht hun vorm.
+
+| Land | Verhouding in de data | In werkelijkheid |
+| --- | --- | --- |
+| Chili | 0,86 | ~0,09 |
+| Rusland | 1,03 | ~2,0 |
+| Luxemburg | 1,00 | ~0,6 |
+| Noorwegen | 1,00 | lang |
+| Frankrijk | 1,00 | ~1,0 |
+
+Frankrijk valt niet op omdat die toevallig al vierkant is. Chili valt op omdat
+die het niet is. Maar élk land is vervormd.
+
+De agent van opdracht B heeft uitgesloten dat het aan de tekenaar ligt:
+hetzelfde pad als canvas en als `<svg>` gerenderd geeft pixel voor pixel
+hetzelfde beeld. Het zit in de gegenereerde data.
+
+### Wat je bouwt
+
+**Hou het 100×100-vak, stop met uitrekken.** Schaal met dezelfde factor in x en
+y, zodat het land óf de breedte óf de hoogte vult, en centreer het in het vak.
+Chili wordt dan een smalle streep over de volle hoogte; Rusland een brede band
+over de volle breedte; Frankrijk verandert nauwelijks.
+
+Dit is één wijziging in `shared/content/build-shapes.mjs` — één schaalfactor in
+plaats van twee — gevolgd door opnieuw genereren.
+
+**De tekenaar hoeft niet aangepast.** Die tekent het pad in hetzelfde vak; de
+inhoud van dat pad verandert, de renderer niet.
+
+**Waarom niet het vak oprekken:** dan verandert de vorm van het speelveld per
+vraag, en het spelscherm past nu net binnen 390×650. Een ronde met Chili zou
+een ander scherm zijn dan een ronde met Rusland.
+
+**Geen enkel land wordt hierdoor klein.** Elk land schaalt op tot het één van
+beide richtingen vult. Luxemburg blijft even groot in beeld als Rusland — het
+is alleen niet langer even vierkant.
+
+### Neem meteen de geografische omhullende mee
+
+Sla bij het genereren per land ook de echte bounding box op (de lat/lon-extent
+uit de brondata). Die is nodig zodra iemand een **wereldkaart** wil tekenen met
+de landen op hun plek ten opzichte van elkaar — en dat is precies wat het
+paspoort (besluit 53) vraagt.
+
+Nu is het een veld erbij in de generator. Later betekent het opnieuw genereren
+en alles hertesten.
+
+### Hoe je oplevert
+
+Toon vóór en ná de verhoudingen van dezelfde vijf landen uit de tabel
+hierboven, en een schermafdruk met minstens Chili, Rusland, Noorwegen en
+Luxemburg — de vier waar het verschil zichtbaar hoort te zijn. `shapes.test.mjs`
+moet groen blijven; als er een test op de oude verhoudingen zit, is die test
+fout en mag hij mee.
+
+### Niet doen
+
+- De tekenaar (`shape-renderer.mjs`) aanpassen.
+- Landen weglaten die er raar uitzien. Als Chili een streep is, is dat correct.
+- `shapes-index.mjs` van vorm veranderen — de server leest die en verwacht
+  alleen landcodes.
+
+> **Prompt E** — Je werkt in de repo `game-app` (Rounda). Controleer dat `npm test` draait. Lees `docs/openstaand/raad-het-land.md`, opdracht E. Elk land in `shapes.data.mjs` is uitgerekt tot het zijn eigen 100×100-vak vult, waardoor Chili net zo vierkant is als Frankrijk. Repareer dat in `shared/content/build-shapes.mjs`: één schaalfactor voor x en y in plaats van twee, land gecentreerd in het vak, daarna opnieuw genereren. Het vak blijft 100×100 — niet oprekken, want dan verandert de vorm van het speelveld per vraag. Neem meteen de echte geografische omhullende per land mee in de gegenereerde data; die is nodig voor de wereldkaart van besluit 53 en later toevoegen betekent alles opnieuw genereren. Toon in je oplevering de verhoudingen vóór en ná voor Chili, Rusland, Luxemburg, Noorwegen en Frankrijk, plus een schermafdruk van de eerste vier. Raak `frontend/js/views/shape-renderer.mjs` niet aan. Nederlands. Er werken meer agents in deze map: stage en commit alleen je eigen bestanden, nooit `git add -A`. Draait er een rode test die niet van jou is, dan telt die niet mee. `devkit check-autonomy --staged` vóór elke commit. Niet pushen. Stop als je klaar bent en lever op.
+
