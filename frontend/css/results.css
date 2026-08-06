@@ -266,3 +266,35 @@
   min-height: 1.2em;
   margin: 8px 0 0;
 }
+
+/* Punt 1.16 — de paspoortkaart. Vaste verhouding 2:1 (equirectangular) en een
+   expliciete maat: zonder afmeting rendert een canvas op zijn eigen
+   pixelbreedte en duwt hij het podium van het scherm. Dat is bij de vlaggenrij
+   hierboven al één keer gebeurd. */
+.podium-passport-map {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  margin: 10px auto 0;
+  aspect-ratio: 2 / 1;
+  opacity: 0.9;
+}
+
+/* De samenvattingsregel is tegelijk de knop naar de kaart — zie podium.mjs
+   voor waarom er geen aparte regel onder staat. Hij moet er nog steeds
+   uitzien als tekst, niet als knop. */
+.podium-passport-summary {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.podium-passport-summary[aria-expanded='false']::after { content: ' ▾'; opacity: 0.6; }
+.podium-passport-summary[aria-expanded='true']::after { content: ' ▴'; opacity: 0.6; }
+.podium-passport-summary:disabled { cursor: default; }
+.podium-passport-summary:disabled::after { content: ''; }
+

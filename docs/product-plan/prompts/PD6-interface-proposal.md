@@ -31,7 +31,7 @@ geen nieuw onderzoek):
 - De gebruiker heeft dit conflict expliciet beslecht op "vier" (zie
   [`prompts/PD2-quick-start-preset.md`](PD2-quick-start-preset.md), sectie "Genomen
   beslissingen"). De bevestigde waarde staat nu in
-  [`shared/product/quick-start-preset.mjs`](../../shared/product/quick-start-preset.mjs)
+  [`shared/product/quick-start-preset.mjs`](../../../shared/product/quick-start-preset.mjs)
   als `GROUP_BATTLE_DEFAULT_GAME_TYPES` — bevroren array
   `['flags_mc', 'real_or_fake_flag', 'higher_lower', 'odd_one_out']`, 3 tests, en wordt
   al daadwerkelijk gebruikt door `client/flow/host-setup-state.mjs` (game-flow-plan).

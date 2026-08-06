@@ -4,13 +4,13 @@ Deze map realiseert [`docs/multiplayer/DATA-MODEL.md`](../../docs/multiplayer/DA
 volgens het uitvoeringsplan in
 [`docs/data-model-plan/README.md`](../../docs/data-model-plan/README.md).
 
-## Locatie: voorlopig
+## Locatie
 
-Deze plek staat naast `server/rules/` (game-rules-plan), `server/architecture/`
-(architecture-plan) en `server/protocol/` (protocol-plan) en is **niet
-definitief**. Ze kan verschuiven zodra architecture-plan's serverskeleton-
-voorstel landt en een bindende mapindeling oplevert (`architecture`-checkpoint,
-zie `docs/data-model-plan/README.md` §6 checkpoint 1).
+Deze map staat waar hij staat. De eerdere kanttekening dat hij "kan verschuiven
+zodra het serverskeleton landt" is ingetrokken (6 aug 2026): dat skeleton draait
+allang, en geen van deze mappen is verhuisd. De indeling is daarmee stilzwijgend
+definitief geworden — nu ook hardop.
+
 
 ## Moduleformaat
 
@@ -64,7 +64,7 @@ Legenda: ✅ gebouwd en getest.
 | `answer-flow.js` | DM7, becommentarieerd door DM13/DM15 | ✅ | zie `docs/data-model-plan/DM-PROGRESS.md` |
 | `types/player.js`'s `toStandingPlayerView()` | DM9 | ✅ | zie `docs/data-model-plan/DM-PROGRESS.md` |
 
-**Totaal: 509 tests groen** (`node --test 'server/data/**/*.test.js'`) na
+**Totaal: de suite groen** (`node --test 'server/data/**/*.test.js'`) na
 DM0–DM19. Analytics (DM8) levert bewust geen `server/`-code — dat blijft een
 voorstel onder `docs/data-model-plan/proposals/`, niet als runtimecode
 (`REVIEW-DM2-DM9.md` bevinding 11).

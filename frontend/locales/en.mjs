@@ -224,6 +224,9 @@ export const en = Object.freeze({
   'podium.shareGeneric': 'We just played Rounda!',
   'podium.close': 'Close',
   'podium.passportSummary': "You've now seen {seen} of {total} countries.",
+  'podium.passportMapAlt': 'You have visited {seen} countries.',
+  'podium.passportMapShow': 'See your map',
+  'podium.passportMapHide': 'Hide the map',
   'podium.passportNewFlagAlt': '{country} — new!',
 
   'error.GAME_NOT_FOUND': 'That code is not right. Want to check it?',

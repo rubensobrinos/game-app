@@ -8,9 +8,8 @@ fase DT3.
 
 - **DT3a — matrix (klaar):**
   [`integration-matrix.md`](../../docs/deployment-and-testing-plan/integration-matrix.md)
-  legt 14 scenario's vast, elk met prerequisite en activatiecriterium. Nog geen
-  code.
-- **DT3b — code (0/14 rijen geactiveerd):** zie
+  legt 14 scenario's vast, elk met prerequisite en activatiecriterium.
+- **DT3b — code (12 van de 14 rijen geactiveerd, stand 6 aug 2026):** zie
   [`prompts/DT3b-integratie-code.md`](../../docs/deployment-and-testing-plan/prompts/DT3b-integratie-code.md).
   Een rij wordt hier pas een bestand als haar activatiecriterium aantoonbaar is
   gehaald — **geen** `test.skip`, direct een actieve test die tegen de echte
@@ -18,8 +17,11 @@ fase DT3.
   [`REVIEW-DT3B-DT7.md`](../../docs/deployment-and-testing-plan/prompts/REVIEW-DT3B-DT7.md)
   #7).
 
-**Waarom deze map nu leeg is:** elke rij vereist een implementatie die de bestaande
-pure modules (`server/rules`, `server/architecture`, `server/data`,
-`server/protocol`) daadwerkelijk samenvoegt. Die bestaat nog niet. Zie
-[`server-composition-request.md`](../../docs/deployment-and-testing-plan/server-composition-request.md)
-voor het verzoek aan architecture-plan om dat te ontgrendelen.
+**Deze map is niet meer leeg** (gecorrigeerd 6 aug 2026). Er staan zestien
+testbestanden en ze draaien mee in elke `npm test`: twaalf matrixrijen plus
+`full-match`, `full-match-transport`, `games-vertical` en `metrics`.
+
+De blokkade die hier beschreven stond — "elke rij vereist een implementatie die
+de pure modules samenvoegt, die bestaat nog niet" — is opgeheven toen
+`server/composition/` er kwam. Deze tekst bleef staan omdat niemand terugkwam
+op een README nadat de reden om te wachten verdween.

@@ -1,7 +1,7 @@
 # Voortgang — CT (gedeelde contentmodule)
 
 Bijgewerkt: 2 augustus 2026. Mandaat: [`prompts/CT1-shared-content-module.md`](prompts/CT1-shared-content-module.md).
-Leidend contract: [`../game-rules-plan/CONTENT-POOL-INTERFACE.md`](../game-rules-plan/CONTENT-POOL-INTERFACE.md).
+Leidend contract: [`../game-rules-plan/CONTENT-POOL-INTERFACE.md`](../../../game-rules-plan/CONTENT-POOL-INTERFACE.md).
 
 | Onderdeel | Status | Toelichting |
 | --- | --- | --- |

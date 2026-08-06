@@ -389,12 +389,24 @@ body:has(.home-screen) .app-footer { display: block; }
   background: var(--rounda-row);
   border: 1px solid var(--rounda-row-border);
 }
+/* Twee regels in plaats van afkappen (6 aug 2026). Sinds de spelersidentiteit
+   is de langste combinatie "Nieuw-Zeelandse Schildpad" — 25 tekens, 218px waar
+   er 185px is zolang "Typ zelf" in dezelfde rij staat. Eén regel betekende dan
+   "Nieuw-Zeelandse Schild…", en je eigen naam half zien is het slechtste van
+   twee werelden.
+
+   Hoogstens twee regels, en op de tweede alsnog een beletselteken: zo groeit
+   de rij één regel mee als het nodig is en nooit verder. Zodra je op "Ik ben
+   klaar" tikt verdwijnt de knop en past alles op één regel. */
 .lobby-self-name {
   flex: 1;
   min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   font: 700 17px/1.2 var(--font-display);
   letter-spacing: -0.02em;
 }

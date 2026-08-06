@@ -4,12 +4,13 @@ Deze map realiseert [`docs/multiplayer/GAME-RULES.md`](../../docs/multiplayer/GA
 volgens het uitvoeringsplan in
 [`docs/game-rules-plan/README.md`](../../docs/game-rules-plan/README.md).
 
-## Locatie: voorlopig
+## Locatie
 
-Deze plek staat naast `server/protocol/` (protocol-plan) en
-`server/architecture/` (architecture-plan) en is **niet definitief**. Ze kan
-verschuiven zodra architecture-plan's AR5/AR6-voorstel voor een serverskeleton
-landt en een bindende mapindeling oplevert (`architecture`-checkpoint).
+Deze map staat waar hij staat. De eerdere kanttekening dat hij "kan verschuiven
+zodra het serverskeleton landt" is ingetrokken (6 aug 2026): dat skeleton draait
+allang, en geen van deze mappen is verhuisd. De indeling is daarmee stilzwijgend
+definitief geworden — nu ook hardop.
+
 
 ## Moduleformaat
 
@@ -39,7 +40,7 @@ Legenda: ✅ klaar en geverifieerd — 📝 spec klaar, nog niet gebouwd —
 | answer-distribution | `answer-distribution.js` | ✅ Klaar | GR8 | 12/12 |
 | ~~teams-scoring~~ | — | **Gesloten** — producteigenaar: "Teams worden nu niet gebouwd" | GR6 | — |
 
-**Totaal nu:** 157/157 tests groen (`node --test 'server/rules/**/*.test.js'`).
+**Testen:** `node --test 'server/rules/**/*.test.js'`. Bewust geen aantal hier — dat is verouderd zodra iemand een test toevoegt.
 Alle geplande GR-fases voor `GAME-RULES.md` zijn hiermee afgerond (GR6
 gesloten, GR7 ingehaald door `HANDOFF.md`).
 

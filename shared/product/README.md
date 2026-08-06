@@ -5,15 +5,13 @@ volgens het uitvoeringsplan in
 [`docs/product-plan/README.md`](../../docs/product-plan/README.md) en de voortgang in
 [`docs/product-plan/PD-PROGRESS.md`](../../docs/product-plan/PD-PROGRESS.md).
 
-## Locatie: voorlopig
+## Locatie
 
-Deze plek staat naast `server/rules/` (game-rules-plan), `server/architecture/`
-(architecture-plan), `server/protocol/` (protocol-plan) en `client/flow/`
-(game-flow-plan), en is **niet definitief** — net als bij die mappen kan ze
-verschuiven zodra architecture-plan een bindende serverskeleton-structuur oplevert.
-Locatie en moduleformaat zijn bevestigd via het gesprek met de gebruiker, niet via
-een ADR (zie
-[`docs/product-plan/prompts/PD0-scope-check.md`](../../docs/product-plan/prompts/PD0-scope-check.md)).
+Deze map staat waar hij staat. De eerdere kanttekening dat hij "kan verschuiven
+zodra het serverskeleton landt" is ingetrokken (6 aug 2026): dat skeleton draait
+allang, en geen van deze mappen is verhuisd. De indeling is daarmee stilzwijgend
+definitief geworden — nu ook hardop.
+
 
 ## Moduleformaat
 
@@ -55,4 +53,4 @@ node --test shared/product/hard-rules.test.mjs \
   shared/product/acceptance-criteria.test.mjs
 ```
 
-35/35 tests groen (laatst geverifieerd bij afronding van PD6).
+de suite groen (laatst geverifieerd bij afronding van PD6).

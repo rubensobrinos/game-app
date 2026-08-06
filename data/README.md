@@ -86,6 +86,14 @@ Same schema as `logos.js`. `slug` maps to the club badge image. `name_en/nl/es` 
 
 ### `geo-countries.js` — `GEO_COUNTRIES` (array)
 
+> **Let op — dit bestand heeft sinds 6 aug 2026 een tweede afnemer.**
+> `shared/content/build-shapes.mjs` leest het rechtstreeks in om
+> `shared/content/shapes.data.mjs` en `shapes-index.mjs` te genereren: de
+> contouren voor de multiplayer-game "Raad het land". Wijzig je hier een land,
+> draai dan `node shared/content/build-shapes.mjs` opnieuw — anders wijkt de
+> multiplayer-app stil af van deze bron. Zie
+> [`docs/openstaand/raad-het-land.md`](../docs/openstaand/raad-het-land.md).
+
 ```js
 { name: 'Afghanistan', aliases: [], region: 'Asia', lat: 35.2292, lon: 68.0918,
   shape: '<path d="M97.6 16.0 L95.8 16.9 ..." />' }

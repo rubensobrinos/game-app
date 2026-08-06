@@ -99,5 +99,8 @@ export function passportSummaryForPodium(storage) {
     totalSeen: Object.keys(passport).length,
     seenThisMatch: [...seenThisMatch],
     newThisMatch: seenThisMatch.filter((iso2) => !passportBeforeMatch.has(iso2)),
+    // Punt 1.16: de kaart toont álles wat je ooit zag, niet alleen vanavond —
+    // dat is wat een paspoort tot een paspoort maakt.
+    allSeen: Object.keys(passport),
   };
 }

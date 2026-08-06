@@ -4,12 +4,13 @@ Deze map realiseert [`docs/multiplayer/PROTOCOL.md`](../../docs/multiplayer/PROT
 volgens het uitvoeringsplan in
 [`docs/protocol-plan/README.md`](../../docs/protocol-plan/README.md).
 
-## Locatie: voorlopig
+## Locatie
 
-Deze plek staat naast `server/rules/` (game-rules-plan) en
-`server/architecture/` (architecture-plan) en is **niet definitief**. Ze kan
-verschuiven zodra architecture-plan's AR5/AR6-voorstel voor een serverskeleton
-landt en een bindende mapindeling oplevert (`architecture`-checkpoint).
+Deze map staat waar hij staat. De eerdere kanttekening dat hij "kan verschuiven
+zodra het serverskeleton landt" is ingetrokken (6 aug 2026): dat skeleton draait
+allang, en geen van deze mappen is verhuisd. De indeling is daarmee stilzwijgend
+definitief geworden — nu ook hardop.
+
 
 ## Moduleformaat
 
@@ -34,11 +35,12 @@ tabel koppelt die groepen aan de daadwerkelijke bestanden in deze map (bijgewerk
 | `auth-shape` | `auth-shape.mjs` | PR3 | vormcheck Bearer-header + socket-handshake-payload |
 | `rest-games` | `rest-games-create-join.mjs`, `rest-games-session.mjs` | PR3 | schema's/validatie voor de 5 REST-endpoints |
 | `input-safety` | `input-safety.mjs` | PR3 | naamnormalisatie/-validatie (NFKC, max 20 tekens) |
-| `client-events` | `client-events-game-lifecycle-a.mjs`, `client-events-game-lifecycle-b.mjs`, `client-events-dispatch.mjs`, `client-events-round-answer-variants.mjs` | PR4a–d | schema + rolvalidatie voor de 12 client→server events, `resolveEventValidator`/`UNSUPPORTED_EVENT`, 5 `round:answer`-varianten |
-| `server-events` | `server-events-room-lifecycle.mjs`, `server-events-round-lifecycle.mjs`, `server-events-scoring.mjs`, `server-events-session-and-error.mjs`, `server-events-recipients.mjs`, `throttle-round-progress.mjs` | PR5a–e | schema + ontvangersregel voor de 16 server→client events, throttle voor `round:progress` |
+| `client-events` | `client-events-game-lifecycle-a.mjs`, `client-events-game-lifecycle-b.mjs`, `client-events-dispatch.mjs`, `client-events-round-answer-variants.mjs` | PR4a–d | schema + rolvalidatie voor de client→server events (17 op 6 aug 2026; `ALL_CLIENT_EVENT_NAMES` is de bron, dit getal niet), `resolveEventValidator`/`UNSUPPORTED_EVENT`, 5 `round:answer`-varianten |
+| `server-events` | `server-events-room-lifecycle.mjs`, `server-events-round-lifecycle.mjs`, `server-events-scoring.mjs`, `server-events-session-and-error.mjs`, `server-events-recipients.mjs`, `throttle-round-progress.mjs` | PR5a–e | schema + ontvangersregel voor de server→client events (17 op 6 aug 2026; `ALL_SERVER_EVENT_NAMES` is de bron), throttle voor `round:progress` |
 | `snapshot` | `snapshot-shape.mjs` | PR5d | vorm van de state-snapshot + invariant "geen correct antwoord van actieve ronde" |
 | `reconnect` | `reconnect.mjs` | PR6 | backoff-reeks, snapshot-leidend-koppeling, niet-herverzenden van geaccepteerde antwoorden |
-| `auth-session` | — (nog geen bestand) | PR8a/PR8b | PR8a leverde alleen een schriftelijk voorstel (`docs/protocol-plan/PR8a-auth-session-voorstel.md`); PR8b-code wacht op menselijk akkoord (`auth`, ADR-plichtig) |
+| `auth-session` | `auth-session.mjs`, `auth-session.test.mjs` | PR8a/PR8b | **Bestaat en draait** — `hashToken` wordt o.a. gebruikt door `server/transport/socket/handshake.mjs`. De eerdere regel hier ("nog geen bestand, wacht op akkoord") was achterhaald; gecorrigeerd 6 aug 2026 |
+| `preview-endpoint` | `preview-endpoint.mjs`, `preview-endpoint.test.mjs` | — | de invite-preview vóór het joinen |
 | `contract-tests` | leeft in [`tests/contract/protocol/`](../../tests/contract/protocol/) — `fake-transport.mjs`, `envelope-idempotency-scenario.mjs`, `rest-scenario.mjs`, `event-and-snapshot-scenario.mjs`, `reconnect-scenario.mjs` | PR7a–e | fake-Fastify/fake-Socket.IO-harnas + scenario's die bovenstaande modules end-to-end toetsen |
 
 Elk bestand hierboven heeft een gelijknamig `*.test.mjs` ernaast, plus

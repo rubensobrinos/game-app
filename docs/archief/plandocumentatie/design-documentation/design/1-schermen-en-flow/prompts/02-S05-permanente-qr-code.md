@@ -20,7 +20,7 @@ niets voor `.room-header`/`.room-qr-*` in `base.css`) en **het inhangen**.
 
 Dit is dus geen nieuw scherm bouwen — het is een bestaande module aansluiten
 en stylen. Deze prompt lost daarmee ook
-[`UI-10`](../../../../frontend-plan/HANDOFF-UI.md) op ("`room-header.mjs` is
+[`UI-10`](../../../../../../frontend-plan/HANDOFF-UI.md) op ("`room-header.mjs` is
 dode code — `D-018` daardoor nog niet zichtbaar") — vink dat item af in
 `HANDOFF-UI.md` zodra het inhangen klaar is.
 

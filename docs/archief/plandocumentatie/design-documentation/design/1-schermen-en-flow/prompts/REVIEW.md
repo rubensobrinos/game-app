@@ -71,7 +71,7 @@ statuswissel naar `Potje maken…` toe te voegen.
 Dat klopte op het moment van schrijven, maar niet meer. Thema 4 (`2f313c1`)
 heeft dit al gebouwd:
 
-- [`home.mjs:113`](../../../../../frontend/js/views/home.mjs#L113) rendert
+- [`home.mjs:113`](../../../../../../../frontend/js/views/home.mjs#L113) rendert
   `quickStartStatus.textContent = state.status === 'creating' ? t('home.creating') : ''`
 - `frontend/locales/nl.mjs` bevat `'home.creating': 'Potje maken…'` — exact de
   gevraagde tekst.
@@ -101,7 +101,7 @@ Dit is de inhoudelijk belangrijkste bevinding.
 Definition of done: "een zichtbare, server-gesynchroniseerde aftelling
 **gedurende `COUNTDOWN_MS`**". Maar:
 
-- [`transport-mock.mjs:48`](../../../../../frontend/js/transport-mock.mjs#L48):
+- [`transport-mock.mjs:48`](../../../../../../../frontend/js/transport-mock.mjs#L48):
   `const COUNTDOWN_MS = 1200;`
 - Het brondocument (`03` §6) noemt een richtduur van **2,5–3,0 s**.
 
@@ -188,7 +188,7 @@ letten.
 
 ### Prompt 02 — linkt niet naar `HANDOFF` UI-10
 
-`UI-10` in [`HANDOFF-UI.md`](../../../../frontend-plan/HANDOFF-UI.md) beschrijft
+`UI-10` in [`HANDOFF-UI.md`](../../../../../../frontend-plan/HANDOFF-UI.md) beschrijft
 exact hetzelfde probleem als prompt 02 (dode `room-header.mjs`, `D-018` daardoor
 niet zichtbaar) en is aan thema 1 geadresseerd. Prompt 02 noemt het niet.
 Volgens `docs/handoff-principles.md` is de traceerbaarheid tussen die twee juist

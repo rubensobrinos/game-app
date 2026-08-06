@@ -35,8 +35,24 @@ test('de vijf handmatige aliassen zijn daadwerkelijk gekoppeld', () => {
   }
 });
 
-test('shapes-index.mjs is de lichte tegenhanger: exact dezelfde iso2-set, geen paddata', () => {
-  assert.deepEqual([...SHAPE_ISO2S].sort(), SHAPE_ENTRIES.map((e) => e.iso2).sort());
+// De twee lijsten zijn sinds 6 aug 2026 bewust NIET meer gelijk. shapes.data
+// zegt wie er getekend kan worden; shapes-index zegt wie de VRAAG mag zijn.
+// Een land waarvan we de echte verhouding niet kennen, staat vervormd in beeld
+// — dat als vraag stellen is oneerlijk, want je kunt een vorm niet herkennen
+// die niet klopt. Als afleider mag het wel: daar zie je alleen de naam.
+test('shapes-index.mjs is de vraaglijst: alle tekenbare landen behalve de uitgerekte', () => {
+  const tekenbaar = SHAPE_ENTRIES.map((e) => e.iso2).sort();
+  const uitgerekt = SHAPE_ENTRIES.filter((e) => e.stretched === true).map((e) => e.iso2).sort();
+  const magVraagZijn = [...SHAPE_ISO2S].sort();
+
+  assert.deepEqual(
+    magVraagZijn,
+    tekenbaar.filter((iso2) => !uitgerekt.includes(iso2)),
+    'de vraaglijst is de tekenlijst min de uitgerekte landen',
+  );
+  for (const iso2 of uitgerekt) {
+    assert.ok(!magVraagZijn.includes(iso2), `${iso2} is uitgerekt en mag dus geen vraag zijn`);
+  }
   for (const iso2 of SHAPE_ISO2S) {
     assert.equal(typeof iso2, 'string');
   }

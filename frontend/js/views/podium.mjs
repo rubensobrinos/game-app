@@ -12,6 +12,7 @@ import { createRoundaView } from './rounda.mjs';
 import { identityText, identityFlagUrl } from './identity-display.mjs';
 import { countryName, flagAssetPath } from './country-names.mjs';
 import { passportSummaryForPodium } from '../session/passport-tracker.mjs';
+import { renderPassportMap } from './passport-map.mjs';
 import { getCountryPool } from '../../../shared/content/index.mjs';
 
 // S20 (04): "korte, overslaanbare 3→2→1-opbouw". Geen motion-tokens (thema 3
@@ -65,11 +66,37 @@ export function createPodiumView({ root, t, isHost, capabilities, storage, onRem
   const passportSection = document.createElement('div');
   passportSection.className = 'podium-passport';
   passportSection.hidden = true;
-  const passportSummary = document.createElement('p');
+  // De samenvattingsregel ÍS de knop naar de kaart (6 aug 2026). Een eigen
+  // regel eronder kostte 42px, en het podium hield er maar 21 over — dan duwt
+  // de kaart de winnaar van het scherm, precies wat besluit 53 verbiedt. Zo
+  // kost het niets: dezelfde regel, nu aantikbaar.
+  const passportSummary = document.createElement('button');
+  passportSummary.type = 'button';
   passportSummary.className = 'podium-passport-summary';
+  passportSummary.setAttribute('aria-expanded', 'false');
   const passportFlags = document.createElement('ul');
   passportFlags.className = 'podium-passport-flags';
-  passportSection.append(passportSummary, passportFlags);
+  // Punt 1.16: de kaart. Elk gezien land een stip op zijn echte lengte- en
+  // breedtegraad — geen ingekleurde wereldkaart, want de geografische omvang
+  // per land staat niet in onze data. Zie passport-map.mjs voor die afweging.
+  // Onder de vlaggen, want de vlaggen van vanavond zijn wat je herkent; de
+  // kaart is het overzicht dat langzaam voller wordt.
+  const passportMap = document.createElement('canvas');
+  passportMap.className = 'podium-passport-map';
+  passportMap.setAttribute('role', 'img');
+  passportMap.hidden = true;
+  // De kaart staat achter een regel, en dat is geen luiheid maar rekenwerk:
+  // het podium houdt 21px over en de kaart is er 160. Openklappen duwt de
+  // winnaar van het scherm, en besluit 53 zegt letterlijk dat het paspoort het
+  // podium niet mag overnemen. Dus: dicht by default, en wie hem wil ziet hem.
+  passportMap.id = 'podium-passport-map';
+  passportSummary.setAttribute('aria-controls', 'podium-passport-map');
+  passportSummary.addEventListener('click', () => {
+    const open = passportSummary.getAttribute('aria-expanded') === 'true';
+    passportSummary.setAttribute('aria-expanded', String(!open));
+    passportMap.hidden = open;
+  });
+  passportSection.append(passportSummary, passportFlags, passportMap);
 
   const action = document.createElement('div');
   action.className = 'podium-action';
@@ -303,7 +330,7 @@ export function createPodiumView({ root, t, isHost, capabilities, storage, onRem
       passportSection.hidden = true;
       return;
     }
-    const { totalSeen, seenThisMatch, newThisMatch } = passportSummaryForPodium(storage);
+    const { totalSeen, seenThisMatch, newThisMatch, allSeen } = passportSummaryForPodium(storage);
     if (seenThisMatch.length === 0) {
       // Geen enkel land deze partij (bv. alleen nepvlaggen in Echt of nep) —
       // dan is er niets om "vanavond" te tonen. `totalSeen` zelf kan intussen
@@ -336,7 +363,48 @@ export function createPodiumView({ root, t, isHost, capabilities, storage, onRem
       item.appendChild(img);
       passportFlags.appendChild(item);
     }
+
+    // De kaart toont ALLE landen die je ooit zag, niet alleen die van vanavond
+    // — dat is het punt van een paspoort. De landen van vanavond lichten op.
+    tekenKaart(passportMap, allSeen ?? seenThisMatch, nieuw, t, totalSeen, passportSummary);
   }
 
   return { update };
+}
+
+/**
+ * Tekent de paspoortkaart. Dynamische import van de contourdata is hier NIET
+ * nodig: `shapes-index.mjs` draagt geen centroïdes, maar `shapes.data.mjs` wel
+ * — en die 234 KB willen we op het podium niet ophalen. Daarom komen de
+ * coördinaten uit de landenpool, die toch al geladen is.
+ *
+ * @param {HTMLCanvasElement} canvas
+ * @param {string[]} gezien iso2-codes die ooit langskwamen
+ * @param {Set<string>} nieuw iso2-codes van vanavond
+ */
+async function tekenKaart(canvas, gezien, nieuw, t, totalSeen, toggle) {
+  try {
+    // `shapes-index.mjs` is acht kilobyte en draagt alleen codes en
+    // centroïdes. `shapes.data.mjs` (234 KB paddata) blijft hier bewust buiten.
+    const { SHAPE_CENTERS } = await import('../../../shared/content/shapes-index.mjs');
+    const punten = [];
+    for (const iso2 of gezien) {
+      const center = SHAPE_CENTERS[iso2];
+      if (!Array.isArray(center)) continue;
+      punten.push({ center, nieuw: nieuw.has(iso2) });
+    }
+    if (punten.length === 0) {
+      toggle.disabled = true;
+      return;
+    }
+    toggle.disabled = false;
+    canvas.setAttribute('aria-label', t('podium.passportMapAlt').replace('{seen}', String(totalSeen)));
+    // Tekenen mag meteen: een verborgen canvas kost geen ruimte, en zo staat
+    // hij er zodra iemand openklapt in plaats van een tel later.
+    renderPassportMap(canvas, punten);
+  } catch {
+    // Een kaart die niet tekent mag het podium nooit tegenhouden.
+    toggle.disabled = true;
+    canvas.hidden = true;
+  }
 }

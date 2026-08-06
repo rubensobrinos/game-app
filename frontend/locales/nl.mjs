@@ -285,6 +285,9 @@ export const nl = Object.freeze({
   // Besluit 53 (paspoort): na de eindstand, ondergeschikt aan het podium.
   // Landnaam als alt-tekst is hier geen antwoordlek meer — de ronde is voorbij.
   'podium.passportSummary': 'Je hebt er nu {seen} van de {total} landen gezien.',
+  'podium.passportMapAlt': 'Je bent in {seen} landen geweest.',
+  'podium.passportMapShow': 'Bekijk je landenkaart',
+  'podium.passportMapHide': 'Verberg de kaart',
   'podium.passportNewFlagAlt': '{country} — nieuw!',
 
   // — Foutmeldingen: sleutel = `edge-case-messaging.messageForErrorCode()`'s

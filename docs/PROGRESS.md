@@ -2,9 +2,9 @@
 
 **Snapshot:** 2026-08-02, ±13:15 (bijgewerkt na `docs/multiplayer/DECISIONS.md`).
 Dit is een momentopname in een repo waar meerdere agents gelijktijdig live werken
-(zie [`docs/STATUS-AUDIT-2026-08-02.md`](STATUS-AUDIT-2026-08-02.md) voor de
+(zie [`docs/STATUS-AUDIT-2026-08-02.md`](archief/STATUS-AUDIT-2026-08-02.md) voor de
 narratieve doorlichting van ±12:00 die tot de besluitronde leidde). Prefixcodes
-staan in [`docs/IMPLEMENTATION-INDEX.md`](IMPLEMENTATION-INDEX.md).
+staan in [`docs/IMPLEMENTATION-INDEX.md`](archief/IMPLEMENTATION-INDEX.md).
 
 Legenda: ✅ klaar en getest — 🟡 deels/in uitvoering — 📝 spec klaar, nog niet
 gebouwd — ⬜ nog niet gestart — 🔒 bevestigd uitgesteld (productbesluit, geen
@@ -41,8 +41,8 @@ met eigen `HANDOFF`-documenten die concrete vragen stellen aan DM/AR (zie
 | [PROTOCOL.md](multiplayer/PROTOCOL.md) | PR | PR0–PR8b ✅ | 464/464 (426+38) | PR8b (token generatie/hashing) is nu gebouwd — spec-redactie moet PROTOCOL.md nog met DECISIONS.md in lijn brengen | ✅ volledig |
 | [DATA-MODEL.md](multiplayer/DATA-MODEL.md) | DM | DM0–DM9 ✅ | 456/456 | INTB-1/INTB-3: repository-poort mist `roomId` op 3 methoden, scoreboard-fake keyt inconsistent — keuze bij DM-agent | ✅ volledig |
 | [DEPLOYMENT-AND-TESTING.md](multiplayer/DEPLOYMENT-AND-TESTING.md) | DT | DT0–DT2, DT3a ✅ · DT3b–DT6 🟡 (DT-R-prompts geschreven na uitvoeringsakkoord) | 7/7 (fixtures; integratie/E2E/load wacht op server) | CI nog steeds kapot; DT7 heeft 3 opties, nu ingehaald door het bredere `deps`-akkoord | ✅ volledig |
-| [content-plan](content-plan/) | CT | ⬜ CT1 geschreven, niet gebouwd | — | Launch-kritiek: GR4 en de servercomposition hebben dit nodig | ✅ (prompt) |
-| [spec-redactie](spec-redactie/) | SR | ⬜ SR1 geschreven, niet gebouwd | — | Moet PRODUCT.md/GAME-FLOW.md/GAME-RULES.md/DATA-MODEL.md bijwerken (mix→single, 4-vs-5-preset, …) | ✅ (prompt) |
+| [content-plan](archief/plandocumentatie/content-plan/) | CT | ⬜ CT1 geschreven, niet gebouwd | — | Launch-kritiek: GR4 en de servercomposition hebben dit nodig | ✅ (prompt) |
+| [spec-redactie](archief/plandocumentatie/spec-redactie/) | SR | ⬜ SR1 geschreven, niet gebouwd | — | Moet PRODUCT.md/GAME-FLOW.md/GAME-RULES.md/DATA-MODEL.md bijwerken (mix→single, 4-vs-5-preset, …) | ✅ (prompt) |
 | [integration-plan](integration-plan/) | INT-A/B | 🟡 actief, walking skeleton + repository-conformance in uitvoering | — (buiten deze telling) | INTB-1/2/3: drie open vragen aan DM/AR over repository-poort en atomaire code-claim | 🟡 actief zelf-committend, deels nog niet gecommit |
 
 **Repo-breed: 1.803/1.803 tests groen** op het moment van dit overzicht

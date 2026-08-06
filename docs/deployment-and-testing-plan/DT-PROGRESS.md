@@ -78,7 +78,7 @@ server (`server/index.mjs`, niet meer de placeholder).
   tegen de echte, samengevoegde configuratie), en het devkitprofiel `node-esm-app`
   (opgelost via DT-R3 optie A, zie CI-rij hierboven).
 - Nog niet aanwezig: Playwright, k6 — **herbevestigd 2026-08-02 (avond) door
-  DT-R4**, zie [`e2e-load-target-check.md`](../e2e-load-target-check.md) §Triggercondities.
+  DT-R4**, zie [`e2e-load-target-check.md`](e2e-load-target-check.md) §Triggercondities.
   `server/index.mjs` is niet meer de placeholder (echte Fastify-server, REST-laag,
   statische serving — zie DT6-rapportage hierboven), maar er is nog geen
   gerenderde `frontend/`-UI en geen socketlaag; geen van beide targets bestaat dus

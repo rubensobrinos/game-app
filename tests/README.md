@@ -11,7 +11,7 @@ eigenaar-module hebben.
 | Map | Laag | Status |
 | --- | --- | --- |
 | [`contract/`](contract/) | Contracttests | Bij mij vervallen (DT1b) — protocol-plan bouwt dit zelf, zie `contract/protocol/` |
-| [`integration/`](integration/) | Integratietests | Matrix klaar (DT3a), 0/14 code (DT3b) |
+| [`integration/`](integration/) | Integratietests over echt HTTP en echte websockets | 16 bestanden, 12 van de 14 matrixrijen actief (6 aug 2026) |
 | [`e2e/`](e2e/) | Browser-E2E | Pseudocode klaar (DT4a), nog geen code |
 | [`load/`](load/) | Loadtests | Evidence-tabel klaar (DT5), nog geen script |
 | [`chaos/`](chaos/) | Restart-/chaostests | Runbook klaar (DT6), nog geen uitvoering |

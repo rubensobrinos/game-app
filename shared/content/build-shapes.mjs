@@ -365,10 +365,27 @@ export const SHAPE_ENTRIES = ${JSON.stringify(shapeEntries, null, 1)};
 
 const indexBody = `${sharedHeader}//
 // Alleen de iso2-codes — GEEN paddata. Dit is wat de server nodig heeft om te
-// weten welk land een contour heeft (server/rules/question-selection.js'
+// weten welk land een VRAAG mag zijn (server/rules/question-selection.js'
 // \`hasShape\`-parameter voor gameType 'country_shape_mc'); de padstrings
 // zelf horen bij shapes.data.mjs, dat alleen de client dynamisch laadt.
-export const SHAPE_ISO2S = Object.freeze(${JSON.stringify(shapeEntries.map((e) => e.iso2))});
+//
+// UITGEREKTE LANDEN STAAN HIER NIET IN (6 aug 2026). Van ${stretchedNames.length} landen kent
+// geen enkele bron de echte verhouding, dus hun contour is vervormd. Ze als
+// vraag stellen zou oneerlijk zijn: je kunt een vorm niet herkennen die niet
+// klopt. Als AFLEIDER mogen ze wel — daar zie je alleen de naam. Het verschil
+// zit dus tussen deze lijst (wie mag de vraag zijn) en shapes.data.mjs (wie
+// kan getekend worden).
+export const SHAPE_ISO2S = Object.freeze(${JSON.stringify(shapeEntries.filter((e) => e.stretched !== true).map((e) => e.iso2))});
+
+// De centroïde per land: [lengtegraad, breedtegraad], uit dezelfde brondata.
+// Staat hier en niet in shapes.data.mjs omdat de paspoortkaart (besluit 53)
+// alleen PLEKKEN nodig heeft, geen vormen — en die 234 KB paddata mag het
+// podium nooit ophalen. Ruim vijf kilobyte in plaats van tweehonderd.
+//
+// Let op: dit zijn ALLE gekoppelde landen, ook de uitgerekte. Een stip op de
+// kaart beweert niets over vorm of grootte, dus daar is een onbekende
+// verhouding geen bezwaar — anders dan bij SHAPE_ISO2S hierboven.
+export const SHAPE_CENTERS = Object.freeze(${JSON.stringify(Object.fromEntries(shapeEntries.filter((e) => Array.isArray(e.center)).map((e) => [e.iso2, e.center])))});
 `;
 
 await writeFile(SHAPES_OUT, shapesBody, 'utf8');

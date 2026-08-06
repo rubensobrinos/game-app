@@ -6,19 +6,19 @@ volgens het uitvoeringsplan in
 [`docs/architecture-plan/AR-PROGRESS.md`](../../docs/architecture-plan/AR-PROGRESS.md)
 voor de actuele voortgang per fase en per sectie van `ARCHITECTURE.md`.
 
-## Locatie: voorlopig
+## Locatie
 
-Deze plek staat naast `server/rules/` (game-rules-plan) en `server/protocol/`
-(protocol-plan) en is **niet definitief**. Ze kan verschuiven zodra dit eigen
-AR5/AR6-voorstel voor een serverskeleton landt en een bindende mapindeling
-oplevert (`architecture`-checkpoint, always_ask — zie
-[`docs/architecture-plan/README.md`](../../docs/architecture-plan/README.md#uitgangspunten)).
+Deze map staat waar hij staat. De eerdere kanttekening dat hij "kan verschuiven
+zodra het serverskeleton landt" is ingetrokken (6 aug 2026): dat skeleton draait
+allang, en geen van deze mappen is verhuisd. De indeling is daarmee stilzwijgend
+definitief geworden — nu ook hardop.
+
 
 ## Moduleformaat
 
 - Platte JavaScript, CommonJS (`.js`, `require`/`module.exports`) — anders dan
   `server/protocol/` en `client/flow/`, die `.mjs` gebruiken. Zie de audit
-  (`docs/STATUS-AUDIT-2026-08-02.md`, §2.8): dit is een bekende ESM/CJS-mix in
+  (`docs/archief/STATUS-AUDIT-2026-08-02.md`, §2.8): dit is een bekende ESM/CJS-mix in
   de repo, nog niet opgelost.
 - Typering via JSDoc, geen TypeScript.
 - Testrunner: Node's ingebouwde `node --test`, altijd tegen een expliciet
@@ -34,19 +34,17 @@ oplevert (`architecture`-checkpoint, always_ask — zie
 
 | Module | Fase | Verantwoordelijkheid | Status |
 | --- | --- | --- | --- |
-| `state-machine.js` | AR1 | Faseovergangen `LOBBY → ... → FINISHED`, `PAUSED`-bookkeeping (`transition()`) | ✅ Klaar — 160/160 tests groen |
-| `room-codes.js` | AR2 | Zescijferige join-code (crypto-random, `isTaken`-hook) + `inviteId` (≥96 bits, base64url) + invite-hashindex | ✅ Klaar — 25/25 tests groen |
-| `server-time.js` | AR4 | Midpoint-offsetschatting tussen client- en serverklok uit round-trip-samples (`/api/v1/time`) | ✅ Klaar — 205/205 tests groen |
+| `state-machine.js` | AR1 | Faseovergangen `LOBBY → ... → FINISHED`, `PAUSED`-bookkeeping (`transition()`) | ✅ Klaar |
+| `room-codes.js` | AR2 | Zescijferige join-code (crypto-random, `isTaken`-hook) + `inviteId` (≥96 bits, base64url) + invite-hashindex | ✅ Klaar |
+| `server-time.js` | AR4 | Midpoint-offsetschatting tussen client- en serverklok uit round-trip-samples (`/api/v1/time`) | ✅ Klaar |
 
 Elke module heeft een eigen `*.test.js` ernaast. Totaal:
-**390/390 tests groen** (`node --test server/architecture/*.test.js`, laatst
-geverifieerd 2026-08-02). AR3 telt daar niet meer in mee — zie hieronder.
 
 ### Verhuisd: AR3 staat niet meer in deze map
 
 | Module | Fase | Nieuwe plek | Status |
 | --- | --- | --- | --- |
-| `snapshot-precedence.mjs` | AR3 | [`shared/protocol/snapshot-precedence.mjs`](../../shared/protocol/snapshot-precedence.mjs) | ✅ Klaar — 100/100 tests groen |
+| `snapshot-precedence.mjs` | AR3 | [`shared/protocol/snapshot-precedence.mjs`](../../shared/protocol/snapshot-precedence.mjs) | ✅ Klaar |
 
 **Waaróm hij is verhuisd.** AR3 is de enige AR-module die niet alleen de server
 maar ook de CLIENT nodig heeft: `frontend/js/transport.mjs` dwingt er
@@ -74,8 +72,8 @@ Uit het plan ([`docs/architecture-plan/README.md`](../../docs/architecture-plan/
 | Fase | Omschrijving | Status |
 | --- | --- | --- |
 | AR0 | Scope-check (deze map mag bestaan) | ✅ Klaar |
-| AR5 | Voorstel: server-skeleton (mapindeling + interfaces, geen draaiende code) | ⬜ Niet begonnen |
-| AR6 | Proces-skeleton (echt serverproces) | ⏸️ Geblokkeerd — wacht op akkoord AR5 én op een dependency-akkoord (Fastify/Socket.IO/Redis-client, `deps`, always_ask) |
+| AR5 | Voorstel: server-skeleton (mapindeling + interfaces) | ✅ Ingehaald door de werkelijkheid — zie hieronder |
+| AR6 | Proces-skeleton (echt serverproces) | ✅ Draait — `server/index.mjs`, live op rounda.io |
 | AR7 | Schaalpad (Redis pub/sub-adapter, tweede instance, CDN) | ⏸️ Later — expliciet pas ná een werkende Fase 0/1 |
 
 Daarnaast staat `redis-keyspace` wel in de bouwstenentabel van
@@ -90,3 +88,18 @@ liggen (bijv. `INVALID_PAUSE_STATE` niet in `PROTOCOL.md`'s foutcodelijst,
 host-tempo bij `pacing: "host"`). Zie de tabel "Openstaande besluiten" in
 [`docs/architecture-plan/README.md`](../../docs/architecture-plan/README.md#openstaande-besluiten)
 voor de volledige lijst en wie erover gaat.
+
+## AR5/AR6 — gecorrigeerd op 6 aug 2026
+
+Hierboven stond tot vandaag "AR5: niet begonnen" en "AR6: geblokkeerd, wacht op
+akkoord". Dat was letterlijk te lezen als "er is nog geen draaiende server".
+
+Er draait er allang een: `server/index.mjs` met Fastify, Socket.IO en Redis,
+live op rounda.io, met een testsuite van ruim drieduizend. De
+dependency-akkoorden waar AR6 op wachtte zijn gegeven, en de mapindeling die
+AR5 zou voorstellen is er gewoon gekomen — `composition/`, `transport/`,
+`data/`, `protocol/`, `rules/`, `architecture/`.
+
+Deze regels bleven staan omdat niemand terugkwam op een tabel die "gepland
+werk" beschrijft nadat het werk af was. Gevonden door de documentatie-audit.
+

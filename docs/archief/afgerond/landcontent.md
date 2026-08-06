@@ -2,7 +2,7 @@
 
 Besluit 47 (producteigenaar, 6 aug 2026): **zestig landen, niet 230.**
 
-Stap 3 uit [spelersidentiteit.md](spelersidentiteit.md). Stap 1 en 2 zijn af:
+Stap 3 uit [spelersidentiteit.md](../../openstaand/spelersidentiteit.md). Stap 1 en 2 zijn af:
 `server/data/identity-render.js` bestaat en werkt, maar er is nog geen enkel
 land om te renderen. Dit is dat land-bestand.
 

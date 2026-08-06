@@ -534,3 +534,18 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
     anders betekent dan voor "Raad de vlag". Per gameType verschillende tijden
     is denkbaar, maar dat is een tweede besluit — eerst laten instellen.
 
+    **Aanvulling 6 aug 2026 — de kaart is een stippenkaart, geen ingekleurde
+    wereldkaart.** Voor dat laatste moet je weten hoe GROOT elk land is, en die
+    geografische omvang staat niet in onze data: `shapes.data.mjs` draagt een
+    centroïde en een verhouding, geen extent. Landen op goed geluk schalen zou
+    een verzonnen wereld tonen. Nu krijgt elk gezien land een stip op zijn
+    werkelijke lengte- en breedtegraad: de plek klopt, over de grootte wordt
+    niets beweerd. Bij dertig landen zie je een handvol stippen, bij honderdvijftig
+    verschijnen de continenten.
+
+    De kaart zit achter de samenvattingsregel en staat dicht bij het openen van
+    het podium. Reden: het podium houdt 21px over en de kaart is er 160. Een
+    eigen knopregel kostte al 42px. Openklappen laat de pagina scrollen — dat
+    mag, want dan heeft de speler er zelf om gevraagd. Wat niet mag is de
+    winnaar van het scherm duwen, en dat is precies wat dit besluit verbiedt.
+
