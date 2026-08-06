@@ -19,7 +19,10 @@ herontwerp. Zie je onderweg iets dat beter kan — melden, niet meenemen.
 | [8](8-match-lifecycle.md) | `match-lifecycle.mjs` | 1764 | **als laatste** |
 | [9](9-transport-client.md) | `transport.mjs` | 978 | ja |
 | [10](10-rest-test.md) | `rest.test.mjs` | 1120 | ja |
-| [11](11-lobby.md) | `views/lobby.mjs` | 1090 | ja |
+| [11](11-lobby.md) | `views/lobby.mjs` | 1090 | af |
+| [12](12-match-lifecycle-test.md) | `match-lifecycle.test.mjs` | 2337 | ná 8 |
+| [13](13-socket-test.md) | `socket.test.mjs` | 1158 | ná 6 |
+| [14](14-overrides-platslaan.md) | `1c-overrides.css` platslaan | 1609 | vóór 3 |
 
 Daarna nog, zodra ze vrij zijn: `match-lifecycle.test.mjs` (2337),
 `data-store-conformance.mjs` (2218), `redis/data-store.test.mjs` (1695),
