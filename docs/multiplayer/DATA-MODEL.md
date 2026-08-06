@@ -139,6 +139,7 @@ Een sessie is een tijdelijke autorisatiecontext, geen account.
   "generatedName": "Vlugge Vos",
   "effectiveName": "Vlugge Vos",
   "nameSource": "generated",
+  "identity": { "country": "bg", "word": "cow" },
   "teamId": null,
   "score": 4200,
   "correctCount": 12,
@@ -152,6 +153,17 @@ Een sessie is een tijdelijke autorisatiecontext, geen account.
 ```
 
 `effectiveName` is altijd gevuld. `displayName` kan `null` zijn.
+
+`identity` (docs/openstaand/spelersidentiteit.md, besluit 41): het land+woord-
+paar achter een GEGENEREERDE naam ("Bulgaarse Koe" is `{ country: "bg", word:
+"cow" }` gerenderd in het Nederlands) — nooit gerenderde tekst zelf, elke
+client rendert het paar in zijn eigen apptaal. `null` bij een zelfgekozen naam
+(`nameSource: "chosen"` — de identiteit vervangt alleen de gegenereerde naam,
+nooit een getypte) en bij een speler die is aangemaakt vóórdat dit veld
+bestond (migratie: zo'n Player mist de sleutel zelfs helemaal, wat overal
+hetzelfde telt als `null`). Uniek zijn gaat over dit paar, vóór het renderen
+(`server/data/identity-processing.js`) — nooit over de gerenderde tekst, die
+per client verschilt.
 
 ## Match
 

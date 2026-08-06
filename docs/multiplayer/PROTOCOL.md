@@ -152,11 +152,18 @@ Response:
   "roles": ["host", "player"],
   "playerId": "p_a1b2c3",
   "effectiveName": "Vlugge Vos",
+  "identity": { "country": "bg", "word": "cow" },
   "state": {}
 }
 ```
 
-Wanneer `hostParticipates = false` zijn `playerId` en `effectiveName` `null`.
+Wanneer `hostParticipates = false` zijn `playerId`, `effectiveName` én
+`identity` `null`.
+
+`identity` (docs/openstaand/spelersidentiteit.md): het land+woord-paar achter
+een GEGENEREERDE naam — `null` bij een zelfgekozen `displayName`. Zie
+`DATA-MODEL.md`'s `Player.identity` voor de volledige uitleg; overal waar
+`effectiveName` in dit document staat, reist `identity` voortaan mee.
 
 ### `GET /api/v1/games/preview`
 
@@ -242,6 +249,7 @@ Response:
   "roles": ["player"],
   "playerId": "p_8f42d1",
   "effectiveName": "Ruben",
+  "identity": null,
   "state": {}
 }
 ```
@@ -292,6 +300,7 @@ Minimale structuur:
     "roles": ["player"],
     "playerId": "p_8f42d1",
     "effectiveName": "Ruben",
+    "identity": null,
     "score": 600,
     "position": 7,
     "answeredCurrentRound": false,
@@ -299,8 +308,8 @@ Minimale structuur:
   },
   "currentRound": {},
   "participants": [
-    { "playerId": "p_8f42d1", "effectiveName": "Ruben", "roles": ["host", "player"] },
-    { "playerId": "p_a1b2c3", "effectiveName": "Vlugge Vos", "roles": ["player"] }
+    { "playerId": "p_8f42d1", "effectiveName": "Ruben", "identity": null, "roles": ["host", "player"] },
+    { "playerId": "p_a1b2c3", "effectiveName": "Vlugge Vos", "identity": { "country": "bg", "word": "cow" }, "roles": ["player"] }
   ],
   "participantsTruncated": false,
   "scoreboard": {
@@ -312,8 +321,8 @@ Minimale structuur:
 
 ### `scoreboard` — rang bij een gelijke stand
 
-`scoreboard.top[]` draagt per rij `{ playerId, effectiveName, score, rank }` en
-`scoreboard.self` draagt `position`. Beide waarden komen uit dezelfde functie
+`scoreboard.top[]` draagt per rij `{ playerId, effectiveName, identity, score,
+rank }` en `scoreboard.self` draagt `position`. Beide waarden komen uit dezelfde functie
 (`shared/rules/ranking.mjs`) als de `position` in `game:finished`.
 
 **Competitierangschikking**: gelijke spelers delen hun nummer en daarna wordt
@@ -339,18 +348,20 @@ verbinding zijn binnengekomen: namen kwamen uitsluitend via
 en de lobby toonde een rij zonder tekst. `room:player-changed` blijft de
 realtime-delta; deze lijst is de beginstand waarop die delta's landen.
 
-Per deelnemer exact drie velden:
+Per deelnemer exact vier velden:
 
 | Veld | Vorm |
 | --- | --- |
 | `playerId` | niet-lege string |
 | `effectiveName` | niet-lege string — altijd gevuld (`PRODUCT.md`: iedere speler heeft een zichtbare naam) |
+| `identity` | `null`, of `{ country, word }` — zie `DATA-MODEL.md`'s `Player.identity` (docs/openstaand/spelersidentiteit.md) |
 | `roles` | niet-lege array van `"host"` en/of `"player"`, zelfde vorm als `self.roles` |
 
 **Niets anders.** Geen `sessionToken`, geen `tokenHash`, geen `sessionId`, geen
-score, geen `joinedAt`, geen IP of user-agent. `playerId` en `effectiveName`
-staan al in `scoreboard.top`, dus deze lijst voegt geen nieuwe soort gegeven toe
-aan de wire — alleen dezelfde soort voor iedereen in plaats van voor de top vijf.
+score, geen `joinedAt`, geen IP of user-agent. `playerId`, `effectiveName` en
+`identity` staan al in `scoreboard.top`, dus deze lijst voegt geen nieuwe soort
+gegeven toe aan de wire — alleen dezelfde soort voor iedereen in plaats van
+voor de top vijf.
 
 `roles` komt van de **sessie**, niet van de speler: `Player` kent geen rollen.
 Een speler heeft `["player"]`; een host die meespeelt `["host", "player"]`. Een
@@ -495,8 +506,8 @@ Beide alleen in fase `LOBBY`, beide door de speler zelf voor zichzelf.
 | Herhaalbaar | **nee** — maximaal eenmaal per speler per room | ja |
 | Validatie | naamnormalisatie zoals bij join (grafemen tellen, gestript, geen lege naam) | `color` moet in het vaste palet van zestien zitten (besluit 42): `orange`, `magenta`, `cyan`, `green`, `yellow`, `purple`, `lime`, `red`, `blue`, `teal`, `indigo`, `violet`, `rose`, `moss`, `rust`, `slate` — de eerste acht ongewijzigd op hun plek, want de round-robin bij join loopt over deze volgorde |
 | Foutcodes | `GAME_NOT_FOUND`, `INVALID_PHASE` (ook bij een **tweede** hernoeming), `NOT_PLAYER`, `INVALID_ANSWER_FORMAT` (na normalisatie bleef er niets bruikbaars over) | `GAME_NOT_FOUND`, `INVALID_PHASE`, `NOT_PLAYER`, `INVALID_ANSWER_FORMAT` |
-| Broadcast | `room:player-changed` met `delta: { type: "rename", playerId, effectiveName }` | `room:player-changed` met `delta: { type: "recolor", playerId, color }` |
-| In de snapshot | `participants[].effectiveName`, en `self.effectiveName` | `participants[].color`, en `self.color` |
+| Broadcast | `room:player-changed` met `delta: { type: "rename", playerId, effectiveName, identity }` (`identity` is altijd `null` — een geslaagde rename levert per definitie `nameSource: "chosen"` op) | `room:player-changed` met `delta: { type: "recolor", playerId, color }` |
+| In de snapshot | `participants[].effectiveName`/`participants[].identity`, en `self.effectiveName`/`self.identity` | `participants[].color`, en `self.color` |
 
 Idempotentie loopt via de gewone `actionId`-cache van de envelope: dezelfde
 `actionId` levert dezelfde ack zonder de wijziging tweemaal toe te passen.
@@ -522,7 +533,7 @@ speler niet herstellen. `player:recolor` kende toch al geen limiet, dus voor
 | Validatie | zelfde naamnormalisatie als `player:rename` | zelfde gesloten kleurenpalet als `player:recolor` |
 | Foutcodes | `GAME_NOT_FOUND`, `INVALID_PHASE`, `NOT_PLAYER` (doelspeler bestaat niet/is weg), `INVALID_ANSWER_FORMAT` | `GAME_NOT_FOUND`, `INVALID_PHASE`, `NOT_PLAYER`, `INVALID_ANSWER_FORMAT` |
 | Broadcast | `room:player-changed` met `delta: { type: "rename", playerId, effectiveName }` (zelfde deltavorm als `player:rename`, ongeacht wie de wijziging aanvroeg) | `room:player-changed` met `delta: { type: "recolor", playerId, color }` |
-| In de snapshot | `participants[].effectiveName`, en `self.effectiveName` voor de doelspeler | `participants[].color`, en `self.color` voor de doelspeler |
+| In de snapshot | `participants[].effectiveName`/`participants[].identity`, en `self.effectiveName`/`self.identity` voor de doelspeler | `participants[].color`, en `self.color` voor de doelspeler |
 
 Idempotentie loopt hier ook via de gewone `actionId`-cache van de envelope.
 
