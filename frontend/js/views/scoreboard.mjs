@@ -350,6 +350,15 @@ export function createScoreboardView({ root, t, tCount }) {
     for (const node of [title, list, selfLine]) {
       node.hidden = beatOne;
     }
+    // Besluit 50: allebei de momenten vullen het scherm. In beat 1 stond alles
+    // bovenaan geplakt met een lege onderhelft — de ruimte was gereserveerd
+    // voor de tussenstand die pas een paar tellen later komt. Nu centreert de
+    // inhoud verticaal zolang de stand nog niet in beeld is. In beat 2 krimpt
+    // de uitslagkaart tot één regel, zodat de stand de ruimte krijgt: dat is
+    // ook waar de spelersidentiteit en de rijkere reactiezinnen straks heen
+    // moeten (besluit 41 en 44).
+    root.classList.toggle('is-beat-1', beatOne);
+    revealCard.classList.toggle('is-compact', !beatOne && result !== null);
     const answerText = result !== null ? correctAnswerTextFor(round, lang) : null;
     revealCard.hidden = answerText === null;
     if (answerText !== null) {

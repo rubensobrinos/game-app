@@ -1555,3 +1555,55 @@ body[data-rounda-fase='tussenstand'] #app-header .room-header-code-value {
 }
 .app-menu-prefs-toggle[aria-expanded='true'] { color: var(--rounda-lime); }
 .app-menu-prefs { display: flex; flex-direction: column; gap: 14px; }
+
+/* ════ BESLUIT 50: het uitslagscherm vult in beide momenten het scherm ════
+   Producteigenaar, 6 aug 2026. Moment 1 (ROUND_RESULT) plakte alles bovenaan
+   met een lege onderhelft; moment 2 (SCOREBOARD) liet de uitslagkaart op volle
+   grootte staan waardoor de stand eronder in de knel kwam. Staat aan het eind
+   van dit bestand omdat de volgorde hier dragend is — zie de kop. */
+
+/* Moment 1: de tussenstand is nog verborgen, dus er is niets dat van boven af
+   opbouwt.
+
+   `justify-content` helpt hier niet: `.reveal-next` (de voortgangsbalk) heeft
+   `margin-top: auto` en plakt daarmee onderaan, wat de vrije ruimte volledig
+   tussen de inhoud en de voet legt — precies de lege helft die de
+   producteigenaar zag. Door de ÉÉRSTE zichtbare kaart ook `margin-top: auto`
+   te geven, wordt die vrije ruimte in tweeën gedeeld: de helft erboven, de
+   helft eronder. De inhoud staat dan gecentreerd tussen de chrome en de voet,
+   en de voet blijft waar hij hoort. */
+.screen-top.is-beat-1 {
+  min-height: calc(100dvh - var(--header-h) - var(--chrome-gap));
+}
+.screen-top.is-beat-1 .reveal-card {
+  margin-top: auto;
+}
+
+/* Moment 2: de kaart heeft zijn werk gedaan — het antwoord is geland. Hij
+   krimpt tot één regel zodat de ranglijst de ruimte krijgt. Geen `display:
+   none`: je moet nog kunnen terugzien wát het antwoord was terwijl je naar de
+   stand kijkt. */
+.reveal-card.is-compact {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  box-shadow: 0 10px 26px rgba(216, 255, 62, 0.22);
+}
+.reveal-card.is-compact .reveal-card-label,
+.reveal-card.is-compact .reveal-card-count,
+.reveal-card.is-compact .reveal-card-why {
+  display: none;
+}
+.reveal-card.is-compact .reveal-card-main {
+  gap: 10px;
+}
+.reveal-card.is-compact .reveal-card-answer {
+  font-size: 20px;
+}
+.reveal-card.is-compact .reveal-card-flag,
+.reveal-card.is-compact .reveal-card-flag-canvas {
+  width: 34px;
+  height: 23px;
+}
