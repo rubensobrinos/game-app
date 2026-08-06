@@ -430,7 +430,7 @@ test('opdracht C2: country_shape_mc toont de contour i.p.v. een vlag, met de lan
   assert.ok(doek._ctxCalls?.some(([methode]) => methode === 'fill'), 'de contour is daadwerkelijk getekend (ctx.fill aangeroepen)');
 });
 
-test('besluit 50: de contour blijft vierkant in beide momenten van de uitslagkaart', async () => {
+test('de contour blijft vierkant in beide momenten van de uitslagkaart', async () => {
   stubDom();
   const { createScoreboardView } = await import('./scoreboard.mjs?c2b');
   const root = document.createElement('div');
@@ -444,11 +444,13 @@ test('besluit 50: de contour blijft vierkant in beide momenten van de uitslagkaa
   assert.equal(doek.style.aspectRatio, '1 / 1', 'moment 1: vierkant i.p.v. de vlag-verhouding 8:5');
   assert.equal(doek.style.width, '', 'moment 1: geen vaste breedte nodig, de bestaande clamp volstaat');
 
-  // Moment 2 (SCOREBOARD): gekrompen tot één regel — `.is-compact` forceert
-  // normaal 34×23px (niet-vierkant), hier moet de contour vierkant blijven.
+  // Moment 2 (SCOREBOARD): de kaart krimpt niet meer (teruggedraaid op
+  // 6 aug 2026 — reveal en tussenstand zijn één scherm, en een kaart die
+  // ineenschrompelt las als een tweede). De contour houdt dus dezelfde maat
+  // en dezelfde verhouding als in moment 1.
   view.update(standings, { round: ronde, lang: 'nl', pacing: 'auto', phase: 'SCOREBOARD' });
-  assert.equal(doek.style.width, '23px', 'moment 2: vierkant vast op de gekrompen rijhoogte');
-  assert.equal(doek.style.height, '23px');
+  assert.equal(doek.style.aspectRatio, '1 / 1', 'moment 2: nog steeds vierkant');
+  assert.equal(doek.style.width, '', 'moment 2: geen vaste breedte meer, de kaart krimpt niet');
 });
 
 test('opdracht C2: een tweede uitslag die binnenkomt vóórdat de eerste contour klaar is, tekent de eerste niet meer na', async () => {

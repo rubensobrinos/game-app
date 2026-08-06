@@ -358,16 +358,19 @@ export function createScoreboardView({ root, t, tCount }) {
     for (const node of [title, list, selfLine]) {
       node.hidden = beatOne;
     }
-    // Besluit 50: allebei de momenten vullen het scherm. In beat 1 stond alles
-    // bovenaan geplakt met een lege onderhelft — de ruimte was gereserveerd
-    // voor de tussenstand die pas een paar tellen later komt. Nu centreert de
-    // inhoud verticaal zolang de stand nog niet in beeld is. In beat 2 krimpt
-    // de uitslagkaart tot één regel, zodat de stand de ruimte krijgt: dat is
-    // ook waar de spelersidentiteit en de rijkere reactiezinnen straks heen
-    // moeten (besluit 41 en 44).
+    // Besluit 50: in moment 1 stond alles bovenaan geplakt met een lege
+    // onderhelft — de ruimte was gereserveerd voor de tussenstand die pas een
+    // paar tellen later komt. Nu centreert de inhoud verticaal zolang de stand
+    // nog niet in beeld is.
+    //
+    // Het krimpen van de kaart in moment 2 is TERUGGEDRAAID (producteigenaar,
+    // 6 aug 2026). Besluit 40 zegt: reveal en tussenstand zijn ÉÉN scherm. Een
+    // kaart die van groot naar één regel springt, leest als een nieuw scherm —
+    // "vraag, antwoord, compleet nieuw random scherm met score" waren zijn
+    // woorden. De kaart blijft nu staan waar hij staat, en de stand verschijnt
+    // eronder. De ruimte die het krimpen moest opleveren bleek niet nodig.
     root.classList.toggle('is-beat-1', beatOne);
-    const isCompact = !beatOne && result !== null;
-    revealCard.classList.toggle('is-compact', isCompact);
+    const isCompact = false;
     const answerText = result !== null ? correctAnswerTextFor(round, lang) : null;
     revealCard.hidden = answerText === null;
     if (answerText !== null) {

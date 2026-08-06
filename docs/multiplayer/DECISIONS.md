@@ -365,8 +365,8 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
     Zoals altijd: pas in `PLAYABLE_GAME_TYPES` als álle vijf de schakels
     bestaan — vraagselectie, contentbron, spelscherm, uitslag én mock.
 
-50. **Het uitslagscherm houdt twee momenten, maar allebei vullen ze het scherm**
-    (producteigenaar, 6 aug 2026). NOG NIET GEBOUWD.
+50. **Het uitslagscherm houdt twee momenten** (producteigenaar, 6 aug 2026).
+    GEBOUWD EN DEELS TERUGGEDRAAID — zie de aanvulling onderaan.
 
     | Moment | Nu | Wordt |
     | --- | --- | --- |
@@ -471,4 +471,24 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
     De contouren van 225 landen liggen sinds 6 aug in `shapes.data.mjs`
     (gemigreerd voor "Raad het land"), dus een ingekleurde wereldkaart komt er
     bijna gratis bij zodra die renderer bestaat.
+
+    **Aanvulling, 6 aug 2026 — het schermvullende deel is teruggedraaid.**
+
+    Zoals gebouwd centreerde moment 1 de inhoud verticaal en kromp de kaart in
+    moment 2 tot één regel. Op een echte telefoon zag de producteigenaar
+    daardoor "vraag, antwoord, compleet nieuw random scherm met score" — precies
+    wat besluit 40 (één scherm) niet wil.
+
+    Gemeten: de kaart stond in moment 1 op 144px en sprong in moment 2 naar
+    60px, én kromp van 129px naar 43px hoog. Twee veranderingen tegelijk laten
+    het onvermijdelijk als een tweede scherm lezen.
+
+    De lege onderhelft die dit besluit wilde wegnemen, blijkt bovendien geen
+    loze ruimte: dat is precies waar de tussenstand een paar tellen later
+    landt. Vullen door te centreren betekende dus altijd een sprong.
+
+    **Wat blijft:** twee momenten, want `scoreboardFrequency` laat de host de
+    tussenstand uitzetten of om de zoveel rondes tonen.
+    **Wat vervalt:** het centreren en het krimpen. De kaart staat stil op 60px
+    en het scherm vult zichzelf aan.
 
