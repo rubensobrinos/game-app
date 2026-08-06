@@ -394,12 +394,13 @@ function createInMemoryStore() {
       throw new RangeError(`saveAcceptedAnswerAtomically: unknown playerId ${JSON.stringify(write.updatedPlayer.id)} for roomId ${JSON.stringify(roomId)}`);
     }
 
-    // Eén antwoord per speler per ronde (DATA-MODEL.md stap 5): een ANDERE
-    // actionId voor een al-beantwoorde ronde wordt afgewezen, nooit stilzwijgend
-    // overschreven — de idempotentiecheck hierboven ving de exact-dezelfde-
-    // actionId-situatie al af.
+    // Eén antwoord per speler per ronde (DATA-MODEL.md stap 5) — TENZIJ de
+    // compositielaag een correctie bedoelt (besluit 54, 6 aug 2026: wijzigen
+    // mag tot de tijd om is). Zonder die vlag blijft de bewaking staan, zodat
+    // een verdwaalde tweede write nog steeds een fout is en geen stille
+    // mutatie. De deadline zelf is al bewaakt vóórdat deze write ontstaat.
     const existingAnswer = answersByKey.get(roomId)?.get(matchId)?.get(write.answer.roundId)?.get(write.answer.playerId);
-    if (existingAnswer !== undefined) {
+    if (existingAnswer !== undefined && write.correctie !== true) {
       throw Object.assign(
         new RangeError(
           `saveAcceptedAnswerAtomically: player ${JSON.stringify(write.answer.playerId)} already has an answer for round ${JSON.stringify(write.answer.roundId)}`

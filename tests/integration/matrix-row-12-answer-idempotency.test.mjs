@@ -32,7 +32,12 @@ import { createRoom } from '../../server/composition/room-lifecycle.mjs';
 import { startMatch, startRound, submitAnswer } from '../../server/composition/match-lifecycle.mjs';
 import { CONTENT_VERSION, RENDERER_VERSION, makeClock, makeContext } from './support/composition-harness.mjs';
 
-test('Retry van round:answer met identieke actionId levert dezelfde ack zonder herverwerking; nieuwe actionId na een al geaccepteerd antwoord geeft ALREADY_ANSWERED; score wijzigt nooit tweemaal', async () => {
+// Besluit 54 (6 aug 2026) splitst deze rij in tweeën. IDEMPOTENTIE blijft
+// ongewijzigd: dezelfde actionId levert dezelfde ack zonder te muteren. Wat
+// verandert is de TWEEDE INZENDING met een nieuwe actionId — die was een fout
+// en is nu een correctie. De onderliggende garantie is dezelfde gebleven en
+// wordt hieronder nog steeds getoetst: de score telt nooit dubbel.
+test('Retry met identieke actionId is een replay; een nieuwe actionId is een correctie; de score telt nooit dubbel', async () => {
   const clock = makeClock();
   const context = makeContext({
     now: clock.now,
@@ -82,7 +87,9 @@ test('Retry van round:answer met identieke actionId levert dezelfde ack zonder h
     answer: { optionId: correctOptionId },
     actionId: 'act_dup_2',
   });
-  assert.deepEqual(newActionSameContent, { ok: false, code: 'ALREADY_ANSWERED' });
+  assert.equal(newActionSameContent.ok, true, 'besluit 54: een correctie, geen fout');
+  const naTweede = (await context.store.loadPlayer(room.roomId, room.playerId)).score;
+  assert.equal(naTweede, newActionSameContent.value.points, 'één keer geteld, niet opgeteld');
 
   // Nieuwe actionId, GEwijzigde inhoud, ná een al geaccepteerd antwoord.
   const newActionDifferentContent = await submitAnswer(context, {
@@ -92,8 +99,14 @@ test('Retry van round:answer met identieke actionId levert dezelfde ack zonder h
     answer: { optionId: otherOptionId },
     actionId: 'act_dup_3',
   });
-  assert.deepEqual(newActionDifferentContent, { ok: false, code: 'ALREADY_ANSWERED' });
+  assert.equal(newActionDifferentContent.ok, true);
+  assert.equal(newActionDifferentContent.value.correct, false, 'nu staat er een fout antwoord');
 
-  // Score is nooit tweemaal gewijzigd, ondanks vier submitAnswer-aanroepen.
-  assert.equal((await context.store.loadPlayer(room.roomId, room.playerId)).score, scoreAfterFirst);
+  // De kern: vier inzendingen, en er staat precies de uitkomst van de laatste.
+  // Niet opgeteld, en de punten van het eerdere goede antwoord zijn eraf.
+  const player = await context.store.loadPlayer(room.roomId, room.playerId);
+  assert.equal(player.score, 0, 'het laatste antwoord was fout, dus nul');
+  assert.equal(player.correctCount, 0);
+  const stored = await context.store.loadAnswer(room.roomId, round.value.matchId, round.value.roundId, room.playerId);
+  assert.equal(stored.actionId, 'act_dup_3', 'de laatste tik is wat er staat');
 });

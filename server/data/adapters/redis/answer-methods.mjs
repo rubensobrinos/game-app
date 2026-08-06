@@ -374,6 +374,11 @@ export function createAnswerMethods(context) {
           encodedAnswer,
           String(updatedPlayer.score),
           ttl,
+          // Besluit 54: '1' laat het script het vorige antwoord overschrijven.
+          // De compositielaag zet `correctie` alleen wanneer ze zélf een
+          // bestaand antwoord heeft gelezen en de boekhouding heeft
+          // teruggedraaid — zonder die vlag blijft de oude bewaking staan.
+          write.correctie === true ? '1' : '0',
         ],
       });
 

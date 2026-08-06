@@ -44,12 +44,18 @@ test('round:started vult de vraag en reset alles van de vorige ronde', () => {
   assert.equal(stale.roundId, 'round_02');
 });
 
-test('selectOption vergrendelt: tweede tik en onbekende optie zijn no-ops', () => {
+// Besluit 54 (6 aug 2026): wisselen mag tot de uitslag er ligt. Vóór dat
+// besluit sloot één tik de knoppen; nu is de tweede tik een geldige correctie.
+test('selectOption: een tweede tik wisselt, een onbekende optie is een no-op', () => {
   const once = selectOption(applyRoundStarted(STARTED), 'DE');
   assert.equal(once.answerStatus, 'sending');
   assert.equal(once.selectedOptionId, 'DE');
-  assert.equal(optionsLocked(once), true);
-  assert.equal(selectOption(once, 'IT'), once);
+  assert.equal(optionsLocked(once), false, 'nog geen uitslag, dus nog niet op slot');
+
+  const gewisseld = selectOption(once, 'IT');
+  assert.equal(gewisseld.selectedOptionId, 'IT', 'de laatste tik telt');
+  assert.equal(gewisseld.answerStatus, 'sending');
+
   assert.equal(selectOption(applyRoundStarted(STARTED), 'XX').answerStatus, 'idle');
 });
 
@@ -61,12 +67,14 @@ test('answer-accepted telt alleen voor de actieve ronde en vanuit sending', () =
   assert.equal(applyAnswerAccepted(idle, { roundId: 'round_03' }), idle);
 });
 
-test('rejection: DEADLINE_PASSED/ALREADY_ANSWERED blijven vergrendeld, andere codes geven de beurt terug', () => {
+test('rejection: DEADLINE_PASSED houdt de keuze, een tijdelijke code geeft de beurt terug', () => {
   const sending = selectOption(applyRoundStarted(STARTED), 'FR');
   const late = applyAnswerRejected(sending, 'DEADLINE_PASSED');
   assert.equal(late.answerStatus, 'rejected');
-  assert.equal(late.selectedOptionId, 'FR');
-  assert.equal(optionsLocked(late), true);
+  assert.equal(late.selectedOptionId, 'FR', 'je ziet nog wat je koos');
+  // Besluit 54: `optionsLocked` kijkt alleen nog naar de uitslag. Dat een
+  // te laat antwoord niet alsnog kan, bewaakt `gameplay.mjs` op de zichtbare
+  // teller — en de server weigert het hoe dan ook.
   const transient = applyAnswerRejected(sending, 'RATE_LIMITED');
   assert.equal(transient.answerStatus, 'idle');
   assert.equal(transient.selectedOptionId, null);
@@ -131,11 +139,14 @@ test('hydrateFromSnapshot: actieve ronde zonder bevestigd antwoord staat op idle
   assert.equal(optionsLocked(model), false);
 });
 
-test('hydrateFromSnapshot: answeredCurrentRound=true vergrendelt zonder een gekozen optie te verzinnen', () => {
+test('hydrateFromSnapshot: answeredCurrentRound=true verzint geen gekozen optie', () => {
   const model = hydrateFromSnapshot(STARTED, true);
   assert.equal(model.answerStatus, 'accepted');
   assert.equal(model.selectedOptionId, null);
-  assert.equal(optionsLocked(model), true);
+  // Besluit 54: na een herverbinding midden in een lopende ronde mag je nog
+  // steeds wisselen. Vroeger sloten de knoppen hier, om dubbel antwoorden te
+  // voorkomen; dat is nu juist toegestaan.
+  assert.equal(optionsLocked(model), false);
 });
 
 // docs/openstaand/solo-antwoordvolgorde.md, punt 2: alleen transport-mock.mjs
@@ -147,7 +158,8 @@ test('hydrateFromSnapshot: een derde argument markeert wél de gekozen optie', (
   const model = hydrateFromSnapshot(STARTED, true, 'DE');
   assert.equal(model.answerStatus, 'accepted');
   assert.equal(model.selectedOptionId, 'DE');
-  assert.equal(optionsLocked(model), true);
+  // Besluit 54: je ziet wat je koos én je mag het nog wijzigen.
+  assert.equal(optionsLocked(model), false);
 });
 
 test('hydrateFromSnapshot: een gegeven waarde die niet bij déze vraag hoort, wordt genegeerd', () => {
@@ -218,24 +230,24 @@ test('gameType: komt letterlijk uit round:started mee', () => {
   assert.equal(model.gameType, 'real_or_fake_flag');
 });
 
-test('selectChoice (S09): vergrendelt op geldige keuze, negeert ongeldige/tweede tik', () => {
+test('selectChoice (S09): een tweede tik wisselt, onzin is een no-op', () => {
   const started = applyRoundStarted({ ...STARTED, gameType: 'real_or_fake_flag', question: { kind: 'real', iso2: 'IT' } });
   const once = selectChoice(started, 'real');
   assert.equal(once.answerStatus, 'sending');
   assert.equal(once.selectedChoice, 'real');
-  assert.equal(optionsLocked(once), true);
-  assert.equal(selectChoice(once, 'fake'), once);
+  assert.equal(optionsLocked(once), false);
+  assert.equal(selectChoice(once, 'fake').selectedChoice, 'fake', 'besluit 54: de laatste tik telt');
   assert.equal(selectChoice(started, 'onzin'), started);
 });
 
-test('selectSide (S10): vergrendelt op geldige zijde (0 of 1), negeert ongeldige/tweede tik', () => {
+test('selectSide (S10): een tweede tik wisselt, een ongeldige zijde is een no-op', () => {
   const question = { metric: 'population', sides: [{ side: 0, iso2: 'DE' }, { side: 1, iso2: 'PT' }] };
   const started = applyRoundStarted({ ...STARTED, gameType: 'higher_lower', question });
   const once = selectSide(started, 0);
   assert.equal(once.answerStatus, 'sending');
   assert.equal(once.selectedSide, 0);
-  assert.equal(optionsLocked(once), true);
-  assert.equal(selectSide(once, 1), once);
+  assert.equal(optionsLocked(once), false);
+  assert.equal(selectSide(once, 1).selectedSide, 1, 'besluit 54: de laatste tik telt');
   assert.equal(selectSide(started, 2), started);
   // 0 is falsy — regressietest tegen een `!side`/`side ||`-achtige bug.
   const zeroSelected = selectSide(applyRoundStarted({ ...STARTED, gameType: 'higher_lower', question }), 0);

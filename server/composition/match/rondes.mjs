@@ -228,9 +228,21 @@ export async function submitAnswer(context, {
     actionId,
     receivedAt,
     deadlineGraceMs: room.config.deadlineGraceMs,
-    // DM13: de poort bewaakt idempotentie, deze laag niet meer. Beide
-    // snelpaden in answer-flow.js krijgen daarom niets om op te vallen.
-    existingAnswerForRound: null,
+    // DM13: de poort bewaakt IDEMPOTENTIE, deze laag niet meer. Dat snelpad
+    // krijgt daarom nog steeds niets om op te vallen.
+    //
+    // Het vorige antwoord komt sinds besluit 54 (6 aug 2026) wél weer mee, en
+    // om een andere reden dan waarvoor DM13 het weghaalde. Toen was het een
+    // tweede BEWAKING naast de poort — overbodig, en misleidend omdat een
+    // controle vóór de write geen gelijktijdigheid dekt. Nu is het REKENINVOER:
+    // wijzigen mag, en dan moet de bijdrage van het vorige antwoord van de
+    // score af voordat die van het nieuwe erbij komt. Zonder deze lezing kan
+    // `answer-flow.js` dat niet uitrekenen en levert twijfelen punten op.
+    //
+    // De poort blijft de enige die bewaakt: landt er tussen deze lezing en de
+    // write alsnog iets, dan wijzigt het spelerdocument en geeft het script
+    // 'stale' — waarna de adapter opnieuw leest en opnieuw probeert.
+    existingAnswerForRound: await context.store.loadAnswer(roomId, match.id, round.id, playerId),
     existingActionCacheEntry: null,
   });
 
@@ -251,8 +263,10 @@ export async function submitAnswer(context, {
   try {
     await context.store.saveAcceptedAnswerAtomically(roomId, match.id, resolved.write);
   } catch (error) {
-    // Een andere actionId voor een al beantwoorde ronde. De poort werpt; naar
-    // buiten is dat een gewone resultaatcode, geen exception.
+    // Een andere actionId voor een al beantwoorde ronde ZONDER correctievlag.
+    // Sinds besluit 54 komt dit alleen nog voor bij een verdwaalde write: een
+    // gewone wijziging binnen de tijd draagt `correctie: true` en overschrijft.
+    // De poort werpt; naar buiten is dat een gewone resultaatcode.
     if (error !== null && typeof error === 'object' && error.code === CODES.ALREADY_ANSWERED) {
       return fail(CODES.ALREADY_ANSWERED);
     }

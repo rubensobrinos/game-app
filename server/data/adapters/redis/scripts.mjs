@@ -208,7 +208,14 @@ return 'ok'
  *   [3] updatedPlayer.id            [4] VERWACHT spelerdocument (compare-and-set)
  *   [5] NIEUW spelerdocument        [6] answer.playerId
  *   [7] answer-document (envelop)   [8] nieuwe score, als scoreboardgetal
- *   [9] ttlSeconds
+ *   [9] ttlSeconds                  [10] '1' bij een CORRECTIE, anders '0'
+ *
+ * [10] hoort bij besluit 54 (6 aug 2026): wijzigen mag tot de tijd om is. Bij
+ * '1' vervalt de "al beantwoord"-controle en overschrijft de write het vorige
+ * antwoord. De compare-and-set op het spelerdocument ([4] vs. de opgeslagen
+ * waarde) blijft staan en serialiseert twee gelijktijdige inzendingen van
+ * dezelfde speler: de tweede krijgt 'stale' en rekent opnieuw met verse
+ * cijfers. Zonder die vlag verandert er niets aan het oude gedrag.
  * Retourneert 'ok' | 'replay' | 'no-player' | 'stale' | 'already-answered'.
  *
  * DE VOLGORDE VAN DE DRIE CONTROLES IS CONTRACT, geen implementatiedetail:
@@ -266,7 +273,7 @@ if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then return 'replay' end
 local storedPlayer = redis.call('HGET', KEYS[2], ARGV[3])
 if not storedPlayer then return 'no-player' end
 if storedPlayer ~= ARGV[4] then return 'stale' end
-if redis.call('HEXISTS', KEYS[3], ARGV[6]) == 1 then return 'already-answered' end
+if ARGV[10] ~= '1' and redis.call('HEXISTS', KEYS[3], ARGV[6]) == 1 then return 'already-answered' end
 redis.call('HSET', KEYS[3], ARGV[6], ARGV[7])
 redis.call('HSET', KEYS[2], ARGV[3], ARGV[5])
 redis.call('ZADD', KEYS[4], ARGV[8], ARGV[3])

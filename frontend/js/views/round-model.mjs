@@ -123,11 +123,14 @@ function withGivenAnswer(model, givenAnswer) {
 
 /**
  * Gebruikers-tik op een optie. Alleen mogelijk vanuit 'idle' met een actieve
- * vraag; elke andere toestand is een no-op (opties zijn dan vergrendeld —
- * één antwoord per speler per ronde, PROTOCOL.md).
+ * vraag. Sinds besluit 54 (6 aug 2026) mag je je keuze wijzigen zolang de
+ * uitslag er nog niet is: "wijzigen mag, tot de tijd om is; de laatste tik
+ * telt". De vergrendeling op `answerStatus` is daarom weg; wat blijft is de
+ * vergrendeling zodra er een uitslag ligt, plus die op de zichtbare teller in
+ * `gameplay.mjs` — na de deadline weigert de server een antwoord toch.
  */
 export function selectOption(model, optionId) {
-  if (model.answerStatus !== 'idle' || model.question === null) {
+  if (model.result !== null || model.question === null) {
     return model;
   }
   if (!model.question.optionIso2s.includes(optionId)) {
@@ -138,7 +141,7 @@ export function selectOption(model, optionId) {
 
 /** `real_or_fake_flag` — S09. Zelfde vergrendelregels als `selectOption`. */
 export function selectChoice(model, choice) {
-  if (model.answerStatus !== 'idle' || model.question === null) {
+  if (model.result !== null || model.question === null) {
     return model;
   }
   if (choice !== 'real' && choice !== 'fake') {
@@ -149,7 +152,7 @@ export function selectChoice(model, choice) {
 
 /** `higher_lower` — S10. Zelfde vergrendelregels als `selectOption`. */
 export function selectSide(model, side) {
-  if (model.answerStatus !== 'idle' || model.question === null) {
+  if (model.result !== null || model.question === null) {
     return model;
   }
   if (side !== 0 && side !== 1) {
@@ -164,7 +167,7 @@ export function selectSide(model, side) {
  * payload zelf (`cards[].cardIndex`), niet uit de weergavevolgorde.
  */
 export function selectCard(model, cardIndex) {
-  if (model.answerStatus !== 'idle' || model.question === null) {
+  if (model.result !== null || model.question === null) {
     return model;
   }
   const kaarten = Array.isArray(model.question.cards) ? model.question.cards : [];
@@ -304,7 +307,15 @@ export function displayState(model) {
   return 'empty';
 }
 
-/** Opties vergrendeld? (na tik, of na uitslag) */
+/**
+ * Opties vergrendeld? Alleen zodra er een uitslag ligt.
+ *
+ * Besluit 54 (6 aug 2026): tot die tijd mag je wisselen. Vóór dat besluit
+ * sloot één tik de knoppen — dat gaf de speler geen kans om zich te bedenken,
+ * terwijl de bedenktijd juist het spel is. `gameplay.mjs` sluit ze daarnaast
+ * zodra de zichtbare teller op nul staat; ná de deadline weigert de server een
+ * antwoord toch, en een knop die dan nog reageert is een leugen.
+ */
 export function optionsLocked(model) {
-  return model.answerStatus !== 'idle' || model.result !== null;
+  return model.result !== null;
 }

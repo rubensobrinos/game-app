@@ -141,20 +141,42 @@ describe('resolveAnswer — deadline (stap 4) #12-13', () => {
   });
 });
 
-describe('resolveAnswer — reeds bestaand antwoord (stap 5) #14-15', () => {
-  test('#14 existingAnswerForRound aanwezig, identieke inhoud -> ALREADY_ANSWERED', () => {
-    assert.deepStrictEqual(
-      resolveAnswer(makeCtx({ existingAnswerForRound: { roundId: 'round_1', playerId: 'p_1', answer: { choice: 'fake' } } })),
-      { ok: false, code: 'ALREADY_ANSWERED' }
+// Besluit 54 (6 aug 2026) HERZIET stap 5: een tweede antwoord binnen de tijd
+// is geen fout meer maar een correctie. Wat hier getest wordt is niet dát het
+// mag, maar dat de BOEKHOUDING klopt — de bijdrage van het vorige antwoord
+// moet er eerst af. Zonder dat levert twijfelen punten op.
+describe('resolveAnswer — een tweede antwoord is een correctie (besluit 54) #14-15', () => {
+  test('#14 een correctie draait de punten van het vorige antwoord terug', () => {
+    const vorige = {
+      roundId: 'round_1', playerId: 'p_1', answer: { choice: 'fake' },
+      correct: true, points: 180, responseTimeMs: 2000,
+    };
+    const result = resolveAnswer(makeCtx({
+      answer: { choice: 'real' },
+      existingAnswerForRound: vorige,
+    }));
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.write.correctie, true);
+    // De speler stond op `score` mét die 180 erin; die moet eraf voordat het
+    // nieuwe antwoord erbij komt.
+    const basis = makeCtx().player;
+    assert.strictEqual(
+      result.write.updatedPlayer.score,
+      basis.score - vorige.points + result.write.answer.points,
+    );
+    assert.strictEqual(
+      result.write.updatedPlayer.correctCount,
+      basis.correctCount - 1 + (result.write.answer.correct ? 1 : 0),
     );
   });
-  test('#15 existingAnswerForRound aanwezig, ANDER antwoord -> ALREADY_ANSWERED', () => {
-    assert.deepStrictEqual(
-      resolveAnswer(makeCtx({
-        answer: { choice: 'real' },
-        existingAnswerForRound: { roundId: 'round_1', playerId: 'p_1', answer: { choice: 'fake' } },
-      })),
-      { ok: false, code: 'ALREADY_ANSWERED' }
+  test('#15 zonder vorig antwoord blijft het een gewone optelling, zonder correctievlag', () => {
+    const result = resolveAnswer(makeCtx());
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.write.correctie, false);
+    const basis = makeCtx().player;
+    assert.strictEqual(
+      result.write.updatedPlayer.score,
+      basis.score + result.write.answer.points,
     );
   });
 });

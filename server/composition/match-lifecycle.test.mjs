@@ -629,7 +629,11 @@ test('matrixrij 12: dezelfde actionId geeft dezelfde ack zonder herverwerking', 
   assert.equal(stored.points, scoreAfterFirst);
 });
 
-test('matrixrij 12: nieuwe actionId met ONgewijzigde inhoud geeft ALREADY_ANSWERED', async () => {
+// Besluit 54: ook tweemaal hetzelfde antwoord is een correctie, geen fout.
+// Het punt van deze test blijft dat de score er niet twee keer bij komt —
+// alleen krijgt hij nu een lágere score in plaats van een afwijzing, want de
+// tweede tik is trager en de snelheidsbonus telt vanaf de laatste tik.
+test('matrixrij 12: tweemaal hetzelfde antwoord telt niet dubbel', async () => {
   const harness = makeHarness();
   const { context, store, clock } = harness;
   const { roomId, players } = await seedRoom(harness, { extraPlayers: 1 });
@@ -648,17 +652,21 @@ test('matrixrij 12: nieuwe actionId met ONgewijzigde inhoud geeft ALREADY_ANSWER
   const scoreAfterFirst = (await store.loadPlayer(roomId, players[0].playerId)).score;
 
   clock.advance(500);
-  assert.deepEqual(
-    await submitAnswer(context, {
-      roomId, playerId: players[0].playerId, roundId: doc.id,
-      answer: { optionId: doc.correctAnswer.optionId }, actionId: 'act_b',
-    }),
-    { ok: false, code: 'ALREADY_ANSWERED' },
-  );
-  assert.equal((await store.loadPlayer(roomId, players[0].playerId)).score, scoreAfterFirst);
+  const tweede = await submitAnswer(context, {
+    roomId, playerId: players[0].playerId, roundId: doc.id,
+    answer: { optionId: doc.correctAnswer.optionId }, actionId: 'act_b',
+  });
+  assert.equal(tweede.ok, true);
+  const naTweede = (await store.loadPlayer(roomId, players[0].playerId)).score;
+  assert.equal(naTweede, tweede.value.points, 'precies één keer geteld, niet opgeteld');
+  assert.ok(naTweede <= scoreAfterFirst, 'een halve seconde later levert nooit méér op');
 });
 
-test('matrixrij 12: nieuwe actionId met GEwijzigde inhoud geeft ALREADY_ANSWERED; score wijzigt nooit tweemaal', async () => {
+// Besluit 54 (6 aug 2026) HERZIET matrixrij 12's tweede helft: wijzigen mag,
+// tot de tijd om is. Wat blijft gelden — en wat deze test nu bewaakt — is dat
+// een correctie nooit dubbel telt: de bijdrage van het vorige antwoord moet
+// eraf voordat die van het nieuwe erbij komt.
+test('matrixrij 12: een nieuwe actionId met GEwijzigde inhoud corrigeert; de score telt nooit dubbel', async () => {
   const harness = makeHarness();
   const { context, store, clock } = harness;
   const { roomId, players } = await seedRoom(harness, { extraPlayers: 1 });
@@ -677,22 +685,54 @@ test('matrixrij 12: nieuwe actionId met GEwijzigde inhoud geeft ALREADY_ANSWERED
   assert.equal(first.value.correct, false);
   assert.equal(first.value.points, 0);
 
-  // Wijzigen is niet toegestaan (GAME-RULES.md: "antwoorden zijn definitief").
+  // Besluit 54: van fout naar goed. De correctie wordt geaccepteerd én de
+  // score klopt — niet 0 (afgewezen) en niet dubbel geteld.
   clock.advance(500);
-  assert.deepEqual(
-    await submitAnswer(context, {
-      roomId, playerId: players[0].playerId, roundId: doc.id,
-      answer: { optionId: doc.correctAnswer.optionId }, actionId: 'act_correctie',
-    }),
-    { ok: false, code: 'ALREADY_ANSWERED' },
-  );
+  const correctie = await submitAnswer(context, {
+    roomId, playerId: players[0].playerId, roundId: doc.id,
+    answer: { optionId: doc.correctAnswer.optionId }, actionId: 'act_correctie',
+  });
+  assert.equal(correctie.ok, true);
+  assert.equal(correctie.value.correct, true);
 
   const player = await store.loadPlayer(roomId, players[0].playerId);
-  assert.equal(player.score, 0);
-  assert.equal(player.correctCount, 0);
+  assert.equal(player.score, correctie.value.points, 'precies de punten van het laatste antwoord, niet meer');
+  assert.equal(player.correctCount, 1, 'één goed antwoord, niet twee en niet nul');
   const stored = await store.loadAnswer(roomId, started.value.matchId, doc.id, players[0].playerId);
-  assert.equal(stored.correct, false);
-  assert.equal(stored.actionId, 'act_fout');
+  assert.equal(stored.correct, true);
+  assert.equal(stored.actionId, 'act_correctie', 'de laatste tik is wat er staat');
+});
+
+test('besluit 54: van goed naar fout haalt de punten er weer af', async () => {
+  const harness = makeHarness();
+  const { context, store, clock } = harness;
+  const { roomId, players } = await seedRoom(harness, { extraPlayers: 1 });
+  const started = await startMatch(context, { roomId });
+
+  clock.advance(COUNTDOWN_SECONDS * 1000);
+  const round = await startRound(context, { roomId });
+  const doc = await loadRoundDoc(harness, roomId, started.value.matchId, round.value.roundId);
+
+  clock.advance(1000);
+  const goed = await submitAnswer(context, {
+    roomId, playerId: players[0].playerId, roundId: doc.id,
+    answer: { optionId: doc.correctAnswer.optionId }, actionId: 'act_goed',
+  });
+  assert.equal(goed.ok, true);
+  assert.ok(goed.value.points > 0);
+
+  clock.advance(500);
+  const bedacht = await submitAnswer(context, {
+    roomId, playerId: players[0].playerId, roundId: doc.id,
+    answer: { optionId: wrongOptionId(doc) }, actionId: 'act_bedacht',
+  });
+  assert.equal(bedacht.ok, true);
+  assert.equal(bedacht.value.correct, false);
+
+  const player = await store.loadPlayer(roomId, players[0].playerId);
+  assert.equal(player.score, 0, 'de punten van het goede antwoord zijn weer weg');
+  assert.equal(player.correctCount, 0);
+  assert.equal(player.correctResponseTimeMsTotal, 0, 'ook de responstijd is teruggedraaid');
 });
 
 test('matrixrij 12: de ack komt ná de write uit de actioncache van de poort, niet uit een voorcontrole', async () => {

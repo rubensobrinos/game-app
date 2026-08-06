@@ -297,11 +297,18 @@ async function playRound(env, roundNumber, scenario = null) {
 
   for (const [playerId, offsetMs] of [[env.host.playerId, HOST_OFFSET_MS], [env.p2.playerId, P2_OFFSET_MS]]) {
     const entry = ended.value.results.find((result) => result.playerId === playerId);
+    // Besluit 54: een scenario mag het verwachte resultaat van p2 overschrijven
+    // wanneer het bewust een correctie doet — dan telt de láátste tik, en dus
+    // een andere responstijd en een andere puntentelling. Eén ronde per keer;
+    // de override wordt hierna gewist zodat de volgende ronde weer de normale
+    // verwachting heeft.
+    const override = playerId === env.p2.playerId ? env.overrideP2Result : null;
     assert.deepEqual(
       { answered: entry.answered, correct: entry.correct, points: entry.points, responseTimeMs: entry.responseTimeMs, eligible: entry.eligible },
-      { answered: true, correct: true, points: POINTS_FAST, responseTimeMs: offsetMs, eligible: true },
+      override ?? { answered: true, correct: true, points: POINTS_FAST, responseTimeMs: offsetMs, eligible: true },
     );
   }
+  env.overrideP2Result = null;
 
   // De verdeling telt precies de geaccepteerde antwoorden en kent alle vier de
   // opties (server/rules/answer-distribution.js, besluit 14).
@@ -451,10 +458,24 @@ test('Keten: room -> preview -> twee joins -> start -> 10 rondes flags_mc -> pod
     assert.equal(replay.value.responseTimeMs, P2_OFFSET_MS);
     assert.equal(await storedScore(env, p2.playerId), scoreBefore);
 
-    // Nieuwe actionId voor dezelfde ronde: afgewezen, score onveranderd.
-    const second = await answerAt(env, 'p2', { at: startsAt + 6000, roundId, optionId: correctOptionId, actionId: `${matchId}-r2-p2-nieuw` });
-    assert.deepEqual(second, { ok: false, code: 'ALREADY_ANSWERED' });
-    assert.equal(await storedScore(env, p2.playerId), scoreBefore, 'score na ALREADY_ANSWERED ongewijzigd');
+    // Nieuwe actionId voor dezelfde ronde: sinds besluit 54 (6 aug 2026) een
+    // correctie, geen afwijzing. Dezelfde optie, maar vier seconden later —
+    // dus de snelheidsbonus is lager, en dát is precies de bedoeling: de
+    // laatste tik telt, ook voor de tijd.
+    // Bewust op DEZELFDE tel als de eerste inzending: dan zijn de punten
+    // gelijk en blijft de gelijkspel-tiebreak verderop in deze keten intact.
+    // Dát een latere tik minder oplevert wordt in match-lifecycle.test.mjs
+    // getoetst; hier gaat het om de boekhouding.
+    const second = await answerAt(env, 'p2', { at: startsAt + P2_OFFSET_MS, roundId, optionId: correctOptionId, actionId: `${matchId}-r2-p2-nieuw` });
+    assert.equal(second.ok, true);
+    // Dit is een doorlopende partij, dus `scoreBefore` draagt de punten van
+    // eerdere rondes én die van de eerste tik in deze ronde. De correctie moet
+    // precies die eerste tik terugdraaien en de nieuwe erbij zetten.
+    assert.equal(
+      await storedScore(env, p2.playerId),
+      scoreBefore - POINTS_FAST + second.value.points,
+      'de eerste tik eraf, de laatste erbij — niet opgeteld',
+    );
   });
 
   // Ronde 3 — ASSERTIE B, te laat: ná endsAt + grace.

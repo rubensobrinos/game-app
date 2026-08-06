@@ -506,6 +506,11 @@ export function createClientEvents({
         });
         if (!result.ok) return result;
         const runtime = runtimeFor(roomId);
+        // Besluit 54: een correctie verandert het AANTAL beantwoorders niet, en
+        // `round:progress` meldt niets anders dan dat aantal. Stond deze speler
+        // er al in, dan is een nieuwe broadcast dus pure ruis — en bij een
+        // aarzelende speler die vier keer wisselt zelfs vier keer ruis.
+        const alGeteld = runtime.answeredPlayerIds.has(playerId);
         if (result.value.replay !== true) {
           runtime.answeredPlayerIds.add(playerId);
         }
@@ -516,7 +521,7 @@ export function createClientEvents({
           value: { roundId: payload.roundId },
           after: async () => {
             await publish('round:answer-accepted', { roomId, sessionId, payload: { roundId: payload.roundId } });
-            if (runtime.round !== null) {
+            if (runtime.round !== null && !alGeteld) {
               await maybeEmitRoundProgress(roomId, runtime.round);
             }
           },

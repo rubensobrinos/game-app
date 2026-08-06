@@ -93,12 +93,16 @@ function resolveAnswer(ctx) {
     return { ok: false, code: 'DEADLINE_PASSED' };
   }
 
-  // Stap 5: reeds bestaand antwoord. Zelfde snelpad-kanttekening als stap 1
-  // hierboven (DM13) — saveAcceptedAnswerAtomically herhaalt deze controle
-  // atomair met de write.
-  if (ctx.existingAnswerForRound !== null) {
-    return { ok: false, code: 'ALREADY_ANSWERED' };
-  }
+  // Stap 5: reeds bestaand antwoord — sinds besluit 54 (6 aug 2026) GEEN
+  // afwijzing meer maar een CORRECTIE. "Wijzigen mag, tot de tijd om is; de
+  // laatste tik telt, ook voor de snelheidsbonus." Stap 4 hierboven bewaakt
+  // die deadline al, dus na de tijd komt een tweede antwoord hier niet eens.
+  //
+  // Wat een correctie bijzonder maakt is niet de write maar de BOEKHOUDING:
+  // score, correctCount en de opgetelde responstijd zijn cumulatief per
+  // speler. De bijdrage van het vorige antwoord moet er dus eerst af voordat
+  // die van het nieuwe erbij kan — anders levert twijfelen punten op.
+  const vorige = ctx.existingAnswerForRound;
 
   // Stap 6: correctheid en punten.
   const roundContext = buildRoundContext(ctx.round);
@@ -144,15 +148,32 @@ function resolveAnswer(ctx) {
         correct: validation.correct,
         points: score.points,
       },
+      // Besluit 54: bij een correctie eerst het vorige antwoord terugdraaien.
+      // `accumulateCorrectResponseTime` telt alleen op bij een goed antwoord,
+      // dus het terugdraaien doet hetzelfde in spiegelbeeld.
       updatedPlayer: {
         id: ctx.player.id,
-        score: ctx.player.score + score.points,
-        correctCount: ctx.player.correctCount + (validation.correct ? 1 : 0),
+        score: ctx.player.score - (vorige === null ? 0 : vorige.points) + score.points,
+        correctCount: ctx.player.correctCount
+          - (vorige !== null && vorige.correct ? 1 : 0)
+          + (validation.correct ? 1 : 0),
         correctResponseTimeMsTotal: accumulateCorrectResponseTime(
-          ctx.player.correctResponseTimeMsTotal,
+          vorige !== null && vorige.correct
+            // `Math.max(0, …)` is geen sier: `accumulateCorrectResponseTime`
+            // werpt op een negatief totaal, en dat is terecht — maar het mag
+            // nooit gebeuren dat een correctie een speler dáárop laat
+            // struikelen. Loopt het toch onder nul, dan klopte de optelling al
+            // niet en is nul de enige verdedigbare uitkomst.
+            ? Math.max(0, ctx.player.correctResponseTimeMsTotal - vorige.responseTimeMs)
+            : ctx.player.correctResponseTimeMsTotal,
           { correct: validation.correct, responseTimeMs }
         ),
       },
+      // De poort mag stilzwijgend overschrijven — maar alleen wanneer de
+      // compositielaag dat expliciet bedoelt. Zonder deze vlag blijft de
+      // "één antwoord per ronde"-bewaking staan, zodat een verdwaalde tweede
+      // write nog steeds een fout is en geen stille mutatie.
+      correctie: vorige !== null,
       actionCacheEntry: {
         actionId: ctx.actionId,
         ack: { roundId: ctx.round.id }, // GEEN correct/points (bevinding 2)

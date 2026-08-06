@@ -30,9 +30,10 @@ export function submitAnswer(target, playerId, payload, ctx) {
   if (currentRoundNumber < player.eligibleFromRound) {
     throw new ProtocolError('PLAYER_NOT_ELIGIBLE', 'Player joined after this round started.');
   }
-  if (player.answeredCurrentRound) {
-    throw new ProtocolError('ALREADY_ANSWERED', 'Player already answered this round.');
-  }
+  // Besluit 54 (6 aug 2026): wijzigen mag tot de tijd om is. Geen afwijzing
+  // meer op een tweede antwoord — de mock moet hetzelfde doen als de server,
+  // anders wijkt solo af van samen spelen. De deadline zelf wordt hierboven
+  // al bewaakt.
   // De antwoordvorm hangt van de gameType af (PROTOCOL.md §round:answer):
   // meerkeuze stuurt { optionId }, echt-of-nep stuurt { choice }.
   const antwoord = payload.answer;
@@ -63,14 +64,33 @@ export function submitAnswer(target, playerId, payload, ctx) {
     gegeven = antwoord.optionId;
   }
 
+  // Besluit 54: bij een correctie eerst het vorige antwoord terugdraaien —
+  // net als `answer-flow.js` op de server. Zonder dat levert twijfelen punten
+  // op, en dat is precies waarom die keuze een besluit was.
+  const vorige = target.currentRound.answers.get(playerId);
+  const correcteWaarde = correctValueOf(target.currentRound.question);
+  if (vorige !== undefined && vorige === correcteWaarde) {
+    player.score -= 100;
+    player.correctCount -= 1;
+    player.correctResponseTimeMsTotal = Math.max(
+      0,
+      player.correctResponseTimeMsTotal - (target.currentRound.vorigeResponstijd?.get(playerId) ?? 0),
+    );
+  }
+
   player.answeredCurrentRound = true;
   target.currentRound.answers.set(playerId, gegeven);
 
-  const isCorrect = gegeven === correctValueOf(target.currentRound.question);
+  const isCorrect = gegeven === correcteWaarde;
   if (isCorrect) {
+    const responstijd = Math.max(0, Date.now() - target.currentRound.startsAt);
     player.score += 100;
     player.correctCount += 1;
-    player.correctResponseTimeMsTotal += Math.max(0, Date.now() - target.currentRound.startsAt);
+    player.correctResponseTimeMsTotal += responstijd;
+    if (target.currentRound.vorigeResponstijd === undefined) {
+      target.currentRound.vorigeResponstijd = new Map();
+    }
+    target.currentRound.vorigeResponstijd.set(playerId, responstijd);
   }
 
   emitToSession(target, playerId, 'round:answer-accepted', { roundId: target.currentRound.roundId }, ctx);

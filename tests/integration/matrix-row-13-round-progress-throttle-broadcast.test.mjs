@@ -148,16 +148,23 @@ test('Matrixrij 13: round:progress wordt bij een reeks antwoorden hoogstens twee
 
   // ── Het venster rolt door: daarna mag er weer een nieuwe broadcast ───────
   harness.clock.set(started.startsAt + 500 + 1200);
+  const socket0Progress = () => hostSocket.eventsNamed('round:progress').length;
+  const progressVoorCorrectie = socket0Progress();
   const lateAnswerAck = await playerSockets[0].emitWithAck('round:answer', {
     actionId: 'act_answer_late',
     payload: { roundId: started.roundId, answer: { optionId }, clientAnsweredAt: harness.clock.now() },
   });
-  // Al beantwoord door speler 0 in de eerste reeks; een nieuwe actionId voor
-  // een reeds beantwoorde speler in dezelfde ronde levert ALREADY_ANSWERED en
-  // triggert geen nieuwe broadcast. Gebruik in plaats daarvan de host, die nog
-  // niet had geantwoord.
-  assert.equal(lateAnswerAck.ok, false);
-  assert.equal(lateAnswerAck.payload.code, 'ALREADY_ANSWERED');
+  // Speler 0 antwoordde al in de eerste reeks. Sinds besluit 54 (6 aug 2026)
+  // is een tweede inzending een CORRECTIE en dus geldig — hij wordt hier alleen
+  // gebruikt om te bevestigen dat dat pad werkt. De broadcast-telling verderop
+  // hangt aan de host, die nog niet had geantwoord: een correctie verandert het
+  // AANTAL beantwoorders niet, dus hij hoort ook geen nieuwe `round:progress`
+  // op te leveren.
+  assert.equal(lateAnswerAck.ok, true, 'een correctie is geldig');
+  assert.equal(
+    socket0Progress(), progressVoorCorrectie,
+    'een correctie verandert het aantal beantwoorders niet, dus geen extra round:progress',
+  );
 
   const hostAnswerAck = await hostSocket.emitWithAck('round:answer', {
     actionId: 'act_host_answer',

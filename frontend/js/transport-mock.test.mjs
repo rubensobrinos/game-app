@@ -330,18 +330,24 @@ test(
   }),
 );
 
+// Besluit 54 (6 aug 2026) HERZIET dit: een tweede antwoord met een nieuwe
+// actionId is geen fout meer maar een correctie. Wat hier telt is dat de mock
+// zich net zo gedraagt als de server — anders wijkt solo af van samen spelen.
 test(
-  'a genuinely duplicate answer (new actionId, already answered) gets ALREADY_ANSWERED',
+  'een tweede antwoord met een nieuwe actionId is een correctie, geen fout',
   withFakeTimers(async () => {
     const { transport, created, hostConn } = await createRoomInRound1();
     const state = await transport.fetchState(created.gameCode, created.sessionToken);
     const payload = answerPayloadFor(state.currentRound);
 
     await hostConn.send('round:answer', 'act_answer_1', payload);
-    await assert.rejects(
-      () => hostConn.send('round:answer', 'act_answer_2', payload),
-      (err) => err.code === 'ALREADY_ANSWERED',
-    );
+    // Werpt niet meer: dát is de kern van besluit 54.
+    await hostConn.send('round:answer', 'act_answer_2', payload);
+
+    // Tweemaal hetzelfde goede antwoord mag niet dubbel tellen: de correctie
+    // draait de vorige bijdrage eerst terug.
+    const na = await transport.fetchState(created.gameCode, created.sessionToken);
+    assert.equal(na.self.score <= 100, true, `score na twee keer hetzelfde antwoord: ${na.self.score}`);
   }),
 );
 

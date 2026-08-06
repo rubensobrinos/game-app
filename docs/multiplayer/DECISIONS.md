@@ -493,7 +493,7 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
     en het scherm vult zichzelf aan.
 
 54. **Je mag je antwoord wijzigen tot de tijd om is; de laatste tik telt**
-    (producteigenaar, 6 aug 2026). NOG NIET GEBOUWD.
+    (producteigenaar, 6 aug 2026). GEBOUWD.
 
     Herziet `GAME-RULES.md`: *"één antwoord per speler per ronde; wijzigen is
     niet toegestaan"*. Dat was er altijd al en de server dwong het af met

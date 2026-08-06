@@ -21,8 +21,10 @@ Antwoorden zijn definitief zodra de server ze accepteert:
 - één antwoord per speler per ronde;
 - **wijzigen mag, tot de tijd om is** (besluit 54, 6 aug 2026 — herziet de
   eerdere regel "wijzigen is niet toegestaan"). De laatste tik telt, ook voor
-  de snelheidsbonus: je tijd loopt tot je klaar bent. NOG NIET GEBOUWD; de
-  server weigert een tweede antwoord vandaag nog met `ALREADY_ANSWERED`;
+  de snelheidsbonus: je tijd loopt tot je klaar bent. De bijdrage van het
+  vorige antwoord wordt teruggedraaid vóórdat die van het nieuwe erbij komt,
+  dus twijfelen levert nooit punten op. `ALREADY_ANSWERED` bestaat nog wél,
+  maar alleen als vangnet tegen een verdwaalde schrijfactie;
 - servertijd is leidend;
 - clienttijd wordt alleen voor diagnostiek meegestuurd;
 - het correcte antwoord wordt nooit vóór `round:ended` naar de client gestuurd.
