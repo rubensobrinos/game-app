@@ -27,10 +27,13 @@ function seededRandom(seed) {
   };
 }
 
-test('#1 de catalogus bevat de vier wereldgames uit DOELBEELD-v2 §1, in carrouselvolgorde', () => {
+test('#1 de catalogus bevat de vier wereldgames uit DOELBEELD-v2 §1, plus de twee van besluit 49', () => {
+  // De eerste vier zijn doelbeeld v2 en staan bewust vooraan in de carrousel.
+  // `capitals` en `higher_lower` bestonden al in de regellaag maar stonden
+  // nergens aan; besluit 49 (6 aug 2026) zet ze alsnog aan, achteraan.
   assert.deepEqual(
     GAME_CATALOG.map((game) => game.key),
-    ['flag', 'realfake', 'odd', 'outline'],
+    ['flag', 'realfake', 'odd', 'outline', 'capitals', 'higherlower'],
   );
 });
 

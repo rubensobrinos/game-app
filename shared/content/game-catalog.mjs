@@ -39,6 +39,12 @@ export const GAME_CATALOG = Object.freeze([
   Object.freeze({ key: 'realfake', gameType: 'real_or_fake_flag' }),
   Object.freeze({ key: 'odd', gameType: 'odd_one_out' }),
   Object.freeze({ key: 'outline', gameType: null }),
+  // Besluit 49 (producteigenaar, 6 aug 2026): deze twee bestonden al in de
+  // regellaag maar stonden nergens aan. De ketencontrole is gedraaid vóór ze
+  // hier landden — vraagselectie, contentbron, spelscherm, uitslag én mock
+  // kennen ze alle vijf.
+  Object.freeze({ key: 'capitals', gameType: 'capitals_mc' }),
+  Object.freeze({ key: 'higherlower', gameType: 'higher_lower' }),
 ]);
 
 /**
@@ -49,7 +55,9 @@ export const GAME_CATALOG = Object.freeze([
  *
  * @type {ReadonlyArray<string>}
  */
-export const PLAYABLE_GAME_TYPES = Object.freeze(['flags_mc', 'real_or_fake_flag', 'odd_one_out']);
+export const PLAYABLE_GAME_TYPES = Object.freeze([
+  'flags_mc', 'real_or_fake_flag', 'odd_one_out', 'capitals_mc', 'higher_lower',
+]);
 
 const PLAYABLE = new Set(PLAYABLE_GAME_TYPES);
 
