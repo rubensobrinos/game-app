@@ -223,8 +223,12 @@ test('host-wijzigt-naam-en-kleur: het ⋯-menu van een andere speler biedt herno
 test('§A5: draaien naar een NIET-speelbare game wijzigt de configuratie niet', async () => {
   const { root, patches } = await maakLobby();
   const pijlen = vindAlle(root, 'lobby-gamearrow');
+  // Sinds 6 aug 2026 is de hele catalogus speelbaar (Raad het land was de
+  // laatste). De regel die deze test bewaakt is dáármee niet minder waar: er
+  // mag nooit een onspeelbare gameType over de lijn, of er nu één in de
+  // catalogus staat of niet. Geen precondititie dus — anders valt de test om
+  // op zijn eigen aanname zodra het product compleet is.
   const nietSpeelbaar = GAME_CATALOG.filter((game) => !isPlayableGameType(game.gameType));
-  assert.ok(nietSpeelbaar.length > 0, 'er staan BINNENKORT-games in de catalogus');
 
   const rondje = GAME_CATALOG.length;
   for (let stap = 0; stap < rondje; stap += 1) klik(pijlen[1]);
@@ -242,19 +246,27 @@ test('§A5: draaien naar een NIET-speelbare game wijzigt de configuratie niet', 
   );
 });
 
-test('§A5: een BINNENKORT-game toont dat ook, een speelbare niet', async () => {
+test('§A5: het BINNENKORT-label volgt de catalogus, en niets anders', async () => {
   const { root, view } = await maakLobby();
   const pijlen = vindAlle(root, 'lobby-gamearrow');
   const soon = vind(root, 'lobby-gamecard-soon');
+  const kaart = vind(root, 'lobby-gamecard');
 
-  // Eerste kaart is speelbaar (flags_mc): geen BINNENKORT-label.
-  assert.equal(soon.textContent, '');
-
-  // Draai door tot de eerste niet-speelbare game.
-  const eersteOnspeelbaar = GAME_CATALOG.findIndex((game) => !isPlayableGameType(game.gameType));
-  for (let stap = 0; stap < eersteOnspeelbaar; stap += 1) klik(pijlen[1]);
-  assert.equal(soon.textContent, 'lobby.gameSoonStart');
-  assert.ok(vind(root, 'lobby-gamecard').classList.contains('is-soon'));
+  // Draai één keer de hele catalogus rond en controleer per kaart dat het
+  // label precies overeenkomt met `isPlayableGameType`. Zo test dit ook nog
+  // iets als er (zoals sinds 6 aug 2026) géén onspeelbare game meer is: dan
+  // hoort er nergens een BINNENKORT te staan.
+  for (let stap = 0; stap < GAME_CATALOG.length; stap += 1) {
+    const game = GAME_CATALOG[stap];
+    const speelbaar = isPlayableGameType(game.gameType);
+    assert.equal(
+      soon.textContent,
+      speelbaar ? '' : 'lobby.gameSoonStart',
+      `${game.key} is ${speelbaar ? 'speelbaar' : 'niet speelbaar'} en het label hoort dat te volgen`,
+    );
+    assert.equal(kaart.classList.contains('is-soon'), !speelbaar, game.key);
+    klik(pijlen[1]);
+  }
   view.destroy?.();
 });
 

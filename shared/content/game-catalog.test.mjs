@@ -47,10 +47,14 @@ test('#2 elke gameType in de catalogus is een bestaande Golf-1-gameType (of null
   }
 });
 
-test('#3 "Raad het land" heeft bewust nog geen gameType — de contourdata zit nog in de solo-app', () => {
+test('#3 "Raad het land" is sinds 6 aug 2026 speelbaar — de hele keten bestaat', () => {
+  // Was: `gameType: null`, want de contourdata zat nog in de solo-app. De
+  // migratie (225 landen), de tekenaar, het spelscherm, het uitslagscherm en
+  // de mock zijn er nu alle vijf, en er is een partij van vijf rondes solo én
+  // tegen de echte server mee uitgespeeld.
   const outline = GAME_CATALOG.find((game) => game.key === 'outline');
-  assert.equal(outline.gameType, null);
-  assert.equal(isPlayableGameType(outline.gameType), false);
+  assert.equal(outline.gameType, 'country_shape_mc');
+  assert.equal(isPlayableGameType(outline.gameType), true);
 });
 
 test('#4 isPlayableGameType is streng: alleen strings uit PLAYABLE_GAME_TYPES', () => {

@@ -38,7 +38,7 @@ export const GAME_CATALOG = Object.freeze([
   Object.freeze({ key: 'flag', gameType: 'flags_mc' }),
   Object.freeze({ key: 'realfake', gameType: 'real_or_fake_flag' }),
   Object.freeze({ key: 'odd', gameType: 'odd_one_out' }),
-  Object.freeze({ key: 'outline', gameType: null }),
+  Object.freeze({ key: 'outline', gameType: 'country_shape_mc' }),
   // Besluit 49 (producteigenaar, 6 aug 2026): deze twee bestonden al in de
   // regellaag maar stonden nergens aan. De ketencontrole is gedraaid vóór ze
   // hier landden — vraagselectie, contentbron, spelscherm, uitslag én mock
@@ -57,6 +57,14 @@ export const GAME_CATALOG = Object.freeze([
  */
 export const PLAYABLE_GAME_TYPES = Object.freeze([
   'flags_mc', 'real_or_fake_flag', 'odd_one_out', 'capitals_mc', 'higher_lower',
+  // Besluit C-2: de vierde wereldgame. Pas hier omgezet nadat alle vijf de
+  // schakels bestonden en een partij van vijf rondes solo én tegen de echte
+  // server is uitgespeeld (opdracht D). De ketentest vond onderweg nog een
+  // stille vastloper: computeAnswerDistribution kende dit gameType niet en
+  // wierp binnen de fasepomp, waardoor de room zonder foutmelding in
+  // ROUND_ACTIVE bleef hangen tot de TTL verliep — hetzelfde patroon als
+  // 4 augustus, één fase later.
+  'country_shape_mc',
 ]);
 
 const PLAYABLE = new Set(PLAYABLE_GAME_TYPES);
