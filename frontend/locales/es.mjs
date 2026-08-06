@@ -221,6 +221,8 @@ export const es = Object.freeze({
   'podium.shareResult': '¡Obtuve {score} puntos en Rounda!',
   'podium.shareGeneric': '¡Acabamos de jugar a Rounda!',
   'podium.close': 'Cerrar',
+  'podium.passportSummary': 'Ya has visto {seen} de {total} países.',
+  'podium.passportNewFlagAlt': '{country} — ¡nuevo!',
 
   'error.GAME_NOT_FOUND': 'Ese código no es correcto. ¿Lo compruebas?',
   'error.GAME_EXPIRED': 'Esta partida ya ha terminado.',

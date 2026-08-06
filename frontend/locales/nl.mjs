@@ -282,6 +282,10 @@ export const nl = Object.freeze({
   'podium.shareResult': 'Ik scoorde {score} punten in Rounda!',
   'podium.shareGeneric': 'We speelden net Rounda!',
   'podium.close': 'Afsluiten',
+  // Besluit 53 (paspoort): na de eindstand, ondergeschikt aan het podium.
+  // Landnaam als alt-tekst is hier geen antwoordlek meer — de ronde is voorbij.
+  'podium.passportSummary': 'Je hebt er nu {seen} van de {total} landen gezien.',
+  'podium.passportNewFlagAlt': '{country} — nieuw!',
 
   // — Foutmeldingen: sleutel = `edge-case-messaging.messageForErrorCode()`'s
   // teruggegeven code, vertaald hier. PROTOCOL.md's volledige foutcodetabel. —

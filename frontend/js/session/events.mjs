@@ -10,12 +10,13 @@ import {
 import { applyRoundResult as applyStreakResult } from '../views/streak-model.mjs';
 import { standingsFrom } from '../views/standings-model.mjs';
 import { messageForSessionTermination } from '../../../client/flow/edge-case-messaging.mjs';
+import { resetPassportForNewMatch, recordRoundEndedForPassport } from './passport-tracker.mjs';
 
 // T5-9: venster waarbinnen opeenvolgende room:player-changed-deltas worden
 // samengevoegd tot één render. `07` §9's eigen suggestie ("bv. 500 ms").
 const PLAYER_CHANGED_BATCH_MS = 500;
 
-export function createEventController({ state, roomHeader, renderBanner, renderPauseOverlay, renderHostBar, routeToView, onLeaveHome, terminate, isEmptyFinish }) {
+export function createEventController({ state, roomHeader, renderBanner, renderPauseOverlay, renderHostBar, routeToView, onLeaveHome, terminate, isEmptyFinish, storage }) {
   let playerChangedBatchWindowOpen = false;
   let playerChangedRenderPending = false;
   let playerChangedBatchTimer = null;
@@ -60,6 +61,15 @@ export function createEventController({ state, roomHeader, renderBanner, renderP
       // — `match-phase-state.mjs` bewaart 'm bewust niet (net als rondedata),
       // dus hier lokaal bijhouden, zelfde patroon als `state.roundModel`.
       state.countdownEndsAt = typeof envelope.payload?.countdownEndsAt === 'number' ? envelope.payload.countdownEndsAt : null;
+      // Besluit 53 (paspoort): een nieuwe match is een schone "vanavond" —
+      // ook de vergelijkingsbasis voor "nieuw op het podium" wordt hier
+      // bevroren, vóórdat de eerste ronde van déze match iets toevoegt.
+      resetPassportForNewMatch(storage);
+      break;
+    case 'game:rematch-started':
+      // Zelfde reden als game:started hierboven: een revanche is voor het
+      // paspoort een nieuwe match, geen voortzetting van de vorige.
+      resetPassportForNewMatch(storage);
       break;
     case 'round:started':
       state.countdownEndsAt = null;
@@ -78,6 +88,12 @@ export function createEventController({ state, roomHeader, renderBanner, renderP
       state.roundModel = applyProgress(state.roundModel, envelope.payload);
       break;
     case 'round:ended':
+      // Besluit 53 (paspoort): "elk land dat je zag telt", ongeacht of het
+      // antwoord goed was — dat staat dus vast vóórdat `applyRoundEnded`
+      // hieronder `state.roundModel` overschrijft, niet erna. `gameType`/
+      // `question` komen uit de RONDE die net eindigde (round:started), niet
+      // uit `envelope.payload` zelf (dat draagt alleen `correctAnswer` e.d.).
+      recordRoundEndedForPassport(storage, state.roundModel.gameType, state.roundModel.question, envelope.payload?.correctAnswer);
       state.roundModel = applyRoundEnded(state.roundModel, envelope.payload);
       // 11-verzoek (BOUWSPRINT doel 4): op sessieniveau bijgehouden, niet in
       // gameplay.mjs's eigen closure — die wordt elke ronde herbouwd zodra

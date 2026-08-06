@@ -223,6 +223,8 @@ export const en = Object.freeze({
   'podium.shareResult': 'I scored {score} points in Rounda!',
   'podium.shareGeneric': 'We just played Rounda!',
   'podium.close': 'Close',
+  'podium.passportSummary': "You've now seen {seen} of {total} countries.",
+  'podium.passportNewFlagAlt': '{country} — new!',
 
   'error.GAME_NOT_FOUND': 'That code is not right. Want to check it?',
   'error.GAME_EXPIRED': 'This game has ended.',

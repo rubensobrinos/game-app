@@ -315,6 +315,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
     onLeaveHome,
     terminate,
     isEmptyFinish,
+    storage,
   });
   const { handleEvent } = eventController;
 
@@ -520,6 +521,7 @@ export function createSessionShell({ root, headerRoot, t, tCount, transport, sto
         t,
         isHost: isHost(),
         capabilities,
+        storage,
         onRematch: () => sendHostAction('rematch'),
         onNewGame: onLeaveHome,
         onClose: onLeaveHome,

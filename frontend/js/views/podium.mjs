@@ -10,6 +10,9 @@
 import { podiumTop3 } from './standings-model.mjs';
 import { createRoundaView } from './rounda.mjs';
 import { identityText, identityFlagUrl } from './identity-display.mjs';
+import { countryName, flagAssetPath } from './country-names.mjs';
+import { passportSummaryForPodium } from '../session/passport-tracker.mjs';
+import { getCountryPool } from '../../../shared/content/index.mjs';
 
 // S20 (04): "korte, overslaanbare 3→2→1-opbouw". Geen motion-tokens (thema 3
 // levert die pas) — een vaste vertraging in dezelfde orde als de andere
@@ -17,7 +20,7 @@ import { identityText, identityFlagUrl } from './identity-display.mjs';
 // eigen animatiesysteem vooruitlopend op dat werk.
 const PODIUM_STEP_DELAY_MS = 1400;
 
-export function createPodiumView({ root, t, isHost, capabilities, onRematch, onNewGame, onClose }) {
+export function createPodiumView({ root, t, isHost, capabilities, storage, onRematch, onNewGame, onClose }) {
   root.textContent = '';
 
   const title = document.createElement('h2');
@@ -54,6 +57,19 @@ export function createPodiumView({ root, t, isHost, capabilities, onRematch, onN
   const selfLine = document.createElement('p');
   selfLine.className = 'podium-self';
   selfLine.setAttribute('aria-live', 'polite');
+
+  // Besluit 53 (paspoort): NA de eindstand, ondergeschikt aan het podium
+  // zelf — de winnaar blijft de kop, dit is een regel + een rij vlaggen
+  // eronder, geen tweede podium. Leeg (hidden) zolang er niets te tonen is
+  // (geen `storage` meegegeven, of geen enkel land deze partij — zie update()).
+  const passportSection = document.createElement('div');
+  passportSection.className = 'podium-passport';
+  passportSection.hidden = true;
+  const passportSummary = document.createElement('p');
+  passportSummary.className = 'podium-passport-summary';
+  const passportFlags = document.createElement('ul');
+  passportFlags.className = 'podium-passport-flags';
+  passportSection.append(passportSummary, passportFlags);
 
   const action = document.createElement('div');
   action.className = 'podium-action';
@@ -113,7 +129,7 @@ export function createPodiumView({ root, t, isHost, capabilities, onRematch, onN
   closeButton.addEventListener('click', () => onClose());
 
   action.append(shareButton, closeButton);
-  root.append(title, steps, confetti, selfLine, action, shareFeedback);
+  root.append(title, steps, confetti, selfLine, passportSection, action, shareFeedback);
 
   let currentStandings = { entries: [], self: null };
   let revealTimers = [];
@@ -271,6 +287,54 @@ export function createPodiumView({ root, t, isHost, capabilities, onRematch, onN
           : `${t('standings.you')}: ${standings.self.score}`;
     } else {
       selfLine.textContent = '';
+    }
+
+    renderPassport(lang);
+  }
+
+  /**
+   * Besluit 53. `storage` komt uit `session-shell.mjs` (localStorage) — zonder
+   * `storage` (bv. een aanroeper die 'm niet meegeeft) blijft de sectie
+   * gewoon verborgen i.p.v. te crashen, zelfde terugval als elders in deze
+   * codebase bij een optionele integratie.
+   */
+  function renderPassport(lang) {
+    if (storage === undefined || storage === null) {
+      passportSection.hidden = true;
+      return;
+    }
+    const { totalSeen, seenThisMatch, newThisMatch } = passportSummaryForPodium(storage);
+    if (seenThisMatch.length === 0) {
+      // Geen enkel land deze partij (bv. alleen nepvlaggen in Echt of nep) —
+      // dan is er niets om "vanavond" te tonen. `totalSeen` zelf kan intussen
+      // best > 0 zijn (eerdere partijen); zonder een "vanavond"-rij heeft de
+      // regel alleen geen nieuwe zin toe te voegen.
+      passportSection.hidden = true;
+      return;
+    }
+    passportSection.hidden = false;
+    const totalCountries = getCountryPool().length;
+    passportSummary.textContent = t('podium.passportSummary')
+      .replace('{seen}', String(totalSeen))
+      .replace('{total}', String(totalCountries));
+
+    passportFlags.textContent = '';
+    const nieuw = new Set(newThisMatch);
+    for (const iso2 of seenThisMatch) {
+      const item = document.createElement('li');
+      item.className = 'podium-passport-flag-item';
+      const isNew = nieuw.has(iso2);
+      item.classList.toggle('is-new', isNew);
+      const naam = countryName(iso2, lang);
+      const img = document.createElement('img');
+      img.className = 'podium-passport-flag';
+      img.src = flagAssetPath(iso2);
+      // De ronde is voorbij: de landnaam hier tonen is geen antwoordlek meer
+      // (anders dan `game.flagAlt` tijdens het spelen). Kleur is nooit de
+      // enige drager van "nieuw" — de alt-tekst zelf zegt het er ook bij.
+      img.alt = isNew ? t('podium.passportNewFlagAlt').replace('{country}', naam) : naam;
+      item.appendChild(img);
+      passportFlags.appendChild(item);
     }
   }
 
