@@ -1,5 +1,13 @@
 import { CLAIM_LOCATORS_LUA, REFRESH_LOCATORS_LUA, RELEASE_LOCATORS_LUA, ROTATE_LOCATORS_LUA, assertPositiveInteger } from './scripts.mjs';
-import { roomCodeLookupKey, roomInviteLookupKey, roomKey, roomsActiveKey } from '../../redis-keys.js';
+import { roomCodeLookupKey, roomCodeSeenKey, roomInviteLookupKey, roomKey, roomsActiveKey } from '../../redis-keys.js';
+
+/**
+ * Besluit 48: hoe lang de grafsteen leeft. Zeven dagen — lang genoeg dat "ik
+ * speelde gisteren nog" klopt, kort genoeg dat het niets kost (één sleutel van
+ * één byte per room). Losstaand van de room-TTL van vier uur; hij hoort de
+ * room juist te overleven.
+ */
+const SEEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 import { assertRoomShape } from '../../types/room.js';
 
 export function createRoomMethods(context) {
@@ -50,6 +58,23 @@ export function createRoomMethods(context) {
   async function loadRoomByCode(code) {
     const roomId = await client().get(roomCodeLookupKey(code));
     return roomId === null ? null : loadRoom(roomId);
+  }
+
+  /**
+   * Besluit 48: leg vast dát deze code gebruikt is. Aparte sleutel met een
+   * eigen, veel langere TTL — hij hoort de room te overleven, dat is het hele
+   * punt. Niet in `claimRoomLocatorsAtomically` gezet: die is atomair via een
+   * script, en een grafsteen die een milliseconde later komt is onschadelijk
+   * terwijl een aanpassing aan dat script dat niet is.
+   * @param {string} code
+   */
+  async function markCodeSeen(code) {
+    await client().set(roomCodeSeenKey(code), '1', { EX: SEEN_TTL_SECONDS });
+  }
+
+  /** @param {string} code @returns {Promise<boolean>} */
+  async function hasCodeBeenSeen(code) {
+    return (await client().exists(roomCodeSeenKey(code))) === 1;
   }
 
   /** @param {string} inviteHash */
@@ -130,6 +155,6 @@ export function createRoomMethods(context) {
   }
 
 
-  return { loadRoom, saveRoom, loadRoomByCode, loadRoomByInviteHash, claimRoomLocatorsAtomically, releaseRoomLocators, refreshRoomLocators, rotateRoomLocators, };
+  return { loadRoom, saveRoom, loadRoomByCode, loadRoomByInviteHash, claimRoomLocatorsAtomically, releaseRoomLocators, refreshRoomLocators, rotateRoomLocators, markCodeSeen, hasCodeBeenSeen, };
 }
 

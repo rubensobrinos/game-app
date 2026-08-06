@@ -58,6 +58,9 @@ function getOrCreateNestedMap(outer, key) {
 function createInMemoryStore() {
   const roomsById = new Map();
   const roomIdByCode = new Map();
+  // Besluit 48: welke codes ooit gebruikt zijn. Geen TTL nodig — deze store
+  // leeft niet langer dan het proces.
+  const codesSeen = new Set();
   const roomIdByInviteHash = new Map(); // gevuld door claimRoomLocatorsAtomically, NIET door saveRoom (Room draagt geen inviteHash — zie DM10)
   const sessionsByKey = new Map(); // roomId -> Map<sessionId, Session> (DM18: was `${roomId} ${sessionId}`, zie §7)
   const roomAndSessionByTokenHash = new Map(); // tokenHash -> { roomId, sessionId } (DM14/§10)
@@ -86,6 +89,23 @@ function createInMemoryStore() {
     // inviteHash vindbaar is — dat is de bedoeling, geen bug.
     const copy = deepCopy(room);
     roomsById.set(copy.id, copy);
+  }
+
+
+  /**
+   * Besluit 48: de grafsteen, zelfde gedrag als de Redis-adapter. Een Set
+   * volstaat hier — deze store is voor ontwikkeling en tests, en leeft toch
+   * niet langer dan het proces. De TTL van zeven dagen doet er dus niet toe;
+   * wat telt is dat het onderscheid dat de compositielaag maakt in beide
+   * adapters hetzelfde uitpakt.
+   */
+  async function markCodeSeen(code) {
+    codesSeen.add(String(code));
+  }
+
+  /** @param {string} code @returns {Promise<boolean>} */
+  async function hasCodeBeenSeen(code) {
+    return codesSeen.has(String(code));
   }
 
   async function loadRoomByCode(code) {
@@ -434,6 +454,7 @@ function createInMemoryStore() {
 
   return {
     loadRoom, saveRoom, loadRoomByCode, loadRoomByInviteHash,
+    markCodeSeen, hasCodeBeenSeen,
     claimRoomLocatorsAtomically, releaseRoomLocators, refreshRoomLocators, rotateRoomLocators,
     loadSession, saveSession, loadSessionByTokenHash,
     loadPlayer, savePlayer, listPlayers, listActiveRoomIds,

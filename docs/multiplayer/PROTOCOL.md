@@ -978,6 +978,7 @@ opgeslagen veld (`DECISIONS.md`, punt 16).
 ### Room en join
 
 - `GAME_NOT_FOUND`
+- `GAME_EXPIRED`
 - `INVITE_INVALID`
 - `GAME_FULL`
 - `GAME_ALREADY_STARTED`
@@ -985,8 +986,22 @@ opgeslagen veld (`DECISIONS.md`, punt 16).
 - `ROOM_LOCKED`
 - `CODE_RATE_LIMITED`
 
-`GAME_NOT_FOUND` is ook het externe resultaat van een verlopen room-TTL (4 uur);
-daarvoor bestaat geen aparte foutcode (`DECISIONS.md`, punt 2).
+**`GAME_NOT_FOUND` versus `GAME_EXPIRED`** (besluit 48, 6 aug 2026). Tot die
+datum leverden beide gevallen `GAME_NOT_FOUND` op — een verlopen room bestond
+extern niet anders dan een verkeerd getypte code. Dat was misleidend: een host
+die zijn verbinding kwijtraakte las dat zijn game vernietigd was.
+
+- `GAME_NOT_FOUND` — deze code heeft nooit bestaan.
+- `GAME_EXPIRED` — deze code is ooit gebruikt, maar de room is er niet meer.
+
+Het onderscheid kan alleen omdat er een spoor achterblijft: bij het claimen van
+een roomcode schrijft de server `room:used:{code}`, een sleutel met een veel
+langere TTL (7 dagen) die niets anders bevat dan het feit dát de code gebruikt
+is — geen namen, geen scores, geen roomId. Verloopt de room, dan verdwijnen zijn
+locators en documenten en blijft alleen die grafsteen over.
+
+Beide codes geven HTTP 404: het verschil zit in de melding die de speler leest,
+niet in de status.
 
 ### Autorisatie
 

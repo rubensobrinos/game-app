@@ -778,3 +778,37 @@ test('§A1: de quick-start default komt er ongeschonden doorheen', () => {
   assert.equal(config.gameTypes.length, 1);
   assert.ok(PLAYABLE_GAME_TYPES.includes(config.gameTypes[0]));
 });
+
+// ─── Besluit 48: verlopen is iets anders dan onbekend ────────────────────────
+//
+// Vóór deze reparatie leverden beide gevallen `GAME_NOT_FOUND` op. Een host die
+// zijn game kwijt was, las daardoor dezelfde zin als iemand die zich vertypte —
+// en dat was ook de melding die een host kreeg toen alleen zijn verbinding weg
+// was. De grafsteen (`markCodeSeen`/`hasCodeBeenSeen`) is het enige spoor dat
+// een verlopen room achterlaat; zonder dat spoor is "afwezig" één ding.
+
+test('besluit 48: een code die nooit bestaan heeft geeft GAME_NOT_FOUND, een verlopen room GAME_EXPIRED', async () => {
+  const context = makeContext();
+  const room = await makeRoom(context);
+
+  // 1. Nooit bestaan: geen room, geen grafsteen.
+  const nooit = room.gameCode === '111111' ? '222222' : '111111';
+  assert.deepEqual(
+    await joinRoom(context, { gameCode: nooit, displayName: 'Sanne', joinSource: 'code' }),
+    { ok: false, code: 'GAME_NOT_FOUND' },
+  );
+
+  // 2. Verlopen: precies wat Redis na vier uur doet — de locator en het
+  //    roomdocument verdwijnen, de grafsteen blijft. De in-memory store kent
+  //    geen TTL, dus we bootsen het verval na door de locator vrij te geven.
+  await context.store.releaseRoomLocators({
+    roomId: room.roomId,
+    code: room.gameCode,
+    inviteHash: room.inviteHash,
+  });
+  assert.deepEqual(
+    await joinRoom(context, { gameCode: room.gameCode, displayName: 'Sanne', joinSource: 'code' }),
+    { ok: false, code: 'GAME_EXPIRED' },
+    'een verlopen room is geen tikfout',
+  );
+});

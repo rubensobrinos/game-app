@@ -85,7 +85,7 @@ test('extractErrorCodesFromProtocolDoc: elke categorie in PROTOCOL.md komt exact
 
 test('extractErrorCodesFromProtocolDoc vs ALL_ERROR_CODES: leeg set-verschil in beide richtingen', () => {
   const codesFromDoc = new Set(extracted.map((entry) => entry.code));
-  assert.equal(codesFromDoc.size, 24);
+  assert.equal(codesFromDoc.size, 25);
 
   const onlyInDoc = [...codesFromDoc].filter((code) => !ALL_ERROR_CODES.has(code));
   const onlyInEnum = [...ALL_ERROR_CODES].filter((code) => !codesFromDoc.has(code));

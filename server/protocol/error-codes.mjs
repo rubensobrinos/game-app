@@ -13,7 +13,7 @@
  * Alle 23 foutcodes uit PROTOCOL.md §Foutcodes, in hun 4 documentcategorieën.
  *
  * @typedef {
- *   | 'GAME_NOT_FOUND' | 'INVITE_INVALID' | 'GAME_FULL' | 'GAME_ALREADY_STARTED'
+ *   | 'GAME_NOT_FOUND' | 'GAME_EXPIRED' | 'INVITE_INVALID' | 'GAME_FULL' | 'GAME_ALREADY_STARTED'
  *   | 'LATE_JOIN_DISABLED' | 'ROOM_LOCKED' | 'CODE_RATE_LIMITED'
  *   | 'TOKEN_INVALID' | 'TOKEN_EXPIRED' | 'SESSION_REVOKED' | 'NOT_HOST'
  *   | 'NOT_PLAYER'
@@ -33,10 +33,13 @@
  */
 export const ERROR_CODES_BY_CATEGORY = Object.freeze({
   ROOM_EN_JOIN: Object.freeze([
-    // zie docs/protocol-plan/README.md, Open vragen §1 — TTL-verval (4 uur)
-    // hergebruikt dit impliciet GAME_NOT_FOUND, of komt er een aparte code?
-    // Onbeslist; deze enum legt hier bewust geen aanname vast.
     'GAME_NOT_FOUND',
+    // Besluit 48 (producteigenaar, 6 aug 2026) — hiermee is de open vraag uit
+    // docs/protocol-plan/README.md §1 beslist: TTL-verval hergebruikt
+    // GAME_NOT_FOUND NIET, maar krijgt een eigen code. Een verlopen game en
+    // een verkeerd getypte code zijn voor een speler twee heel verschillende
+    // dingen, en ze verdienen twee verschillende meldingen.
+    'GAME_EXPIRED',
     'INVITE_INVALID', 'GAME_FULL', 'GAME_ALREADY_STARTED',
     'LATE_JOIN_DISABLED', 'ROOM_LOCKED', 'CODE_RATE_LIMITED',
   ]),

@@ -117,6 +117,12 @@ export async function claimLocators(context, { roomId, maxAttempts = DEFAULT_LOC
       ttlSeconds: ROOM_TTL_SECONDS,
     });
     if (claim.ok === true) {
+      // Besluit 48: leg vast dát deze code gebruikt is, zodat een speler die
+      // hem over vier uur intypt "deze game is afgelopen" leest en niet "deze
+      // code klopt niet". Bewust ná de claim en niet erin: de claim is
+      // atomair via een script, en een grafsteen die een tel later komt is
+      // onschadelijk — een aanpassing aan dat script zou dat niet zijn.
+      await context.store.markCodeSeen(code);
       return { code, inviteId, inviteHash };
     }
     lastConflict = claim.conflict;

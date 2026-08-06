@@ -43,6 +43,21 @@ function roomCodeLookupKey(code) {
   return `room:code:${assertSegment('code', code)}`;
 }
 
+/**
+ * @returns {string} 'room:used:{code}' — de grafsteen (besluit 48).
+ *
+ * Leeft veel langer dan de room zelf en zegt niets meer dan: deze code is ooit
+ * gebruikt. Zonder dit spoor is "je typte een code die nooit bestond" niet te
+ * onderscheiden van "die game is afgelopen" — als een room verloopt verdwijnen
+ * al zijn sleutels en blijft er niets achter om naar te kijken.
+ *
+ * Bewust GEEN roominhoud: geen namen, geen scores, geen roomId. Alleen het
+ * feit. Alles daarbovenop is een privacyvraag die niemand gesteld heeft.
+ */
+function roomCodeSeenKey(code) {
+  return `room:used:${assertSegment('code', code)}`;
+}
+
 /** @returns {string} 'room:invite:{inviteHash}' */
 function roomInviteLookupKey(inviteHash) {
   return `room:invite:${assertSegment('inviteHash', inviteHash)}`;
@@ -149,6 +164,7 @@ function actionCacheKey(roomId) {
 module.exports = {
   roomsActiveKey,
   roomCodeLookupKey,
+  roomCodeSeenKey,
   roomInviteLookupKey,
   sessionTokenLookupKey,
   roomKey,

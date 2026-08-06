@@ -222,7 +222,8 @@ export const en = Object.freeze({
   'podium.shareGeneric': 'We just played Rounda!',
   'podium.close': 'Close',
 
-  'error.GAME_NOT_FOUND': "This game doesn't exist (anymore).",
+  'error.GAME_NOT_FOUND': 'That code is not right. Want to check it?',
+  'error.GAME_EXPIRED': 'This game has ended.',
   'error.INVITE_INVALID': 'This invite is invalid.',
   'error.GAME_FULL': 'This game is full.',
   'error.GAME_ALREADY_STARTED': 'This game has already started.',

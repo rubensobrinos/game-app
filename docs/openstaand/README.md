@@ -36,7 +36,7 @@ Peildatum: 6 aug 2026.
 Acht opdrachten, één bestand per opdracht, volgorde en status in
 [refactor/README.md](refactor/README.md).
 
-| [Verlopen room vs. onbekende code](verlopen-vs-onbekend.md) | klaar om te starten |
+
 
 ## Ideeën
 

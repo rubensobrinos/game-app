@@ -220,7 +220,8 @@ export const es = Object.freeze({
   'podium.shareGeneric': '¡Acabamos de jugar a Rounda!',
   'podium.close': 'Cerrar',
 
-  'error.GAME_NOT_FOUND': 'Esta partida ya no existe.',
+  'error.GAME_NOT_FOUND': 'Ese código no es correcto. ¿Lo compruebas?',
+  'error.GAME_EXPIRED': 'Esta partida ya ha terminado.',
   'error.INVITE_INVALID': 'Esta invitación no es válida.',
   'error.GAME_FULL': 'Esta partida está llena.',
   'error.GAME_ALREADY_STARTED': 'Esta partida ya ha comenzado.',

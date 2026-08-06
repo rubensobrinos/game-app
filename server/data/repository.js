@@ -28,6 +28,8 @@
  * @property {(locators: RoomLocatorPair) => Promise<void>} releaseRoomLocators
  * @property {(claim: RoomLocatorClaim) => Promise<void>} refreshRoomLocators
  * @property {(rotation: RoomLocatorRotation) => Promise<{ ok: true } | { ok: false, conflict: 'code' | 'inviteHash' }>} rotateRoomLocators
+ * @property {(code: string) => Promise<void>} markCodeSeen
+ * @property {(code: string) => Promise<boolean>} hasCodeBeenSeen
  * @property {(roomId: string, sessionId: string) => Promise<import('./types/session').Session|null>} loadSession
  * @property {(session: import('./types/session').Session) => Promise<void>} saveSession
  * @property {(tokenHash: string) => Promise<import('./types/session').Session|null>} loadSessionByTokenHash
@@ -156,6 +158,10 @@
 const DATA_STORE_METHOD_NAMES = Object.freeze([
   'loadRoom', 'saveRoom', 'loadRoomByCode', 'loadRoomByInviteHash',
   'claimRoomLocatorsAtomically', 'releaseRoomLocators', 'refreshRoomLocators', 'rotateRoomLocators',
+  // Besluit 48 (6 aug 2026): de grafsteen. Zonder dit spoor is een verlopen
+  // room niet te onderscheiden van een code die nooit bestond — beide zijn
+  // simpelweg afwezig. Additief toegevoegd zoals deze lijst zelf toestaat.
+  'markCodeSeen', 'hasCodeBeenSeen',
   'loadSession', 'saveSession', 'loadSessionByTokenHash',
   'loadPlayer', 'savePlayer', 'listPlayers', 'listActiveRoomIds',
   'loadMatch', 'saveMatch',

@@ -115,6 +115,9 @@ const INTERNAL_ERROR_MARKER = 'INTERNAL_ERROR';
 const HTTP_STATUS_BY_ERROR_CODE = Object.freeze({
   // Room en join
   GAME_NOT_FOUND: 404,
+  // Besluit 48: ook 404 — de room is er niet. Het verschil zit in de melding
+  // die de speler leest, niet in de HTTP-status.
+  GAME_EXPIRED: 404,
   INVITE_INVALID: 400,
   // Toegevoegd door PR na de slotlichting: een request die zijn eigen schema
   // niet haalt, zonder dat er een invite in het spel is. Vervangt het

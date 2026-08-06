@@ -324,7 +324,7 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
     kosten vrijwel niets.
 
 48. **Verlopen room en onbekende code worden apart gemeld** (producteigenaar,
-    6 aug 2026). VASTGELEGD, NOG NIET GEBOUWD.
+    6 aug 2026). GEBOUWD.
 
     Nu heten een verlopen room, een verkeerd getypte code en een verbroken
     verbinding alle drie "Deze game bestaat niet (meer)". De producteigenaar
@@ -332,6 +332,17 @@ is geen toestemming om tests destructief tegen productie uit te voeren.
 
     Vereist dat de server onthoudt dát een roomcode bestaan heeft nadat de room
     is opgeruimd. Zonder zo'n spoor is het verschil niet vast te stellen.
+
+    **Gebouwd als een grafsteen:** bij het claimen van een code schrijft de
+    server `room:used:{code}`, een sleutel die zeven dagen leeft en niets
+    bevat dan het feit dát de code gebruikt is — geen namen, geen scores, geen
+    roomId. De poort kreeg er twee methoden bij (`markCodeSeen`,
+    `hasCodeBeenSeen`), wat de lijst zelf expliciet toestaat. Nieuwe foutcode
+    `GAME_EXPIRED`, ook 404: het verschil zit in de melding, niet in de status.
+
+    Hiermee is de open vraag uit `docs/protocol-plan/README.md` §1 beslist.
+    De meldingen luiden nu: *"Deze code klopt niet. Kijk je hem na?"* tegenover
+    *"Deze game is afgelopen."*
 
 49. **Hoger/lager en Hoofdsteden gaan alsnog aan** (producteigenaar,
     6 aug 2026). NOG NIET GEBOUWD.

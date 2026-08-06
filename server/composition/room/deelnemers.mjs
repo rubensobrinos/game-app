@@ -103,7 +103,15 @@ async function locateRoom(context, { inviteId, gameCode }) {
     return fail(CODES.INVITE_INVALID);
   }
   const room = await context.store.loadRoomByCode(gameCode);
-  return room === null ? fail(CODES.GAME_NOT_FOUND) : succeed(room);
+  if (room !== null) {
+    return succeed(room);
+  }
+  // Besluit 48: afwezig is niet één ding. Een room die verloopt laat geen
+  // spoor achter, dus zonder de grafsteen lijkt "die avond is voorbij"
+  // precies op "je hebt je vertypt" — en dat las een host ook als hij
+  // alleen zijn verbinding kwijt was.
+  const eerderGebruikt = await context.store.hasCodeBeenSeen(gameCode);
+  return fail(eerderGebruikt ? CODES.GAME_EXPIRED : CODES.GAME_NOT_FOUND);
 }
 
 /**

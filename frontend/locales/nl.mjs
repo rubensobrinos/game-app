@@ -281,7 +281,8 @@ export const nl = Object.freeze({
 
   // — Foutmeldingen: sleutel = `edge-case-messaging.messageForErrorCode()`'s
   // teruggegeven code, vertaald hier. PROTOCOL.md's volledige foutcodetabel. —
-  'error.GAME_NOT_FOUND': 'Deze game bestaat niet (meer).',
+  'error.GAME_NOT_FOUND': 'Deze code klopt niet. Kijk je hem na?',
+  'error.GAME_EXPIRED': 'Deze game is afgelopen.',
   'error.INVITE_INVALID': 'Deze uitnodiging is ongeldig.',
   'error.GAME_FULL': 'Deze game zit vol.',
   'error.GAME_ALREADY_STARTED': 'Deze game is al begonnen.',

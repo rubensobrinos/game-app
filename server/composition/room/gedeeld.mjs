@@ -20,6 +20,7 @@ import { PLAYER_COLORS } from '../../protocol/client-events-dispatch.mjs';
  */
 export const CODES = Object.freeze({
   GAME_NOT_FOUND: 'GAME_NOT_FOUND',
+  GAME_EXPIRED: 'GAME_EXPIRED',
   INVITE_INVALID: 'INVITE_INVALID',
   GAME_FULL: 'GAME_FULL',
   LATE_JOIN_DISABLED: 'LATE_JOIN_DISABLED',
