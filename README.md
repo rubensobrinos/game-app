@@ -1,80 +1,67 @@
-# Game App
+# Rounda
 
-A vanilla JavaScript quiz game with ten game modes covering flags, logos, capitals, geography, and more. Runs entirely in the browser — no build step, no dependencies.
+Een party-quiz over de wereld die je met je telefoon speelt. Iemand maakt een
+game aan, deelt een QR-code of een link, en de rest doet mee — geen account,
+geen installatie, geen app-store. Binnen tien seconden speel je.
 
-## How to run
+Live op **[rounda.io](https://rounda.io)**.
 
-Open `index.html` in any modern browser. That's it.
+## De zes games
 
-```
-# Example with a local server (optional, not required):
-npx serve .
-# or just double-click index.html
-```
+| Game | Wat je doet |
+| --- | --- |
+| Raad de vlag | Je ziet een vlag en kiest het land |
+| Echt of nep | Bestaat deze vlag echt, of is hij verzonnen? |
+| Welke hoort er niet bij | Vier vlaggen, één valt uit de toon |
+| Raad het land | Je ziet de omtrek van een land |
+| Hoofdsteden | Wat is de hoofdstad van Peru — en omgekeerd: Lima hoort bij welk land? |
+| Hoger of lager | Twee landen: welk heeft er meer van iets? |
 
-## Game modes
+230 landen, drie talen (Nederlands, Engels, Spaans).
 
-| Mode | Description |
-|------|-------------|
-| **Vlaggen Quiz** | See a country flag, type (or choose) the country name. |
-| **Logo Quiz** | Recognise brand logos — type or pick the brand name. |
-| **Echt of Nep?** | Decide whether a flag is real or AI-generated. |
-| **Geo Quiz** | Identify a country from its silhouette (optional random rotation). |
-| **Hoofdsteden Quiz** | Name the capital city of a shown country. |
-| **Voetballogo's** | Recognise football club crests. |
-| **Logo: Echt of Nep?** | Real company logo vs AI-generated fake — spot the difference. |
-| **Hoger of Lager** | Compare two countries by population, area, or GDP — pick which is higher. |
-| **Buitenbeentje** | Odd one out — which item doesn't belong to the group? |
-| **Records** | Country record trivia (largest, smallest, most populated, etc.). |
+## Draaien
 
-### Options available across modes
-
-- **Language:** Dutch (NL), English (EN), Spanish (ES)
-- **Difficulty:** Easy / Normal / Hard / Extreme
-- **Play style:** Solo or Team vs Team
-- **Input mode:** Type answer / Multiple choice / Flashcard
-- **Streaks:** Enthusiastic comments triggered by correct-answer streaks
-
-## Project structure
-
-```
-index.html          Main entry point — open this to play
-style.css           All styles
-app.js              Game logic, translations, UI state
-geo.js              Geo Quiz rendering (SVG silhouettes)
-hint.js             Hint system
-flaginfo.js         Extra flag metadata
-provinces.js        Province-level data
-
-data/
-  countries.js      Country list with names in NL/EN/ES, difficulty, ISO2 code
-  logos.js          Brand logo list (slug maps to logos/<slug>.png)
-  football.js       Football club list
-  flag-info.js      Flag descriptions and trivia
-  geo-countries.js  Country shapes for Geo Quiz
-  geo-records.js    Country record data for Records mode
-  country-facts.js  Facts used in Hoger of Lager
-  logo-themes.js    Themes/categories for Logo Quiz
-  provinces.js      Province shapes
-
-flags/              Flag images (named by ISO2, e.g. nl.svg)
-logos/              Brand logo images (named by slug, e.g. apple.png)
-football/           Football club logo images
+```bash
+npm install
+npm start          # server op :3000, frontend erbij
+npm test           # de volledige suite
 ```
 
-## Adding content
+Zonder server spelen kan ook: open `/samen?mock=1` en de hele keten wordt
+nagebootst in je browser. Dat is ook hoe "Alleen spelen" werkt.
 
-### New country / flag
-1. Add an entry to `data/countries.js` following the existing pattern — set `iso2`, `difficulty`, names in all three languages, and optional `aliases`.
-2. Drop the flag image in `flags/` named `<iso2>.svg` (e.g. `zz.svg`).
+Voor productie draait alles in Docker Compose — zie `docker-compose.yml` en
+`docs/STATUS.md` voor het deploycommando.
 
-### New brand logo
-1. Add an entry to `data/logos.js` with a `slug`, `difficulty`, names, and aliases.
-2. Drop the logo image in `logos/` named `<slug>.png`.
+## Hoe het in elkaar zit
 
-### New football club
-1. Add an entry to `data/football.js`.
-2. Drop the crest image in `football/` with the matching filename.
+| Map | Wat |
+| --- | --- |
+| `server/` | Node + Fastify + Socket.IO. De server bepaalt wat waar is |
+| `frontend/` | De app die je op je telefoon ziet — geen framework |
+| `shared/` | Wat server en browser allebei nodig hebben, o.a. de landenpool |
+| `client/flow/` | Pure regels die aan beide kanten hetzelfde moeten uitpakken |
+| `tests/` | Integratietests over echte HTTP en echte websockets |
+| `docs/` | Zie hieronder |
+| `tools/` | Meetgereedschap, draait niet mee in de suite |
 
-### Downloading images in bulk
-`download-flags.ps1`, `download-logos.ps1`, and `download_football.ps1` are PowerShell scripts that fetch images automatically — see the comments inside each script for usage.
+De architectuur staat in [`docs/multiplayer/ARCHITECTURE.md`](docs/multiplayer/ARCHITECTURE.md).
+De kern ervan: de server is de enige die de waarheid kent, een client krijgt
+een momentopname en geen herhaalde gebeurtenissen, en er zijn geen accounts —
+een sessie leeft zolang de room leeft.
+
+## Documentatie
+
+Begin bij [`docs/README.md`](docs/README.md). Dat legt de vier lagen uit:
+wat canoniek is, wat er nog open staat, wat historisch is, en wat gearchiveerd.
+
+Bij twijfel wint [`docs/multiplayer/`](docs/multiplayer/) van alles, en
+[`docs/STATUS.md`](docs/STATUS.md) van elk voortgangsbestand.
+
+## De oude solo-app
+
+In de wortel staan nog `index.html`, `app.js` en `style.css`: de
+oorspronkelijke singleplayer-quiz waar dit uit voortkomt. Die draait zonder
+server — open het bestand en het werkt. Hij wordt niet meer doorontwikkeld,
+maar leeft nog als `/solo` en levert nog steeds contentdata aan de nieuwe app
+(zie [`data/README.md`](data/README.md)).
