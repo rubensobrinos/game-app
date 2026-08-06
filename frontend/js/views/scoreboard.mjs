@@ -17,6 +17,7 @@ import { socialHeadlineFor, pickHeadlineVariantKey } from './social-headline.mjs
 import { countryName, capitalName, capitalsQuestionDirection, flagAssetPath } from './country-names.mjs';
 import { renderFlagSpec } from './flag-renderer.mjs';
 import { identityText, identityFlagUrl } from './identity-display.mjs';
+import { loadCountryShape, renderCountryShape } from './shape-renderer.mjs';
 
 // 11-verzoek (BOUWSPRINT doel 4): een streak van 1 of 2 is geen "reactie"
 // waard. Dezelfde grens als het origineel in gameplay.mjs — GAME-RULES.md
@@ -298,6 +299,12 @@ export function createScoreboardView({ root, t, tCount }) {
    */
   let lastDrainKey = null;
 
+  // country_shape_mc (opdracht C2): welke ronde de contour in `revealFlagCanvas`
+  // op dit moment draagt, om een trage `loadCountryShape` nooit een inmiddels
+  // verouderde ronde te laten tekenen — zelfde bewaking als gameplay.mjs's
+  // `renderedRoundId`.
+  let revealedShapeRoundId = null;
+
   /**
    * Hoe lang de speler vanaf NU nog op de volgende vraag wacht, in seconden.
    *
@@ -359,7 +366,8 @@ export function createScoreboardView({ root, t, tCount }) {
     // ook waar de spelersidentiteit en de rijkere reactiezinnen straks heen
     // moeten (besluit 41 en 44).
     root.classList.toggle('is-beat-1', beatOne);
-    revealCard.classList.toggle('is-compact', !beatOne && result !== null);
+    const isCompact = !beatOne && result !== null;
+    revealCard.classList.toggle('is-compact', isCompact);
     const answerText = result !== null ? correctAnswerTextFor(round, lang) : null;
     revealCard.hidden = answerText === null;
     if (answerText !== null) {
@@ -395,15 +403,55 @@ export function createScoreboardView({ root, t, tCount }) {
       // B3: de vlag terug. `renderFlagSpec` tekent alleen als er echt een
       // spec is; anders het gewone asset. Beide dragers eerst uit, zodat een
       // vorige ronde nooit blijft staan.
-      const vlag = correctFlagFor(round);
+      //
+      // country_shape_mc (opdracht C2): geen vlag maar een contour, en die
+      // laadt — net als in gameplay.mjs — asynchroon via shape-renderer.mjs
+      // (shapes.data.mjs is 234 KB en wordt bewust nooit statisch
+      // geïmporteerd). Vandaar een eigen tak vóór `correctFlagFor`: die kent
+      // alleen het synchrone iso2/spec-contract van een vlag en zou hier
+      // `targetIso2` als vlagbestand lezen.
       revealFlag.hidden = true;
       revealFlagCanvas.hidden = true;
-      if (vlag !== null && 'spec' in vlag) {
-        revealFlagCanvas.hidden = false;
-        renderFlagSpec(revealFlagCanvas, vlag.spec);
-      } else if (vlag !== null) {
-        revealFlag.hidden = false;
-        revealFlag.src = flagAssetPath(vlag.iso2);
+      revealFlagCanvas.style.aspectRatio = '';
+      revealFlagCanvas.style.width = '';
+      revealFlagCanvas.style.height = '';
+      if (round.gameType === 'country_shape_mc') {
+        const shapeIso2 = correctDistributionKeyFor(round);
+        if (typeof shapeIso2 === 'string') {
+          revealFlagCanvas.hidden = false;
+          // Een contour is vierkant, een vlag 8:5 (`.reveal-card-flag` in
+          // 1c-overrides.css) — inline in plaats van een nieuwe CSS-regel,
+          // zodat alleen dit ene gameType hiervan weet. `isCompact` is
+          // dezelfde toestand als `revealCard`'s `is-compact`-klasse
+          // hierboven (besluit 50, moment 2).
+          revealFlagCanvas.style.aspectRatio = '1 / 1';
+          if (isCompact) {
+            revealFlagCanvas.style.width = '23px';
+            revealFlagCanvas.style.height = '23px';
+          }
+          if (revealedShapeRoundId !== round.roundId) {
+            revealedShapeRoundId = round.roundId;
+            const roundIdBijStart = round.roundId;
+            // Eerst leeg, anders blijft de VORIGE ronde's contour zichtbaar
+            // tot deze belofte binnen is.
+            revealFlagCanvas.getContext('2d')?.clearRect(0, 0, revealFlagCanvas.width, revealFlagCanvas.height);
+            loadCountryShape(shapeIso2).then((shape) => {
+              if (revealedShapeRoundId !== roundIdBijStart) {
+                return; // een nieuwere ronde is inmiddels actief
+              }
+              renderCountryShape(revealFlagCanvas, shape);
+            });
+          }
+        }
+      } else {
+        const vlag = correctFlagFor(round);
+        if (vlag !== null && 'spec' in vlag) {
+          revealFlagCanvas.hidden = false;
+          renderFlagSpec(revealFlagCanvas, vlag.spec);
+        } else if (vlag !== null) {
+          revealFlag.hidden = false;
+          revealFlag.src = flagAssetPath(vlag.iso2);
+        }
       }
     }
 

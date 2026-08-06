@@ -44,9 +44,20 @@ function stubDom() {
       // opdook, ook toen hij in het echt stilstond.
       get firstElementChild() { return el.children[0] ?? null; },
       // B3: de revealkaart tekent een gegenereerde vlag op een canvas.
-      getContext: () => new Proxy({}, { get: () => () => {}, set: () => true }),
+      // C-2 ("Raad het land"): logt elke aanroep/toewijzing op `_ctxCalls`,
+      // zelfde stub als gameplay.test.mjs, zodat een test kan bewijzen dát er
+      // getekend is (bv. `ctx.fill`) zonder een echte canvas nodig te hebben.
+      getContext: () => {
+        el._ctxCalls = el._ctxCalls ?? [];
+        return new Proxy({}, {
+          get: (_t, prop) => (...args) => { el._ctxCalls.push([prop, ...args]); },
+          set: (_t, prop, value) => { el._ctxCalls.push([`set:${String(prop)}`, value]); return true; },
+        });
+      },
       src: '',
       alt: '',
+      width: 0,
+      height: 0,
       removeAttribute: (k) => el._attrs.delete(k),
     };
     Object.setPrototypeOf(el, HTMLElement.prototype);
@@ -377,6 +388,93 @@ test('B3: bij odd_one_out toont de kaart de vlag die het juiste antwoord was', a
   // Niet de eerste kaart en niet de gekozen kaart: die van het juiste antwoord.
   assert.match(vind(root, 'reveal-card-flag').src, /br\.png$/);
   assert.equal(vind(root, 'reveal-card-answer').textContent, 'Brazilië');
+});
+
+function rondeShapeMc({ correct = 'fr', gekozen = null, self = 'correct' } = {}) {
+  return {
+    roundId: 'r1',
+    gameType: 'country_shape_mc',
+    question: { targetIso2: correct, optionIso2s: [correct, 'de', 'es', 'it'] },
+    selectedOptionId: gekozen,
+    selectedChoice: null,
+    selectedSide: null,
+    selectedCardIndex: null,
+    progress: { eligiblePlayerCount: 4 },
+    result: {
+      correctOptionId: correct, correctChoice: null, correctSide: null, correctCardIndex: null,
+      selfCorrect: self === 'correct',
+      selfNoAnswer: self === 'noanswer',
+      roundPoints: self === 'correct' ? 800 : 0,
+      distribution: [],
+    },
+  };
+}
+
+test('opdracht C2: country_shape_mc toont de contour i.p.v. een vlag, met de landnaam ernaast', async () => {
+  stubDom();
+  const { createScoreboardView } = await import('./scoreboard.mjs?c2a');
+  const { loadCountryShape } = await import('./shape-renderer.mjs');
+  const root = document.createElement('div');
+  const view = createScoreboardView({ root, t, tCount });
+  view.update(standings, { round: rondeShapeMc({ correct: 'fr' }), lang: 'nl', pacing: 'auto', phase: 'ROUND_RESULT' });
+
+  assert.equal(vind(root, 'reveal-card-flag').hidden, true, 'geen <img>-vlag bij een contourvraag');
+  const doek = vind(root, 'reveal-card-flag-canvas');
+  assert.equal(doek.hidden, false, 'de contour-canvas is zichtbaar');
+  assert.equal(vind(root, 'reveal-card-answer').textContent, 'Frankrijk');
+
+  // De contour laadt asynchroon (shape-renderer.mjs, 234 KB pas nu opgehaald)
+  // — wachten op dezelfde gecachete belofte, zelfde patroon als gameplay.test.mjs.
+  await loadCountryShape('fr');
+  await Promise.resolve();
+  assert.ok(doek._ctxCalls?.some(([methode]) => methode === 'fill'), 'de contour is daadwerkelijk getekend (ctx.fill aangeroepen)');
+});
+
+test('besluit 50: de contour blijft vierkant in beide momenten van de uitslagkaart', async () => {
+  stubDom();
+  const { createScoreboardView } = await import('./scoreboard.mjs?c2b');
+  const root = document.createElement('div');
+  const view = createScoreboardView({ root, t, tCount });
+  const ronde = rondeShapeMc({ correct: 'fr' });
+
+  // Moment 1 (ROUND_RESULT): schermvullend — de bestaande breedte-clamp van
+  // `.reveal-card-flag` blijft gelden, alleen de verhouding wordt vierkant.
+  view.update(standings, { round: ronde, lang: 'nl', pacing: 'auto', phase: 'ROUND_RESULT' });
+  const doek = vind(root, 'reveal-card-flag-canvas');
+  assert.equal(doek.style.aspectRatio, '1 / 1', 'moment 1: vierkant i.p.v. de vlag-verhouding 8:5');
+  assert.equal(doek.style.width, '', 'moment 1: geen vaste breedte nodig, de bestaande clamp volstaat');
+
+  // Moment 2 (SCOREBOARD): gekrompen tot één regel — `.is-compact` forceert
+  // normaal 34×23px (niet-vierkant), hier moet de contour vierkant blijven.
+  view.update(standings, { round: ronde, lang: 'nl', pacing: 'auto', phase: 'SCOREBOARD' });
+  assert.equal(doek.style.width, '23px', 'moment 2: vierkant vast op de gekrompen rijhoogte');
+  assert.equal(doek.style.height, '23px');
+});
+
+test('opdracht C2: een tweede uitslag die binnenkomt vóórdat de eerste contour klaar is, tekent de eerste niet meer na', async () => {
+  stubDom();
+  const { createScoreboardView } = await import('./scoreboard.mjs?c2c');
+  const { loadCountryShape } = await import('./shape-renderer.mjs');
+  const root = document.createElement('div');
+  const view = createScoreboardView({ root, t, tCount });
+
+  view.update(standings, { round: rondeShapeMc({ correct: 'fr' }), lang: 'nl', pacing: 'auto', phase: 'ROUND_RESULT' });
+  const doek = vind(root, 'reveal-card-flag-canvas');
+
+  // Meteen door naar een nieuwe ronde, vóórdat ronde 1's contour ooit kan zijn
+  // opgehaald — precies het scenario dat `revealedShapeRoundId` moet opvangen.
+  view.update(standings, {
+    round: { ...rondeShapeMc({ correct: 'de' }), roundId: 'r2' },
+    lang: 'nl', pacing: 'auto', phase: 'ROUND_RESULT',
+  });
+
+  await loadCountryShape('fr');
+  await loadCountryShape('de');
+  await Promise.resolve();
+  await Promise.resolve();
+
+  const vulBeurten = (doek._ctxCalls ?? []).filter(([methode]) => methode === 'fill').length;
+  assert.equal(vulBeurten, 1, `ronde 1's contour had de guard moeten missen; kreeg ${vulBeurten} fill-aanroepen`);
 });
 
 test('B3: je eigen antwoord verschijnt alleen als je ernaast zat', async () => {
