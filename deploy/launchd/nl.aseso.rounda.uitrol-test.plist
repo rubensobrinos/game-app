@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  nl.aseso.rounda.uitrol-test — start deploy/uitrol-wachter.sh zodra main verschuift of
+  deploy/.uitrollen-test verschijnt. Elke commit op main gaat zo naar test.rounda.io
+  (devkit ADR-0032, regel 5), zonder git-hook.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>nl.aseso.rounda.uitrol-test</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>/Users/ruben/dev/creative/rounda/deploy/uitrol-wachter.sh</string>
+  </array>
+  <key>WatchPaths</key>
+  <array>
+    <string>/Users/ruben/dev/creative/rounda/.git/refs/heads/main</string>
+    <string>/Users/ruben/dev/creative/rounda/deploy/.uitrollen-test</string>
+  </array>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>/Users/ruben/Library/Logs/rounda-uitrol-test.log</string>
+  <key>StandardErrorPath</key><string>/Users/ruben/Library/Logs/rounda-uitrol-test.log</string>
+</dict>
+</plist>

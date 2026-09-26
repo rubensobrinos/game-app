@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  nl.aseso.rounda.test — rounda.io (test), devkit ADR-0032.
+  Geen geheimen in dit bestand: ~/Library/LaunchAgents is voor iedereen leesbaar.
+  deploy/start.sh leest ze uit het env-bestand in omgeving.conf.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>nl.aseso.rounda.test</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>/Users/ruben/dev/creative/rounda/deploy/start.sh</string>
+    <string>test</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <!-- Altijd opnieuw starten, zoals bij aseso.co. Een weigering (exit 78) komt dus elke
+       tien seconden terug in het log tot de configuratie klopt: luid, en de dienst
+       start vanzelf zodra het env-bestand is gerepareerd. -->
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/Users/ruben/Library/Logs/rounda-test.log</string>
+  <key>StandardErrorPath</key><string>/Users/ruben/Library/Logs/rounda-test.log</string>
+</dict>
+</plist>

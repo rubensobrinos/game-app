@@ -17,3 +17,4 @@ managed_hashes:
   .github/workflows/ci.yml: 8559d40d67003b12e3d600d36554f80a74f54cc69aa7c75c9e863726e68818d7
   .gitignore: 2880cea350b41205cfb39ab0d109c1aa0a414bbab97080095cc766f6eebbd66d
   CLAUDE.md: 22548977bb2db813062aab07c8045e3af083e60b57383419bc2c60e8d75bb70e
+domein: rounda.io

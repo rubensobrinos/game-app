@@ -1,0 +1,36 @@
+# Testsite test.rounda.io (devkit ADR-0032, kaart #100641) — een eigen compose-project
+# (`-p rounda-test`), dus eigen volumes, netwerken en database, naast productie
+# (`aseso-game`), de chaos-stack (`aseso-game-chaos`) en de adaptertest-infra
+# (`aseso-game-test`).
+#
+# Niet met de hand starten: deploy/start.sh (launchd nl.aseso.rounda.test) doet dat,
+# na de startweigering uit deploy/omgeving.conf. De geheimen komen uit
+# ~/.config/rounda/test.env, niet uit .env: die hoort bij productie.
+#
+#   docker compose -p rounda-test -f docker-compose.yml -f compose.testsite.override.yml ...
+
+services:
+  reverse-proxy:
+    # Alleen HTTP op de loopback: TLS ligt bij Cloudflare, en de poortwachter
+    # (127.0.0.1:8120) is de enige die hier langskomt.
+    ports: !override
+      - "127.0.0.1:8140:80"
+    # De hele caddy-map, zodat Caddyfile.test de productie-Caddyfile kan importeren
+    # en alleen het blok voor test.rounda.io toevoegt. Zonder dat blok antwoordt
+    # Caddy op die host met een lege 200.
+    volumes: !override
+      - ./caddy:/etc/caddy:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile.test", "--adapter", "caddyfile"]
+
+  postgres:
+    environment:
+      POSTGRES_DB: gamestats_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gameapp -d gamestats_test"]
+
+  # Nooit een tunnel vanuit test: een tweede connector op het productietoken verdeelt
+  # het verkeer van rounda.io over twee stacks. Ook met --profile tunnel start hij niet.
+  cloudflared:
+    profiles: ["nooit"]

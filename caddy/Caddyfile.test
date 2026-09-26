@@ -1,0 +1,8 @@
+# caddy/Caddyfile.test — alleen voor de testsite (compose.testsite.override.yml).
+# Dezelfde routes als productie: de Caddyfile wordt ongewijzigd geïmporteerd, en
+# daarmee het (app)-snippet. Hier komt alleen de host test.rounda.io bij.
+import Caddyfile
+
+http://test.rounda.io {
+	import app
+}
