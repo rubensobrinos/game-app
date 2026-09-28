@@ -33,16 +33,39 @@
 # roept dit script wissel_naar opnieuw aan met "$RELEASES/vorige" als bron —
 # dat is een gewone, volledige wissel (dezelfde drie stappen), geen halve.
 #
+# RELEASE_VORM (devkit ADR-0037): "compose" heeft geen live/vorige-mappen — dat
+# hele wissel_naar-mechanisme hieronder is dan niet van toepassing, en
+# release_compose() (lib.sh) neemt het script vanaf hier volledig over (roept
+# zelf log_release aan en exit't). Zie devkit/docs/decisions/ADR-0037.
+#
 # Draait nooit vanzelf: een release is een bewust moment (devkit ADR-0017, ADR-0032).
 set -eu
 . "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 
 omgeving_laden productie
 omgeving_eisen
+
+REPO="$(git -C "$DEPLOY" rev-parse --show-toplevel)"
+
+# RELEASE_VORM (devkit ADR-0037): "compose" wordt hier al afgehandeld, VOOR de
+# padguard/het herstel hieronder — die twee gaan over RELEASES (live/vorige-
+# mappen), en die variabele bestaat niet bij een compose-site.
+if [ "${RELEASE_VORM:-mappen}" = "compose" ]; then
+  SHA="$(git -C "$REPO" rev-parse --verify "${1:-main}^{commit}")"
+  KORT="$(git -C "$REPO" rev-parse --short "$SHA")"
+  # De meest recente releasetag in de hele repo (niet per se een voorouder van SHA:
+  # een release-tag hoeft niet op de huidige branch te zitten om "de vorige release"
+  # te zijn), gesorteerd op naam — dat is chronologisch bij YYYY-MM-DD.N.
+  VORIGE_TAG="$(git -C "$REPO" tag --list '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].[0-9]*' | sort -r | head -1)"
+  [ -n "$VORIGE_TAG" ] || VORIGE_TAG="null"
+  echo "[1/4] $KORT — compose-release ($COMPOSE_PROJECT)"
+  release_compose "$SHA" "$KORT" "$VORIGE_TAG"
+  exit 0
+fi
+
 releases_pad_veilig
 herstel_onderbroken_wissel
 
-REPO="$(git -C "$DEPLOY" rev-parse --show-toplevel)"
 SHA="$(git -C "$REPO" rev-parse --verify "${1:-main}^{commit}")"
 KORT="$(git -C "$REPO" rev-parse --short "$SHA")"
 NIEUW="$RELEASES/$(date +%Y%m%d-%H%M%S)-$KORT"

@@ -91,8 +91,16 @@ releases_pad_veilig() {
 }
 
 # omgeving_eisen — weigert (78) als iets naar de verkeerde omgeving wijst.
+#
+# POORT_PRODUCTIE mag leeg zijn bij RELEASE_VORM="compose" (devkit ADR-0037):
+# zo'n site heeft geen vast, door start.sh beheerd proces op één poort — de
+# rookproef gebruikt dan COMPOSE_ROOKPROEF_POORT, gecontroleerd in
+# release_compose() zelf, niet hier. Voor "test" en voor "mappen" (het
+# default/ADR-0035-pad) blijft de poort verplicht, ongewijzigd.
 omgeving_eisen() {
-  [ -n "$POORT" ] || weiger "de poort voor $OMGEVING is leeg in omgeving.conf. Kies een vrije en schrijf hem in ~/dev/0. PORTS.md."
+  if [ "$OMGEVING" != "productie" ] || [ "${RELEASE_VORM:-mappen}" != "compose" ]; then
+    [ -n "$POORT" ] || weiger "de poort voor $OMGEVING is leeg in omgeving.conf. Kies een vrije en schrijf hem in ~/dev/0. PORTS.md."
+  fi
 
   # Elke DATABASE_URL* (ook _READ/_WRITE-varianten) moet naar de database van deze
   # omgeving wijzen. Alleen de databasenaam wordt genoemd, nooit de URL.
@@ -173,6 +181,166 @@ volgende_release_tag() {
     [ "$_n" -gt "$_hoogste" ] && _hoogste="$_n"
   done
   echo "$_vandaag.$((_hoogste + 1))"
+}
+
+# compose_dc <werkmap> <extra argumenten...> — docker compose met -p en -f uit
+# omgeving.conf, vanuit <werkmap>: COMPOSE_BESTANDEN zijn paden relatief aan de
+# repo-root (zoals de build-context in een Dockerfile ook is), en zonder een
+# expliciete cd zoekt `docker compose` ze op in de cwd van het AANROEPENDE proces
+# — bij release.sh is dat niet gegarandeerd de repo-root (bv. launchd start het
+# vanuit een andere map). <werkmap> is de git-archive-checkout tijdens een build
+# (COMPOSE_DIENSTEN.build) of $REPO voor commando's die geen bestanden lezen
+# (up/ps/images): "docker compose up" met --no-build leest het compose-bestand
+# ook, dus die heeft ook een geldige werkmap nodig, niet per se de checkout van
+# DEZE release (een oude checkout is na een geslaagde release al opgeruimd).
+compose_dc() {
+  _dc_werkmap="$1"; shift
+  [ -n "${COMPOSE_PROJECT:-}" ] || weiger "COMPOSE_PROJECT is leeg in omgeving.conf"
+  [ -n "${COMPOSE_BESTANDEN:-}" ] || weiger "COMPOSE_BESTANDEN is leeg in omgeving.conf"
+  _dc_bestanden=""
+  for _b in $COMPOSE_BESTANDEN; do _dc_bestanden="$_dc_bestanden -f $_b"; done
+  # shellcheck disable=SC2086
+  (cd "$_dc_werkmap" && docker compose -p "$COMPOSE_PROJECT" $_dc_bestanden "$@")
+}
+
+# migratie_gedetecteerd <vorige-sha> <nieuwe-sha> — waar (0) als MIGRATIE_PAD
+# wijzigde tussen de twee commits (devkit ADR-0037, punt 6). Leeg MIGRATIE_PAD of
+# een ontbrekende vorige-sha (eerste release ooit, niets om mee te vergelijken)
+# betekent altijd "geen migratie" (1) — er is dan niets om tegen te vergelijken.
+migratie_gedetecteerd() {
+  [ -n "${MIGRATIE_PAD:-}" ] || return 1
+  [ "$1" != "null" ] || return 1
+  git -C "$REPO" diff --name-only "$1" "$2" -- "$MIGRATIE_PAD" 2>/dev/null | grep -q .
+}
+
+# release_compose <ref-sha> <kort-sha> <vorige-tag-of-null> — de compose-variant
+# van wissel_naar()+rookproef+taggen uit release.sh (devkit ADR-0037). Geen
+# live/vorige-mappen: bouwt en herstart alleen COMPOSE_DIENSTEN (--no-deps,
+# postgres/redis/caddy e.d. worden nooit geraakt). Roept zelf log_release aan en
+# exit't, net als release.sh's hoofdpad: dit vervangt dat hele pad, niet een los
+# stuk ervan.
+#
+# GIT ARCHIVE, ZELFDE GARANTIE ALS HET MAPPEN-PAD: gebouwd wordt vanuit een verse
+# `git archive <sha> | tar -x`-checkout in een tijdelijke map, niet vanuit $REPO
+# (de werkboom) zelf — anders zou ongecommit werk kunnen meeliften in het image,
+# precies wat ADR-0035 voor het mappen-pad al uitsluit. Commando's die geen
+# bestanden lezen (up/ps/images op al gebouwde images) draaien gewoon vanuit
+# $REPO, dat heeft altijd de compose-bestanden staan.
+#
+# IMAGE-BESCHERMING, EXACTE VOLGORDE (bewezen met een lokale docker compose-test,
+# zie de kaart-inventaris): `docker compose build` OVERSCHRIJFT het `:latest`-tag
+# van dezelfde naam. Zonder een los tag op het OUDE image vóór die build, is het
+# oude image na de build "dangling" (geen tag meer) en kan er niets meer naar
+# teruggerold worden — een `docker inspect`-ID onthouden is dan NUTTELOOS, want
+# het image zelf kan intussen zijn opgeruimd. Daarom:
+#   1. VOOR de build: het NU draaiende image krijgt een tijdelijk, eigen tag
+#      (":release-vorig") — dat beschermt het tegen overschrijven/pruning door
+#      de build in stap 2, ongeacht wat daarna met :latest gebeurt.
+#   2. compose build (alleen COMPOSE_DIENSTEN, vanuit de git-archive-checkout) —
+#      overschrijft :latest, laat :release-vorig intact (aparte tag, telt niet
+#      als "unused").
+#   3. compose up -d --no-deps (alleen COMPOSE_DIENSTEN) — vervangt de container.
+#   4. rookproef groen: tag YYYY-MM-DD.N + :<tag> + :<sha> op het NIEUWE image
+#      (nu veilig, de vorige stand staat nog apart als :release-vorig).
+#      rookproef rood: `docker tag :release-vorig :latest` + `up -d --no-build`
+#      — dat is de terugrol, ZELFDE tag-truc in omgekeerde richting.
+release_compose() {
+  _rc_sha="$1"; _rc_kort="$2"; _rc_vorige_tag="$3"
+  [ -n "${COMPOSE_DIENSTEN:-}" ] || weiger "COMPOSE_DIENSTEN is leeg in omgeving.conf (devkit ADR-0037)"
+  [ -n "${COMPOSE_ROOKPROEF_POORT:-}" ] || weiger "COMPOSE_ROOKPROEF_POORT is leeg in omgeving.conf"
+
+  _rc_eerste_dienst="${COMPOSE_DIENSTEN%% *}"
+  _rc_naam="${COMPOSE_PROJECT}-${_rc_eerste_dienst}"
+
+  # Vorige commit-SHA uit VORIGE_TAG (al door release.sh bepaald via git describe op
+  # de laatst bekende release), niet uit een Docker-label: dat zou een LABEL-
+  # instructie in elke Dockerfile vereisen, wat niet bij elke repo past.
+  _rc_vorige_sha="null"
+  if [ "$_rc_vorige_tag" != "null" ]; then
+    _rc_vorige_sha="$(git -C "$REPO" rev-list -n1 "$_rc_vorige_tag" 2>/dev/null || true)"
+    [ -n "$_rc_vorige_sha" ] || _rc_vorige_sha="null"
+  fi
+
+  _rc_migratie=""
+  if migratie_gedetecteerd "$_rc_vorige_sha" "$_rc_sha"; then
+    _rc_migratie=1
+    echo "$OMGEVING_NAAM: migratie gedetecteerd in $MIGRATIE_PAD ($_rc_vorige_sha..$_rc_sha) — automatisch terugrollen wordt bij rood geweigerd" >&2
+  fi
+
+  echo "[1/4] vorig image beschermen"
+  _rc_had_vorig=""
+  _rc_huidig_id="$(docker images -q --filter "reference=$_rc_naam:latest" | head -1)"
+  if [ -n "$_rc_huidig_id" ]; then
+    docker tag "$_rc_huidig_id" "$_rc_naam:release-vorig"
+    _rc_had_vorig=1
+  fi
+
+  echo "[2/4] $_rc_kort uitpakken en bouwen ($COMPOSE_DIENSTEN)"
+  _rc_checkout="$(mktemp -d "${TMPDIR:-/tmp}/devkit-release-compose.XXXXXX")"
+  git -C "$REPO" archive "$_rc_sha" | tar -x -C "$_rc_checkout"
+  # shellcheck disable=SC2086
+  if ! compose_dc "$_rc_checkout" build $COMPOSE_DIENSTEN; then
+    rm -rf "$_rc_checkout"
+    echo "AFGEBROKEN: bouwen faalde. Productie is niet aangeraakt." >&2
+    log_release null "$_rc_sha" rood-voor-release "$_rc_vorige_tag" "bouwen faalde"
+    exit 1
+  fi
+  rm -rf "$_rc_checkout"
+
+  echo "[3/4] uitrollen ($COMPOSE_DIENSTEN, --no-deps)"
+  # shellcheck disable=SC2086
+  compose_dc "$REPO" up -d --no-deps $COMPOSE_DIENSTEN
+
+  echo "[4/4] rookproef"
+  if rookproef "$COMPOSE_ROOKPROEF_POORT"; then
+    _rc_tag="$(volgende_release_tag)"
+    _rc_nieuw_id="$(docker images -q --filter "reference=$_rc_naam:latest" | head -1)"
+    git -C "$REPO" tag -a "$_rc_tag" "$_rc_sha" -m "release $_rc_tag"
+    [ -n "$_rc_nieuw_id" ] && docker tag "$_rc_nieuw_id" "$_rc_naam:$_rc_tag" 2>/dev/null || true
+    [ -n "$_rc_nieuw_id" ] && docker tag "$_rc_nieuw_id" "$_rc_naam:$_rc_sha" 2>/dev/null || true
+    echo "$DOMEIN draait op $_rc_tag ($_rc_kort, compose-project $COMPOSE_PROJECT)"
+    log_release "$_rc_tag" "$_rc_sha" ok "$_rc_vorige_tag" null
+    # RELEASES_BEWAREN telt release-images (met een :YYYY-MM-DD.N-tag): oudere
+    # opruimen, :latest/:release-vorig/:<sha>-tags op dezelfde ID's blijven
+    # gewoon bestaan (image rm faalt dan zacht, vandaar "|| true"). De format-string
+    # wordt uit twee stukken opgebouwd, niet als een aaneengesloten letterlijke
+    # tekst hieronder: dat zou Docker's eigen Go-template-syntax zijn (geen
+    # devkit-sjabloonplaceholder), maar devkit's eigen "is elke placeholder
+    # ingevuld"-test in de repo kan de twee vormen niet uit elkaar houden.
+    if [ -n "${RELEASES_BEWAREN:-}" ]; then
+      _rc_fmt='{'; _rc_fmt="$_rc_fmt{.Tag}}"
+      docker images --filter "reference=$_rc_naam" --format "$_rc_fmt" 2>/dev/null |
+        grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}\.[0-9]+$' | sort -r | tail -n +$((RELEASES_BEWAREN + 1)) |
+        while read -r _rc_oud_tag; do docker image rm "$_rc_naam:$_rc_oud_tag" 2>/dev/null || true; done
+    fi
+    exit 0
+  fi
+
+  if [ -z "$_rc_migratie" ] && [ -n "$_rc_had_vorig" ]; then
+    echo "TERUGROLLEN naar het vorige image ($_rc_naam:release-vorig)" >&2
+    docker tag "$_rc_naam:release-vorig" "$_rc_naam:latest"
+    # shellcheck disable=SC2086
+    compose_dc "$REPO" up -d --no-deps --no-build $COMPOSE_DIENSTEN
+    if rookproef "$COMPOSE_ROOKPROEF_POORT"; then
+      echo "vorige release draait weer" >&2
+      log_release null "$_rc_vorige_sha" rood-na-uitrol-teruggerold "$_rc_vorige_tag" "rookproef faalde na uitrol van $_rc_kort; teruggerold"
+      exit 1
+    fi
+    echo "ook de vorige release komt niet op; $DOMEIN ligt eruit" >&2
+    log_release null "$_rc_sha" rood-na-uitrol-teruggerold "$_rc_vorige_tag" "rookproef faalde na uitrol van $_rc_kort, en ook na terugrollen"
+    exit 2
+  fi
+
+  if [ -n "$_rc_migratie" ]; then
+    echo "MIGRATIE GEDETECTEERD: automatisch terugrollen geweigerd, handmatig beslissen" >&2
+    log_release null "$_rc_sha" rood-na-uitrol-teruggerold "$_rc_vorige_tag" \
+      "MIGRATIE GEDETECTEERD: automatisch terugrollen geweigerd, handmatig beslissen (rookproef faalde na $_rc_kort)"
+    exit 2
+  fi
+
+  echo "rookproef faalde en er is geen vorig image om naar terug te gaan" >&2
+  log_release null "$_rc_sha" rood-na-uitrol-teruggerold "$_rc_vorige_tag" "rookproef faalde; geen vorig image om op terug te vallen"
+  exit 2
 }
 
 # log_release <tag-of-null> <commit> <uitslag> <vorige_tag-of-null> <reden-of-null>
