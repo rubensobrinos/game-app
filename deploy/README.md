@@ -18,7 +18,8 @@ Gemaakt met `devkit template omgevingen rounda.io`.
   `release.sh` weigert. Dit is een afwijking van ADR-0032 regel 6, voor een voorstel
   op #100642.
 - **Test** is het compose-project `rounda-test`:
-  - uit de worktree `~/dev/creative/rounda-test`, op `127.0.0.1:8140`;
+  - uit de worktree `~/.devkit/sites/rounda/test` (devkit ADR-0038, verhuisd vanaf
+    `~/dev/creative/rounda-test`), op `127.0.0.1:8140`;
   - met eigen volumes en een eigen database `gamestats_test`, zonder spelers of
     statistieken;
   - met eigen geheimen in `~/.config/rounda/test.env`;
