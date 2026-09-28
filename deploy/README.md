@@ -1,13 +1,13 @@
 # deploy/ — lokaal → test.rounda.io → rounda.io
 
-De omgevingen van deze site, volgens de devkit-standaard ([ADR-0032]). Gemaakt met
-`devkit template omgevingen rounda.io`.
+De omgevingen van deze site, volgens de devkit-standaard ([ADR-0032], [ADR-0035]).
+Gemaakt met `devkit template omgevingen rounda.io`.
 
 | Omgeving | Adres | Draait uit | Database | launchd |
 |---|---|---|---|---|
 | lokaal | `localhost` | deze checkout | eigen dev-database | geen |
 | test | `https://test.rounda.io` | `$TEST_WORKTREE` (git worktree) | `$DB_TEST` | `nl.aseso.rounda.test` |
-| productie | `https://rounda.io` | `$RELEASES/current` | `$DB_PRODUCTIE` | `nl.aseso.rounda.productie` |
+| productie | `https://rounda.io` | `$RELEASES/live` | `$DB_PRODUCTIE` | `nl.aseso.rounda.productie` |
 
 ## Stand in deze repo (27 september 2026, kaart #100641)
 
@@ -98,7 +98,11 @@ staat in [`omgeving.conf`](omgeving.conf). De scripts bevatten daar niets van.
   geen git-hook voor nodig. Log: `~/Library/Logs/rounda-uitrol-test.log`.
   Met de hand, of een andere commit: `deploy/uitrollen-test.sh [ref]`, of zet een ref in
   `deploy/.uitrollen-test`.
-- **Naar productie:** `deploy/release.sh [ref]`. Dit gebeurt nooit vanzelf.
+- **Naar productie:** `devkit release-site rounda [ref]` (devkit ADR-0035), of
+  rechtstreeks `deploy/release.sh [ref]`. Dit gebeurt nooit vanzelf. `--droog`
+  toont alleen wat er zou gebeuren. Let op: `POORT_PRODUCTIE` is hier leeg (zie
+  "Stand in deze repo" hierboven) — productie draait via het compose-project
+  `aseso-game`, niet via dit pad, tot #100642 dat gelijktrekt.
 - **Faalt de rookproef**, dan gaan beide scripts zelf terug naar wat er stond.
 
 ## Wat de scripts weigeren (exit 78)
@@ -138,8 +142,8 @@ Agents mogen stap 1 tot en met 5 doen. Stap 6 en 7 zet Ruben live.
        cp deploy/launchd/nl.aseso.rounda.$p.plist ~/Library/LaunchAgents/ &&
        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/nl.aseso.rounda.$p.plist
    done
-   deploy/uitrollen-test.sh     # eerste testbuild
-   deploy/release.sh            # eerste productierelease
+   deploy/uitrollen-test.sh       # eerste testbuild
+   devkit release-site rounda     # eerste productierelease (ADR-0035; zie voorbehoud hierboven)
    ```
 
 7. **Tunnel en DNS (Ruben):**
@@ -150,3 +154,4 @@ Agents mogen stap 1 tot en met 5 doen. Stap 6 en 7 zet Ruben live.
    - Controleer daarna met `devkit doctor --omgevingen`.
 
 [ADR-0032]: https://github.com/Asesobv/devkit/blob/main/docs/decisions/ADR-0032-drie-omgevingen-lokaal-test-domein-domein.md
+[ADR-0035]: https://github.com/Asesobv/devkit/blob/main/docs/decisions/ADR-0035-release-standaard-geen-symlink-tag-en-logboek.md
