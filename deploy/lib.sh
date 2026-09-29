@@ -233,24 +233,37 @@ migratie_gedetecteerd() {
 # oude image na de build "dangling" (geen tag meer) en kan er niets meer naar
 # teruggerold worden — een `docker inspect`-ID onthouden is dan NUTTELOOS, want
 # het image zelf kan intussen zijn opgeruimd. Daarom:
-#   1. VOOR de build: het NU draaiende image krijgt een tijdelijk, eigen tag
-#      (":release-vorig") — dat beschermt het tegen overschrijven/pruning door
-#      de build in stap 2, ongeacht wat daarna met :latest gebeurt.
-#   2. compose build (alleen COMPOSE_DIENSTEN, vanuit de git-archive-checkout) —
-#      overschrijft :latest, laat :release-vorig intact (aparte tag, telt niet
-#      als "unused").
-#   3. compose up -d --no-deps (alleen COMPOSE_DIENSTEN) — vervangt de container.
-#   4. rookproef groen: tag YYYY-MM-DD.N + :<tag> + :<sha> op het NIEUWE image
-#      (nu veilig, de vorige stand staat nog apart als :release-vorig).
-#      rookproef rood: `docker tag :release-vorig :latest` + `up -d --no-build`
-#      — dat is de terugrol, ZELFDE tag-truc in omgekeerde richting.
+#   1. VOOR de build: elke dienst in COMPOSE_DIENSTEN krijgt zijn NU draaiende
+#      image een tijdelijke, eigen tag (":release-vorig") — dat beschermt het
+#      tegen overschrijven/pruning door de build in stap 2, ongeacht wat daarna
+#      met :latest gebeurt.
+#   2. compose build (alle COMPOSE_DIENSTEN in één aanroep, vanuit de
+#      git-archive-checkout) — overschrijft :latest per dienst, laat elke
+#      :release-vorig intact (aparte tag, telt niet als "unused").
+#   3. compose up -d --no-deps (alle COMPOSE_DIENSTEN in één aanroep) —
+#      vervangt elke container.
+#   4. rookproef groen: elke dienst krijgt tag YYYY-MM-DD.N + :<tag> + :<sha>
+#      op zijn NIEUWE image (nu veilig, de vorige stand staat nog apart als
+#      :release-vorig).
+#      rookproef rood: per dienst `docker tag :release-vorig :latest` + één
+#      gezamenlijke `up -d --no-build` — dat is de terugrol, ZELFDE tag-truc
+#      in omgekeerde richting.
+#
+# MEERDERE DIENSTEN (kaart #100796): COMPOSE_DIENSTEN is een spatiegescheiden
+# lijst — elke dienst met een eigen build:-directive krijgt zijn EIGEN
+# _rc_naam ("${COMPOSE_PROJECT}-${dienst}") en dus zijn eigen :release-vorig/
+# :<tag>/:<sha>, onafhankelijk beschermd en onafhankelijk teruggerold. Vóór
+# deze kaart gebruikte de hele functie ÉÉN _rc_naam (afgeleid van alleen het
+# EERSTE woord van COMPOSE_DIENSTEN) voor protect/tag/opruimen/terugrol — een
+# tweede of derde dienst werd dan wél gebouwd en uitgerold (build/up -d nemen
+# COMPOSE_DIENSTEN altijd al als geheel), maar kreeg NOOIT een eigen
+# terugrolgarantie: bij een rode rookproef ging alleen de eerste dienst terug,
+# de rest bleef op de kapotte build staan. Ontdekt bij rounda.io (#100796)
+# toen frontend naast game-server aan COMPOSE_DIENSTEN werd toegevoegd.
 release_compose() {
   _rc_sha="$1"; _rc_kort="$2"; _rc_vorige_tag="$3"
   [ -n "${COMPOSE_DIENSTEN:-}" ] || weiger "COMPOSE_DIENSTEN is leeg in omgeving.conf (devkit ADR-0037)"
   [ -n "${COMPOSE_ROOKPROEF_POORT:-}" ] || weiger "COMPOSE_ROOKPROEF_POORT is leeg in omgeving.conf"
-
-  _rc_eerste_dienst="${COMPOSE_DIENSTEN%% *}"
-  _rc_naam="${COMPOSE_PROJECT}-${_rc_eerste_dienst}"
 
   # Vorige commit-SHA uit VORIGE_TAG (al door release.sh bepaald via git describe op
   # de laatst bekende release), niet uit een Docker-label: dat zou een LABEL-
@@ -267,13 +280,22 @@ release_compose() {
     echo "$OMGEVING_NAAM: migratie gedetecteerd in $MIGRATIE_PAD ($_rc_vorige_sha..$_rc_sha) — automatisch terugrollen wordt bij rood geweigerd" >&2
   fi
 
-  echo "[1/4] vorig image beschermen"
-  _rc_had_vorig=""
-  _rc_huidig_id="$(docker images -q --filter "reference=$_rc_naam:latest" | head -1)"
-  if [ -n "$_rc_huidig_id" ]; then
-    docker tag "$_rc_huidig_id" "$_rc_naam:release-vorig"
-    _rc_had_vorig=1
-  fi
+  echo "[1/4] vorig image beschermen ($COMPOSE_DIENSTEN)"
+  # Ruimtegescheiden lijst van "dienst:had_vorig" (1/0), zodat stap 4 hieronder
+  # weet welke diensten ECHT al een :release-vorig hadden — een dienst zonder
+  # eerder image (allereerste release) mag straks niet naar een niet-bestaand
+  # :release-vorig proberen terug te rollen.
+  _rc_had_vorig_lijst=""
+  for _rc_dienst in $COMPOSE_DIENSTEN; do
+    _rc_naam="${COMPOSE_PROJECT}-${_rc_dienst}"
+    _rc_huidig_id="$(docker images -q --filter "reference=$_rc_naam:latest" | head -1)"
+    if [ -n "$_rc_huidig_id" ]; then
+      docker tag "$_rc_huidig_id" "$_rc_naam:release-vorig"
+      _rc_had_vorig_lijst="$_rc_had_vorig_lijst $_rc_dienst:1"
+    else
+      _rc_had_vorig_lijst="$_rc_had_vorig_lijst $_rc_dienst:0"
+    fi
+  done
 
   echo "[2/4] $_rc_kort uitpakken en bouwen ($COMPOSE_DIENSTEN)"
   _rc_checkout="$(mktemp -d "${TMPDIR:-/tmp}/devkit-release-compose.XXXXXX")"
@@ -294,41 +316,62 @@ release_compose() {
   echo "[4/4] rookproef"
   if rookproef "$COMPOSE_ROOKPROEF_POORT"; then
     _rc_tag="$(volgende_release_tag)"
-    _rc_nieuw_id="$(docker images -q --filter "reference=$_rc_naam:latest" | head -1)"
     git -C "$REPO" tag -a "$_rc_tag" "$_rc_sha" -m "release $_rc_tag"
-    [ -n "$_rc_nieuw_id" ] && docker tag "$_rc_nieuw_id" "$_rc_naam:$_rc_tag" 2>/dev/null || true
-    [ -n "$_rc_nieuw_id" ] && docker tag "$_rc_nieuw_id" "$_rc_naam:$_rc_sha" 2>/dev/null || true
+    for _rc_dienst in $COMPOSE_DIENSTEN; do
+      _rc_naam="${COMPOSE_PROJECT}-${_rc_dienst}"
+      _rc_nieuw_id="$(docker images -q --filter "reference=$_rc_naam:latest" | head -1)"
+      [ -n "$_rc_nieuw_id" ] && docker tag "$_rc_nieuw_id" "$_rc_naam:$_rc_tag" 2>/dev/null || true
+      [ -n "$_rc_nieuw_id" ] && docker tag "$_rc_nieuw_id" "$_rc_naam:$_rc_sha" 2>/dev/null || true
+      # RELEASES_BEWAREN telt release-images (met een :YYYY-MM-DD.N-tag) PER
+      # DIENST: oudere opruimen, :latest/:release-vorig/:<sha>-tags op dezelfde
+      # ID's blijven gewoon bestaan (image rm faalt dan zacht, vandaar
+      # "|| true"). De format-string wordt uit twee stukken opgebouwd, niet als
+      # een aaneengesloten letterlijke tekst hieronder: dat zou Docker's eigen
+      # Go-template-syntax zijn (geen devkit-sjabloonplaceholder), maar
+      # devkit's eigen "is elke placeholder ingevuld"-test in de repo kan de
+      # twee vormen niet uit elkaar houden.
+      if [ -n "${RELEASES_BEWAREN:-}" ]; then
+        _rc_fmt='{'; _rc_fmt="$_rc_fmt{.Tag}}"
+        docker images --filter "reference=$_rc_naam" --format "$_rc_fmt" 2>/dev/null |
+          grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}\.[0-9]+$' | sort -r | tail -n +$((RELEASES_BEWAREN + 1)) |
+          while read -r _rc_oud_tag; do docker image rm "$_rc_naam:$_rc_oud_tag" 2>/dev/null || true; done
+      fi
+    done
     echo "$DOMEIN draait op $_rc_tag ($_rc_kort, compose-project $COMPOSE_PROJECT)"
     log_release "$_rc_tag" "$_rc_sha" ok "$_rc_vorige_tag" null
-    # RELEASES_BEWAREN telt release-images (met een :YYYY-MM-DD.N-tag): oudere
-    # opruimen, :latest/:release-vorig/:<sha>-tags op dezelfde ID's blijven
-    # gewoon bestaan (image rm faalt dan zacht, vandaar "|| true"). De format-string
-    # wordt uit twee stukken opgebouwd, niet als een aaneengesloten letterlijke
-    # tekst hieronder: dat zou Docker's eigen Go-template-syntax zijn (geen
-    # devkit-sjabloonplaceholder), maar devkit's eigen "is elke placeholder
-    # ingevuld"-test in de repo kan de twee vormen niet uit elkaar houden.
-    if [ -n "${RELEASES_BEWAREN:-}" ]; then
-      _rc_fmt='{'; _rc_fmt="$_rc_fmt{.Tag}}"
-      docker images --filter "reference=$_rc_naam" --format "$_rc_fmt" 2>/dev/null |
-        grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}\.[0-9]+$' | sort -r | tail -n +$((RELEASES_BEWAREN + 1)) |
-        while read -r _rc_oud_tag; do docker image rm "$_rc_naam:$_rc_oud_tag" 2>/dev/null || true; done
-    fi
     exit 0
   fi
 
-  if [ -z "$_rc_migratie" ] && [ -n "$_rc_had_vorig" ]; then
-    echo "TERUGROLLEN naar het vorige image ($_rc_naam:release-vorig)" >&2
-    docker tag "$_rc_naam:release-vorig" "$_rc_naam:latest"
-    # shellcheck disable=SC2086
-    compose_dc "$REPO" up -d --no-deps --no-build $COMPOSE_DIENSTEN
-    if rookproef "$COMPOSE_ROOKPROEF_POORT"; then
-      echo "vorige release draait weer" >&2
-      log_release null "$_rc_vorige_sha" rood-na-uitrol-teruggerold "$_rc_vorige_tag" "rookproef faalde na uitrol van $_rc_kort; teruggerold"
-      exit 1
+  # Terugrollen kan alleen ECHT voor de diensten die al een :release-vorig
+  # hadden (_rc_had_vorig_lijst hierboven) — bij de allereerste release van
+  # een nieuwe dienst is er niets om naar terug te gaan, die dienst blijft dan
+  # op zijn (kapotte) eerste build staan, net als het mappen-pad zonder
+  # $RELEASES/vorige.
+  if [ -z "$_rc_migratie" ]; then
+    _rc_had_er_een_vorig=""
+    for _rc_paar in $_rc_had_vorig_lijst; do
+      _rc_dienst="${_rc_paar%%:*}"; _rc_had="${_rc_paar##*:}"
+      if [ "$_rc_had" = "1" ]; then
+        _rc_naam="${COMPOSE_PROJECT}-${_rc_dienst}"
+        echo "TERUGROLLEN $_rc_dienst naar het vorige image ($_rc_naam:release-vorig)" >&2
+        docker tag "$_rc_naam:release-vorig" "$_rc_naam:latest"
+        _rc_had_er_een_vorig=1
+      else
+        echo "$_rc_dienst had nog geen vorig image (eerste release) — blijft op de nieuwe build staan" >&2
+      fi
+    done
+    if [ -n "$_rc_had_er_een_vorig" ]; then
+      # shellcheck disable=SC2086
+      compose_dc "$REPO" up -d --no-deps --no-build $COMPOSE_DIENSTEN
+      if rookproef "$COMPOSE_ROOKPROEF_POORT"; then
+        echo "vorige release draait weer" >&2
+        log_release null "$_rc_vorige_sha" rood-na-uitrol-teruggerold "$_rc_vorige_tag" "rookproef faalde na uitrol van $_rc_kort; teruggerold"
+        exit 1
+      fi
+      echo "ook de vorige release komt niet op; $DOMEIN ligt eruit" >&2
+      log_release null "$_rc_sha" rood-na-uitrol-teruggerold "$_rc_vorige_tag" "rookproef faalde na uitrol van $_rc_kort, en ook na terugrollen"
+      exit 2
     fi
-    echo "ook de vorige release komt niet op; $DOMEIN ligt eruit" >&2
-    log_release null "$_rc_sha" rood-na-uitrol-teruggerold "$_rc_vorige_tag" "rookproef faalde na uitrol van $_rc_kort, en ook na terugrollen"
-    exit 2
   fi
 
   if [ -n "$_rc_migratie" ]; then
