@@ -143,3 +143,83 @@ docker compose -f docker-compose.yml -f compose.tunnel.override.yml --profile tu
 - [multiplayer/DECISIONS.md](multiplayer/DECISIONS.md), [multiplayer/PROTOCOL.md](multiplayer/PROTOCOL.md) en [multiplayer/DATA-MODEL.md](multiplayer/DATA-MODEL.md) — bindende besluiten, events en foutcodes, documenten en sleutels.
 - [README.md](README.md) en [STATUS.md](STATUS.md) — waar welke documentatie staat en de stand van zaken.
 - [../deploy/README.md](../deploy/README.md) — de omgevingen lokaal, test en productie.
+
+## Kerncijfers
+
+- **Containers** — 5 + tunnel — Caddy, Nginx, game-server, Redis, PostgreSQL, plus cloudflared optioneel
+- **Speelbare games** — 6 — vlaggen, echt of nep, odd one out, omtrek, hoofdsteden, hoger-lager
+- **Spelfasen** — 7 — van lobby tot finished, plus pauze bij storing
+- **Talen** — 3 — Nederlands, Engels, Spaans
+
+## Plaat
+
+> Overgezet uit de ADM-kopie van 25 september (kaart #100914); de kerncijfers en de plaat zijn daarna niet opnieuw tegen de code getoetst. De blokken op de plaat tonen de topologie en zijn niet genummerd naar de stappen hierboven.
+
+```mermaid
+flowchart TB
+  subgraph TEL["Telefoons"]
+    direction LR
+    host["Host<br/><small>maakt game · deelt QR</small>"]
+    spelers["Spelers<br/><small>zonder account via code</small>"]
+  end
+
+  tunnel["Cloudflare Tunnel<br/><small>rounda.io · optioneel profiel</small>"]
+
+  subgraph MAC["Mac Studio · Docker"]
+    direction TB
+    caddy["Caddy<br/><small>reverse proxy · 80 en 443</small>"]
+    nginx["Nginx<br/><small>statische frontend</small>"]
+    subgraph SRV["game-server"]
+      direction LR
+      rest["REST-API<br/><small>room · code · inviteId</small>"]
+      sock["Socket.IO<br/><small>snapshot naar iedereen</small>"]
+      sm["State machine<br/><small>7 fasen · lobby tot podium</small>"]
+      score["Scoring<br/><small>server beslist goed of fout</small>"]
+    end
+    weg["Geweigerd<br/><small>ongeldige fase of event</small>"]
+    redis[("Redis<br/><small>actieve rooms · TTL + AOF</small>")]
+    pg[("PostgreSQL<br/><small>anonieme statistiek</small>")]
+  end
+
+  host -- "HTTPS" --> tunnel
+  spelers -- "HTTPS" --> tunnel
+  tunnel --> caddy
+  caddy -- "app" --> nginx
+  caddy -- "api" --> rest
+  caddy -- "websocket" --> sock
+  rest -- "room aanmaken" --> sm
+  sock -- "antwoord" --> score
+  sock -. "nee" .-> weg
+  score -- "punten" --> sm
+  sm -- "stand bewaren" --> redis
+  score -. "batches buiten spelpad" .-> pg
+  redis -. "herstel na herstart" .-> sm
+  sm -- "snapshot" --> sock
+
+  classDef afn fill:#EEF4FF,stroke:#BFD3F6,color:#1E4E8C
+  classDef klant fill:#FFFFFF,stroke:#9DBBEA,color:#14171A
+  classDef cf fill:#FFF3E6,stroke:#F0A955,color:#8A4B08
+  classDef nas fill:#F5F3FF,stroke:#C9C2F5,color:#4338CA
+  classDef gw fill:#FFFFFF,stroke:#D9D4FA,color:#4338CA
+  classDef stap fill:#FFFFFF,stroke:#8B80E8,color:#14171A
+  classDef pg fill:#ECF6F0,stroke:#B7DCC5,color:#1F5337
+  classDef db fill:#FFFFFF,stroke:#2F7A50,color:#1F5337
+  classDef mac fill:#F1F5F9,stroke:#CBD5E1,color:#334155
+  classDef neutraal fill:#FFFFFF,stroke:#CBD5E1,color:#14171A
+  classDef gepland fill:#FFFFFF,stroke:#CBD5E1,color:#64748B,stroke-dasharray:5 4
+  classDef rood fill:#FDECEC,stroke:#D64545,color:#A81E1E
+  classDef rem fill:#FFF6E0,stroke:#E0A526,color:#8F620C
+  class TEL afn
+  class host,spelers klant
+  class tunnel cf
+  class MAC mac
+  class SRV gw
+  class caddy,rest,sock,sm,score stap
+  class nginx neutraal
+  class redis,pg db
+  class weg rood
+  linkStyle 0,1 stroke:#6F9BDA,stroke-width:1.5px
+  linkStyle 2,3,4,5,6,7,9,13 stroke:#6D5FE0,stroke-width:2.2px,color:#4338CA
+  linkStyle 10,11,12 stroke:#2F7A50,stroke-width:1.6px,color:#1F5337
+  linkStyle 8 stroke:#D64545,stroke-width:1.6px,color:#A81E1E
+```
