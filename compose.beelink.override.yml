@@ -1,0 +1,9 @@
+# Testsite test.rounda.io op de Beelink (kaart #102476, golf 2). Bovenop compose.testsite.override.yml:
+# de poort staat op het LAN open, omdat de poortwachter (op de Mac) de testsite via `doel` 192.168.1.5 bereikt.
+# Op de Beelink draaien, in ~/sites/rounda-test, met het env-bestand ~/.config/rounda/test.env (mode 600, 1-op-1 gekopieerd van de Mac):
+#   docker compose -p rounda-test --env-file ~/.config/rounda/test.env -f docker-compose.yml -f compose.testsite.override.yml -f compose.beelink.override.yml up -d --build
+# Zie devkit docs/ops/verhuizen-naar-beelink.md.
+services:
+  reverse-proxy:
+    ports: !override
+      - "8140:80"
