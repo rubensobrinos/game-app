@@ -53,6 +53,7 @@ REPO="$(git -C "$DEPLOY" rev-parse --show-toplevel)"
 if [ "${RELEASE_VORM:-mappen}" = "compose" ]; then
   SHA="$(git -C "$REPO" rev-parse --verify "${1:-main}^{commit}")"
   KORT="$(git -C "$REPO" rev-parse --short "$SHA")"
+  ci_poort "$SHA"
   # De meest recente releasetag in de hele repo (niet per se een voorouder van SHA:
   # een release-tag hoeft niet op de huidige branch te zitten om "de vorige release"
   # te zijn), gesorteerd op naam — dat is chronologisch bij YYYY-MM-DD.N.
@@ -68,6 +69,7 @@ herstel_onderbroken_wissel
 
 SHA="$(git -C "$REPO" rev-parse --verify "${1:-main}^{commit}")"
 KORT="$(git -C "$REPO" rev-parse --short "$SHA")"
+ci_poort "$SHA"
 NIEUW="$RELEASES/$(date +%Y%m%d-%H%M%S)-$KORT"
 VORIGE_TAG="$(git -C "$REPO" describe --tags --exact-match "$(cat "$RELEASES/live/.release-sha" 2>/dev/null || echo HEAD)" 2>/dev/null || echo null)"
 

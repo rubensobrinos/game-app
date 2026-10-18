@@ -21,6 +21,36 @@ weiger() {
   exit 78
 }
 
+# ci_poort <sha> — een release gaat alleen door met een groene devkit-ci-regel voor precies deze sha (devkit ADR-0035 regel 1, amendement 05-10).
+# Vraagt het aan `devkit release-site --alleen-poort` (leest runs.jsonl, draait niets opnieuw, logt rood-voor-release bij een weigering).
+# Onbekend is niet groen: staat `devkit` niet op het PATH, dan weigert dit script ook.
+ci_poort() {
+  _devkit="$(command -v devkit 2>/dev/null || true)"
+  [ -n "$_devkit" ] || weiger "devkit staat niet op het PATH: kan niet vaststellen of $1 een groene CI-regel heeft (onbekend is niet groen)"
+  "$_devkit" release-site "$REPO" "$1" --alleen-poort >&2 || weiger "geen groene devkit-ci-regel voor $1: draai 'devkit ci' op deze commit en probeer opnieuw"
+  unset _devkit
+}
+
+# droog_plan <sha> <kort> <wat> — voor `release.sh --droog`: toont wat er zou gebeuren en de stand van de ci-poort, en stopt. Schrijft, bouwt,
+# wisselt, herstart, tagt en logt niets. Exit 0: een echte release zou doorgaan; exit 1: de ci-poort zou weigeren.
+droog_plan() {
+  echo "DROOG ($OMGEVING_NAAM): niets wordt gebouwd, omgewisseld, herstart, getagd of gelogd"
+  echo "  doel      $DOMEIN"
+  echo "  commit    $2 ($1)"
+  echo "  plan      $3"
+  _devkit="$(command -v devkit 2>/dev/null || true)"
+  if [ -z "$_devkit" ]; then
+    echo "  ci-poort  ONBEKEND: devkit staat niet op het PATH (onbekend is niet groen: een echte release weigert)" >&2
+    exit 1
+  fi
+  if "$_devkit" release-site "$REPO" "$1" --alleen-poort >/dev/null 2>&1; then
+    echo "  ci-poort  groen: een echte release zou doorgaan"
+    exit 0
+  fi
+  echo "  ci-poort  ROOD: geen groene devkit-ci-regel voor $2; een echte release weigert (draai 'devkit ci' op deze commit)" >&2
+  exit 1
+}
+
 # omgeving_laden <test|productie>
 # Leest omgeving.conf en het env-bestand van die omgeving, en zet OMGEVING, POORT,
 # DB_VERWACHT, OMGEVING_MAP, DIENST, PUBLIC_URL, PORT en HOST.
