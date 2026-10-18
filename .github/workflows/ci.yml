@@ -3,10 +3,8 @@
 name: CI
 
 on:
-  push:
-    branches: ["**"]
-  pull_request:
-    branches: ["**"]
+  # CI draait lokaal (devkit ci --poort / --nacht); GitHub alleen handmatig (devkit ADR-0084, Actions-minuten).
+  workflow_dispatch:
 
 jobs:
   lint:
