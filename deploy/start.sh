@@ -4,7 +4,7 @@
 # Laadt omgeving.conf en het env-bestand van de omgeving, weigert te starten (exit 78)
 # als een database of adres bij de andere omgeving hoort, en start dan de app op
 # 127.0.0.1:<poort> vanuit de map van die omgeving: de test-worktree, of
-# $RELEASES/current voor productie. Standaard: devkit ADR-0032.
+# $RELEASES/live voor productie (devkit ADR-0032, ADR-0035).
 set -eu
 . "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 

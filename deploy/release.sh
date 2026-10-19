@@ -1,5 +1,8 @@
 #!/bin/sh
-# deploy/release.sh [ref] — zet rounda.io op een commit (standaard: main).
+# deploy/release.sh [--droog] [ref] — zet rounda.io op een commit (standaard: $HOOFDBRANCH uit omgeving.conf, anders main).
+#
+# --droog doet alleen de controles en toont het plan en de stand van de ci-poort; er wordt niets gebouwd, omgewisseld, herstart, getagd of
+# gelogd (exit 0: een echte release zou doorgaan, exit 1: de poort weigert).
 #
 # Het enige pad naar productie. Pakt de commit uit met `git archive` in een nieuwe
 # releasemap (ongecommit werk kan dus niet meeliften), bouwt daar, wisselt om naar
@@ -42,6 +45,12 @@
 set -eu
 . "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 
+DROOG=""
+if [ "${1:-}" = "--droog" ]; then
+  DROOG=1
+  shift
+fi
+
 omgeving_laden productie
 omgeving_eisen
 
@@ -51,8 +60,10 @@ REPO="$(git -C "$DEPLOY" rev-parse --show-toplevel)"
 # padguard/het herstel hieronder — die twee gaan over RELEASES (live/vorige-
 # mappen), en die variabele bestaat niet bij een compose-site.
 if [ "${RELEASE_VORM:-mappen}" = "compose" ]; then
-  SHA="$(git -C "$REPO" rev-parse --verify "${1:-main}^{commit}")"
+  SHA="$(git -C "$REPO" rev-parse --verify "${1:-${HOOFDBRANCH:-main}}^{commit}")"
   KORT="$(git -C "$REPO" rev-parse --short "$SHA")"
+  if [ -n "${COMPOSE_HOST:-}" ]; then _rookdoel="${COMPOSE_ROOKPROEF_URL:-?} via $COMPOSE_HOST"; else _rookdoel="poort ${COMPOSE_ROOKPROEF_POORT:-?}"; fi
+  [ -z "$DROOG" ] || droog_plan "$SHA" "$KORT" "compose-release ($COMPOSE_PROJECT): bouwen, rookproef op $_rookdoel, terugrollen bij rood"
   ci_poort "$SHA"
   # De meest recente releasetag in de hele repo (niet per se een voorouder van SHA:
   # een release-tag hoeft niet op de huidige branch te zitten om "de vorige release"
@@ -65,10 +76,16 @@ if [ "${RELEASE_VORM:-mappen}" = "compose" ]; then
 fi
 
 releases_pad_veilig
-herstel_onderbroken_wissel
+# --droog schrijft niets, dus ook geen herstel van een onderbroken wissel: dat meldt het plan hieronder alleen.
+if [ -z "$DROOG" ]; then
+  herstel_onderbroken_wissel
+elif [ -d "$RELEASES/.vorige.tmp" ] && [ ! -d "$RELEASES/live" ]; then
+  echo "  let op    een onderbroken wissel wacht op herstel (een echte release herstelt hem eerst)"
+fi
 
-SHA="$(git -C "$REPO" rev-parse --verify "${1:-main}^{commit}")"
+SHA="$(git -C "$REPO" rev-parse --verify "${1:-${HOOFDBRANCH:-main}}^{commit}")"
 KORT="$(git -C "$REPO" rev-parse --short "$SHA")"
+[ -z "$DROOG" ] || droog_plan "$SHA" "$KORT" "uitpakken in $RELEASES, bouwen, omwisselen naar $RELEASES/live (de huidige wordt $RELEASES/vorige), rookproef op poort $POORT, terugrollen bij rood"
 ci_poort "$SHA"
 NIEUW="$RELEASES/$(date +%Y%m%d-%H%M%S)-$KORT"
 VORIGE_TAG="$(git -C "$REPO" describe --tags --exact-match "$(cat "$RELEASES/live/.release-sha" 2>/dev/null || echo HEAD)" 2>/dev/null || echo null)"

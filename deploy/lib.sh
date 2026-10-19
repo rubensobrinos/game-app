@@ -53,7 +53,9 @@ droog_plan() {
 
 # omgeving_laden <test|productie>
 # Leest omgeving.conf en het env-bestand van die omgeving, en zet OMGEVING, POORT,
-# DB_VERWACHT, OMGEVING_MAP, DIENST, PUBLIC_URL, PORT en HOST.
+# DB_VERWACHT, OMGEVING_MAP, DIENST, PUBLIC_URL, PORT en HOST. Voor test is
+# PUBLIC_URL_TEST in omgeving.conf optioneel: leeg of niet gezet betekent
+# https://test.$DOMEIN, een andere testhost staat daar (kaart #101181).
 omgeving_laden() {
   OMGEVING="$1"
   OMGEVING_NAAM="$(basename "$0") ($OMGEVING)"
@@ -64,7 +66,15 @@ omgeving_laden() {
   case "$OMGEVING" in
     test)
       POORT="$POORT_TEST"; DB_VERWACHT="$DB_TEST"; ENV_BESTAND="$ENV_TEST"
-      OMGEVING_MAP="$TEST_WORKTREE"; PUBLIC_URL="https://test.$DOMEIN" ;;
+      OMGEVING_MAP="$TEST_WORKTREE"
+      # Niet elke testomgeving staat op test.<domein>: cobri-academy draait op
+      # academy-test.cobrigroup.com en kreeg daardoor na elke uitrol een valse
+      # noindex-waarschuwing (kaart #101181). PUBLIC_URL_TEST in omgeving.conf is
+      # optioneel; leeg of niet gezet betekent de standaard, en een afsluitende /
+      # mag (het adres wordt met "/" erachter opgevraagd in uitrollen-test.sh).
+      # Staat hier het adres van productie, dan weigert omgeving_eisen dat zo.
+      PUBLIC_URL="${PUBLIC_URL_TEST:-https://test.$DOMEIN}"
+      PUBLIC_URL="${PUBLIC_URL%/}" ;;
     productie)
       POORT="$POORT_PRODUCTIE"; DB_VERWACHT="$DB_PRODUCTIE"; ENV_BESTAND="$ENV_PRODUCTIE"
       OMGEVING_MAP="$RELEASES/live"; PUBLIC_URL="https://$DOMEIN" ;;
@@ -74,15 +84,21 @@ omgeving_laden() {
   esac
   DIENST="$LABEL.$OMGEVING"
 
-  [ -f "$ENV_BESTAND" ] || weiger "env-bestand $ENV_BESTAND ontbreekt. Maak het aan (mag leeg zijn) met mode 600."
-  case "$(stat -f %Lp "$ENV_BESTAND" 2>/dev/null || echo onbekend)" in
-    600 | 400) ;;
-    *) echo "$OMGEVING_NAAM waarschuwing: $ENV_BESTAND is niet mode 600 (chmod 600 \"$ENV_BESTAND\")" >&2 ;;
-  esac
-  set -a
-  # shellcheck disable=SC1090
-  . "$ENV_BESTAND"
-  set +a
+  # Een remote compose-stack (COMPOSE_HOST, devkit ADR-0093) heeft zijn geheimen op die host (COMPOSE_HOST_MAP/.env): lokaal is voor
+  # productie geen env-bestand nodig, en er wordt er ook geen gelezen.
+  if [ "$OMGEVING" = productie ] && compose_remote; then
+    ENV_BESTAND=""
+  else
+    [ -f "$ENV_BESTAND" ] || weiger "env-bestand $ENV_BESTAND ontbreekt. Maak het aan (mag leeg zijn) met mode 600."
+    case "$(stat -f %Lp "$ENV_BESTAND" 2>/dev/null || echo onbekend)" in
+      600 | 400) ;;
+      *) echo "$OMGEVING_NAAM waarschuwing: $ENV_BESTAND is niet mode 600 (chmod 600 \"$ENV_BESTAND\")" >&2 ;;
+    esac
+    set -a
+    # shellcheck disable=SC1090
+    . "$ENV_BESTAND"
+    set +a
+  fi
 
   # Na het env-bestand: omgeving.conf is de bron voor poort en adres, niet een
   # vergeten regel in een env-bestand.
@@ -92,15 +108,17 @@ omgeving_laden() {
 
 # releases_pad_veilig — weigert (78) tenzij RELEASES een niet-leeg, absoluut pad
 # is met minstens twee segmenten (dus nooit "", "/", of een relatief pad) ÉN onder
-# de vaste basismap ligt die het sjabloon zelf voorschrijft: $HOME/releases/<naam>
-# (devkit ADR-0035, reviewpunt 1 van de tweede review). Elke destructieve operatie
+# de vaste basismap ligt die het sjabloon zelf voorschrijft: $HOME/.devkit/sites/<naam>/productie
+# (devkit ADR-0035, reviewpunt 1 van de tweede review; pad bijgewerkt door ADR-0038 —
+# deze functie hoefde zelf niet te veranderen, de nieuwe basismap voldeed al aan alle
+# checks hieronder). Elke destructieve operatie
 # in release.sh (rm -rf op .vorige.tmp, vorige, oude releasemappen) gaat hierachter:
 # "set -u" alleen vangt een ONTBREKENDE variabele, geen LEGE (RELEASES="" is een
 # geldige, gezette lege string en zou "rm -rf $RELEASES/vorige" laten resolven naar
 # "rm -rf /vorige"). Zonder de basismap-eis zou RELEASES="$HOME" zelf de eerdere
 # regel ook doorstaan (absoluut, twee-plus segmenten) en zou "rm -rf $RELEASES/vorige"
 # de hele HOME-map raken via een pad dat toevallig "/vorige" erachter plakt — dat is
-# geen hypothetisch geval: een leeg NAAM-sjabloonveld (RELEASES="$HOME/releases/")
+# geen hypothetisch geval: een leeg NAAM-sjabloonveld (RELEASES="$HOME/.devkit/sites//productie")
 # of een handmatige tikfout in omgeving.conf kan dit opleveren. Geen enkele "rm -rf"
 # -regel in release.sh mag draaien voordat dit is aangeroepen.
 releases_pad_veilig() {
@@ -115,7 +133,7 @@ releases_pad_veilig() {
   [ -n "${HOME:-}" ] || weiger "HOME is niet gezet, kan RELEASES niet tegen de basismap controleren"
   [ "$RELEASES" != "$HOME" ] || weiger "RELEASES mag niet \$HOME zelf zijn ('$RELEASES') — destructieve releasestappen geweigerd"
   case "$RELEASES" in
-    "$HOME"/*) ;;  # onder de vaste basismap, zoals het sjabloon voorschrijft ($HOME/releases/<naam>)
+    "$HOME"/*) ;;  # onder de vaste basismap, zoals het sjabloon voorschrijft ($HOME/.devkit/sites/<naam>/productie, ADR-0038)
     *) weiger "RELEASES ('$RELEASES') ligt niet onder \$HOME — destructieve releasestappen geweigerd" ;;
   esac
 }
@@ -129,7 +147,7 @@ releases_pad_veilig() {
 # default/ADR-0035-pad) blijft de poort verplicht, ongewijzigd.
 omgeving_eisen() {
   if [ "$OMGEVING" != "productie" ] || [ "${RELEASE_VORM:-mappen}" != "compose" ]; then
-    [ -n "$POORT" ] || weiger "de poort voor $OMGEVING is leeg in omgeving.conf. Kies een vrije en schrijf hem in ~/dev/0. PORTS.md."
+    [ -n "$POORT" ] || weiger "de poort voor $OMGEVING is leeg in omgeving.conf. Kies een vrije met 'devkit claim poort vrij' en claim hem met 'devkit claim poort claim' (poortregister)."
   fi
 
   # Elke DATABASE_URL* (ook _READ/_WRITE-varianten) moet naar de database van deze
@@ -168,17 +186,18 @@ omgeving_eisen() {
   unset _gevonden _naam _url _db _domein_re _verboden _fout _eis
 }
 
-# rookproef <poort> — elk pad in ROOKPROEF_PADEN moet binnen ROOKPROEF_WACHTEN s 200 geven.
+# rookproef <poort> [host] — elk pad in ROOKPROEF_PADEN moet binnen ROOKPROEF_WACHTEN s 200 geven (host: standaard 127.0.0.1, de Beelink voor TEST_OP_BEELINK).
 rookproef() {
+  _host="${2:-127.0.0.1}"
   for _pad in $ROOKPROEF_PADEN; do
     _i=0
-    until [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:$1$_pad")" = 200 ]; do
+    until [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://$_host:$1$_pad")" = 200 ]; do
       _i=$((_i + 1))
-      [ "$_i" -lt "${ROOKPROEF_WACHTEN:-30}" ] || { echo "rookproef: http://127.0.0.1:$1$_pad geeft geen 200" >&2; return 1; }
+      [ "$_i" -lt "${ROOKPROEF_WACHTEN:-30}" ] || { echo "rookproef: http://$_host:$1$_pad geeft geen 200" >&2; return 1; }
       sleep 1
     done
   done
-  echo "rookproef: $ROOKPROEF_PADEN op :$1 geven 200"
+  echo "rookproef: $ROOKPROEF_PADEN op $_host:$1 geven 200"
 }
 
 # herstarten <launchd-label> — start de dienst (opnieuw), ook als hij nog niet draaide.
@@ -230,7 +249,164 @@ compose_dc() {
   _dc_bestanden=""
   for _b in $COMPOSE_BESTANDEN; do _dc_bestanden="$_dc_bestanden -f $_b"; done
   # shellcheck disable=SC2086
-  (cd "$_dc_werkmap" && docker compose -p "$COMPOSE_PROJECT" $_dc_bestanden "$@")
+  (cd "$_dc_werkmap" && if compose_remote; then export DOCKER_HOST="ssh://$COMPOSE_HOST"; fi && docker compose -p "$COMPOSE_PROJECT" $_dc_bestanden "$@")
+}
+
+# --- Remote compose (devkit ADR-0093, aanvulling op ADR-0037) ---------------------------------------------------------------
+# Draait de productie-stack op een andere host (COMPOSE_HOST in omgeving.conf, een ssh-alias zoals "beelink"), dan blijft de
+# release.sh op deze Mac draaien: de image wordt gebouwd door de docker-daemon van die host (DOCKER_HOST=ssh://...), de stack
+# wordt gestart vanuit COMPOSE_HOST_MAP op die host (daar staat het .env-bestand met de geheimen; dat verlaat die host nooit)
+# en de rookproef loopt binnen het compose-netwerk van die host. Leeg COMPOSE_HOST = alles lokaal, zoals voor ADR-0093.
+
+# compose_remote — waar (0) als de stack op een andere host draait.
+compose_remote() {
+  [ -n "${COMPOSE_HOST:-}" ]
+}
+
+# docker_x <docker-argumenten...> — docker op de plek waar de stack draait (lokaal, of de daemon van COMPOSE_HOST).
+docker_x() {
+  if compose_remote; then
+    DOCKER_HOST="ssh://$COMPOSE_HOST" docker "$@"
+  else
+    docker "$@"
+  fi
+}
+
+# ssh_x <commando> — één opdracht op COMPOSE_HOST. Nooit een wachtwoordvraag (BatchMode) en nooit eeuwig wachten.
+ssh_x() {
+  ssh -o BatchMode=yes -o ConnectTimeout=10 "$COMPOSE_HOST" "$1"
+}
+
+# compose_remote_eisen — de velden voor een remote stack zijn gezet en bevatten geen tekens die een shell iets laten doen: ze gaan
+# als tekst naar ssh. Een lokale stack heeft niets nodig.
+compose_remote_eisen() {
+  compose_remote || return 0
+  case "$COMPOSE_HOST" in *[!A-Za-z0-9._@-]*) weiger "COMPOSE_HOST bevat een teken dat niet in een ssh-alias hoort (devkit ADR-0093)" ;; esac
+  [ -n "${COMPOSE_HOST_MAP:-}" ] || weiger "COMPOSE_HOST_MAP is leeg in omgeving.conf, terwijl COMPOSE_HOST gezet is (devkit ADR-0093)"
+  case "$COMPOSE_HOST_MAP" in *[!A-Za-z0-9._/-]*) weiger "COMPOSE_HOST_MAP bevat een teken dat niet in een pad hoort (devkit ADR-0093)" ;; esac
+  # Zonder COMPOSE_ROOKPROEF_URL moet elk pad in ROOKPROEF_PADEN zelf een volledig adres zijn.
+  if [ -z "${COMPOSE_ROOKPROEF_URL:-}" ]; then
+    for _pad in ${ROOKPROEF_PADEN:-}; do
+      case "$_pad" in http://* | https://*) ;; *) weiger "COMPOSE_ROOKPROEF_URL is leeg in omgeving.conf en het pad '$_pad' is geen volledig adres, terwijl COMPOSE_HOST gezet is (bv. http://web:8000)" ;; esac
+    done
+    [ -n "${ROOKPROEF_PADEN:-}" ] || weiger "COMPOSE_ROOKPROEF_URL en ROOKPROEF_PADEN zijn leeg in omgeving.conf, terwijl COMPOSE_HOST gezet is"
+  else
+    case "$COMPOSE_ROOKPROEF_URL" in http://* | https://*) ;; *) weiger "COMPOSE_ROOKPROEF_URL moet met http:// of https:// beginnen" ;; esac
+    case "$COMPOSE_ROOKPROEF_URL" in *[!A-Za-z0-9._:/-]*) weiger "COMPOSE_ROOKPROEF_URL bevat een teken dat niet in een adres hoort" ;; esac
+  fi
+  case "${COMPOSE_BESTANDEN:-}" in *[!A-Za-z0-9._/\ -]*) weiger "COMPOSE_BESTANDEN bevat een teken dat niet in een bestandsnaam hoort (devkit ADR-0094)" ;; esac
+  case "${ROOKPROEF_PADEN:-}" in *[!A-Za-z0-9._:/\ -]*) weiger "ROOKPROEF_PADEN bevat een teken dat niet in een pad of adres hoort" ;; esac
+  case "${COMPOSE_IMAGES:-}" in *[!A-Za-z0-9._:/=\ -]*) weiger "COMPOSE_IMAGES bevat een teken dat niet in 'dienst=naam:tag' hoort" ;; esac
+}
+
+# compose_sync <checkout> <sha> — zet de compose-bestanden van deze release en een .release-sha in COMPOSE_HOST_MAP, zodat de stack
+# daar met de definitie van deze release start. Alleen COMPOSE_BESTANDEN: het .env-bestand en de volumes blijven staan waar ze staan.
+compose_sync() {
+  compose_remote || return 0
+  # shellcheck disable=SC2086
+  (cd "$1" && tar -cf - $COMPOSE_BESTANDEN) | ssh -o BatchMode=yes -o ConnectTimeout=10 "$COMPOSE_HOST" \
+    "mkdir -p '$COMPOSE_HOST_MAP' && cd '$COMPOSE_HOST_MAP' && tar -xf - && printf '%s\n' '$2' > .release-sha"
+}
+
+# compose_drift_controle <vorige-sha> — de compose-bestanden op de host zijn nog precies die van de vorige release (devkit ADR-0094).
+# Een hand-wijziging op de host (bv. een extra netwerk, zonder commit) wordt door compose_sync stil overschreven: 18-10 verloor aseso.co zo zijn
+# netwerk en lag 22 uur eruit. Daarom vergelijkt dit de COMPOSE_BESTANDEN op de host met `git show <vorige-sha>:<bestand>` en weigert bij elk
+# verschil. Env-bestanden (.env, *.env: de geheimen) worden nooit gelezen. Geen baseline = niets te vergelijken en dus geen weigering: een
+# lokale stack, een eerste release (vorige-sha "null"), of een host zonder .release-sha. Een bestand dat op de host niet te lezen is, telt als
+# verschil (onbekend is niet gelijk). COMPOSE_DRIFT_TOESTAAN=1 slaat de controle bewust over (met een melding); dat is een besluit van Ruben.
+# Exit 0 = door, 1 = drift (de verschillen staan op stderr).
+compose_drift_controle() {
+  compose_remote || return 0
+  [ "$1" != "null" ] || return 0
+  if [ "${COMPOSE_DRIFT_TOESTAAN:-}" = "1" ]; then
+    echo "LET OP: COMPOSE_DRIFT_TOESTAAN=1, de compose op $COMPOSE_HOST is niet vergeleken met de vorige release" >&2
+    return 0
+  fi
+  _cdc_baseline="$(ssh_x "cat '$COMPOSE_HOST_MAP/.release-sha'" 2>/dev/null || true)"
+  [ -n "$_cdc_baseline" ] || { echo "compose-drift: $COMPOSE_HOST_MAP heeft nog geen .release-sha, niets om mee te vergelijken" >&2; return 0; }
+  _cdc_tmp="$(mktemp -d "${TMPDIR:-/tmp}/devkit-compose-drift.XXXXXX")"
+  _cdc_drift=""
+  for _cdc_bestand in $COMPOSE_BESTANDEN; do
+    case "${_cdc_bestand##*/}" in .env | .env.* | *.env) continue ;; esac
+    # Zat het bestand niet in de vorige release, dan is er niets om mee te vergelijken.
+    git -C "$REPO" show "$1:$_cdc_bestand" > "$_cdc_tmp/git" 2>/dev/null || continue
+    if ! ssh_x "cat '$COMPOSE_HOST_MAP/$_cdc_bestand'" > "$_cdc_tmp/host" 2>/dev/null || ! cmp -s "$_cdc_tmp/git" "$_cdc_tmp/host"; then
+      _cdc_drift="$_cdc_drift $_cdc_bestand"
+    fi
+  done
+  rm -rf "$_cdc_tmp"
+  [ -z "$_cdc_drift" ] && return 0
+  echo "compose-drift: op $COMPOSE_HOST (map $COMPOSE_HOST_MAP) wijkt af van de vorige release ($1) of is niet te lezen:$_cdc_drift" >&2
+  echo "  Zet de wijziging in git (en release die), of haal hem van de host. Bewust overslaan: COMPOSE_DRIFT_TOESTAAN=1." >&2
+  return 1
+}
+
+# compose_terugzetten <vorige-sha> — bij een terugrol ook de compose-bestanden van de vorige release terug op de host, niet alleen de images:
+# anders start `up --no-build` het vorige image onder de compose van de mislukte release (devkit ADR-0094). Zonder vorige sha, of als een
+# bestand niet in de vorige release zat, is er niets om terug te zetten: dat is een melding, geen fout.
+compose_terugzetten() {
+  compose_remote || return 0
+  [ "$1" != "null" ] || return 0
+  _ct_tmp="$(mktemp -d "${TMPDIR:-/tmp}/devkit-compose-terug.XXXXXX")"
+  # shellcheck disable=SC2086
+  if ! git -C "$REPO" archive "$1" $COMPOSE_BESTANDEN 2>/dev/null | tar -x -C "$_ct_tmp" 2>/dev/null; then
+    rm -rf "$_ct_tmp"
+    echo "LET OP: de compose-bestanden van $1 zijn niet uit git te halen; de compose op $COMPOSE_HOST blijft die van de mislukte release" >&2
+    return 1
+  fi
+  if ! compose_sync "$_ct_tmp" "$1"; then
+    rm -rf "$_ct_tmp"
+    echo "LET OP: de compose-bestanden van $1 terugzetten op $COMPOSE_HOST faalde" >&2
+    return 1
+  fi
+  rm -rf "$_ct_tmp"
+  echo "compose-bestanden van $1 teruggezet op $COMPOSE_HOST" >&2
+}
+
+# compose_up <argumenten...> — `docker compose up -d --no-deps <argumenten>`: lokaal vanuit $REPO, remote vanuit COMPOSE_HOST_MAP.
+compose_up() {
+  if ! compose_remote; then
+    compose_dc "$REPO" up -d --no-deps "$@"
+    return
+  fi
+  _cu_bestanden=""
+  for _b in $COMPOSE_BESTANDEN; do _cu_bestanden="$_cu_bestanden -f $_b"; done
+  ssh_x "cd '$COMPOSE_HOST_MAP' && docker compose -p '$COMPOSE_PROJECT' $_cu_bestanden up -d --no-deps $*"
+}
+
+# rookproef_compose — de rookproef van een compose-release: lokaal op 127.0.0.1:COMPOSE_ROOKPROEF_POORT, remote binnen het
+# compose-netwerk van COMPOSE_HOST (COMPOSE_ROOKPROEF_URL, bv. http://web:8000). Elk pad in ROOKPROEF_PADEN moet binnen
+# ROOKPROEF_WACHTEN seconden slagen. Remote is "slagen" wat wget (busybox) een succes noemt: een 2xx na eventuele redirects.
+rookproef_compose() {
+  if ! compose_remote; then
+    rookproef "$COMPOSE_ROOKPROEF_POORT"
+    return
+  fi
+  for _pad in $ROOKPROEF_PADEN; do
+    # Een pad dat met http:// of https:// begint is een volledig adres binnen het netwerk (bv. een api én een site); anders hoort het
+    # bij COMPOSE_ROOKPROEF_URL.
+    case "$_pad" in http://* | https://*) _url="$_pad" ;; *) _url="$COMPOSE_ROOKPROEF_URL$_pad" ;; esac
+    _i=0
+    until ssh_x "docker run --rm --network '${COMPOSE_PROJECT}_default' alpine wget -q -T 5 -O /dev/null '$_url'" >/dev/null 2>&1; do
+      _i=$((_i + 1))
+      [ "$_i" -lt "${ROOKPROEF_WACHTEN:-30}" ] || { echo "rookproef: $_url op $COMPOSE_HOST geeft geen succes" >&2; return 1; }
+      sleep 1
+    done
+  done
+  echo "rookproef: $ROOKPROEF_PADEN${COMPOSE_ROOKPROEF_URL:+ op $COMPOSE_ROOKPROEF_URL} (via $COMPOSE_HOST) geven succes"
+}
+
+# compose_image_ref <dienst> — de image (naam:tag) waarmee de stack deze dienst draait. Standaard de naam die compose zelf geeft
+# (<project>-<dienst>:latest). Zet de compose-file een eigen `image:` (bv. aseso-search-api:productie), dan staat die in COMPOSE_IMAGES
+# als "dienst=naam:tag" (spatie-gescheiden): daarop werken beschermen, taggen en terugrollen dan. (devkit ADR-0093)
+compose_image_ref() {
+  for _ci_paar in ${COMPOSE_IMAGES:-}; do
+    if [ "${_ci_paar%%=*}" = "$1" ]; then
+      printf '%s\n' "${_ci_paar#*=}"
+      return
+    fi
+  done
+  printf '%s\n' "${COMPOSE_PROJECT}-$1:latest"
 }
 
 # migratie_gedetecteerd <vorige-sha> <nieuwe-sha> — waar (0) als MIGRATIE_PAD
@@ -293,7 +469,8 @@ migratie_gedetecteerd() {
 release_compose() {
   _rc_sha="$1"; _rc_kort="$2"; _rc_vorige_tag="$3"
   [ -n "${COMPOSE_DIENSTEN:-}" ] || weiger "COMPOSE_DIENSTEN is leeg in omgeving.conf (devkit ADR-0037)"
-  [ -n "${COMPOSE_ROOKPROEF_POORT:-}" ] || weiger "COMPOSE_ROOKPROEF_POORT is leeg in omgeving.conf"
+  compose_remote_eisen
+  compose_remote || [ -n "${COMPOSE_ROOKPROEF_POORT:-}" ] || weiger "COMPOSE_ROOKPROEF_POORT is leeg in omgeving.conf"
 
   # Vorige commit-SHA uit VORIGE_TAG (al door release.sh bepaald via git describe op
   # de laatst bekende release), niet uit een Docker-label: dat zou een LABEL-
@@ -310,6 +487,12 @@ release_compose() {
     echo "$OMGEVING_NAAM: migratie gedetecteerd in $MIGRATIE_PAD ($_rc_vorige_sha..$_rc_sha) — automatisch terugrollen wordt bij rood geweigerd" >&2
   fi
 
+  if ! compose_drift_controle "$_rc_vorige_sha"; then
+    echo "AFGEBROKEN: de compose op $COMPOSE_HOST is met de hand aangepast. Productie is niet aangeraakt." >&2
+    log_release null "$_rc_sha" rood-voor-release "$_rc_vorige_tag" "compose op $COMPOSE_HOST wijkt af van de vorige release (hand-wijziging); niets gebouwd of gekopieerd"
+    exit 1
+  fi
+
   echo "[1/4] vorig image beschermen ($COMPOSE_DIENSTEN)"
   # Ruimtegescheiden lijst van "dienst:had_vorig" (1/0), zodat stap 4 hieronder
   # weet welke diensten ECHT al een :release-vorig hadden — een dienst zonder
@@ -317,10 +500,10 @@ release_compose() {
   # :release-vorig proberen terug te rollen.
   _rc_had_vorig_lijst=""
   for _rc_dienst in $COMPOSE_DIENSTEN; do
-    _rc_naam="${COMPOSE_PROJECT}-${_rc_dienst}"
-    _rc_huidig_id="$(docker images -q --filter "reference=$_rc_naam:latest" | head -1)"
+    _rc_ref="$(compose_image_ref "$_rc_dienst")"; _rc_naam="${_rc_ref%:*}"
+    _rc_huidig_id="$(docker_x images -q --filter "reference=$_rc_ref" | head -1)"
     if [ -n "$_rc_huidig_id" ]; then
-      docker tag "$_rc_huidig_id" "$_rc_naam:release-vorig"
+      docker_x tag "$_rc_huidig_id" "$_rc_naam:release-vorig"
       _rc_had_vorig_lijst="$_rc_had_vorig_lijst $_rc_dienst:1"
     else
       _rc_had_vorig_lijst="$_rc_had_vorig_lijst $_rc_dienst:0"
@@ -337,21 +520,27 @@ release_compose() {
     log_release null "$_rc_sha" rood-voor-release "$_rc_vorige_tag" "bouwen faalde"
     exit 1
   fi
+  if ! compose_sync "$_rc_checkout" "$_rc_sha"; then
+    rm -rf "$_rc_checkout"
+    echo "AFGEBROKEN: de compose-bestanden naar $COMPOSE_HOST kopiëren faalde. De draaiende stack is niet aangeraakt." >&2
+    log_release null "$_rc_sha" rood-voor-release "$_rc_vorige_tag" "compose-bestanden naar $COMPOSE_HOST kopiëren faalde"
+    exit 1
+  fi
   rm -rf "$_rc_checkout"
 
   echo "[3/4] uitrollen ($COMPOSE_DIENSTEN, --no-deps)"
   # shellcheck disable=SC2086
-  compose_dc "$REPO" up -d --no-deps $COMPOSE_DIENSTEN
+  compose_up $COMPOSE_DIENSTEN
 
   echo "[4/4] rookproef"
-  if rookproef "$COMPOSE_ROOKPROEF_POORT"; then
+  if rookproef_compose; then
     _rc_tag="$(volgende_release_tag)"
     git -C "$REPO" tag -a "$_rc_tag" "$_rc_sha" -m "release $_rc_tag"
     for _rc_dienst in $COMPOSE_DIENSTEN; do
-      _rc_naam="${COMPOSE_PROJECT}-${_rc_dienst}"
-      _rc_nieuw_id="$(docker images -q --filter "reference=$_rc_naam:latest" | head -1)"
-      [ -n "$_rc_nieuw_id" ] && docker tag "$_rc_nieuw_id" "$_rc_naam:$_rc_tag" 2>/dev/null || true
-      [ -n "$_rc_nieuw_id" ] && docker tag "$_rc_nieuw_id" "$_rc_naam:$_rc_sha" 2>/dev/null || true
+      _rc_ref="$(compose_image_ref "$_rc_dienst")"; _rc_naam="${_rc_ref%:*}"
+      _rc_nieuw_id="$(docker_x images -q --filter "reference=$_rc_ref" | head -1)"
+      [ -n "$_rc_nieuw_id" ] && docker_x tag "$_rc_nieuw_id" "$_rc_naam:$_rc_tag" 2>/dev/null || true
+      [ -n "$_rc_nieuw_id" ] && docker_x tag "$_rc_nieuw_id" "$_rc_naam:$_rc_sha" 2>/dev/null || true
       # RELEASES_BEWAREN telt release-images (met een :YYYY-MM-DD.N-tag) PER
       # DIENST: oudere opruimen, :latest/:release-vorig/:<sha>-tags op dezelfde
       # ID's blijven gewoon bestaan (image rm faalt dan zacht, vandaar
@@ -362,9 +551,9 @@ release_compose() {
       # twee vormen niet uit elkaar houden.
       if [ -n "${RELEASES_BEWAREN:-}" ]; then
         _rc_fmt='{'; _rc_fmt="$_rc_fmt{.Tag}}"
-        docker images --filter "reference=$_rc_naam" --format "$_rc_fmt" 2>/dev/null |
+        docker_x images --filter "reference=$_rc_naam" --format "$_rc_fmt" 2>/dev/null |
           grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}\.[0-9]+$' | sort -r | tail -n +$((RELEASES_BEWAREN + 1)) |
-          while read -r _rc_oud_tag; do docker image rm "$_rc_naam:$_rc_oud_tag" 2>/dev/null || true; done
+          while read -r _rc_oud_tag; do docker_x image rm "$_rc_naam:$_rc_oud_tag" 2>/dev/null || true; done
       fi
     done
     echo "$DOMEIN draait op $_rc_tag ($_rc_kort, compose-project $COMPOSE_PROJECT)"
@@ -382,18 +571,19 @@ release_compose() {
     for _rc_paar in $_rc_had_vorig_lijst; do
       _rc_dienst="${_rc_paar%%:*}"; _rc_had="${_rc_paar##*:}"
       if [ "$_rc_had" = "1" ]; then
-        _rc_naam="${COMPOSE_PROJECT}-${_rc_dienst}"
+        _rc_ref="$(compose_image_ref "$_rc_dienst")"; _rc_naam="${_rc_ref%:*}"
         echo "TERUGROLLEN $_rc_dienst naar het vorige image ($_rc_naam:release-vorig)" >&2
-        docker tag "$_rc_naam:release-vorig" "$_rc_naam:latest"
+        docker_x tag "$_rc_naam:release-vorig" "$_rc_ref"
         _rc_had_er_een_vorig=1
       else
         echo "$_rc_dienst had nog geen vorig image (eerste release) — blijft op de nieuwe build staan" >&2
       fi
     done
     if [ -n "$_rc_had_er_een_vorig" ]; then
+      compose_terugzetten "$_rc_vorige_sha" || true
       # shellcheck disable=SC2086
-      compose_dc "$REPO" up -d --no-deps --no-build $COMPOSE_DIENSTEN
-      if rookproef "$COMPOSE_ROOKPROEF_POORT"; then
+      compose_up --no-build $COMPOSE_DIENSTEN
+      if rookproef_compose; then
         echo "vorige release draait weer" >&2
         log_release null "$_rc_vorige_sha" rood-na-uitrol-teruggerold "$_rc_vorige_tag" "rookproef faalde na uitrol van $_rc_kort; teruggerold"
         exit 1

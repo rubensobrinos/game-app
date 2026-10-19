@@ -12,27 +12,41 @@ set -eu
 omgeving_laden test
 omgeving_eisen
 
+# De echte testhost, niet per se test.<domein>: PUBLIC_URL_TEST in omgeving.conf mag
+# afwijken (cobri-academy draait op academy-test.cobrigroup.com, kaart #101181). Zonder
+# die instelling is dit exact "test.<domein>".
+TEST_HOST="${PUBLIC_URL#*://}"
+
 REPO="$(git -C "$DEPLOY" rev-parse --show-toplevel)"
 NIEUW="$(git -C "$REPO" rev-parse --verify "${1:-main}^{commit}")"
 [ -d "$TEST_WORKTREE" ] || weiger "test-worktree $TEST_WORKTREE bestaat niet: git -C \"$REPO\" worktree add --detach \"$TEST_WORKTREE\" main"
 VORIG="$(git -C "$TEST_WORKTREE" rev-parse HEAD)"
 
 # Geen `set -e` binnen een `if`: elke stap expliciet laten tellen.
+# TEST_OP_BEELINK (omgeving.conf, optioneel): draait test op de Beelink (docs/ops/verhuizen-naar-beelink.md).
+# Dan bouwt en start dat script in deploy/ de container uit `git archive <sha>` (BOUWEN en de launchd-dienst op de
+# Mac doen niet meer mee) en gaat de rookproef naar BEELINK_HOST (standaard 192.168.1.5) op de testpoort.
 zet_test_op() {
-  git -C "$TEST_WORKTREE" checkout --quiet --detach "$1" &&
-    (cd "$TEST_WORKTREE" && /bin/sh -c "$BOUWEN") &&
-    herstarten "$DIENST" &&
-    rookproef "$POORT"
+  if [ -n "${TEST_OP_BEELINK:-}" ]; then
+    git -C "$TEST_WORKTREE" checkout --quiet --detach "$1" &&
+      sh "$DEPLOY/$TEST_OP_BEELINK" "$1" &&
+      rookproef "$POORT" "${BEELINK_HOST:-192.168.1.5}"
+  else
+    git -C "$TEST_WORKTREE" checkout --quiet --detach "$1" &&
+      (cd "$TEST_WORKTREE" && /bin/sh -c "$BOUWEN") &&
+      herstarten "$DIENST" &&
+      rookproef "$POORT"
+  fi
 }
 
-echo "test.$DOMEIN: $(git -C "$REPO" rev-parse --short "$VORIG") -> $(git -C "$REPO" rev-parse --short "$NIEUW")"
+echo "$TEST_HOST: $(git -C "$REPO" rev-parse --short "$VORIG") -> $(git -C "$REPO" rev-parse --short "$NIEUW")"
 if zet_test_op "$NIEUW"; then
   # Regel 7: testsites staan achter de poortwachter, die noindex zet. Waarschuwen,
   # niet falen: zonder poortwachter werkt test nog steeds.
   if ! curl -sI --max-time 10 "$PUBLIC_URL/" | grep -qi '^x-robots-tag:.*noindex'; then
     echo "waarschuwing: $PUBLIC_URL stuurt geen X-Robots-Tag: noindex (staat hij achter de poortwachter?)" >&2
   fi
-  echo "test.$DOMEIN draait op $(git -C "$REPO" rev-parse --short "$NIEUW")"
+  echo "$TEST_HOST draait op $(git -C "$REPO" rev-parse --short "$NIEUW")"
   exit 0
 fi
 
@@ -40,5 +54,5 @@ echo "TERUGDRAAIEN: test gaat terug naar $(git -C "$REPO" rev-parse --short "$VO
 if zet_test_op "$VORIG"; then
   exit 1
 fi
-echo "ook de vorige stand komt niet op; test.$DOMEIN ligt eruit" >&2
+echo "ook de vorige stand komt niet op; $TEST_HOST ligt eruit" >&2
 exit 2
