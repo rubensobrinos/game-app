@@ -12,6 +12,9 @@ set -eu
 omgeving_laden test
 omgeving_eisen
 
+# RUN_ID (devkit kaart #103490): correleert de telemetrie-stappen van deze testuitrol.
+RUN_ID="${RELEASE_SITENAAM:-$DOMEIN}-test-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+
 # De echte testhost, niet per se test.<domein>: PUBLIC_URL_TEST in omgeving.conf mag
 # afwijken (cobri-academy draait op academy-test.cobrigroup.com, kaart #101181). Zonder
 # die instelling is dit exact "test.<domein>".
@@ -40,7 +43,9 @@ zet_test_op() {
 }
 
 echo "$TEST_HOST: $(git -C "$REPO" rev-parse --short "$VORIG") -> $(git -C "$REPO" rev-parse --short "$NIEUW")"
+_ut_begin=$(date +%s)
 if zet_test_op "$NIEUW"; then
+  telemetrie_stap build "$_ut_begin" ok "$NIEUW"
   # Regel 7: testsites staan achter de poortwachter, die noindex zet. Waarschuwen,
   # niet falen: zonder poortwachter werkt test nog steeds.
   if ! curl -sI --max-time 10 "$PUBLIC_URL/" | grep -qi '^x-robots-tag:.*noindex'; then
@@ -49,10 +54,14 @@ if zet_test_op "$NIEUW"; then
   echo "$TEST_HOST draait op $(git -C "$REPO" rev-parse --short "$NIEUW")"
   exit 0
 fi
+telemetrie_stap build "$_ut_begin" rood "$NIEUW" "bouwen/herstarten/rookproef faalde"
 
 echo "TERUGDRAAIEN: test gaat terug naar $(git -C "$REPO" rev-parse --short "$VORIG")" >&2
+_ut_terugrol_begin=$(date +%s)
 if zet_test_op "$VORIG"; then
+  telemetrie_stap terugrol "$_ut_terugrol_begin" ok "$VORIG"
   exit 1
 fi
+telemetrie_stap terugrol "$_ut_terugrol_begin" rood "$NIEUW" "ook de vorige stand komt niet op"
 echo "ook de vorige stand komt niet op; $TEST_HOST ligt eruit" >&2
 exit 2
