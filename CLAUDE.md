@@ -15,7 +15,7 @@ Taal: **javascript**
 - Voor het volledige beleid (gates, advisory, autonomy): `devkit policy --json`.
 - Nieuwe repo of groot plan? Eerst de winkel checken: `python3 ~/dev/platform/thereisacodeforit/scripts/cli.py toonbank "<plan>"` (of `GET http://127.0.0.1:8090/api/toonbank`) en de uitkomst terugmelden — advisory, zie docs/werkwijze/hergebruik.md § Herbruikbaarheid.
 - **Nieuw product of nieuwe repo?** Vóór je een plan, profiel of repo-sjabloon kiest eerst het stackadvies: `python3 ~/dev/platform/thereisacodeforit/scripts/cli.py stackadvies "<product in gewone taal>"` (of `GET http://127.0.0.1:8090/api/stackadvies?plan=…`). Neem het advies (stack per laag, alternatief, afweging, gaten) op in het plan; wijk je af, zet dan de reden erbij. Draait de winkel niet: een waarschuwing in het plan, geen blokkade — zie docs/werkwijze/hergebruik.md § Herbruikbaarheid (ADR-0048).
-- **Product lead op dit project?** Meld je aan in de projectchat van het bord (of `.regie/chat.md` van de PL) en lees die bij start; besluiten daar gaan vóór de kaarttekst. Zet zelf je wekker, nooit AskUserQuestion: vragen naar de PL — zie docs/werkwijze/regie.md § Regie (ADR-0050).
+- **Product lead op dit project?** Meld je aan in de projectchat van het bord (of `.regie/chat.md` van de PL) en lees die bij start; besluiten daar gaan vóór de kaarttekst. Zet zelf je wekker. Een vraag mag in het kanaal, maar je wacht nooit op een antwoord — zie 'Zelf beslissen' hieronder en docs/werkwijze/regie.md § Regie (ADR-0050, ADR-0101).
 - **Thuismap:** maak nooit mappen of bestanden direct in `~/`. Code: `~/dev/…`; test/productie: `~/.devkit/sites/<naam>/`; geheimen: `~/.config/<app>/` (map 700, bestanden 600). Controle: `devkit doctor --thuismap` — zie docs/werkwijze/mac.md § Thuismap (ADR-0040).
 - **Sleutelhanger:** nooit een eigen sleutelhanger aanmaken, nooit een sleutelhanger vergrendelen of zijn instellingen/wachtwoord wijzigen, nooit ACL/partition-lists aanpassen; secrets alleen in de login-keychain of `~/.config/<app>/` (600). Controle: `devkit doctor --keychain` — zie docs/werkwijze/mac.md § Sleutelhanger (ADR-0046).
 - **Mappenbeleid in `~/dev`:** bovenaan alleen `platform`, `producten`, `creative`, `cobri-group`, `bedrijfsvoering`, `klanten`, `archief`; worktrees alleen onder `~/.devkit/worktrees/<repo>-<kaart>`; geen productie- of releasemappen (`~/.devkit/sites/<site>/productie`) en geen logs van diensten in `~/dev`; maak nooit mappen bovenaan `~/dev` en bouw nooit paden relatief aan `~/dev`. Controle: `devkit doctor --devmap` — zie docs/werkwijze/mac.md § Mappenbeleid (ADR-0061).
@@ -44,6 +44,10 @@ Je stopt niet na één kaart. Je werkt door tot er in dit project geen kaart mee
 - **Melden in het kanaal:** bij elke kaart die je pakt één regel ("#nr gepakt"), en bij elke kaart die je afrondt één regel ("#nr done"). Zo ziet de PL altijd de voortgang.
 - **Reviewrij:** staan er in dit project 10 of meer kaarten op `review`, review je eerst kaarten van anderen voordat je een nieuwe kaart pakt. Zet ze op `done` of terug op `todo` met de reden, en meld dat in het kanaal. Review nooit je eigen werk.
 - **Voor een PL:** een opdracht aan een agent noemt de kaarten in volgorde, plus de regel dat hij daarna zelf doorpakt. Nooit alleen "pak kaart X op".
+
+## Zelf beslissen
+
+Gebruik nooit AskUserQuestion. Je bent zelf verantwoordelijk en beslist zelf: er is geen verschil in gezag tussen agents. De PL coördineert, maar je wacht niet op de PL of op Ruben. Is iets onduidelijk, kies dan de redelijkste aanpak, zet je keuze en de reden in één regel in de feedback en ga door. Loop je vast op iets wat je echt niet kunt (geld, aankopen, sleutelwaarden), zet het op de kaart, meld het in één regel in het kanaal en pak de volgende kaart. Vragen in het kanaal mogen, maar je wacht nooit op het antwoord.
 
 ## Beslisbevoegdheid
 
@@ -97,8 +101,8 @@ devkit doctor --here
 
 ## Herkomst
 
-- DevKit-revisie: `0.50.13`
-- Config-versie: `0.50.13`
+- DevKit-revisie: `0.50.14`
+- Config-versie: `0.50.14`
 - Config-bron: `editable`
 - Policy-revisie (agent-rules.md versie): `1.1`
 - Policyclassificatie (ENFORCED/ADVISORY/DOCUMENTED): `devkit policy --json` → `agent_rules.rule_modes`.
