@@ -22,13 +22,23 @@ weiger() {
 }
 
 # ci_poort <sha> — een release gaat alleen door met een groene devkit-ci-regel voor precies deze sha (devkit ADR-0035 regel 1, amendement 05-10).
-# Vraagt het aan `devkit release-site --alleen-poort` (leest runs.jsonl, draait niets opnieuw, logt rood-voor-release bij een weigering).
+# Vraagt het aan `devkit release-site --alleen-poort --meet` (leest runs.jsonl en poort.jsonl; heeft de sha nog geen meting, dan meet het die zelf in een schone
+# kopie, per pakket bij een monorepo, in plaats van op de uurronde te wachten, kaart #103119; logt rood-voor-release bij een weigering).
 # Onbekend is niet groen: staat `devkit` niet op het PATH, dan weigert dit script ook.
 ci_poort() {
+  _cp_begin=$(date +%s)
   _devkit="$(command -v devkit 2>/dev/null || true)"
-  [ -n "$_devkit" ] || weiger "devkit staat niet op het PATH: kan niet vaststellen of $1 een groene CI-regel heeft (onbekend is niet groen)"
-  "$_devkit" release-site "$REPO" "$1" --alleen-poort >&2 || weiger "geen groene devkit-ci-regel voor $1: draai 'devkit ci' op deze commit en probeer opnieuw"
-  unset _devkit
+  if [ -z "$_devkit" ]; then
+    telemetrie_stap poort "$_cp_begin" rood "$1" "devkit niet op PATH"
+    weiger "devkit staat niet op het PATH: kan niet vaststellen of $1 een groene CI-regel heeft (onbekend is niet groen)"
+  fi
+  if "$_devkit" release-site "$REPO" "$1" --alleen-poort --meet >&2; then
+    telemetrie_stap poort "$_cp_begin" ok "$1"
+  else
+    telemetrie_stap poort "$_cp_begin" rood "$1" "geen groene devkit-ci-regel"
+    weiger "geen groene devkit-ci-regel voor $1: draai 'devkit ci' op deze commit en probeer opnieuw"
+  fi
+  unset _devkit _cp_begin
 }
 
 # droog_plan <sha> <kort> <wat> — voor `release.sh --droog`: toont wat er zou gebeuren en de stand van de ci-poort, en stopt. Schrijft, bouwt,
@@ -62,6 +72,11 @@ omgeving_laden() {
   [ -f "$DEPLOY/omgeving.conf" ] || weiger "$DEPLOY/omgeving.conf ontbreekt"
   # shellcheck disable=SC1091
   . "$DEPLOY/omgeving.conf"
+  # Het adres van de Beelink staat op één plek: devkit data/beelink.env (BEELINK_HOST=...). Dat bestand wint van een eigen BEELINK_HOST in
+  # omgeving.conf, zodat een nieuw adres één wijziging is. DEVKIT_BEELINK_ENV wijst naar een ander bestand (tests).
+  _bh_env="${DEVKIT_BEELINK_ENV:-$HOME/dev/platform/devkit/data/beelink.env}"
+  # shellcheck disable=SC1090
+  [ -f "$_bh_env" ] && . "$_bh_env"
 
   case "$OMGEVING" in
     test)
@@ -419,6 +434,68 @@ migratie_gedetecteerd() {
   git -C "$REPO" diff --name-only "$1" "$2" -- "$MIGRATIE_PAD" 2>/dev/null | grep -q .
 }
 
+# migraties_toepassen <werkmap> <vorige-sha> <nieuwe-sha> — past migraties toe vóór de
+# herstart, voor het mappen-pad van release.sh (devkit ADR-0098; de compose-variant
+# verwerkt migraties zelf, via de container-entrypoint, en blijft bij de detectie in
+# release_compose() hierboven).
+#
+# Geen wijziging onder MIGRATIE_PAD: niets te doen (0), ook als MIGRATIE_CMD leeg is —
+# bestaande sites zonder migraties blijven zo ongewijzigd werken.
+#
+# Wél een wijziging:
+#   - MIGRATIE_CMD leeg: geeft 1 terug (geen weiger: $NIEUW bestaat dan al en de aanroeper
+#     moet die nog opruimen en loggen, net als bij een mislukte ledger/backup/toepassen
+#     hieronder) — onbekend is niet veilig, nooit stilzwijgend de oude database onder de
+#     nieuwe code laten staan.
+#   - MIGRATIE_CMD gezet: eerst "$MIGRATIE_CMD ledger" (dry-run, schrijft niets; de regels
+#     op stdout zijn de nog openstaande migraties, hooguit namen/nummers — devkit logt of
+#     toont nooit de inhoud). Leeg = niets open (bijvoorbeeld al met de hand toegepast) en
+#     deze functie keert terug zonder iets te doen. Staat er iets open, dan "$MIGRATIE_CMD
+#     backup" (vóór enige schrijfactie) en pas daarna "$MIGRATIE_CMD toepassen".
+# Alle drie draaien in <werkmap>: de git-archive-checkout van de NIEUWE release (die heeft
+# de nieuwe migratiebestanden), met de env van deze omgeving al geladen (omgeving_laden).
+#
+# Faalt ledger, backup of toepassen, dan geeft dit 1 terug (geen weiger: dat is geen
+# configuratiefout maar een mislukte release) en logt/stopt de AANROEPER, net als bij
+# "bouwen faalde" — er wordt nooit automatisch teruggerold op een migratie: het schema kan
+# al half gewijzigd zijn, en oude code op een nieuw schema is zelden veilig (zelfde
+# redenatie als release_compose() voor de compose-variant).
+migraties_toepassen() {
+  _mt_werkmap="$1"; _mt_vorige_sha="$2"; _mt_sha="$3"
+  migratie_gedetecteerd "$_mt_vorige_sha" "$_mt_sha" || return 0
+  if [ -z "${MIGRATIE_CMD:-}" ]; then
+    echo "AFGEBROKEN: migratiewijziging gedetecteerd in $MIGRATIE_PAD ($_mt_vorige_sha..$_mt_sha), maar MIGRATIE_CMD is leeg in omgeving.conf — onbekend is niet veilig." >&2
+    return 1
+  fi
+
+  echo "migraties: ledger-check (dry-run, '$MIGRATIE_CMD ledger')"
+  if ! _mt_open="$(cd "$_mt_werkmap" && /bin/sh -c "$MIGRATIE_CMD ledger")"; then
+    echo "AFGEBROKEN: '$MIGRATIE_CMD ledger' faalde. Niets toegepast, productie niet aangeraakt." >&2
+    return 1
+  fi
+  if [ -z "$_mt_open" ]; then
+    echo "migraties: ledger zegt niets open, niets toe te passen"
+    unset _mt_werkmap _mt_vorige_sha _mt_sha _mt_open
+    return 0
+  fi
+  echo "migraties: open volgens het ledger:"
+  printf '%s\n' "$_mt_open" | sed 's/^/  /'
+
+  echo "migraties: back-up vooraf ('$MIGRATIE_CMD backup')"
+  if ! (cd "$_mt_werkmap" && /bin/sh -c "$MIGRATIE_CMD backup"); then
+    echo "AFGEBROKEN: '$MIGRATIE_CMD backup' faalde. Niets toegepast, productie niet aangeraakt." >&2
+    return 1
+  fi
+
+  echo "migraties: toepassen ('$MIGRATIE_CMD toepassen')"
+  if ! (cd "$_mt_werkmap" && /bin/sh -c "$MIGRATIE_CMD toepassen"); then
+    echo "AFGEBROKEN: '$MIGRATIE_CMD toepassen' faalde NA een gelukte back-up. Database mogelijk half gewijzigd; met de hand verder, geen automatische terugrol." >&2
+    return 1
+  fi
+  echo "migraties: toegepast"
+  unset _mt_werkmap _mt_vorige_sha _mt_sha _mt_open
+}
+
 # release_compose <ref-sha> <kort-sha> <vorige-tag-of-null> — de compose-variant
 # van wissel_naar()+rookproef+taggen uit release.sh (devkit ADR-0037). Geen
 # live/vorige-mappen: bouwt en herstart alleen COMPOSE_DIENSTEN (--no-deps,
@@ -487,7 +564,9 @@ release_compose() {
     echo "$OMGEVING_NAAM: migratie gedetecteerd in $MIGRATIE_PAD ($_rc_vorige_sha..$_rc_sha) — automatisch terugrollen wordt bij rood geweigerd" >&2
   fi
 
+  _rc_build_begin=$(date +%s)
   if ! compose_drift_controle "$_rc_vorige_sha"; then
+    telemetrie_stap build "$_rc_build_begin" rood "$_rc_sha" "compose op $COMPOSE_HOST wijkt af van de vorige release"
     echo "AFGEBROKEN: de compose op $COMPOSE_HOST is met de hand aangepast. Productie is niet aangeraakt." >&2
     log_release null "$_rc_sha" rood-voor-release "$_rc_vorige_tag" "compose op $COMPOSE_HOST wijkt af van de vorige release (hand-wijziging); niets gebouwd of gekopieerd"
     exit 1
@@ -516,24 +595,31 @@ release_compose() {
   # shellcheck disable=SC2086
   if ! compose_dc "$_rc_checkout" build $COMPOSE_DIENSTEN; then
     rm -rf "$_rc_checkout"
+    telemetrie_stap build "$_rc_build_begin" rood "$_rc_sha" "bouwen faalde"
     echo "AFGEBROKEN: bouwen faalde. Productie is niet aangeraakt." >&2
     log_release null "$_rc_sha" rood-voor-release "$_rc_vorige_tag" "bouwen faalde"
     exit 1
   fi
   if ! compose_sync "$_rc_checkout" "$_rc_sha"; then
     rm -rf "$_rc_checkout"
+    telemetrie_stap build "$_rc_build_begin" rood "$_rc_sha" "compose-bestanden kopiëren naar $COMPOSE_HOST faalde"
     echo "AFGEBROKEN: de compose-bestanden naar $COMPOSE_HOST kopiëren faalde. De draaiende stack is niet aangeraakt." >&2
     log_release null "$_rc_sha" rood-voor-release "$_rc_vorige_tag" "compose-bestanden naar $COMPOSE_HOST kopiëren faalde"
     exit 1
   fi
   rm -rf "$_rc_checkout"
+  telemetrie_stap build "$_rc_build_begin" ok "$_rc_sha"
 
+  _rc_up_begin=$(date +%s)
   echo "[3/4] uitrollen ($COMPOSE_DIENSTEN, --no-deps)"
   # shellcheck disable=SC2086
   compose_up $COMPOSE_DIENSTEN
+  telemetrie_stap compose_up "$_rc_up_begin" ok "$_rc_sha"
 
+  _rc_health_begin=$(date +%s)
   echo "[4/4] rookproef"
   if rookproef_compose; then
+    telemetrie_stap healthcheck "$_rc_health_begin" ok "$_rc_sha"
     _rc_tag="$(volgende_release_tag)"
     git -C "$REPO" tag -a "$_rc_tag" "$_rc_sha" -m "release $_rc_tag"
     for _rc_dienst in $COMPOSE_DIENSTEN; do
@@ -561,6 +647,9 @@ release_compose() {
     exit 0
   fi
 
+  telemetrie_stap healthcheck "$_rc_health_begin" rood "$_rc_sha" "rookproef faalde"
+  _rc_terugrol_begin=$(date +%s)
+
   # Terugrollen kan alleen ECHT voor de diensten die al een :release-vorig
   # hadden (_rc_had_vorig_lijst hierboven) — bij de allereerste release van
   # een nieuwe dienst is er niets om naar terug te gaan, die dienst blijft dan
@@ -584,10 +673,12 @@ release_compose() {
       # shellcheck disable=SC2086
       compose_up --no-build $COMPOSE_DIENSTEN
       if rookproef_compose; then
+        telemetrie_stap terugrol "$_rc_terugrol_begin" ok "$_rc_vorige_sha"
         echo "vorige release draait weer" >&2
         log_release null "$_rc_vorige_sha" rood-na-uitrol-teruggerold "$_rc_vorige_tag" "rookproef faalde na uitrol van $_rc_kort; teruggerold"
         exit 1
       fi
+      telemetrie_stap terugrol "$_rc_terugrol_begin" rood "$_rc_sha" "ook de vorige release komt niet op"
       echo "ook de vorige release komt niet op; $DOMEIN ligt eruit" >&2
       log_release null "$_rc_sha" rood-na-uitrol-teruggerold "$_rc_vorige_tag" "rookproef faalde na uitrol van $_rc_kort, en ook na terugrollen"
       exit 2
@@ -595,15 +686,38 @@ release_compose() {
   fi
 
   if [ -n "$_rc_migratie" ]; then
+    telemetrie_stap terugrol "$_rc_terugrol_begin" afgebroken "$_rc_sha" "migratie gedetecteerd, automatisch terugrollen geweigerd"
     echo "MIGRATIE GEDETECTEERD: automatisch terugrollen geweigerd, handmatig beslissen" >&2
     log_release null "$_rc_sha" rood-na-uitrol-teruggerold "$_rc_vorige_tag" \
       "MIGRATIE GEDETECTEERD: automatisch terugrollen geweigerd, handmatig beslissen (rookproef faalde na $_rc_kort)"
     exit 2
   fi
 
+  telemetrie_stap terugrol "$_rc_terugrol_begin" rood "$_rc_sha" "geen vorig image om op terug te vallen"
   echo "rookproef faalde en er is geen vorig image om naar terug te gaan" >&2
   log_release null "$_rc_sha" rood-na-uitrol-teruggerold "$_rc_vorige_tag" "rookproef faalde; geen vorig image om op terug te vallen"
   exit 2
+}
+
+# telemetrie_stap <stap> <gestart-epoch> <uitkomst> <sha> [foutregel] — devkit kaart #103490.
+# Eén regel per releasestap in ~/.devkit/releases/stappen.jsonl, naast de samenvatting die
+# log_release hieronder schrijft. RUN_ID (door release.sh/release_compose gezet vóór de eerste
+# stap) correleert de stappen van één run. Nooit fataal, nooit traag: een telemetriefout of een
+# volle schijf mag een echte release niet laten mislukken of vertragen (alles achter "|| true").
+telemetrie_stap() {
+  _ts_pad="${DEVKIT_STAPPEN_LOGBOEK:-$HOME/.devkit/releases/stappen.jsonl}"
+  _ts_duur=$(($(date +%s) - $2))
+  _ts_fout_json="null"
+  if [ -n "${5:-}" ]; then
+    _ts_fout_json="\"$(printf '%s' "$5" | tail -c 2000 | tr '\n' ' ' | sed 's/\\/\\\\/g; s/"/\\"/g')\""
+  fi
+  (
+    mkdir -p "$(dirname "$_ts_pad")" 2>/dev/null
+    printf '{"tijdstip":"%s","run_id":"%s","site":"%s","omgeving":"%s","sha":"%s","stap":"%s","duur_s":%s,"uitkomst":"%s","foutregel":%s}\n' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${RUN_ID:-onbekend}" "${RELEASE_SITENAAM:-$DOMEIN}" "${OMGEVING:-onbekend}" "$4" "$1" "$_ts_duur" "$3" "$_ts_fout_json" \
+      >> "$_ts_pad"
+  ) 2>/dev/null || true
+  unset _ts_pad _ts_duur _ts_fout_json
 }
 
 # log_release <tag-of-null> <commit> <uitslag> <vorige_tag-of-null> <reden-of-null>

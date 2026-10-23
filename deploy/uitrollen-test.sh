@@ -25,12 +25,12 @@ VORIG="$(git -C "$TEST_WORKTREE" rev-parse HEAD)"
 # Geen `set -e` binnen een `if`: elke stap expliciet laten tellen.
 # TEST_OP_BEELINK (omgeving.conf, optioneel): draait test op de Beelink (docs/ops/verhuizen-naar-beelink.md).
 # Dan bouwt en start dat script in deploy/ de container uit `git archive <sha>` (BOUWEN en de launchd-dienst op de
-# Mac doen niet meer mee) en gaat de rookproef naar BEELINK_HOST (standaard 192.168.1.5) op de testpoort.
+# Mac doen niet meer mee) en gaat de rookproef naar BEELINK_HOST (uit devkit data/beelink.env) op de testpoort.
 zet_test_op() {
   if [ -n "${TEST_OP_BEELINK:-}" ]; then
     git -C "$TEST_WORKTREE" checkout --quiet --detach "$1" &&
       sh "$DEPLOY/$TEST_OP_BEELINK" "$1" &&
-      rookproef "$POORT" "${BEELINK_HOST:-192.168.1.5}"
+      rookproef "$POORT" "${BEELINK_HOST:-192.168.1.244}"
   else
     git -C "$TEST_WORKTREE" checkout --quiet --detach "$1" &&
       (cd "$TEST_WORKTREE" && /bin/sh -c "$BOUWEN") &&

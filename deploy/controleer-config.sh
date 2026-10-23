@@ -54,6 +54,13 @@ case "$DOMEIN" in
     fi ;;
 esac
 
+# MIGRATIE_PAD zonder MIGRATIE_CMD is geen bezwaar (release.sh raakt de database pas aan
+# bij een werkelijk gedetecteerde migratiewijziging, devkit ADR-0098), maar wel iets om nu
+# al te weten: zo'n release weigert dan vanzelf.
+if [ -n "$(waarde MIGRATIE_PAD)" ] && [ -z "$(waarde MIGRATIE_CMD)" ]; then
+  openstaand "MIGRATIE_PAD is gezet maar MIGRATIE_CMD niet — een release met een migratiewijziging weigert (devkit ADR-0098)"
+fi
+
 # --- 2. poorten ---
 echo "poorten:"
 P_TEST="$(waarde POORT_TEST)"; P_PROD="$(waarde POORT_PRODUCTIE)"

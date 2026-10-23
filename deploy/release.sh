@@ -1,5 +1,5 @@
 #!/bin/sh
-# deploy/release.sh [--droog] [ref] — zet rounda.io op een commit (standaard: $HOOFDBRANCH uit omgeving.conf, anders main).
+# deploy/release.sh [--droog] [--overschrijf-drift] [ref] — zet rounda.io op een commit (standaard: $HOOFDBRANCH uit omgeving.conf, anders main).
 #
 # --droog doet alleen de controles en toont het plan en de stand van de ci-poort; er wordt niets gebouwd, omgewisseld, herstart, getagd of
 # gelogd (exit 0: een echte release zou doorgaan, exit 1: de poort weigert).
@@ -46,13 +46,21 @@ set -eu
 . "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 
 DROOG=""
-if [ "${1:-}" = "--droog" ]; then
-  DROOG=1
+while [ "${1:-}" = "--droog" ] || [ "${1:-}" = "--overschrijf-drift" ]; do
+  case "$1" in
+    --droog) DROOG=1 ;;
+    # Bewust de compose op de host overschrijven, ook als die met de hand is aangepast (ADR-0094): een besluit van de eigenaar van de productie.
+    --overschrijf-drift) COMPOSE_DRIFT_TOESTAAN=1; export COMPOSE_DRIFT_TOESTAAN ;;
+  esac
   shift
-fi
+done
 
 omgeving_laden productie
 omgeving_eisen
+
+# RUN_ID (devkit kaart #103490): correleert de stappen van deze release in stappen.jsonl,
+# gezet vóór de eerste stap (ci_poort) van beide paden hieronder (compose en mappen).
+RUN_ID="${RELEASE_SITENAAM:-$DOMEIN}-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 
 REPO="$(git -C "$DEPLOY" rev-parse --show-toplevel)"
 
@@ -85,7 +93,11 @@ fi
 
 SHA="$(git -C "$REPO" rev-parse --verify "${1:-${HOOFDBRANCH:-main}}^{commit}")"
 KORT="$(git -C "$REPO" rev-parse --short "$SHA")"
-[ -z "$DROOG" ] || droog_plan "$SHA" "$KORT" "uitpakken in $RELEASES, bouwen, omwisselen naar $RELEASES/live (de huidige wordt $RELEASES/vorige), rookproef op poort $POORT, terugrollen bij rood"
+VORIGE_SHA="$(cat "$RELEASES/live/.release-sha" 2>/dev/null || echo null)"
+_plan="uitpakken in $RELEASES, bouwen"
+migratie_gedetecteerd "$VORIGE_SHA" "$SHA" && _plan="$_plan, migraties toepassen (ledger-check, back-up, dan toepassen; devkit ADR-0098)"
+_plan="$_plan, omwisselen naar $RELEASES/live (de huidige wordt $RELEASES/vorige), rookproef op poort $POORT, terugrollen bij rood"
+[ -z "$DROOG" ] || droog_plan "$SHA" "$KORT" "$_plan"
 ci_poort "$SHA"
 NIEUW="$RELEASES/$(date +%Y%m%d-%H%M%S)-$KORT"
 VORIGE_TAG="$(git -C "$REPO" describe --tags --exact-match "$(cat "$RELEASES/live/.release-sha" 2>/dev/null || echo HEAD)" 2>/dev/null || echo null)"
@@ -128,25 +140,42 @@ wissel_naar() {
   trap - EXIT INT TERM
 }
 
-echo "[1/4] $KORT uitpakken in $NIEUW"
+echo "[1/5] $KORT uitpakken in $NIEUW"
 mkdir -p "$NIEUW"
 git -C "$REPO" archive "$SHA" | tar -x -C "$NIEUW"
 printf '%s\n' "$SHA" > "$NIEUW/.release-sha"
 
-echo "[2/4] bouwen"
+_build_begin=$(date +%s)
+echo "[2/5] bouwen"
 if ! (cd "$NIEUW" && /bin/sh -c "$BOUWEN"); then
   rm -rf "$NIEUW"
+  telemetrie_stap build "$_build_begin" rood "$SHA" "bouwen faalde"
   echo "AFGEBROKEN: bouwen faalde. Productie is niet aangeraakt." >&2
   log_release null "$SHA" rood-voor-release "$VORIGE_TAG" "bouwen faalde"
   exit 1
 fi
+telemetrie_stap build "$_build_begin" ok "$SHA"
 
-echo "[3/4] omwisselen en herstarten"
+_migraties_begin=$(date +%s)
+echo "[3/5] migraties"
+if ! migraties_toepassen "$NIEUW" "$VORIGE_SHA" "$SHA"; then
+  telemetrie_stap migraties "$_migraties_begin" rood "$SHA" "migratie toepassen faalde"
+  rm -rf "$NIEUW"
+  log_release null "$SHA" rood-voor-release "$VORIGE_TAG" "migratie toepassen faalde (zie 'migraties:' hierboven)"
+  exit 1
+fi
+telemetrie_stap migraties "$_migraties_begin" ok "$SHA"
+
+_up_begin=$(date +%s)
+echo "[4/5] omwisselen en herstarten"
 wissel_naar "$NIEUW"
 herstarten "$DIENST" || echo "herstarten gaf een fout; de rookproef beslist" >&2
+telemetrie_stap compose_up "$_up_begin" ok "$SHA"
 
-echo "[4/4] rookproef"
+_health_begin=$(date +%s)
+echo "[5/5] rookproef"
 if rookproef "$POORT"; then
+  telemetrie_stap healthcheck "$_health_begin" ok "$SHA"
   TAG="$(volgende_release_tag)"
   git -C "$REPO" tag -a "$TAG" "$SHA" -m "release $TAG"
   echo "$DOMEIN draait op $TAG ($KORT, $RELEASES/live)"
@@ -159,7 +188,10 @@ if rookproef "$POORT"; then
   exit 0
 fi
 
+telemetrie_stap healthcheck "$_health_begin" rood "$SHA" "rookproef faalde"
+_terugrol_begin=$(date +%s)
 if [ ! -d "$RELEASES/vorige" ]; then
+  telemetrie_stap terugrol "$_terugrol_begin" rood "$SHA" "geen vorige release om op terug te vallen"
   echo "rookproef faalde en er is geen vorige release om naar terug te gaan" >&2
   log_release null "$SHA" rood-na-uitrol-teruggerold "$VORIGE_TAG" "rookproef faalde; geen vorige release om op terug te vallen"
   exit 2
@@ -169,10 +201,12 @@ TERUGROL_SHA="$(cat "$RELEASES/vorige/.release-sha" 2>/dev/null || echo "$SHA")"
 wissel_naar "$RELEASES/vorige"
 herstarten "$DIENST" || echo "herstarten gaf een fout; de rookproef beslist" >&2
 if rookproef "$POORT"; then
+  telemetrie_stap terugrol "$_terugrol_begin" ok "$TERUGROL_SHA"
   echo "vorige release draait weer; de mislukte staat nog in $NIEUW" >&2
   log_release null "$TERUGROL_SHA" rood-na-uitrol-teruggerold "$VORIGE_TAG" "rookproef faalde na uitrol van $KORT; teruggerold"
   exit 1
 fi
+telemetrie_stap terugrol "$_terugrol_begin" rood "$SHA" "ook de vorige release komt niet op"
 echo "ook de vorige release komt niet op; $DOMEIN ligt eruit" >&2
 log_release null "$SHA" rood-na-uitrol-teruggerold "$VORIGE_TAG" "rookproef faalde na uitrol van $KORT, en ook na terugrollen"
 exit 2
