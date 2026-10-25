@@ -25,27 +25,55 @@ NIEUW="$(git -C "$REPO" rev-parse --verify "${1:-main}^{commit}")"
 [ -d "$TEST_WORKTREE" ] || weiger "test-worktree $TEST_WORKTREE bestaat niet: git -C \"$REPO\" worktree add --detach \"$TEST_WORKTREE\" main"
 VORIG="$(git -C "$TEST_WORKTREE" rev-parse HEAD)"
 
-# Geen `set -e` binnen een `if`: elke stap expliciet laten tellen.
+# _checkout_naar <sha> / _bouwen_lokaal / _herstart_test / _rookproef_lokaal / _beelink_bouwen <sha> /
+# _rookproef_beelink: elk één losse stap van zet_test_op hieronder, zodat meet_stap (lib.sh, kaart #103643) ze
+# apart kan meten met zijn eigen uitvoer als foutregel bij een fout — vóór deze kaart stond dat allemaal samen
+# onder één "build"-stap met een vaste tekst, zonder te zeggen wélke stap (checkout, bouwen, herstarten of de
+# rookproef) het was en zonder de echte foutmelding.
+_checkout_naar() {
+  git -C "$TEST_WORKTREE" checkout --quiet --detach "$1"
+}
+
+_bouwen_lokaal() {
+  (cd "$TEST_WORKTREE" && /bin/sh -c "$BOUWEN")
+}
+
+_herstart_test() {
+  herstarten "$DIENST"
+}
+
+_rookproef_lokaal() {
+  rookproef "$POORT"
+}
+
 # TEST_OP_BEELINK (omgeving.conf, optioneel): draait test op de Beelink (docs/ops/verhuizen-naar-beelink.md).
 # Dan bouwt en start dat script in deploy/ de container uit `git archive <sha>` (BOUWEN en de launchd-dienst op de
 # Mac doen niet meer mee) en gaat de rookproef naar BEELINK_HOST (uit devkit data/beelink.env) op de testpoort.
+_beelink_bouwen() {
+  sh "$DEPLOY/$TEST_OP_BEELINK" "$1"
+}
+
+_rookproef_beelink() {
+  rookproef "$POORT" "${BEELINK_HOST:-192.168.1.244}"
+}
+
+# zet_test_op <sha> — checkout, bouwen (lokaal of op de Beelink), herstarten (alleen lokaal) en de rookproef,
+# elk gemeten als eigen telemetrie-stap (checkout/build/herstarten/healthcheck) op <sha>. Geen `set -e` binnen
+# een `if`: elke stap expliciet laten tellen via zijn eigen exitcode (meet_stap geeft die door).
 zet_test_op() {
+  meet_stap checkout "$1" _checkout_naar "$1" || return 1
   if [ -n "${TEST_OP_BEELINK:-}" ]; then
-    git -C "$TEST_WORKTREE" checkout --quiet --detach "$1" &&
-      sh "$DEPLOY/$TEST_OP_BEELINK" "$1" &&
-      rookproef "$POORT" "${BEELINK_HOST:-192.168.1.244}"
+    meet_stap build "$1" _beelink_bouwen "$1" || return 1
+    meet_stap healthcheck "$1" _rookproef_beelink || return 1
   else
-    git -C "$TEST_WORKTREE" checkout --quiet --detach "$1" &&
-      (cd "$TEST_WORKTREE" && /bin/sh -c "$BOUWEN") &&
-      herstarten "$DIENST" &&
-      rookproef "$POORT"
+    meet_stap build "$1" _bouwen_lokaal || return 1
+    meet_stap herstarten "$1" _herstart_test || return 1
+    meet_stap healthcheck "$1" _rookproef_lokaal || return 1
   fi
 }
 
 echo "$TEST_HOST: $(git -C "$REPO" rev-parse --short "$VORIG") -> $(git -C "$REPO" rev-parse --short "$NIEUW")"
-_ut_begin=$(date +%s)
 if zet_test_op "$NIEUW"; then
-  telemetrie_stap build "$_ut_begin" ok "$NIEUW"
   # Regel 7: testsites staan achter de poortwachter, die noindex zet. Waarschuwen,
   # niet falen: zonder poortwachter werkt test nog steeds.
   if ! curl -sI --max-time 10 "$PUBLIC_URL/" | grep -qi '^x-robots-tag:.*noindex'; then
@@ -54,14 +82,15 @@ if zet_test_op "$NIEUW"; then
   echo "$TEST_HOST draait op $(git -C "$REPO" rev-parse --short "$NIEUW")"
   exit 0
 fi
-telemetrie_stap build "$_ut_begin" rood "$NIEUW" "bouwen/herstarten/rookproef faalde"
 
 echo "TERUGDRAAIEN: test gaat terug naar $(git -C "$REPO" rev-parse --short "$VORIG")" >&2
+# Devkit kaart #103643: dit rolt terug NAAR $VORIG, dus de terugrol-telemetrie draagt ook $VORIG — niet $NIEUW
+# (de kapotte sha die net werd verlaten). zet_test_op's eigen sub-stappen loggen intussen al op $VORIG.
 _ut_terugrol_begin=$(date +%s)
 if zet_test_op "$VORIG"; then
   telemetrie_stap terugrol "$_ut_terugrol_begin" ok "$VORIG"
   exit 1
 fi
-telemetrie_stap terugrol "$_ut_terugrol_begin" rood "$NIEUW" "ook de vorige stand komt niet op"
+telemetrie_stap terugrol "$_ut_terugrol_begin" rood "$VORIG" "ook de vorige stand komt niet op"
 echo "ook de vorige stand komt niet op; $TEST_HOST ligt eruit" >&2
 exit 2

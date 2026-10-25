@@ -699,6 +699,19 @@ release_compose() {
   exit 2
 }
 
+# foutregel_zonder_geheimen <tekst> — de laatste 20 regels van <tekst>, met credentials in een URL
+# (://gebruiker:wachtwoord@) en de waarde van een regel die op een geheime naam lijkt (KEY/SECRET/TOKEN/
+# PASSWORD/PASSWD, hoofdletterongevoelig, zoals NAAM=waarde of NAAM: waarde) vervangen door ***. Devkit kaart
+# #103643: een foutregel in stappen.jsonl mag nooit een geheim lekken, ook niet via de ruwe uitvoer van een
+# gefaald bouw- of rookproefcommando (anders dan log_release hierboven, die nooit meer dan een vaste tekst
+# krijgt — dit krijgt echte procesuitvoer).
+foutregel_zonder_geheimen() {
+  printf '%s' "$1" | sed -E \
+    -e 's#://[^/@[:space:]]*:[^/@[:space:]]*@#://***@#g' \
+    -e 's/^([A-Za-z_][A-Za-z0-9_]*(KEY|SECRET|TOKEN|PASSW(OR)?D)[A-Za-z0-9_]*)[=:].*/\1=***/I' |
+    tail -20
+}
+
 # telemetrie_stap <stap> <gestart-epoch> <uitkomst> <sha> [foutregel] — devkit kaart #103490.
 # Eén regel per releasestap in ~/.devkit/releases/stappen.jsonl, naast de samenvatting die
 # log_release hieronder schrijft. RUN_ID (door release.sh/release_compose gezet vóór de eerste
@@ -718,6 +731,28 @@ telemetrie_stap() {
       >> "$_ts_pad"
   ) 2>/dev/null || true
   unset _ts_pad _ts_duur _ts_fout_json
+}
+
+# meet_stap <stap> <sha> <commando...> — draait <commando...>, meet <stap> (telemetrie_stap) en geeft bij een
+# fout de eigen gecombineerde uitvoer van het commando door als foutregel (laatste 20 regels, zonder geheimen,
+# foutregel_zonder_geheimen). Devkit kaart #103643: zonder dit zegt een rode telemetrie-stap alleen DAT iets
+# faalde, niet WAT er misging. Geeft de eigen exitcode van het commando terug, dus "meet_stap ... || return 1"
+# werkt zoals een gewone `&&`-keten.
+meet_stap() {
+  _ms_stap="$1"; _ms_sha="$2"; shift 2
+  _ms_begin=$(date +%s)
+  _ms_uit="$("$@" 2>&1)"
+  _ms_rc=$?
+  # Eerst de eigen uitvoer tonen zoals het commando dat vanzelf zou doen (wie het log volgt ziet nog altijd elke
+  # regel): meet_stap verandert alleen WAT er gemeten wordt, niet wat er op het scherm komt.
+  [ -z "$_ms_uit" ] || printf '%s\n' "$_ms_uit"
+  if [ "$_ms_rc" -eq 0 ]; then
+    telemetrie_stap "$_ms_stap" "$_ms_begin" ok "$_ms_sha"
+  else
+    telemetrie_stap "$_ms_stap" "$_ms_begin" rood "$_ms_sha" "$(foutregel_zonder_geheimen "$_ms_uit")"
+  fi
+  unset _ms_stap _ms_sha _ms_begin _ms_uit
+  return "$_ms_rc"
 }
 
 # log_release <tag-of-null> <commit> <uitslag> <vorige_tag-of-null> <reden-of-null>
