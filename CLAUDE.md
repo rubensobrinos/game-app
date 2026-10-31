@@ -21,7 +21,8 @@ Taal: **javascript**
 - **Mappenbeleid in `~/dev`:** bovenaan alleen `platform`, `producten`, `creative`, `cobri-group`, `bedrijfsvoering`, `klanten`, `archief`; worktrees alleen onder `~/.devkit/worktrees/<repo>-<kaart>`; geen productie- of releasemappen (`~/.devkit/sites/<site>/productie`) en geen logs van diensten in `~/dev`; maak nooit mappen bovenaan `~/dev` en bouw nooit paden relatief aan `~/dev`. Controle: `devkit doctor --devmap` — zie docs/werkwijze/mac.md § Mappenbeleid (ADR-0061).
 - **Testen:** tests alleen voor gedrag, één test per gedrag op het laagste niveau dat het bewijst; bewijs op een kaart is een groene run van de bestaande suite. Grens: testcode hoogstens 2x de app-code (`devkit stats --tests`; rood in `devkit ci` voor een repo op `ci.teststrategie: streng`, anders een waarschuwing). Nooit tests weghalen om onder de grens te komen; een bestaande suite afslanken is een aparte kaart, met bewijs dat hetzelfde gedrag gedekt blijft (bijvoorbeeld een mutatietest) en een review. Zie docs/werkwijze/kwaliteit.md § Testen (ADR-0049).
 - **Productiedatabase:** vóór een schrijfactie op een productiedatabase eerst een back-up van de betrokken tabellen (`pg_dump -t <tabel> ... > ~/.devkit/sites/<site>/backups/<bestand>.sql`), met het pad in de feedback van de kaart. Geen automatische terugrol bij een mislukte migratie — zie devkit ADR-0098. Zie docs/decisions/ADR-0100 voor waar de rechten op productie staan.
-- **Restmateriaal:** alles wat je buiten git op schijf of in Docker achterlaat (werkkopieën en branches, dumps en back-ups, kopieën van config- en env-bestanden, images en containers voor test of proef, screenshots, meetresultaten, losse scripts in /tmp of scratch) is van jou en heeft een termijn: standaard 24 uur; werk op review tot de kaart dicht is plus 24 uur; gestopte terugweg-containers 7 dagen; back-ups de laatste 3 per doel, hooguit 30 dagen. Langer bewaren: reden en termijn in `~/.devkit/restmateriaal.jsonl` (`devkit clean --registreer <pad> --soort … --kaart … --agent … --termijn … --reden …`). Over de termijn is rood (`devkit clean --restmateriaal`) — zie docs/decisions/ADR-0105.
+- **Restmateriaal:** alles wat je buiten git op schijf of in Docker achterlaat (werkkopieën en branches, dumps en back-ups, kopieën van config- en env-bestanden, images en containers voor test of proef, screenshots, meetresultaten, losse scripts in /tmp of scratch) is van jou en heeft een termijn: standaard 24 uur; werk op review tot de kaart dicht is plus 24 uur; gestopte terugweg-containers 7 dagen; back-ups de laatste 3 per doel, hooguit 30 dagen. Langer bewaren: reden en termijn in `~/.devkit/restmateriaal.jsonl` (`devkit clean --registreer <pad> --soort … --kaart … --agent … --termijn … --reden …`). Over de termijn is rood (`devkit clean --restmateriaal`) — zie docs/decisions/ADR-0104.
+- **Releasepoort:** elke commit krijgt één oordeel, PASS, FAIL of BLOCKED (`devkit release-site <site> --alleen-poort`, exit 0/1/2). Een uitrol naar productie kan alleen bij PASS; een ontbrekende voorziening (`release_poort.voorzieningen` in `.devkit.yaml`) of een sha zonder bewijs is altijd BLOCKED, nooit PASS. De uitkomst staat per repo in ADM — zie devkit ADR-0106.
 
 ## Bord (action-list)
 
@@ -107,8 +108,8 @@ devkit doctor --here
 
 ## Herkomst
 
-- DevKit-revisie: `0.50.27`
-- Config-versie: `0.50.27`
+- DevKit-revisie: `0.50.29`
+- Config-versie: `0.50.29`
 - Config-bron: `editable`
 - Policy-revisie (agent-rules.md versie): `1.1`
 - Policyclassificatie (ENFORCED/ADVISORY/DOCUMENTED): `devkit policy --json` → `agent_rules.rule_modes`.
