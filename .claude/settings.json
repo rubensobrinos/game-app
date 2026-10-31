@@ -17,13 +17,25 @@
       "Edit",
       "Write",
       "Glob",
-      "Grep"
+      "Grep",
+      "Bash(devkit release-site:*)",
+      "Bash(devkit ci:*)",
+      "Bash(ssh nas docker stop:*)",
+      "Bash(ssh nas docker start:*)",
+      "Bash(ssh nas docker ps:*)",
+      "Bash(ssh nas docker logs:*)",
+      "Bash(ssh beelink docker stop:*)",
+      "Bash(ssh beelink docker start:*)",
+      "Bash(ssh beelink docker ps:*)",
+      "Bash(ssh beelink docker logs:*)",
+      "Bash(node:*)"
     ],
     "deny": [
       "Edit(infra/prod/**)",
       "Write(infra/prod/**)",
       "Edit(.github/workflows/deploy.yml)",
-      "Write(.github/workflows/deploy.yml)"
+      "Write(.github/workflows/deploy.yml)",
+      "AskUserQuestion"
     ]
   },
   "hooks": {
@@ -34,6 +46,58 @@
           {
             "type": "command",
             "command": "devkit check-autonomy --staged --agent"
+          }
+        ]
+      },
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "devkit manage-secrets --mask-hook"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "devkit clean --haak pretool"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "devkit clean --haak stop"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "devkit vast hook stop"
+          },
+          {
+            "type": "command",
+            "command": "devkit clean --haak stop"
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "devkit vast hook permissie"
           }
         ]
       }

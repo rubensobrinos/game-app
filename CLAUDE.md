@@ -21,6 +21,8 @@ Taal: **javascript**
 - **Mappenbeleid in `~/dev`:** bovenaan alleen `platform`, `producten`, `creative`, `cobri-group`, `bedrijfsvoering`, `klanten`, `archief`; worktrees alleen onder `~/.devkit/worktrees/<repo>-<kaart>`; geen productie- of releasemappen (`~/.devkit/sites/<site>/productie`) en geen logs van diensten in `~/dev`; maak nooit mappen bovenaan `~/dev` en bouw nooit paden relatief aan `~/dev`. Controle: `devkit doctor --devmap` — zie docs/werkwijze/mac.md § Mappenbeleid (ADR-0061).
 - **Testen:** tests alleen voor gedrag, één test per gedrag op het laagste niveau dat het bewijst; bewijs op een kaart is een groene run van de bestaande suite. Grens: testcode hoogstens 2x de app-code (`devkit stats --tests`; rood in `devkit ci` voor een repo op `ci.teststrategie: streng`, anders een waarschuwing). Nooit tests weghalen om onder de grens te komen; een bestaande suite afslanken is een aparte kaart, met bewijs dat hetzelfde gedrag gedekt blijft (bijvoorbeeld een mutatietest) en een review. Zie docs/werkwijze/kwaliteit.md § Testen (ADR-0049).
 - **Productiedatabase:** vóór een schrijfactie op een productiedatabase eerst een back-up van de betrokken tabellen (`pg_dump -t <tabel> ... > ~/.devkit/sites/<site>/backups/<bestand>.sql`), met het pad in de feedback van de kaart. Geen automatische terugrol bij een mislukte migratie — zie devkit ADR-0098. Zie docs/decisions/ADR-0100 voor waar de rechten op productie staan.
+- **Restmateriaal:** alles wat je buiten git op schijf of in Docker achterlaat (werkkopieën en branches, dumps en back-ups, kopieën van config- en env-bestanden, images en containers voor test of proef, screenshots, meetresultaten, losse scripts in /tmp of scratch) is van jou en heeft een termijn: standaard 24 uur; werk op review tot de kaart dicht is plus 24 uur; gestopte terugweg-containers 7 dagen; back-ups de laatste 3 per doel, hooguit 30 dagen. Langer bewaren: reden en termijn in `~/.devkit/restmateriaal.jsonl` (`devkit clean --registreer <pad> --soort … --kaart … --agent … --termijn … --reden …`). Over de termijn is rood (`devkit clean --restmateriaal`) — zie docs/decisions/ADR-0104.
+- **Releasepoort:** elke commit krijgt één oordeel, PASS, FAIL of BLOCKED (`devkit release-site <site> --alleen-poort`, exit 0/1/2). Een uitrol naar productie kan alleen bij PASS; een ontbrekende voorziening (`release_poort.voorzieningen` in `.devkit.yaml`) of een sha zonder bewijs is altijd BLOCKED, nooit PASS. De uitkomst staat per repo in ADM — zie devkit ADR-0106.
 
 ## Bord (action-list)
 
@@ -44,10 +46,15 @@ Je stopt niet na één kaart. Je werkt door tot er in dit project geen kaart mee
 - **Melden in het kanaal:** bij elke kaart die je pakt één regel ("#nr gepakt"), en bij elke kaart die je afrondt één regel ("#nr done"). Zo ziet de PL altijd de voortgang.
 - **Reviewrij:** staan er in dit project 10 of meer kaarten op `review`, review je eerst kaarten van anderen voordat je een nieuwe kaart pakt. Zet ze op `done` of terug op `todo` met de reden, en meld dat in het kanaal. Review nooit je eigen werk.
 - **Voor een PL:** een opdracht aan een agent noemt de kaarten in volgorde, plus de regel dat hij daarna zelf doorpakt. Nooit alleen "pak kaart X op".
+- **Coördinator (besluit Ruben 27-10, kaart #103923):** Een coördinator krijgt nooit één kaart. Hij krijgt de hele set: alle kaarten van een tag, feature of project. Hij zorgt dat ze allemaal worden uitgevoerd en verdeelt ze over agents die hij zelf start. Iedereen werkt op main, zonder worktrees. Raken twee kaarten dezelfde bestanden, dan geeft hij ze samen aan één agent. Kan dat echt niet, dan zet hij de tweede in een volgende ronde. Hij stopt pas als elke kaart van de set done is of geblokkeerd op geld of sleutels.
 
 ## Zelf beslissen
 
 Gebruik nooit AskUserQuestion. Je bent zelf verantwoordelijk en beslist zelf: er is geen verschil in gezag tussen agents. De PL coördineert, maar je wacht niet op de PL of op Ruben. Is iets onduidelijk, kies dan de redelijkste aanpak, zet je keuze en de reden in één regel in de feedback en ga door. Loop je vast op iets wat je echt niet kunt (geld, aankopen, sleutelwaarden), zet het op de kaart, meld het in één regel in het kanaal en pak de volgende kaart. Vragen in het kanaal mogen, maar je wacht nooit op het antwoord.
+
+## Vastlopen
+
+Wie vastloopt, schrijft het weg en pakt de volgende kaart: `devkit vast <soort> <kaart> "<wat precies niet kon>"`. Soorten: toestemming-geweigerd, sleutel-ontbreekt, rechten-of-toegang-ontbreekt, netwerk-onbereikbaar, besluit-nodig, externe-afhankelijkheid, passief-gestopt. Alleen werk dat niet of maar deels kan: wachten, traag tempo, botsingen met andere agents, een claim van een ander of een tweede poging zijn geen blokkade. Lees eerst `devkit vast lijst --open` (`--project`, `--soort`): is de blokkade bekend, verwijs ernaar in plaats van opnieuw te onderzoeken. Is hij opgelost: `devkit vast opgelost <id> "<hoe>"` (ADR-0105).
 
 ## Beslisbevoegdheid
 
@@ -101,8 +108,8 @@ devkit doctor --here
 
 ## Herkomst
 
-- DevKit-revisie: `0.50.14`
-- Config-versie: `0.50.14`
+- DevKit-revisie: `0.50.29`
+- Config-versie: `0.50.29`
 - Config-bron: `editable`
 - Policy-revisie (agent-rules.md versie): `1.1`
 - Policyclassificatie (ENFORCED/ADVISORY/DOCUMENTED): `devkit policy --json` → `agent_rules.rule_modes`.

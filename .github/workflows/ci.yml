@@ -2,9 +2,28 @@
 # Voeg lokale wijzigingen BUITEN deze markers toe — devkit update overschrijft alleen dit blok.
 name: CI
 
+# ADR-0009 + ADR-0084: CI draait niet op GitHub, niet per push en niet op een
+# schema. De afspraak is CI lokaal op de Mac (`devkit ci --poort`, `devkit ci
+# --nacht`). Op 17-10-2026 zat org Asesobv op 2000/2000 Actions-minuten, en de
+# dagelijkse geplande run (06:00, ubuntu-latest) die dit sjabloon in elke repo zette was
+# daar een hoofdoorzaak van: tientallen repo's x 30 dagen x 3 jobs.
+#
+# Daarom alleen workflow_dispatch: een bewuste handmatige run wanneer je het
+# antwoord echt op GitHub nodig hebt. Een geplande of per-push-trigger op een
+# GitHub-gehoste runner is een bevinding (validate-structure).
+#
+# ADR-0025: `runs_on` is standaard "ubuntu-latest" (GitHub-gehost). Een repo
+# met aantoonbare toegang tot de zelf-gehoste NAS-runner kan opt-in via zijn
+# eigen .devkit.yaml (`ci: {runner: self-hosted}`) — zie
+# docs/ci-self-hosted-runner.md. Dat verandert alleen waar deze drie jobs
+# draaien, niet de trigger hierboven.
 on:
-  # CI draait lokaal (devkit ci --poort / --nacht); GitHub alleen handmatig (devkit ADR-0084, Actions-minuten).
   workflow_dispatch:
+
+# Nooit twee runs van dezelfde workflow tegelijk; een nieuwe run vervangt de oude.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
@@ -15,7 +34,28 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm ci
+      # `npm install`, niet `npm ci`. `npm ci` weigert zonder lockfile:
+      #   npm error code EUSAGE
+      #   npm error The `npm ci` command can only install with an existing
+      #   npm error package-lock.json or npm-shrinkwrap.json ...
+      # (gemeten met npm 11.13.0, exit 1). `devkit init` scaffoldt package.json
+      # maar géén package-lock.json, en kan dat ook niet: een geldige lockfile is
+      # de opgeloste dependencyboom met integrity-hashes van élke transitieve
+      # dependency, en die komt alleen uit een echte npm-resolve tegen de
+      # registry. Een met de hand gescaffolde lege lockfile is erger dan geen:
+      # zodra iemand de eerste dependency aan package.json toevoegt faalt
+      # `npm ci` met "package.json and package-lock.json are not in sync".
+      # Daarom dezelfde keuze als `devkit setup` al maakt voor een repo met een
+      # package.json (devkit/commands/setup.py: `npm install`) — één
+      # installcommando in de hele toolkit.
+      # Wat `npm ci` aan reproduceerbaarheid opleverde, wordt hier in het
+      # manifest gekocht: exacte (niet-floatende) devDependency-pins in de
+      # gescaffolde package.json, hetzelfde mechanisme als de ruff-pin hierboven.
+      # Zodra een repo zijn eigen lockfile commit (wat de eerste lokale
+      # `npm install` schrijft) respecteert `npm install` die ook, zolang hij met
+      # package.json klopt; het verschil met `npm ci` is dan alleen dat hij de
+      # lockfile in de run mag bijwerken en node_modules niet eerst weggooit.
+      - run: npm install
       - run: node --check server/index.mjs
 
   security:
@@ -25,9 +65,27 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # ADR-0009: gitleaks/gitleaks-action@v2 vereist sinds hun breaking change een
+      # betaalde licentie voor organisaties ("[org] is an organization. License key
+      # is required.") en faalde daardoor in elke org-repo, bij elke run, ongeacht
+      # de code. De losse binary doet dezelfde scan, gratis.
+      - name: Gitleaks
+        run: |
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks detect --source . --redact --verbose
+      # `execution.security` van de vier node-profielen (`npm audit --audit-level
+      # moderate`) draaide hier niet: deze tak deed alleen gitleaks, en de
+      # variabele met dat commando werd doorgegeven maar nooit gebruikt.
+      # StrictUndefined vangt dat niet — een ongebruikte variabele is geen
+      # undefined. `npm audit` heeft npm nodig én een lockfile ("npm error code
+      # ENOLOCK / audit This command requires an existing lockfile", exit 1),
+      # vandaar setup-node + `npm install` ervoor: die schrijft de lockfile.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install
+      - run: npm audit --audit-level moderate
 
   test:
     name: Test
@@ -38,21 +96,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm ci
+      # Zie de lint-job voor waarom dit `npm install` is en geen `npm ci`.
+      - run: npm install
       - run: npm test
-
-  autonomy:
-    name: Autonomy guardrail
-    runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'pull_request' }}
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install git+https://github.com/Asesobv/devkit.git
-      - run: devkit check-autonomy --diff origin/${{ github.base_ref }} --json
 # END DEVKIT MANAGED

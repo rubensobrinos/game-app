@@ -14,7 +14,7 @@ autonomy_overrides:
   max_lines_changed_without_approval: 5000
 managed_hashes:
   .pre-commit-config.yaml: 64ebce0a75ce245fd03e2deabcf591a030e2e48595ecffca8fbba1d2a1609edf
-  .github/workflows/ci.yml: 8559d40d67003b12e3d600d36554f80a74f54cc69aa7c75c9e863726e68818d7
+  .github/workflows/ci.yml: a7610738bb4e0dd77d9cf3b55b31d37f21336b1c7bfe26bd4e1c65fcda785ac5
   .gitignore: 2880cea350b41205cfb39ab0d109c1aa0a414bbab97080095cc766f6eebbd66d
-  CLAUDE.md: 22548977bb2db813062aab07c8045e3af083e60b57383419bc2c60e8d75bb70e
+  CLAUDE.md: 773cc0f4d14e9245c2ee299f1461079ec90d7115c076de7f021ecfbb60b3995f
 domein: rounda.io
