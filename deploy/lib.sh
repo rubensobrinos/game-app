@@ -333,15 +333,34 @@ compose_sync() {
     # shellcheck disable=SC2086
     (cd "$1" && tar -cf - $COMPOSE_BESTANDEN $_cs_extra) | ssh -o BatchMode=yes -o ConnectTimeout=10 "$COMPOSE_HOST" \
       "mkdir -p '$COMPOSE_HOST_MAP' && cd '$COMPOSE_HOST_MAP' && tar -xf - && printf '%s\n' '$2' > .release-sha"
+    _cs_rc=$?
     unset _cs_extra
-    return
+    return "$_cs_rc"
   fi
   releases_pad_veilig
   mkdir -p "$RELEASES"
+  # Kaart #100796 (reviewafkeuring, tweede ronde): een pipe geeft in sh altijd de exitcode van het
+  # LAATSTE commando terug, nooit die van de producent ervoor. Op deze Mac (bsdtar) slaagt
+  # "tar -xf -" stilzwijgend (exit 0) op een LEGE stdin — dus als "cd "$1" && tar -cf -" links
+  # faalt (bv. een ontbrekende checkout, precies wat de reviewer forceerde), zou een simpele "$?"
+  # ná de pipe ALTIJD 0 blijven geven, los van de unset-fix hieronder. Daarom via een tussenbestand:
+  # elke stap krijgt zijn eigen, echte exitcode, en .release-sha wordt alleen geschreven als beide
+  # stappen ECHT slaagden.
+  _cs_archief="$(mktemp "${TMPDIR:-/tmp}/devkit-compose-sync.XXXXXX")"
   # shellcheck disable=SC2086
-  (cd "$1" && tar -cf - $COMPOSE_BESTANDEN $_cs_extra) | (cd "$RELEASES" && tar -xf -)
-  printf '%s\n' "$2" > "$RELEASES/.release-sha"
+  (cd "$1" && tar -cf "$_cs_archief" $COMPOSE_BESTANDEN $_cs_extra)
+  _cs_rc=$?
+  if [ "$_cs_rc" -eq 0 ]; then
+    (cd "$RELEASES" && tar -xf "$_cs_archief")
+    _cs_rc=$?
+  fi
+  rm -f "$_cs_archief"
+  if [ "$_cs_rc" -eq 0 ]; then
+    printf '%s\n' "$2" > "$RELEASES/.release-sha"
+    _cs_rc=$?
+  fi
   unset _cs_extra
+  return "$_cs_rc"
 }
 
 # compose_drift_controle <vorige-sha> — de compose-bestanden op de host zijn nog precies die van de vorige release (devkit ADR-0094).
@@ -393,13 +412,20 @@ compose_terugzetten() {
   if [ -n "${MIGRATIE_PAD:-}" ] && git -C "$REPO" cat-file -e "$1:$MIGRATIE_PAD" 2>/dev/null; then
     _ct_extra="$MIGRATIE_PAD"
   fi
+  # Kaart #100796 (reviewafkeuring, tweede ronde): zelfde pipe-valkuil als in compose_sync — "tar -x"
+  # op een lege stdin slaagt stilzwijgend op deze Mac, dus "if ! git archive ... | tar -x ...; then"
+  # ving een mislukte "git archive" NOOIT. Via een tussenbestand krijgt elke stap zijn eigen,
+  # echte exitcode.
+  _ct_archief="$(mktemp "${TMPDIR:-/tmp}/devkit-compose-terug-archief.XXXXXX")"
   # shellcheck disable=SC2086
-  if ! git -C "$REPO" archive "$1" $COMPOSE_BESTANDEN $_ct_extra 2>/dev/null | tar -x -C "$_ct_tmp" 2>/dev/null; then
+  if ! git -C "$REPO" archive -o "$_ct_archief" "$1" $COMPOSE_BESTANDEN $_ct_extra 2>/dev/null || ! tar -xf "$_ct_archief" -C "$_ct_tmp" 2>/dev/null; then
+    rm -f "$_ct_archief"
     rm -rf "$_ct_tmp"
     echo "LET OP: de compose-bestanden van $1 zijn niet uit git te halen; de compose op $_ct_waar blijft die van de mislukte release" >&2
     unset _ct_waar _ct_extra
     return 1
   fi
+  rm -f "$_ct_archief"
   if ! compose_sync "$_ct_tmp" "$1"; then
     rm -rf "$_ct_tmp"
     echo "LET OP: de compose-bestanden van $1 terugzetten op $_ct_waar faalde" >&2
@@ -409,6 +435,7 @@ compose_terugzetten() {
   rm -rf "$_ct_tmp"
   echo "compose-bestanden van $1 teruggezet op $_ct_waar" >&2
   unset _ct_waar _ct_extra
+  return 0
 }
 
 # compose_up <argumenten...> — `docker compose up -d --no-deps <argumenten>`: lokaal vanuit
@@ -531,6 +558,7 @@ migraties_toepassen() {
   fi
   echo "migraties: toegepast"
   unset _mt_werkmap _mt_vorige_sha _mt_sha _mt_open
+  return 0
 }
 
 # release_compose <ref-sha> <kort-sha> <vorige-tag-of-null> — de compose-variant
