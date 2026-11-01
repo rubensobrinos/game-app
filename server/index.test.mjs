@@ -399,6 +399,57 @@ test('/readyz meldt 200 met de gekozen store zodra die bereikbaar is', async (t)
   assert.deepEqual(health.json(), { ok: true });
 });
 
+test('/health meldt 200 met status ok, zonder afhankelijkheden', async (t) => {
+  const fastify = await buildServer({ config: { ...CONFIG } });
+  t.after(() => withTimeout(fastify.close(), 5000, 'fastify.close()'));
+  await fastify.ready();
+
+  const response = await fastify.inject({ method: 'GET', url: '/health' });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), { status: 'ok' });
+});
+
+test('/health/ready meldt 200 in de ADR-0062-contractvorm zodra de store bereikbaar is', async (t) => {
+  const fastify = await buildServer({ config: { ...CONFIG } });
+  t.after(() => withTimeout(fastify.close(), 5000, 'fastify.close()'));
+  await fastify.ready();
+
+  const response = await fastify.inject({ method: 'GET', url: '/health/ready' });
+  assert.equal(response.statusCode, 200);
+  const body = response.json();
+  assert.equal(body.status, 'ok');
+  assert.equal(typeof body.dienst, 'string');
+  assert.ok(body.dienst.length > 0);
+  assert.equal(typeof body.versie, 'string');
+  assert.ok(body.versie.length > 0);
+  assert.deepEqual(body.checks, { store: 'ok' });
+  assert.equal('reason' in body, false, 'de contractvorm kent geen reason-veld');
+});
+
+test('/health/ready meldt 503 met status down zodra de store onbereikbaar is', async (t) => {
+  // Zelfde opzet als de /readyz-test hierboven: een handle dat "niet
+  // bereikbaar" meldt is genoeg, de vraag is of /health/ready dat naar de
+  // contractvorm vertaalt (status "down", checks.store "down"), niet of Redis
+  // kan sterven.
+  const broken = {
+    ...createMemoryStoreHandle(),
+    kind: 'redis',
+    async checkReady() {
+      return { ok: false, reason: 'Redis op redis://127.0.0.1:6380 is niet bereikbaar (ECONNREFUSED)' };
+    },
+  };
+  const fastify = await buildServer({ config: { ...CONFIG }, storeHandle: broken });
+  t.after(() => withTimeout(fastify.close(), 5000, 'fastify.close()'));
+  await fastify.ready();
+
+  const response = await fastify.inject({ method: 'GET', url: '/health/ready' });
+  assert.equal(response.statusCode, 503);
+  const body = response.json();
+  assert.equal(body.status, 'down');
+  assert.deepEqual(body.checks, { store: 'down' });
+  assert.equal('reason' in body, false, 'de contractvorm kent geen reason-veld (geen foutdetail lekken)');
+});
+
 test('/readyz meldt 503 met een bruikbare reden zodra de store onbereikbaar is', async (t) => {
   // Een handle dat "niet bereikbaar" meldt is hier genoeg: de vraag is of
   // /readyz het antwoord van de store DOORGEEFT, niet of Redis kan sterven.
