@@ -8,8 +8,11 @@
 //     opstarten verbinden;
 //   - de compositiecontext bouwen (store + echte klok + config);
 //   - de REST-laag registreren (server/transport/rest.mjs);
-//   - /healthz en /readyz bedienen; /readyz rapporteert sinds de storekeuze
-//     ECHT: 200 zodra de gekozen store bereikbaar is, 503 met reden zo niet;
+//   - /health en /health/ready bedienen (ADR-0062-contractvorm), met /healthz
+//     en /readyz ernaast als ongewijzigde alias zolang de
+//     docker-compose-healthcheck die paden leest; /health/ready rapporteert
+//     sinds de storekeuze ECHT: 200/"ok" zodra de gekozen store bereikbaar is,
+//     503/"down" zo niet;
 //   - client/, shared/, flags/ en frontend/ statisch serveren (antwoord op UI-3
 //     in docs/integration-plan/transport-contract-response.md);
 //   - de socketlaag aanhaken zodra server/transport/socket.mjs bestaat, en die
@@ -217,6 +220,29 @@ export async function buildServer(options = {}) {
       ok: false,
       store: handle.kind,
       reason: readiness.reason ?? 'de store is niet bereikbaar',
+    });
+  });
+
+  // /health — ADR-0062 liveness (devkit/health.py: controleer_live). Alleen
+  // "leeft het proces": geen afhankelijkheden, geen netwerk. /healthz blijft
+  // ernaast bestaan als alias — de docker-compose-healthcheck leest nog dat
+  // pad.
+  fastify.get('/health', async () => ({ status: 'ok' }));
+
+  // /health/ready — ADR-0062 readiness (devkit/health.py: controleer_ready),
+  // dezelfde bron als /readyz (`handle.checkReady()`) maar in de contractvorm:
+  // status ("ok" | "degraded" | "down"), dienst, versie en checks per
+  // afhankelijkheid, zonder `reason` — die hoorde bij de oude /readyz-vorm en
+  // kan een pad of een foutdetail lekken. Geen "degraded"-staat: de store is
+  // hier óf bereikbaar óf niet. /readyz blijft ernaast bestaan als alias.
+  fastify.get('/health/ready', async (request, reply) => {
+    const readiness = await handle.checkReady();
+    const status = readiness.ok ? 'ok' : 'down';
+    return reply.code(readiness.ok ? 200 : 503).send({
+      status,
+      dienst: 'rounda',
+      versie: config.contentVersion ?? CONTENT_VERSION,
+      checks: { store: status },
     });
   });
 
