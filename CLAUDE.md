@@ -39,20 +39,34 @@ Twee wegen naar het bord; welke je hebt hangt af van waar je draait (docs/werkwi
 - Prioriteit is schaars: hooguit 3 open `hoog`/`kritiek` per project. Is het vol, kies `normaal`, tenzij er een aantoonbare blokkade is (ADR-0043).
 - Naar `review` alleen met bewijs: in `feedback` de regels `sha: <commit, 7-40 hex>` en `bewijs: <regel uit runs.jsonl of testuitvoer>`; anders weigert de API (ADR-0044). Zodra het bord het afdwingt (#101284) ook `model: <naam>` (haiku, sonnet, …; hoofdmodel eerst). Een kaart die via review kwam, zet de lead of een andere agent naar `done`, nooit de schrijver.
 
+## Werkregels van Ruben
+
+1. Werk door tot er geen claimbare of reviewbare kaarten meer zijn. Een beurt eindigt nooit met een vraag of een verzoek om toestemming. Loop je vast: zet het op de kaart en in het vastlooplog (`devkit vast`), kaart terug naar todo of review, pak de volgende. "Gestopt bij een natuurlijk punt" bestaat niet.
+2. Bij Ruben ligt alleen: geld, sleutels en de productie-go. Zet dat met `wacht_op_mens` op de kaart en werk intussen door. Al het andere doe je zelf: pushen, mergen, uitrollen naar test, diensten laden of herstarten, opruimen. Een productie-release zet je klaar tot alleen zijn go ontbreekt.
+3. Ruben draait geen terminalcommando's. Wat je voor hem op een kaart zet, is hooguit een klik in een dashboard of een sleutel aanmaken, in gewone woorden.
+4. Verzin geen grenzen, limieten, afkoeltijden, maximale rondes of looptijden waar niemand om vroeg en die niet op data rusten.
+5. Lees het bord opnieuw voordat je iets parkeert, als geblokkeerd meldt of als "wacht op" noteert.
+6. Blijf binnen je opdracht. Werk dat bij een ander project hoort, zet je als kaart in dat project. Raak geen kaarten van een feature die een andere coordinator heeft.
+7. Een coordinator zorgt dat alle kaarten van zijn opdracht worden uitgevoerd en verdeelt ze zelf over agents die hij spawnt.
+8. Geen meldplicht: je hoeft niet in het kanaal te melden dat je begint of klaar bent. Het resultaat staat op de kaart.
+9. Beveiligingsupdates van afhankelijkheden voer je altijd meteen door, zonder te vragen.
+10. Eerst op test, daarna bekijkt de PL het op test, pas dan productie. Noem iets alleen "live" als het op test zichtbaar is.
+11. Geen vermoedens over Rubens machines of netwerk als feit: meet het, of zeg dat je het niet weet. Noem exacte aantallen, geen "ongeveer" als het getal op te zoeken is.
+12. Geen symlinks of snelkoppelingen, geen wegwerp-worktrees, geen losse promptbestanden (prompts horen in de kaart), geen geheimen in kaarten of repo, geen meldingen via e-mail.
+13. We bouwen zelf. Stel geen kant-en-klare diensten van derden voor.
+14. Releases noem je met hun echte versiecode.
+
 ## Doorwerken
 
-Je stopt niet na één kaart. Je werkt door tot er in dit project geen kaart meer is die je kunt doen. Eerst wat je PL toewijst, daarna de todo-kaart met de hoogste prioriteit die niemand heeft. Loop je vast: noteer in de feedback wat ontbreekt en wie het moet oplossen, zet de kaart op review of terug op todo met 'geblokkeerd: ...', meld het in één regel in het kanaal en pak meteen de volgende kaart. Wachten is geen reden om te stoppen. Pas als er niets meer is: meld 'rij leeg' en lees het kanaal over 30 minuten opnieuw.
+Je stopt niet na één kaart. Eerst wat je PL toewijst, daarna de todo-kaart met de hoogste prioriteit die niemand heeft. Wachten is geen reden om te stoppen.
 
-**Een beurt eindigt nooit met een vraag of een verzoek om toestemming** ("Zal ik doorgaan?", "Wil je dat ik…?"). Je stopt alleen als er geen claimbare of reviewbare kaart meer is. Twijfel of een blokkade gaat in de feedback van de kaart en in het vastlooplog (`devkit vast`); de kaart gaat terug naar `todo` of naar `review` en je pakt de volgende. Alleen geld, sleutels en een productie-go wachten op Ruben: zet daar `wacht_op_mens` op de kaart en werk intussen door.
-
-- **Melden in het kanaal:** bij elke kaart die je pakt één regel ("#nr gepakt"), en bij elke kaart die je afrondt één regel ("#nr done"). Zo ziet de PL altijd de voortgang.
-- **Reviewrij:** staan er in dit project 10 of meer kaarten op `review`, review je eerst kaarten van anderen voordat je een nieuwe kaart pakt. Zet ze op `done` of terug op `todo` met de reden, en meld dat in het kanaal. Review nooit je eigen werk.
+- **Reviewrij:** staat er een kaart op `review` die je mag reviewen, doe die eerst (een claim op een andere kaart geeft 409). Zet hem op `done` of terug op `todo` met de reden. Review nooit je eigen werk.
 - **Voor een PL:** een opdracht aan een agent noemt de kaarten in volgorde, plus de regel dat hij daarna zelf doorpakt. Nooit alleen "pak kaart X op".
-- **Coördinator (besluit Ruben 27-10, kaart #103923):** Een coördinator krijgt nooit één kaart. Hij krijgt de hele set: alle kaarten van een tag, feature of project. Hij zorgt dat ze allemaal worden uitgevoerd en verdeelt ze over agents die hij zelf start. Iedereen werkt op main, zonder worktrees. Raken twee kaarten dezelfde bestanden, dan geeft hij ze samen aan één agent. Kan dat echt niet, dan zet hij de tweede in een volgende ronde. Hij stopt pas als elke kaart van de set done is of geblokkeerd op geld of sleutels.
+- **Coördinator (besluit Ruben 27-10, kaart #103923):** Een coördinator krijgt nooit één kaart. Hij krijgt de hele set: alle kaarten van een tag, feature of project. Hij zorgt dat ze allemaal worden uitgevoerd en verdeelt ze over agents die hij zelf start. Iedereen werkt op main, zonder worktrees. Raken twee kaarten dezelfde bestanden, dan geeft hij ze samen aan één agent. Hij stopt pas als elke kaart van de set done is of geblokkeerd op geld of sleutels.
 
 ## Zelf beslissen
 
-Gebruik nooit AskUserQuestion. Je bent zelf verantwoordelijk en beslist zelf: er is geen verschil in gezag tussen agents. De PL coördineert, maar je wacht niet op de PL of op Ruben. Is iets onduidelijk, kies dan de redelijkste aanpak, zet je keuze en de reden in één regel in de feedback en ga door. Loop je vast op iets wat je echt niet kunt (geld, aankopen, sleutelwaarden), zet het op de kaart, meld het in één regel in het kanaal en pak de volgende kaart. Vragen in het kanaal mogen, maar je wacht nooit op het antwoord.
+Gebruik nooit AskUserQuestion. Je bent zelf verantwoordelijk en beslist zelf: er is geen verschil in gezag tussen agents. De PL coördineert, maar je wacht niet op de PL of op Ruben. Is iets onduidelijk, kies dan de redelijkste aanpak, zet je keuze en de reden in één regel in de feedback en ga door. Loop je vast op iets wat je echt niet kunt (geld, aankopen, sleutelwaarden), zet het op de kaart en pak de volgende kaart. Vragen in het kanaal mogen, maar je wacht nooit op het antwoord.
 
 ## Vastlopen
 
@@ -110,8 +124,8 @@ devkit doctor --here
 
 ## Herkomst
 
-- DevKit-revisie: `0.50.30`
-- Config-versie: `0.50.30`
+- DevKit-revisie: `0.50.31`
+- Config-versie: `0.50.31`
 - Config-bron: `editable`
 - Policy-revisie (agent-rules.md versie): `1.1`
 - Policyclassificatie (ENFORCED/ADVISORY/DOCUMENTED): `devkit policy --json` → `agent_rules.rule_modes`.
