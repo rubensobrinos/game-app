@@ -110,8 +110,8 @@ devkit doctor --here
 
 ## Herkomst
 
-- DevKit-revisie: `0.50.29`
-- Config-versie: `0.50.29`
+- DevKit-revisie: `0.50.30`
+- Config-versie: `0.50.30`
 - Config-bron: `editable`
 - Policy-revisie (agent-rules.md versie): `1.1`
 - Policyclassificatie (ENFORCED/ADVISORY/DOCUMENTED): `devkit policy --json` → `agent_rules.rule_modes`.
