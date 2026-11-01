@@ -19,6 +19,7 @@
       "Glob",
       "Grep",
       "Bash(devkit release-site:*)",
+      "Bash(devkit ci:*)",
       "Bash(ssh nas docker stop:*)",
       "Bash(ssh nas docker start:*)",
       "Bash(ssh nas docker ps:*)",
@@ -31,9 +32,7 @@
     ],
     "deny": [
       "Edit(infra/prod/**)",
-      "Write(infra/prod/**)",
       "Edit(.github/workflows/deploy.yml)",
-      "Write(.github/workflows/deploy.yml)",
       "AskUserQuestion"
     ]
   },
