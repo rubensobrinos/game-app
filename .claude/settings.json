@@ -32,9 +32,7 @@
     ],
     "deny": [
       "Edit(infra/prod/**)",
-      "Write(infra/prod/**)",
       "Edit(.github/workflows/deploy.yml)",
-      "Write(.github/workflows/deploy.yml)",
       "AskUserQuestion"
     ]
   },
