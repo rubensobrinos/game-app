@@ -43,6 +43,8 @@ Twee wegen naar het bord; welke je hebt hangt af van waar je draait (docs/werkwi
 
 Je stopt niet na één kaart. Je werkt door tot er in dit project geen kaart meer is die je kunt doen. Eerst wat je PL toewijst, daarna de todo-kaart met de hoogste prioriteit die niemand heeft. Loop je vast: noteer in de feedback wat ontbreekt en wie het moet oplossen, zet de kaart op review of terug op todo met 'geblokkeerd: ...', meld het in één regel in het kanaal en pak meteen de volgende kaart. Wachten is geen reden om te stoppen. Pas als er niets meer is: meld 'rij leeg' en lees het kanaal over 30 minuten opnieuw.
 
+**Een beurt eindigt nooit met een vraag of een verzoek om toestemming** ("Zal ik doorgaan?", "Wil je dat ik…?"). Je stopt alleen als er geen claimbare of reviewbare kaart meer is. Twijfel of een blokkade gaat in de feedback van de kaart en in het vastlooplog (`devkit vast`); de kaart gaat terug naar `todo` of naar `review` en je pakt de volgende. Alleen geld, sleutels en een productie-go wachten op Ruben: zet daar `wacht_op_mens` op de kaart en werk intussen door.
+
 - **Melden in het kanaal:** bij elke kaart die je pakt één regel ("#nr gepakt"), en bij elke kaart die je afrondt één regel ("#nr done"). Zo ziet de PL altijd de voortgang.
 - **Reviewrij:** staan er in dit project 10 of meer kaarten op `review`, review je eerst kaarten van anderen voordat je een nieuwe kaart pakt. Zet ze op `done` of terug op `todo` met de reden, en meld dat in het kanaal. Review nooit je eigen werk.
 - **Voor een PL:** een opdracht aan een agent noemt de kaarten in volgorde, plus de regel dat hij daarna zelf doorpakt. Nooit alleen "pak kaart X op".
@@ -72,7 +74,7 @@ Wie vastloopt, schrijft het weg en pakt de volgende kaart: `devkit vast <soort> 
 - prod
 - architecture
 
-**Altijd vragen aan een human**:
+**Naar Ruben via `wacht_op_mens` op de kaart** (nooit als vraag aan het eind van je beurt; werk intussen door):
 
 - purchases
 - secrets
