@@ -12,6 +12,21 @@ profile_version: 0.16.0
 autonomy_overrides:
   max_files_changed_without_approval: 15
   max_lines_changed_without_approval: 5000
+durability:
+  unique_state: true
+  systems:
+    - name: gamestats
+      kind: postgres
+      authoritative: true
+      recovery: back-up via de standaard postgres-route van db-gateway (ADR-0005, dagelijkse dump met hersteltest); schema staat ook in migrations/001-analytics.sql
+      register: gamestats
+      backup: standaard
+  # redis (volume redis-data) bewust niet gedeclareerd: houdt alleen lopende
+  # multiplayer-state vast (room/match/ronde/antwoorden, TTL GAME_TTL_SECONDS
+  # van 4u, zie server/composition/match/herstel.mjs) — bij verlies van het
+  # volume start een lopend spel opnieuw, geen blijvend verlies. De
+  # definitieve, privacy-minimale analytics landen in de postgres-tabellen
+  # hierboven (migrations/001-analytics.sql).
 managed_hashes:
   .pre-commit-config.yaml: 64ebce0a75ce245fd03e2deabcf591a030e2e48595ecffca8fbba1d2a1609edf
   .github/workflows/ci.yml: 8559d40d67003b12e3d600d36554f80a74f54cc69aa7c75c9e863726e68818d7
