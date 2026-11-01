@@ -314,13 +314,53 @@ compose_remote_eisen() {
   case "${COMPOSE_IMAGES:-}" in *[!A-Za-z0-9._:/=\ -]*) weiger "COMPOSE_IMAGES bevat een teken dat niet in 'dienst=naam:tag' hoort" ;; esac
 }
 
-# compose_sync <checkout> <sha> — zet de compose-bestanden van deze release en een .release-sha in COMPOSE_HOST_MAP, zodat de stack
-# daar met de definitie van deze release start. Alleen COMPOSE_BESTANDEN: het .env-bestand en de volumes blijven staan waar ze staan.
+# compose_sync <checkout> <sha> — zet de compose-bestanden van deze release en een .release-sha
+# in de productiemap, zodat de stack daar met de definitie van deze release start: remote in
+# COMPOSE_HOST_MAP (ssh), lokaal in $RELEASES (devkit ADR-0035/ADR-0038). Naast COMPOSE_BESTANDEN
+# ook MIGRATIE_PAD, als die gezet is én in <checkout> bestaat: rounda's docker-compose.yml mount
+# ./migrations relatief in de postgres-service, en die relatieve bind mount moet dus ook in de
+# productiemap staan, niet alleen in de git-archive-checkout waarmee gebouwd is. Het .env-bestand
+# en de volumes blijven staan waar ze staan.
+#
+# VÓÓR devkit kaart #100796 deed deze functie voor het LOKALE geval (geen COMPOSE_HOST) niets:
+# "compose_remote || return 0" gaf meteen terug, en compose_up() hieronder viel dan terug op
+# $REPO (de werkboom zelf) als workdir — precies de ADR-0035-schending (ongecommit werk kon
+# meeliften) die dit repareert.
 compose_sync() {
-  compose_remote || return 0
+  _cs_extra=""
+  [ -z "${MIGRATIE_PAD:-}" ] || [ ! -e "$1/$MIGRATIE_PAD" ] || _cs_extra="$MIGRATIE_PAD"
+  if compose_remote; then
+    # shellcheck disable=SC2086
+    (cd "$1" && tar -cf - $COMPOSE_BESTANDEN $_cs_extra) | ssh -o BatchMode=yes -o ConnectTimeout=10 "$COMPOSE_HOST" \
+      "mkdir -p '$COMPOSE_HOST_MAP' && cd '$COMPOSE_HOST_MAP' && tar -xf - && printf '%s\n' '$2' > .release-sha"
+    _cs_rc=$?
+    unset _cs_extra
+    return "$_cs_rc"
+  fi
+  releases_pad_veilig
+  mkdir -p "$RELEASES"
+  # Kaart #100796 (reviewafkeuring, tweede ronde): een pipe geeft in sh altijd de exitcode van het
+  # LAATSTE commando terug, nooit die van de producent ervoor. Op deze Mac (bsdtar) slaagt
+  # "tar -xf -" stilzwijgend (exit 0) op een LEGE stdin — dus als "cd "$1" && tar -cf -" links
+  # faalt (bv. een ontbrekende checkout, precies wat de reviewer forceerde), zou een simpele "$?"
+  # ná de pipe ALTIJD 0 blijven geven, los van de unset-fix hieronder. Daarom via een tussenbestand:
+  # elke stap krijgt zijn eigen, echte exitcode, en .release-sha wordt alleen geschreven als beide
+  # stappen ECHT slaagden.
+  _cs_archief="$(mktemp "${TMPDIR:-/tmp}/devkit-compose-sync.XXXXXX")"
   # shellcheck disable=SC2086
-  (cd "$1" && tar -cf - $COMPOSE_BESTANDEN) | ssh -o BatchMode=yes -o ConnectTimeout=10 "$COMPOSE_HOST" \
-    "mkdir -p '$COMPOSE_HOST_MAP' && cd '$COMPOSE_HOST_MAP' && tar -xf - && printf '%s\n' '$2' > .release-sha"
+  (cd "$1" && tar -cf "$_cs_archief" $COMPOSE_BESTANDEN $_cs_extra)
+  _cs_rc=$?
+  if [ "$_cs_rc" -eq 0 ]; then
+    (cd "$RELEASES" && tar -xf "$_cs_archief")
+    _cs_rc=$?
+  fi
+  rm -f "$_cs_archief"
+  if [ "$_cs_rc" -eq 0 ]; then
+    printf '%s\n' "$2" > "$RELEASES/.release-sha"
+    _cs_rc=$?
+  fi
+  unset _cs_extra
+  return "$_cs_rc"
 }
 
 # compose_drift_controle <vorige-sha> — de compose-bestanden op de host zijn nog precies die van de vorige release (devkit ADR-0094).
@@ -356,32 +396,56 @@ compose_drift_controle() {
   return 1
 }
 
-# compose_terugzetten <vorige-sha> — bij een terugrol ook de compose-bestanden van de vorige release terug op de host, niet alleen de images:
-# anders start `up --no-build` het vorige image onder de compose van de mislukte release (devkit ADR-0094). Zonder vorige sha, of als een
-# bestand niet in de vorige release zat, is er niets om terug te zetten: dat is een melding, geen fout.
+# compose_terugzetten <vorige-sha> — bij een terugrol ook de compose-bestanden (en MIGRATIE_PAD)
+# van de vorige release terug, niet alleen de images: anders start `up --no-build` het vorige
+# image onder de compose van de mislukte release (devkit ADR-0094) — remote op COMPOSE_HOST,
+# lokaal in $RELEASES (devkit kaart #100796: vóór deze kaart gaf "compose_remote || return 0"
+# meteen terug, en bij een lokale terugrol gebeurde er dus niets — de daaropvolgende
+# "compose_up --no-build" viel dan terug op $REPO, de werkboom). Zonder vorige sha, of als een
+# bestand niet in de vorige release zat, is er niets om terug te zetten: dat is een melding, geen
+# fout.
 compose_terugzetten() {
-  compose_remote || return 0
   [ "$1" != "null" ] || return 0
+  if compose_remote; then _ct_waar="$COMPOSE_HOST"; else _ct_waar="$RELEASES"; fi
   _ct_tmp="$(mktemp -d "${TMPDIR:-/tmp}/devkit-compose-terug.XXXXXX")"
+  _ct_extra=""
+  if [ -n "${MIGRATIE_PAD:-}" ] && git -C "$REPO" cat-file -e "$1:$MIGRATIE_PAD" 2>/dev/null; then
+    _ct_extra="$MIGRATIE_PAD"
+  fi
+  # Kaart #100796 (reviewafkeuring, tweede ronde): zelfde pipe-valkuil als in compose_sync — "tar -x"
+  # op een lege stdin slaagt stilzwijgend op deze Mac, dus "if ! git archive ... | tar -x ...; then"
+  # ving een mislukte "git archive" NOOIT. Via een tussenbestand krijgt elke stap zijn eigen,
+  # echte exitcode.
+  _ct_archief="$(mktemp "${TMPDIR:-/tmp}/devkit-compose-terug-archief.XXXXXX")"
   # shellcheck disable=SC2086
-  if ! git -C "$REPO" archive "$1" $COMPOSE_BESTANDEN 2>/dev/null | tar -x -C "$_ct_tmp" 2>/dev/null; then
+  if ! git -C "$REPO" archive -o "$_ct_archief" "$1" $COMPOSE_BESTANDEN $_ct_extra 2>/dev/null || ! tar -xf "$_ct_archief" -C "$_ct_tmp" 2>/dev/null; then
+    rm -f "$_ct_archief"
     rm -rf "$_ct_tmp"
-    echo "LET OP: de compose-bestanden van $1 zijn niet uit git te halen; de compose op $COMPOSE_HOST blijft die van de mislukte release" >&2
+    echo "LET OP: de compose-bestanden van $1 zijn niet uit git te halen; de compose op $_ct_waar blijft die van de mislukte release" >&2
+    unset _ct_waar _ct_extra
     return 1
   fi
+  rm -f "$_ct_archief"
   if ! compose_sync "$_ct_tmp" "$1"; then
     rm -rf "$_ct_tmp"
-    echo "LET OP: de compose-bestanden van $1 terugzetten op $COMPOSE_HOST faalde" >&2
+    echo "LET OP: de compose-bestanden van $1 terugzetten op $_ct_waar faalde" >&2
+    unset _ct_waar _ct_extra
     return 1
   fi
   rm -rf "$_ct_tmp"
-  echo "compose-bestanden van $1 teruggezet op $COMPOSE_HOST" >&2
+  echo "compose-bestanden van $1 teruggezet op $_ct_waar" >&2
+  unset _ct_waar _ct_extra
+  return 0
 }
 
-# compose_up <argumenten...> — `docker compose up -d --no-deps <argumenten>`: lokaal vanuit $REPO, remote vanuit COMPOSE_HOST_MAP.
+# compose_up <argumenten...> — `docker compose up -d --no-deps <argumenten>`: lokaal vanuit
+# $RELEASES, remote vanuit COMPOSE_HOST_MAP. VÓÓR devkit kaart #100796 draaide het lokale pad
+# vanuit $REPO (de werkboom zelf) — een ADR-0035-schending (ongecommit werk kon meeliften); het
+# hoort te draaien vanuit de door compose_sync() gevulde productiemap, net als het mappen-pad
+# nooit vanuit $REPO draait.
 compose_up() {
   if ! compose_remote; then
-    compose_dc "$REPO" up -d --no-deps "$@"
+    compose_dc "$RELEASES" up -d --no-deps "$@"
     return
   fi
   _cu_bestanden=""
@@ -494,6 +558,7 @@ migraties_toepassen() {
   fi
   echo "migraties: toegepast"
   unset _mt_werkmap _mt_vorige_sha _mt_sha _mt_open
+  return 0
 }
 
 # release_compose <ref-sha> <kort-sha> <vorige-tag-of-null> — de compose-variant
