@@ -55,6 +55,7 @@ Twee wegen naar het bord; welke je hebt hangt af van waar je draait (docs/werkwi
 12. Geen symlinks of snelkoppelingen, geen wegwerp-worktrees, geen losse promptbestanden (prompts horen in de kaart), geen geheimen in kaarten of repo, geen meldingen via e-mail.
 13. We bouwen zelf. Stel geen kant-en-klare diensten van derden voor.
 14. Releases noem je met hun echte versiecode.
+15. Wacht nooit op een geplande ronde, een timer of een wachtlus als je het zelf nu kunt draaien (CI, een meting, een controle). Loop je vast op je eigen gereedschap (profiel, map, instelling), los dat eerst op.
 
 ## Doorwerken
 
@@ -124,8 +125,8 @@ devkit doctor --here
 
 ## Herkomst
 
-- DevKit-revisie: `0.50.31`
-- Config-versie: `0.50.31`
+- DevKit-revisie: `0.50.32`
+- Config-versie: `0.50.32`
 - Config-bron: `editable`
 - Policy-revisie (agent-rules.md versie): `1.1`
 - Policyclassificatie (ENFORCED/ADVISORY/DOCUMENTED): `devkit policy --json` → `agent_rules.rule_modes`.

@@ -31,5 +31,5 @@ managed_hashes:
   .pre-commit-config.yaml: 64ebce0a75ce245fd03e2deabcf591a030e2e48595ecffca8fbba1d2a1609edf
   .github/workflows/ci.yml: a7610738bb4e0dd77d9cf3b55b31d37f21336b1c7bfe26bd4e1c65fcda785ac5
   .gitignore: 2880cea350b41205cfb39ab0d109c1aa0a414bbab97080095cc766f6eebbd66d
-  CLAUDE.md: b5c446f41b80f570f9fca78afc2fb9ca0ea02a694a9cee8dd900c0fe44d03d7a
+  CLAUDE.md: cdd79e65c43d29b465c3d46a21d45784512797d9a08b6b9efe7e845b253e086c
 domein: rounda.io
