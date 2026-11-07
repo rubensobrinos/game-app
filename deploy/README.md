@@ -133,3 +133,10 @@ app.get('/health/ready', (req, res) => {
 [ADR-0032]: https://github.com/Asesobv/devkit/blob/main/docs/decisions/ADR-0032-drie-omgevingen-lokaal-test-domein-domein.md
 [ADR-0035]: https://github.com/Asesobv/devkit/blob/main/docs/decisions/ADR-0035-release-standaard-geen-symlink-tag-en-logboek.md
 [ADR-0038]: https://github.com/Asesobv/devkit/blob/main/docs/decisions/ADR-0038-sites-test-worktrees-en-productiemappen-naar-een-vaste-plek-per-site.md
+
+## Draait op de Beelink (kaart #105872, 07-11-2026)
+
+De stack draait niet meer op de Mac. Productie: compose-project `aseso-game-productie` in `~/sites/aseso-game-productie` op de Beelink
+(`compose.beelink-productie.override.yml`, caddy op 127.0.0.1:8141, database `aseso_game` op postgres-beelink), bereikt via de tunnel `productie`
+(rounda.io, play.aseso.nl). Test: project `aseso-game` in `~/sites/aseso-game` (`compose.beelink-game.override.yml`, poort 8140). De Mac-set
+(inclusief de Mac-cloudflared) is verwijderd; de chaos-stack `aseso-game-chaos` is gestopt en blijft staan.
