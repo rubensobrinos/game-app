@@ -142,7 +142,7 @@ wissel_naar() {
 
 echo "[1/5] $KORT uitpakken in $NIEUW"
 mkdir -p "$NIEUW"
-git -C "$REPO" archive "$SHA" | tar -x -C "$NIEUW"
+pakket_uitpakken "$REPO" "$SHA" "$NIEUW"
 printf '%s\n' "$SHA" > "$NIEUW/.release-sha"
 
 _build_begin=$(date +%s)

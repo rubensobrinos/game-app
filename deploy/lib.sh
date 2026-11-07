@@ -838,3 +838,23 @@ log_release() {
     >> "$RELEASES_LOG"
   unset _tag_json _vorige_json _reden_json _wie
 }
+
+# pakket_uitpakken <repo> <sha> <doelmap> — pakt het releasepakket uit (kaart #104968). Roept `devkit release-site` dit script aan, dan levert het het
+# vastgelegde pakket als archief ($DEVKIT_PAKKET_ARCHIEF, digest in $DEVKIT_PAKKET_DIGEST): dat wordt gecontroleerd en uitgepakt, zodat precies
+# het pakket draait dat op test groen was. Zonder archief (script met de hand gestart) valt het terug op `git archive <sha>`.
+pakket_uitpakken() {
+  if [ -n "${DEVKIT_PAKKET_ARCHIEF:-}" ]; then
+    _pu_digest="$(shasum -a 256 "$DEVKIT_PAKKET_ARCHIEF" | cut -d' ' -f1)"
+    if [ "$_pu_digest" != "${DEVKIT_PAKKET_DIGEST:-}" ]; then
+      echo "AFGEBROKEN: pakketarchief wijkt af van het vastgelegde pakket (digest ${_pu_digest} <> ${DEVKIT_PAKKET_DIGEST:-leeg})." >&2
+      return 1
+    fi
+    tar -x -f "$DEVKIT_PAKKET_ARCHIEF" -C "$3"
+  else
+    _pu_tmp="$(mktemp)"
+    git -C "$1" archive -o "$_pu_tmp" "$2" && tar -x -f "$_pu_tmp" -C "$3"
+    _pu_rc=$?
+    rm -f "$_pu_tmp"
+    return $_pu_rc
+  fi
+}
