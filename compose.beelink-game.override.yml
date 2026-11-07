@@ -1,0 +1,36 @@
+# aseso-game op de Beelink (kaart #103970): TEST eerst via test.rounda.io (poortwachter -> 192.168.1.244:8140), productie pas na go Ruben.
+# Gebruik (in ~/sites/aseso-game):
+#   docker compose --env-file ~/.config/aseso-game/test.env -f docker-compose.yml -f compose.beelink-game.override.yml up -d --build
+# Database: eigen database aseso_game op postgres-beelink (rol aseso_game_app), niet de postgres uit docker-compose.yml.
+services:
+  reverse-proxy:
+    ports: !override
+      - "8140:80"
+    volumes: !override
+      - ./caddy:/etc/caddy:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile.test", "--adapter", "caddyfile"]
+    mem_limit: 128m
+    labels: {nl.aseso.product: rounda, nl.aseso.omgeving: test, nl.aseso.pl: PL-rounda, nl.aseso.niveau: test}
+  frontend:
+    mem_limit: 64m
+    labels: {nl.aseso.product: rounda, nl.aseso.omgeving: test, nl.aseso.pl: PL-rounda, nl.aseso.niveau: test}
+  game-server:
+    mem_limit: 384m
+    networks: [internal, pgnet]
+    depends_on: !override
+      redis:
+        condition: service_healthy
+    labels: {nl.aseso.product: rounda, nl.aseso.omgeving: test, nl.aseso.pl: PL-rounda, nl.aseso.niveau: test}
+  redis:
+    mem_limit: 128m
+    labels: {nl.aseso.product: rounda, nl.aseso.omgeving: test, nl.aseso.pl: PL-rounda, nl.aseso.niveau: test}
+  postgres:
+    profiles: ["nooit"]
+  cloudflared:
+    profiles: ["nooit"]
+networks:
+  pgnet:
+    name: pgnet
+    external: true

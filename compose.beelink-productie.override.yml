@@ -1,0 +1,41 @@
+# aseso-game PRODUCTIE op de Beelink (kaart #103989): rounda.io + play.aseso.nl via tunnel productie -> http://localhost:8141.
+# Gebruik (in ~/sites/aseso-game-productie):
+#   docker compose -p aseso-game-productie --env-file ~/.config/aseso-game/productie.env -f docker-compose.yml -f compose.beelink-productie.override.yml up -d --build
+# Database: database aseso_game op postgres-beelink (rol aseso_game_app), niet de postgres uit docker-compose.yml.
+services:
+  reverse-proxy:
+    ports: !override
+      - "127.0.0.1:8141:80"
+    volumes: !override
+      - ./caddy:/etc/caddy:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    mem_limit: 128m
+    labels: {nl.aseso.product: rounda, nl.aseso.omgeving: productie, nl.aseso.pl: PL-rounda, nl.aseso.niveau: kritiek}
+  frontend:
+    mem_limit: 64m
+    labels: {nl.aseso.product: rounda, nl.aseso.omgeving: productie, nl.aseso.pl: PL-rounda, nl.aseso.niveau: kritiek}
+  game-server:
+    mem_limit: 384m
+    networks: [internal, pgnet]
+    depends_on: !override
+      redis:
+        condition: service_healthy
+    labels: {nl.aseso.product: rounda, nl.aseso.omgeving: productie, nl.aseso.pl: PL-rounda, nl.aseso.niveau: kritiek}
+  redis:
+    mem_limit: 128m
+    labels: {nl.aseso.product: rounda, nl.aseso.omgeving: productie, nl.aseso.pl: PL-rounda, nl.aseso.niveau: kritiek}
+  postgres:
+    profiles: ["nooit"]
+  cloudflared:
+    profiles: ["nooit"]
+networks:
+  # Docker-adrespools op de Beelink zijn vol (31 netwerken): expliciete subnetten buiten de pool, geen conflict met LAN 192.168.1.0/24.
+  edge:
+    ipam: {config: [{subnet: 10.77.141.0/24}]}
+  internal:
+    ipam: {config: [{subnet: 10.77.142.0/24}]}
+  pgnet:
+    name: pgnet
+    external: true
