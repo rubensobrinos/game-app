@@ -1,9 +1,27 @@
-# Testsite test.rounda.io op de Beelink (kaart #102476, golf 2). Bovenop compose.testsite.override.yml:
-# de poort staat op het LAN open, omdat de poortwachter (op de Mac) de testsite via `doel` 192.168.1.5 bereikt.
-# Op de Beelink draaien, in ~/sites/rounda-test, met het env-bestand ~/.config/rounda/test.env (mode 600, 1-op-1 gekopieerd van de Mac):
+# Testsite test.rounda.io op de Beelink (kaarten #102476 en #105871). Bovenop compose.testsite.override.yml.
+# Draaien op de Beelink, in ~/sites/rounda-test, met het env-bestand ~/.config/rounda/test.env (mode 600, 1-op-1 gekopieerd van de Mac):
 #   docker compose -p rounda-test --env-file ~/.config/rounda/test.env -f docker-compose.yml -f compose.testsite.override.yml -f compose.beelink.override.yml up -d --build
-# Zie devkit docs/ops/verhuizen-naar-beelink.md.
+# Normaal doet deploy/beelink-test.sh dat (TEST_OP_BEELINK in omgeving.conf).
+#
+# Poort: alleen 18100-18199 is voor rounda op de Beelink (8xxx is daar bijna vol; 8140 is de productie-proxy aseso-game).
+# Alleen op het LAN-adres van de Beelink; beide poortwachters (Mac en Beelink) gebruiken dat adres als doel.
+# Logging: de daemon op de Beelink heeft geen standaardlimiet, dus elke dienst krijgt er hier een.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   reverse-proxy:
     ports: !override
-      - "8140:80"
+      - "192.168.1.244:18100:80"
+    logging: *logging
+  frontend:
+    logging: *logging
+  game-server:
+    logging: *logging
+  redis:
+    logging: *logging
+  postgres:
+    logging: *logging

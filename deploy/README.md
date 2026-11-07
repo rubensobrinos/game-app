@@ -6,7 +6,7 @@ De omgevingen van deze site, volgens de devkit-standaard ([ADR-0032], [ADR-0035]
 | Omgeving | Adres | Draait uit | Database | launchd |
 |---|---|---|---|---|
 | lokaal | `localhost` | deze checkout | eigen dev-database | geen |
-| test | `https://test.rounda.io` | `$TEST_WORKTREE` (git worktree) | `$DB_TEST` | `nl.aseso.rounda.test` |
+| test | `https://test.rounda.io` | de Beelink, `~/sites/rounda-test` (`beelink-test.sh`, poort 18100) | `$DB_TEST` | geen (`nl.aseso.rounda.test` is uit sinds kaart #105871) |
 | productie | `https://rounda.io` | `$RELEASES/live` | `$DB_PRODUCTIE` | `nl.aseso.rounda.productie` |
 
 Alles wat per site verschilt (poorten, databases, paden, bouw- en startcommando)
